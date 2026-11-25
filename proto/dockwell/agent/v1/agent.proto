@@ -3393,6 +3393,9 @@ message DatabaseImportBegin {
   string format = 3;
   uint64 size_bytes = 4;
   string service_id = 5;
+  // Current size of the target database in bytes, used to reserve room for the
+  // pre-import backup alongside the staged upload and restored size.
+  uint64 database_size_bytes = 6;
 }
 
 // DatabaseImportReceive reads a chunk from ReceiveFile stream starting at offset.

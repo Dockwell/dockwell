@@ -61,11 +61,24 @@ func LogicalName(name string, spec *resourcev1.LogicalDatabase) string {
 	return cmp.Or(spec.GetDatabaseName(), name)
 }
 
-// CheckName takes a database name PostgreSQL, MySQL and MariaDB all accept
-// without quoting, and refuses system databases.
+// CheckName accepts a logical database resource name: either a plain SQL
+// database name or a service-scoped resource name like "<service>-<db>" (up to
+// 63 lowercase letters, digits, underscores and hyphens, starting with a
+// letter). The actual SQL database name is checked by Validate and Judge.
 func (*LogicalDriver) CheckName(name string) error {
-	if err := CheckSQLName("database", name); err != nil {
-		return err
+	if name == "" || len(name) > 63 {
+		return fmt.Errorf("%q isn't a valid database resource name: use 1 to 63 lowercase letters, digits, underscores and hyphens, starting with a letter", name)
+	}
+	for i := range len(name) {
+		c := name[i]
+		letter := c >= 'a' && c <= 'z'
+		digit := c >= '0' && c <= '9'
+		if i == 0 && !letter {
+			return fmt.Errorf("%q isn't a valid database resource name: start with a lowercase letter", name)
+		}
+		if !letter && !digit && c != '_' && c != '-' {
+			return fmt.Errorf("%q isn't a valid database resource name: use lowercase letters, digits, underscores and hyphens", name)
+		}
 	}
 	if SystemDatabase(name) {
 		return fmt.Errorf("%s is a database its server keeps for itself. Choose another name", name)
@@ -160,6 +173,9 @@ func (d *LogicalDriver) Judge(ctx context.Context, ref resource.Ref, actual, des
 	}
 	if s.GetOwner() != "" && !ownerExists {
 		return resource.Decision{}, fmt.Errorf("%s has no user %s to own %s. Pick an existing user, or make a new one", s.GetService(), s.GetOwner(), db)
+	}
+	if hasDeletedBackup(d.Dir, time.Now(), ref.Scope, s.GetService(), db) {
+		dec.Restores = true
 	}
 	return dec, nil
 }
@@ -380,10 +396,9 @@ func (d *LogicalDriver) Apply(ctx context.Context, step resource.Step, desired p
 		return err
 	}
 	g := &logicalGiven{Service: s.GetService(), Database: s.GetDatabaseName(), Owner: owner}
-	if step.Action == resource.ActionCreate {
-		if err := d.record(ref, g); err != nil {
-			return err
-		}
+	_, alreadyRecorded, err := d.recorded(ref)
+	if err != nil {
+		return err
 	}
 	var sql string
 	switch e.Kind {
@@ -393,8 +408,15 @@ func (d *LogicalDriver) Apply(ctx context.Context, step resource.Step, desired p
 			if owner != "" {
 				createStmt += " OWNER " + pgName(owner)
 			}
-			sql = "SELECT '" + createStmt + "' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '" + db + "')\n\\gexec\n" +
-				"REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n"
+			if alreadyRecorded {
+				// Retry of an earlier create that already recorded ownership.
+				sql = "SELECT '" + createStmt + "' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '" + db + "')\n\\gexec\n"
+			} else {
+				// Fail if another database with this name appeared between Judge and Apply
+				// so Dockwell never silently takes over a database it didn't make.
+				sql = createStmt + ";\n"
+			}
+			sql += "REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n"
 			if owner != "" && owner != "postgres" {
 				sql += pgOwnPublic(owner, db) + pgOldPublic
 			}
@@ -407,7 +429,11 @@ func (d *LogicalDriver) Apply(ctx context.Context, step resource.Step, desired p
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		var b strings.Builder
 		if step.Action == resource.ActionCreate {
-			b.WriteString("CREATE DATABASE IF NOT EXISTS " + myName(db) + ";\n")
+			if alreadyRecorded {
+				b.WriteString("CREATE DATABASE IF NOT EXISTS " + myName(db) + ";\n")
+			} else {
+				b.WriteString("CREATE DATABASE " + myName(db) + ";\n")
+			}
 		}
 		if owner != "" && owner != "root" {
 			var hosts []string
@@ -431,10 +457,32 @@ func (d *LogicalDriver) Apply(ctx context.Context, step resource.Step, desired p
 	}
 	if sql != "" {
 		if err := d.whileStarting(ctx, func() error { return d.run(ctx, c, e, sql) }); err != nil {
+			if step.Action == resource.ActionCreate && !alreadyRecorded && isDBExistsError(err) {
+				return fmt.Errorf("%s already has a database called %s, which Dockwell didn't make, so nothing was changed. Choose another name", s.GetService(), db)
+			}
+			return err
+		}
+	}
+	if step.Action == resource.ActionCreate && (step.Restores || hasDeletedBackup(d.Dir, time.Now(), ref.Scope, s.GetService(), db)) {
+		if err := restoreDeletedBackup(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, s.GetService(), db, owner, ""); err != nil {
+			// Undo failed to restore the kept backup: drop the empty database we just made.
+			if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+				_ = d.run(context.WithoutCancel(ctx), c, e, "DROP DATABASE IF EXISTS "+pgName(db)+";\n")
+			} else {
+				_ = d.run(context.WithoutCancel(ctx), c, e, "DROP DATABASE IF EXISTS "+myName(db)+";\n")
+			}
 			return err
 		}
 	}
 	return d.record(ref, g)
+}
+
+func isDBExistsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already exists") || strings.Contains(msg, "database exists")
 }
 
 func (d *LogicalDriver) drop(ctx context.Context, ref resource.Ref) error {
@@ -455,6 +503,10 @@ func (d *LogicalDriver) drop(ctx context.Context, ref resource.Ref) error {
 	case errors.As(err, &gone):
 		return d.record(ref, nil)
 	case err != nil:
+		return err
+	}
+	// Back up the database before dropping so Undo restores its data; refuse if backup fails.
+	if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, g.Service, db, g.Owner); err != nil {
 		return err
 	}
 	var sql string

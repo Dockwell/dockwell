@@ -89,15 +89,22 @@ type databaseKind struct {
 	completeOne string
 }
 
+// Password-loading snippets for official images, reading direct variables first
+// and falling back to their _FILE counterparts without putting secrets on argv.
+const (
+	pgAdminShell = `p="${POSTGRES_PASSWORD:-}"; [ -z "$p" ] && [ -n "${POSTGRES_PASSWORD_FILE:-}" ] && p="$(cat "$POSTGRES_PASSWORD_FILE")"; export PGPASSWORD="$p"`
+	myAdminShell = `p="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; [ -z "$p" ] && [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MARIADB_ROOT_PASSWORD_FILE")"; [ -z "$p" ] && [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MYSQL_ROOT_PASSWORD_FILE")"; export MYSQL_PWD="$p"`
+)
+
 // Each official image lets these run from inside with what its environment says.
 var databaseKinds = []*databaseKind{
 	{
 		name: "PostgreSQL", image: "postgres", data: "/var/lib/postgresql/data", dataVar: "PGDATA", series: 1, portFlags: true,
-		dump:        []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
-		load:        []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
+		dump:        []string{"sh", "-c", pgAdminShell + `; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
+		load:        []string{"sh", "-c", pgAdminShell + `; export PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
 		ready:       []string{"sh", "-c", `exec pg_isready -q -h 127.0.0.1 -p "${PGPORT:-5432}" -U "${POSTGRES_USER:-postgres}"`},
 		complete:    "PostgreSQL database cluster dump complete",
-		dumpOne:     []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dump -U "$2" ${3:+"--role=$3"} --no-owner --no-acl --clean --if-exists -d "$1"`, "sh"},
+		dumpOne:     []string{"sh", "-c", pgAdminShell + `; exec pg_dump -U "$2" ${3:+"--role=$3"} --no-owner --no-acl --clean --if-exists -d "$1"`, "sh"},
 		completeOne: "PostgreSQL database dump complete",
 		loadFailed:  postgresLoadFailed,
 		// pg_isready exits 3 when it never tried: its own command line is wrong.
@@ -106,16 +113,16 @@ var databaseKinds = []*databaseKind{
 		census:     []string{"sh", "-c", postgresCensus},
 	},
 	{
-		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: []string{"MYSQL_ROOT_PASSWORD"}, series: 2,
-		dump:        []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
-		dumpOne:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --single-transaction --routines --events --triggers --hex-blob --set-gtid-purged=OFF "$1"`, "sh"},
+		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: []string{"MYSQL_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD_FILE"}, series: 2,
+		dump:        []string{"sh", "-c", myAdminShell + `; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
+		dumpOne:     []string{"sh", "-c", myAdminShell + `; exec mysqldump -uroot --single-transaction --routines --events --triggers --hex-blob --set-gtid-purged=OFF "$1"`, "sh"},
 		completeOne: "Dump completed",
-		load:        []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
-		ready:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
+		load:        []string{"sh", "-c", myAdminShell + `; exec mysql -uroot --binary-mode=1`},
+		ready:       []string{"sh", "-c", myAdminShell + `; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
 		complete:    "Dump completed",
 		neverReady:  func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
-		preflight:   []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; c=mysql; ` + sqlPreflight},
-		census:      []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot -N -B -e "` + sqlCensus + `"`},
+		preflight:   []string{"sh", "-c", myAdminShell + `; c=mysql; ` + sqlPreflight},
+		census:      []string{"sh", "-c", myAdminShell + `; exec mysql -uroot -N -B -e "` + sqlCensus + `"`},
 		// From 8.0.16 the server upgrades what it holds as it starts; FORCE makes it
 		// go through tables a load wrote in the old layout.
 		upgradeArgs: []string{"--upgrade=FORCE"},
@@ -123,33 +130,33 @@ var databaseKinds = []*databaseKind{
 	{
 		// Its tools are mariadb and mariadb-dump from 10.5, and mysql and mysqldump
 		// before; its root password is in either variable, its own first.
-		name: "MariaDB", image: "mariadb", data: "/var/lib/mysql", needs: []string{"MARIADB_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD"}, series: 2,
+		name: "MariaDB", image: "mariadb", data: "/var/lib/mysql", needs: []string{"MARIADB_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD", "MARIADB_ROOT_PASSWORD_FILE", "MYSQL_ROOT_PASSWORD_FILE"}, series: 2,
 		// From 10.11 its dump keeps a system-versioned table's history, with
 		// --dump-history; an older one's would lose it, so a server with such a table
 		// is backed up as files (probe).
-		dump: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		dump: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
 			`history=""; "$tool" --help 2>/dev/null | grep -q -- '--dump-history' && history=--dump-history; ` +
 			`exec "$tool" -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges $history`},
-		dumpOne: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		dumpOne: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
 			`exec "$tool" -uroot --single-transaction --routines --events --triggers --hex-blob "$1"`, "sh"},
 		completeOne: "Dump completed",
-		probe: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		probe: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
 			`if "$tool" --help 2>/dev/null | grep -q -- '--dump-history'; then echo ok; exit 0; fi; ` +
 			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; ` +
 			`n=$("$c" -uroot -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_type = 'SYSTEM VERSIONED'") || exit 1; ` +
 			`[ "$n" = 0 ] && echo ok; exit 0`},
-		preflight: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		preflight: []string{"sh", "-c", myAdminShell + `; ` +
 			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; ` + sqlPreflight},
-		census: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		census: []string{"sh", "-c", myAdminShell + `; ` +
 			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; exec "$c" -uroot -N -B -e "` + sqlCensus + `"`},
-		upgrade: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		upgrade: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb-upgrade; command -v "$tool" >/dev/null 2>&1 || tool=mysql_upgrade; exec "$tool" -uroot --force`},
-		load: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		load: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" -uroot --binary-mode=1`},
-		ready: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+		ready: []string{"sh", "-c", myAdminShell + `; ` +
 			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
 		complete:   "Dump completed",
 		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
@@ -167,7 +174,7 @@ var databaseKinds = []*databaseKind{
 // What a move asks PostgreSQL before it stops anything, a line for each thing in the
 // way: a database that takes no connections, which pg_dumpall leaves out, and
 // replication either way. pg_subscription is from 10.
-const postgresPreflight = `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; u="${POSTGRES_USER:-postgres}"; ` +
+const postgresPreflight = pgAdminShell + `; u="${POSTGRES_USER:-postgres}"; ` +
 	`psql -X -q -At -U "$u" -d postgres -c "SELECT 'noconnect ' || datname FROM pg_database WHERE NOT datallowconn AND datname <> 'template0' ` +
 	`UNION ALL SELECT 'replica' WHERE pg_is_in_recovery() ` +
 	`UNION ALL SELECT 'replicas ' || count(*) FROM pg_stat_replication HAVING count(*) > 0 ` +
@@ -176,7 +183,7 @@ const postgresPreflight = `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; u="${POST
 
 // What PostgreSQL holds, as a move compares it: its roles but those it makes itself,
 // and each database that takes connections, with how many tables it has.
-const postgresCensus = `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; u="${POSTGRES_USER:-postgres}"; ` +
+const postgresCensus = pgAdminShell + `; u="${POSTGRES_USER:-postgres}"; ` +
 	`q() { psql -X -q -At -U "$u" -d "$1" -c "$2"; }; ` +
 	`q postgres "SELECT 'role ' || rolname FROM pg_roles WHERE rolname !~ '^pg_' ORDER BY 1" || exit 1; ` +
 	`dbs=$(q postgres "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1") || exit 1; ` +

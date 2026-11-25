@@ -80,7 +80,7 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
       ? t`Its volume isn't one Dockwell backs up`
       : t`It needs a managed volume so Dockwell can back it up first`
     : count === 0
-      ? t`Create a database first before importing a dump`
+      ? t`Create a database to import into`
       : mayImport.allowed
         ? undefined
         : mayImport.reason;
@@ -128,7 +128,7 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
       off: d.system
         ? t`Its server keeps ${d.name} for itself`
         : d.linkedBy.length > 0
-          ? t`Linked by ${linked}. Disconnect first`
+          ? t`Used by ${linked}. Disconnect or stop using it first`
           : !d.resourceId
             ? t`Dockwell didn't make ${d.name}, so it doesn't delete it`
             : mayDelete.allowed

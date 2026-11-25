@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   type Change,
+  ChangeService,
   ChangeState,
   type Database,
   DatabaseEngine,
@@ -14,7 +15,7 @@ import {
 } from "@dockwell/api";
 import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -77,23 +78,41 @@ export function ImportDumpSheet({
   const [plan, setPlan] = useState<Opening>();
   const abortRef = useRef<AbortController | null>(null);
   const stagedIdRef = useRef<string>("");
+  const plannedChangeIdRef = useRef<string>("");
+  const transportRef = useRef(transport);
+  transportRef.current = transport;
+  const mayCancelRef = useRef(mayCancel.allowed);
+  mayCancelRef.current = mayCancel.allowed;
+  const dbIdRef = useRef(db.id);
+  dbIdRef.current = db.id;
 
-  const cancelStaged = (importId: string) => {
-    if (!importId || !mayCancel.allowed) return;
+  const cancelStaged = useCallback((importId: string) => {
+    if (!importId || !mayCancelRef.current) return;
     stagedIdRef.current = "";
-    void createClient(DatabaseService, transport)
-      .cancelDatabaseImport({ id: db.id, importId })
+    void createClient(DatabaseService, transportRef.current)
+      .cancelDatabaseImport({ id: dbIdRef.current, importId })
       .catch(() => {});
-  };
+  }, []);
+
+  const discardPlanned = useCallback((changeId: string) => {
+    if (!changeId) return;
+    plannedChangeIdRef.current = "";
+    void createClient(ChangeService, transportRef.current)
+      .discardChange({ id: changeId })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      if (plannedChangeIdRef.current) discardPlanned(plannedChangeIdRef.current);
+      if (stagedIdRef.current) cancelStaged(stagedIdRef.current);
     };
-  }, []);
+  }, [cancelStaged, discardPlanned]);
 
   const handleClose = () => {
     abortRef.current?.abort();
+    if (plannedChangeIdRef.current) discardPlanned(plannedChangeIdRef.current);
     if (stagedIdRef.current) cancelStaged(stagedIdRef.current);
     onClose();
   };
@@ -120,7 +139,7 @@ export function ImportDumpSheet({
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (!database) {
-      setFailure(t`Create a database first before importing a dump.`);
+      setFailure(t`Create a database to import into.`);
       return;
     }
     if (!file) {
@@ -172,6 +191,7 @@ export function ImportDumpSheet({
 
       const planned = await client.planDatabaseImport({ id: db.id, importId }, { signal: controller.signal });
       const change: Change | undefined = planned.change;
+      plannedChangeIdRef.current = change?.id ?? "";
       setUploading(false);
       abortRef.current = null;
       setPlan({
@@ -180,16 +200,27 @@ export function ImportDumpSheet({
         retryLabel: t`Choose another file`,
         onDone: () => {
           stagedIdRef.current = "";
+          plannedChangeIdRef.current = "";
           onClose();
         },
         onClose: (after) => {
           if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.FAILED) {
             setPlan(undefined);
+            if ((!after || after.state === ChangeState.PLANNED) && plannedChangeIdRef.current) {
+              discardPlanned(plannedChangeIdRef.current);
+            } else {
+              plannedChangeIdRef.current = "";
+            }
             if (stagedIdRef.current && after?.state !== ChangeState.APPLIED) {
               cancelStaged(stagedIdRef.current);
             }
           } else {
-            stagedIdRef.current = "";
+            plannedChangeIdRef.current = "";
+            if (after.state === ChangeState.DISCARDED && stagedIdRef.current) {
+              cancelStaged(stagedIdRef.current);
+            } else {
+              stagedIdRef.current = "";
+            }
             onClose();
           }
         },
@@ -217,7 +248,7 @@ export function ImportDumpSheet({
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       title={t`Import dump into ${name}`}
-      subtitle={t`Backs up the chosen database first, then restores with ${engine}'s own tool`}
+      subtitle={t`Backs up the chosen database first, then loads as its owner. Admins only.`}
       onClose={handleClose}
       className={cx("app-sheet", phone && "is-phone")}
       footer={
@@ -265,7 +296,7 @@ export function ImportDumpSheet({
           <p className="dw-hint">
             {file
               ? t`${file.name} (${formatBytes(BigInt(file.size), i18n.locale)})`
-              : t`Accepts ${extensions.join(", ")}. Streamed in chunks to the server.`}
+              : t`Accepts ${extensions.join(", ")}.`}
           </p>
           {fileError ? (
             <p className="dw-field-error" role="alert">

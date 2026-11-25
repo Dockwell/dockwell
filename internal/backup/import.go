@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/lazyre"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
@@ -41,17 +41,20 @@ const (
 	// ImportPartBytes is the suggested chunk size per upload PUT (8 MiB).
 	ImportPartBytes uint64 = 8 << 20
 
-	importTTL        = 24 * time.Hour
-	maxStagedImports = 16
-	importTailLines  = 15
-	importTailBytes  = 4 << 10
+	importTTL           = 24 * time.Hour
+	importIncompleteTTL = time.Hour
+	importSweepEvery    = 10 * time.Minute
+	maxStagedImports    = 16
+	importTailLines     = 10
+	importTailBytes     = 4 << 10
+	importLockTimeout   = "30s"
 )
 
-var validImportIDRe = regexp.MustCompile(`^imp_[0-9A-Za-z]{10,40}$`)
+var validImportIDRe = lazyre.Regexp(`^imp_[0-9A-Za-z]+$`)
 
 // ValidImportID reports whether s is a well-formed staged import identifier.
 func ValidImportID(s string) bool {
-	return validImportIDRe.MatchString(s)
+	return len(s) >= 14 && len(s) <= 44 && validImportIDRe().MatchString(s)
 }
 
 // DetectImportFormat normalizes a dump filename's extension to one of sql,
@@ -110,6 +113,14 @@ type ImportMeta struct {
 	Offset    uint64    `json:"offset"`
 	Complete  bool      `json:"complete"`
 	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+}
+
+func (m *ImportMeta) lastTouched() time.Time {
+	if !m.UpdatedAt.IsZero() {
+		return m.UpdatedAt
+	}
+	return m.CreatedAt
 }
 
 // ImportError carries a machine-readable reason for staged upload refusals.
@@ -134,7 +145,7 @@ func (r *Runner) importDataPath(importID string) string {
 
 func (r *Runner) readImportMeta(importID string) (*ImportMeta, error) {
 	if !ValidImportID(importID) {
-		return nil, &ImportError{Reason: "invalid", Message: "invalid import ID"}
+		return nil, &ImportError{Reason: "invalid", Message: "that staged import ID isn't valid. Start a new dump upload"}
 	}
 	b, err := os.ReadFile(r.importMetaPath(importID))
 	if errors.Is(err, os.ErrNotExist) {
@@ -166,44 +177,94 @@ func (r *Runner) removeImportFiles(importID string) {
 	_ = os.Remove(r.importMetaPath(importID))
 }
 
+// SweepImports removes expired completed uploads (after 24 h), idle incomplete
+// uploads (after 1 h), and orphan partial files without metadata.
+func (r *Runner) SweepImports() {
+	r.importMu.Lock()
+	defer r.importMu.Unlock()
+	r.sweepExpiredImportsLocked()
+}
+
 func (r *Runner) sweepExpiredImportsLocked() {
 	entries, err := os.ReadDir(r.importsDir())
 	if err != nil {
 		return
 	}
-	cutoff := r.now().UTC().Add(-importTTL)
+	now := r.now().UTC()
+	seenJSON := map[string]bool{}
 	for _, e := range entries {
 		name := e.Name()
 		if !strings.HasSuffix(name, ".json") {
 			continue
 		}
 		importID := strings.TrimSuffix(name, ".json")
+		seenJSON[importID] = true
 		if r.importBusy[importID] {
 			continue
 		}
 		m, err := r.readImportMeta(importID)
-		if err != nil || m.CreatedAt.Before(cutoff) {
+		if err != nil {
+			r.removeImportFiles(importID)
+			continue
+		}
+		ttl := importTTL
+		if !m.Complete {
+			ttl = importIncompleteTTL
+		}
+		if now.Sub(m.lastTouched()) > ttl {
 			r.removeImportFiles(importID)
 		}
 	}
+	// Remove orphan .part files with no matching metadata.
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".part") {
+			continue
+		}
+		importID := strings.TrimSuffix(name, ".part")
+		if seenJSON[importID] || r.importBusy[importID] {
+			continue
+		}
+		_ = os.Remove(filepath.Join(r.importsDir(), name))
+	}
 }
 
-func (r *Runner) countStagedImportsLocked() int {
+func (r *Runner) stagedImportsStatsLocked() (count int, unwritten uint64) {
 	entries, err := os.ReadDir(r.importsDir())
 	if err != nil {
-		return 0
+		return 0, 0
 	}
-	n := 0
 	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".json") {
-			n++
+		name := e.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		count++
+		importID := strings.TrimSuffix(name, ".json")
+		m, err := r.readImportMeta(importID)
+		if err != nil {
+			continue
+		}
+		if m.SizeBytes > m.Offset {
+			unwritten += m.SizeBytes - m.Offset
 		}
 	}
-	return n
+	return count, unwritten
+}
+
+// estimatedRestoredBytes estimates the uncompressed space needed in the
+// database engine for a dump of format and sizeBytes.
+func estimatedRestoredBytes(format string, sizeBytes uint64) uint64 {
+	switch format {
+	case ImportFormatSQLGZ, ImportFormatDump:
+		return sizeBytes * 3
+	default:
+		return sizeBytes
+	}
 }
 
 // BeginImport creates a new staged dump upload or inspects an existing one for resume.
-func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes uint64) (*ImportMeta, error) {
+func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes, dbSizeBytes uint64) (*ImportMeta, error) {
 	if owner == "" {
 		return nil, &ImportError{Reason: "invalid", Message: "staged import has no owner"}
 	}
@@ -220,7 +281,7 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 			return nil, err
 		}
 		if m.Owner != owner {
-			return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another session. Upload the file again"}
+			return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another user. Upload the file again"}
 		}
 		return m, nil
 	}
@@ -243,23 +304,29 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 		return nil, &ImportError{Reason: "invalid", Message: "that dump file is empty. Choose a non-empty dump file"}
 	}
 	if sizeBytes > MaxImportBytes {
-		return nil, &ImportError{Reason: "too_large", Message: "that dump file is larger than the 16 GiB limit"}
+		return nil, &ImportError{Reason: "too_large", Message: "that dump file is larger than the 16 GiB limit. Split it, or import it from the server's console"}
 	}
-	if r.countStagedImportsLocked() >= maxStagedImports {
+	stagedCount, stagedUnwritten := r.stagedImportsStatsLocked()
+	if stagedCount >= maxStagedImports {
 		return nil, &ImportError{Reason: "too_many_imports", Message: "this server already has too many staged dump uploads in progress. Cancel or finish one first"}
 	}
 	if err := os.MkdirAll(r.importsDir(), 0o700); err != nil {
 		return nil, err
 	}
-	if r.Disk != nil {
-		d := r.Disk()
-		// Need room for the staged file plus a safety margin for the pre-import backup.
-		need := int64(sizeBytes) + d.reserve
-		if d.free > 0 && d.free < need {
-			return nil, &ImportError{Reason: "no_space", Message: "this server doesn't have enough free disk space to stage this dump and back up the database first"}
+	if d, derr := r.disk(); derr == nil && d.free > 0 {
+		// Count: remaining bytes of other staged uploads + this upload + pre-import
+		// backup of the target database + estimated restored size + disk reserve.
+		restored := estimatedRestoredBytes(format, sizeBytes)
+		need := stagedUnwritten + sizeBytes + dbSizeBytes + restored
+		if d.reserve > 0 {
+			need += uint64(d.reserve)
+		}
+		if uint64(d.free) < need {
+			return nil, &ImportError{Reason: "no_space", Message: "this server doesn't have enough free disk space to stage this dump, back up the database first, and load it"}
 		}
 	}
 
+	now := r.now().UTC()
 	meta := &ImportMeta{
 		ID:        id.New("imp"),
 		Owner:     owner,
@@ -270,7 +337,8 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 		SizeBytes: sizeBytes,
 		Offset:    0,
 		Complete:  false,
-		CreatedAt: r.now().UTC(),
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 	f, err := os.OpenFile(r.importDataPath(meta.ID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
@@ -290,6 +358,12 @@ func (r *Runner) WriteImport(ctx context.Context, importID, owner string, offset
 	if r.importBusy == nil {
 		r.importBusy = map[string]bool{}
 	}
+	if r.importCancel == nil {
+		r.importCancel = map[string]context.CancelFunc{}
+	}
+	if r.importCanceled == nil {
+		r.importCanceled = map[string]bool{}
+	}
 	if r.importBusy[importID] {
 		r.importMu.Unlock()
 		return nil, &ImportError{Reason: "upload_busy", Message: "another chunk of this dump is already uploading. Wait for it to finish"}
@@ -301,42 +375,65 @@ func (r *Runner) WriteImport(ctx context.Context, importID, owner string, offset
 	}
 	if meta.Owner != owner {
 		r.importMu.Unlock()
-		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another session. Upload the file again"}
+		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another user. Upload the file again"}
 	}
 	if offset != meta.Offset {
 		r.importMu.Unlock()
 		return nil, &ImportError{Reason: "upload_offset", Message: fmt.Sprintf("upload offset %d doesn't match the %d bytes the server holds", offset, meta.Offset)}
 	}
+	writeCtx, cancelWrite := context.WithCancel(ctx)
 	r.importBusy[importID] = true
+	r.importCancel[importID] = cancelWrite
+	delete(r.importCanceled, importID)
 	r.importMu.Unlock()
+
+	var f *os.File
+	removeOnExit := false
 	defer func() {
+		if f != nil {
+			_ = f.Close()
+		}
+		cancelWrite()
 		r.importMu.Lock()
+		canceled := r.importCanceled[importID]
 		delete(r.importBusy, importID)
+		delete(r.importCancel, importID)
+		delete(r.importCanceled, importID)
+		if canceled || removeOnExit {
+			r.removeImportFiles(importID)
+		}
 		r.importMu.Unlock()
 	}()
 
-	f, err := os.OpenFile(r.importDataPath(importID), os.O_WRONLY, 0o600)
+	f, err = os.OpenFile(r.importDataPath(importID), os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, &ImportError{Reason: "import_gone", Message: "the staged dump file is missing on the server. Upload the file again"}
 	}
-	defer f.Close()
 	if _, err := f.Seek(int64(offset), io.SeekStart); err != nil { //nolint:gosec // bounded by MaxImportBytes
 		return nil, err
 	}
 
 	written := offset
 	for {
-		if err := ctx.Err(); err != nil {
+		if err := writeCtx.Err(); err != nil {
+			r.importMu.Lock()
+			canceled := r.importCanceled[importID]
+			r.importMu.Unlock()
+			if canceled {
+				return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload was cancelled"}
+			}
 			break
 		}
 		chunk, err := next()
 		if len(chunk) > 0 {
 			if written+uint64(len(chunk)) > meta.SizeBytes {
+				removeOnExit = true
 				return nil, &ImportError{Reason: "too_large", Message: "the upload sent more bytes than the declared file size"}
 			}
 			n, werr := f.Write(chunk)
 			written += uint64(n) //nolint:gosec // n >= 0
 			if werr != nil {
+				removeOnExit = true
 				return nil, werr
 			}
 		}
@@ -344,18 +441,33 @@ func (r *Runner) WriteImport(ctx context.Context, importID, owner string, offset
 			break
 		}
 		if err != nil {
+			r.importMu.Lock()
+			canceled := r.importCanceled[importID]
+			r.importMu.Unlock()
+			if canceled {
+				return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload was cancelled"}
+			}
 			// Save progress received so far so the client can resume from meta.Offset.
 			meta.Offset = written
 			meta.Complete = written == meta.SizeBytes
+			meta.UpdatedAt = r.now().UTC()
 			_ = r.saveImportMeta(meta)
 			return nil, err
 		}
 	}
+	r.importMu.Lock()
+	canceled := r.importCanceled[importID]
+	r.importMu.Unlock()
+	if canceled {
+		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload was cancelled"}
+	}
 	if err := f.Sync(); err != nil {
+		removeOnExit = true
 		return nil, err
 	}
 	meta.Offset = written
 	meta.Complete = written == meta.SizeBytes
+	meta.UpdatedAt = r.now().UTC()
 	if err := r.saveImportMeta(meta); err != nil {
 		return nil, err
 	}
@@ -376,7 +488,7 @@ func (r *Runner) InspectImport(importID, owner string) (*ImportMeta, error) {
 		return nil, err
 	}
 	if owner != "" && meta.Owner != owner {
-		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another session. Upload the file again"}
+		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another user. Upload the file again"}
 	}
 	if !meta.Complete || meta.Offset != meta.SizeBytes {
 		return nil, &ImportError{Reason: "incomplete", Message: fmt.Sprintf("only %d of %d bytes of %s have uploaded. Finish uploading before planning", meta.Offset, meta.SizeBytes, meta.Filename)}
@@ -392,13 +504,13 @@ func (r *Runner) InspectImport(importID, owner string) (*ImportMeta, error) {
 	return meta, nil
 }
 
-// CancelImport removes a staged dump upload owned by owner.
+// CancelImport removes a staged dump upload. If a chunk upload is currently in
+// progress, CancelImport signals it to stop and marks the staged files for
+// immediate removal when the writer exits instead of failing with upload_busy.
+// When owner is empty (admin cancel), any staged upload can be cancelled.
 func (r *Runner) CancelImport(importID, owner string) error {
 	r.importMu.Lock()
 	defer r.importMu.Unlock()
-	if r.importBusy[importID] {
-		return &ImportError{Reason: "upload_busy", Message: "this dump is currently receiving data. Stop the upload first"}
-	}
 	meta, err := r.readImportMeta(importID)
 	if err != nil {
 		var ie *ImportError
@@ -408,7 +520,17 @@ func (r *Runner) CancelImport(importID, owner string) error {
 		return err
 	}
 	if owner != "" && meta.Owner != owner {
-		return &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another session"}
+		return &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another user"}
+	}
+	if r.importBusy[importID] {
+		if r.importCanceled == nil {
+			r.importCanceled = map[string]bool{}
+		}
+		r.importCanceled[importID] = true
+		if cancel := r.importCancel[importID]; cancel != nil {
+			cancel()
+		}
+		return nil
 	}
 	r.removeImportFiles(importID)
 	return nil
@@ -474,6 +596,93 @@ func validateImportHeader(path, format string) error {
 	}
 }
 
+// scanImportFile scans a staged plain or gzipped SQL dump for refused commands
+// and statements.
+func scanImportFile(engine dockwellv1.DatabaseEngine, path, format string) error {
+	f, err := os.Open(path) //nolint:gosec // validated staged dump path
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	var src io.Reader = f
+	if format == ImportFormatSQLGZ {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("can't decompress staged dump: %w", err)
+		}
+		defer gz.Close()
+		src = gz
+	}
+	return scanSQLDump(engine, src)
+}
+
+// scanImportArchive converts a PostgreSQL .dump/.tar archive to SQL in a
+// networkless throwaway container and scans the resulting SQL stream.
+func (r *Runner) scanImportArchive(ctx context.Context, c *docker.Container, path, format string) error {
+	f, err := os.Open(path) //nolint:gosec // validated staged dump path
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	pr, pw := io.Pipe()
+	convDone := make(chan error, 1)
+	go func() {
+		err := engines.Loader{Client: r.Client}.PGArchiveToSQL(ctx, c, format, true, f, pw)
+		_ = pw.CloseWithError(err)
+		convDone <- err
+	}()
+	scanErr := scanSQLDump(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, pr)
+	_ = pr.CloseWithError(scanErr)
+	convErr := <-convDone
+	if scanErr != nil {
+		return scanErr
+	}
+	if convErr != nil {
+		var le *engines.LoadError
+		if errors.As(convErr, &le) {
+			return fmt.Errorf("can't read PostgreSQL archive: %s", sanitizeImportError(firstNonEmpty(le.RawSaid, le.Said)))
+		}
+		return fmt.Errorf("can't read PostgreSQL archive: %w", convErr)
+	}
+	return nil
+}
+
+// mysqlVersionUnwrapper wraps a MySQL/MariaDB SQL stream line-by-line so
+// versioned comments (/*!40101 ... */) are scanned as SQL while MariaDB's
+// sandbox pragma (/*!999999\- ... */) is skipped.
+type mysqlVersionUnwrapper struct {
+	br  *bufio.Reader
+	buf []byte
+	eof bool
+}
+
+func newMySQLVersionUnwrapper(r io.Reader) *mysqlVersionUnwrapper {
+	return &mysqlVersionUnwrapper{br: bufio.NewReaderSize(r, 32<<10)}
+}
+
+func (u *mysqlVersionUnwrapper) Read(p []byte) (int, error) {
+	for len(u.buf) == 0 {
+		if u.eof {
+			return 0, io.EOF
+		}
+		line, err := u.br.ReadBytes('\n')
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				u.eof = true
+				if len(line) == 0 {
+					return 0, io.EOF
+				}
+			} else {
+				return 0, err
+			}
+		}
+		u.buf = unwrapMySQLVersionedComments(line)
+	}
+	n := copy(p, u.buf)
+	u.buf = u.buf[n:]
+	return n, nil
+}
+
 // judgeImport plans importing a staged dump into one logical database.
 func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource.RestoreSource) (resource.Decision, bool, error) {
 	meta, err := r.InspectImport(src.ImportID, "")
@@ -506,6 +715,33 @@ func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource
 	if err := r.checkLogicalExists(ctx, db, dbName); err != nil {
 		return resource.Decision{}, false, err
 	}
+	c, err := r.Client.InspectContainer(ctx, db.id)
+	if err != nil {
+		return resource.Decision{}, false, err
+	}
+	e := engines.Recognise(c.Config.Image)
+	if e == nil {
+		return resource.Decision{}, false, fmt.Errorf("%s doesn't run %s from its official image, so %s can't be imported into", db.name, db.kind.name, dbName)
+	}
+	// Verify ADR 0084 owner-role lockout is possible so imports never run as superuser.
+	if l, err := r.readLockout(ref, dbName); err != nil {
+		return resource.Decision{}, false, err
+	} else if l == nil {
+		if _, err := engines.ReadLockout(ctx, r.Client, c, e, dbName); err != nil {
+			return resource.Decision{}, false, fmt.Errorf("can't import into %s as its owner: %w", dbName, err)
+		}
+	}
+	// Pre-scan the staged dump before creating a plan.
+	stagedPath := r.importDataPath(meta.ID)
+	if meta.Format == ImportFormatDump || meta.Format == ImportFormatTar {
+		if err := r.scanImportArchive(ctx, c, stagedPath, meta.Format); err != nil {
+			return resource.Decision{}, false, err
+		}
+	} else {
+		if err := scanImportFile(engineKind, stagedPath, meta.Format); err != nil {
+			return resource.Decision{}, false, err
+		}
+	}
 	est := estimate(&Manifest{Format: formatDump, Size: int64(meta.SizeBytes)}) //nolint:gosec // bounded by MaxImportBytes
 	return resource.Decision{
 		Action:   resource.ActionReplace,
@@ -523,43 +759,10 @@ func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource
 	}, true, nil
 }
 
-// judgeUndoImport plans undoing a previous dump import by restoring its
-// pre-import backup of that single logical database.
-func (r *Runner) judgeUndoImport(ctx context.Context, ref resource.Ref, src resource.RestoreSource, m *Manifest) (resource.Decision, bool, error) {
-	t := volume.TargetOf(ref)
-	if _, err := r.Client.InspectVolume(ctx, t.Name); err != nil {
-		return resource.Decision{}, false, r.noVolume(ref, err)
-	}
-	u, err := r.users(ctx, t)
-	if err != nil {
-		return resource.Decision{}, false, err
-	}
-	db, err := oneServer(u, m)
-	if err != nil {
-		return resource.Decision{}, false, err
-	}
-	if err := r.checkLogicalExists(ctx, db, m.OneDatabase); err != nil {
-		return resource.Decision{}, false, err
-	}
-	return resource.Decision{
-		Action:   resource.ActionReplace,
-		Effect:   resource.EffectRestart,
-		Destroys: true,
-		Downtime: estimate(m),
-		Restore: &resource.RestorePlan{
-			Undoes:      src.Undoes,
-			Method:      m.Method,
-			Database:    m.Database,
-			OneDatabase: m.OneDatabase,
-			Taken:       m.Taken,
-			Size:        m.Size,
-		},
-	}, true, nil
-}
-
-// applyImport backs up the target logical database first, then streams the
-// staged dump into the engine's own tool inside its container with progress
-// and last-lines failure diagnostics, rolling back on failure.
+// applyImport locks out the database's owner (ADR 0084), backs up the database
+// as its owner (kept for 7 days for Undo via restoreOne), loads the pre-scanned
+// dump strictly as the owner through engines.Loader, and rolls back cleanly by
+// emptying and restoring on failure before letting the app back in.
 func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Target, st *state, src resource.RestoreSource) error {
 	meta, err := r.InspectImport(src.ImportID, "")
 	if err != nil {
@@ -584,9 +787,60 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 	if err := r.checkLogicalExists(ctx, db, dbName); err != nil {
 		return err
 	}
+	c, err := r.Client.InspectContainer(ctx, db.id)
+	if err != nil {
+		return err
+	}
+	e := engines.Recognise(c.Config.Image)
+	if e == nil {
+		return fmt.Errorf("%s doesn't run %s from its official image, so %s can't be imported into", db.name, db.kind.name, dbName)
+	}
+
+	// Re-scan plain/gzipped dumps before locking out the app or touching the database.
+	stagedPath := r.importDataPath(meta.ID)
+	if meta.Format == ImportFormatSQL || meta.Format == ImportFormatSQLGZ {
+		resource.Progress(ctx, "Checking "+meta.Filename+" before importing")
+		if err := scanImportFile(engineKind, stagedPath, meta.Format); err != nil {
+			return err
+		}
+	}
+
+	// Take up an existing lockout or read and save a new one before changing anything (M1).
+	lockout, err := r.readLockout(ref, dbName)
+	if err != nil {
+		return err
+	}
+	took := lockout != nil
+	if !took {
+		if lockout, err = engines.ReadLockout(ctx, r.Client, c, e, dbName); err != nil {
+			return fmt.Errorf("can't keep %s's user out, so nothing was changed: %w", dbName, err)
+		}
+		if err := os.MkdirAll(r.dir(ref), 0o700); err != nil {
+			return fmt.Errorf("can't make a place for %s's import state, so nothing was changed: %w", dbName, err)
+		}
+		if err := r.saveLockout(ref, dbName, lockout); err != nil {
+			return fmt.Errorf("can't keep a record of who importing into %s keeps out, so nothing was changed: %w", dbName, err)
+		}
+	}
+	st.One = lockout
+	unloaded := func(err error) error {
+		if took {
+			return fmt.Errorf("%w. %s stays kept out of %s, as an earlier restore left it. Undo this change or try again", err, lockout.Owner, dbName)
+		}
+		return errors.Join(err, r.letIn(ctx, ref, c, e, dbName, lockout))
+	}
+
+	resource.Progress(ctx, "Keeping "+dbName+"'s user out while it imports")
+	password, err := engines.LockOut(ctx, r.Client, c, e, dbName, lockout)
+	if err != nil {
+		return unloaded(fmt.Errorf("can't keep %s's user out, so nothing was imported: %w", dbName, err))
+	}
+	if err := r.saveState(ref, st, st.Stage); err != nil {
+		return unloaded(err)
+	}
+
 	if !reached(st.Stage, stageCopied) {
 		resource.Progress(ctx, "Backing up "+dbName+" before importing (kept for 7 days)")
-		st.Imported = true
 		st.Manifest = Manifest{
 			ID:          beforePrefix + st.Change,
 			Environment: ref.Scope,
@@ -599,99 +853,57 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 			Taken:       r.now().UTC(),
 		}
 		if err := os.MkdirAll(r.dir(ref), 0o700); err != nil {
-			return fmt.Errorf("can't make a place for the pre-import backup: %w", err)
+			return unloaded(fmt.Errorf("can't make a place for the pre-import backup: %w", err))
+		}
+		var as []string
+		if lockout.Loader != "" {
+			// Its owner can't sign in now: the loader role dumps it, as the owner (H2).
+			as = []string{lockout.Loader, lockout.Owner}
 		}
 		err := r.write(ref, &st.Manifest, func(w io.Writer) (int64, error) {
 			var derr error
-			st.Unpacked, derr = r.dumpOneAdmin(ctx, db, dbName, w)
+			st.Unpacked, derr = r.dumpAs(ctx, ref, db, dbName, as, w)
 			return 0, derr
 		}, verifyOne(db.kind))
 		if err != nil {
-			return fmt.Errorf("can't back up %s before importing, so nothing was changed: %w", dbName, err)
+			return unloaded(fmt.Errorf("can't back up %s before importing, so nothing was changed: %w", dbName, err))
 		}
 		if err := r.saveState(ref, st, stageCopied); err != nil {
-			return err
+			return unloaded(err)
 		}
 	}
+
 	before := filepath.Join(r.dir(ref), st.ID+"."+st.Format)
 	if !reached(st.Stage, stageReplaced) {
 		if err := r.saveState(ref, st, stageReplacing); err != nil {
-			return err
+			return unloaded(err)
 		}
 		resource.Progress(ctx, fmt.Sprintf("Importing %s into %s", meta.Filename, dbName))
-		if err := r.runDumpImport(ctx, db, dbName, r.importDataPath(meta.ID), meta.Format, meta.Filename, meta.SizeBytes); err != nil {
+		if err := r.runDumpImport(ctx, c, e, dbName, lockout, password, stagedPath, meta.Format, meta.Filename, meta.SizeBytes); err != nil {
 			failed := fmt.Errorf("importing %s into %s failed: %w", meta.Filename, dbName, err)
-			// Restore the pre-import backup so the database is not left half-imported.
+			// Empty and restore the pre-import backup as owner so extra tables added
+			// before failure are removed and ownership stays intact (H2, M2).
 			putCtx, cancel := resource.Finishing(ctx, putBackWait)
 			defer cancel()
 			resource.Progress(putCtx, "Putting back what was in "+dbName+" before the import")
-			if perr := r.restoreAdminBackup(putCtx, db, dbName, before); perr != nil {
-				return fmt.Errorf("%w. Putting back what was there failed too: %w. A backup from before the import is at %s on this server", failed, perr, before)
+			if perr := r.loadInto(putCtx, c, e, dbName, lockout, password, before); perr != nil {
+				return fmt.Errorf("%w. Putting back what was there failed too: %w. %s stays kept out of %s, as what's in it may not be whole. "+
+					"A dump of what was there is at %s on this server. Run dockwell changes undo %s to try again",
+					failed, perr, lockout.Owner, dbName, before, st.Change)
 			}
 			_ = r.saveState(ref, st, stageUndone)
-			return fmt.Errorf("%w. What was in %s before the import is back", failed, dbName)
+			if lerr := r.letIn(ctx, ref, c, e, dbName, lockout); lerr != nil {
+				return fmt.Errorf("%w. What was in %s before the import is back, and %w", failed, dbName, lerr)
+			}
+			return fmt.Errorf("%w. What was in %s before the import is back, and its user signs in again", failed, dbName)
 		}
 		if err := r.saveState(ref, st, stageReplaced); err != nil {
 			return err
 		}
 	}
 	r.removeImportFiles(meta.ID)
-	return r.saveState(ref, st, stageFinished)
-}
-
-// applyUndoImport puts back the pre-import backup taken by an earlier dump import.
-func (r *Runner) applyUndoImport(ctx context.Context, ref resource.Ref, t volume.Target, st *state, m *Manifest, file string) error {
-	u, err := r.users(ctx, t)
-	if err != nil {
-		return err
-	}
-	db, err := oneServer(u, m)
-	if err != nil {
-		return err
-	}
-	dbName := m.OneDatabase
-	if err := r.checkLogicalExists(ctx, db, dbName); err != nil {
-		return err
-	}
-	if !reached(st.Stage, stageCopied) {
-		resource.Progress(ctx, "Backing up "+dbName+" before undoing the import")
-		st.Imported = true
-		st.Manifest = Manifest{
-			ID:          beforePrefix + st.Change,
-			Environment: ref.Scope,
-			Volume:      ref.Name,
-			Format:      db.kind.dumpFormat(),
-			Method:      resource.BackupDump,
-			Database:    db.kind.name,
-			OneDatabase: dbName,
-			Image:       db.image,
-			Taken:       r.now().UTC(),
-		}
-		if err := os.MkdirAll(r.dir(ref), 0o700); err != nil {
-			return err
-		}
-		if err := r.write(ref, &st.Manifest, func(w io.Writer) (int64, error) {
-			var derr error
-			st.Unpacked, derr = r.dumpOneAdmin(ctx, db, dbName, w)
-			return 0, derr
-		}, verifyOne(db.kind)); err != nil {
-			return fmt.Errorf("can't back up %s before undoing the import: %w", dbName, err)
-		}
-		if err := r.saveState(ref, st, stageCopied); err != nil {
-			return err
-		}
-	}
-	if !reached(st.Stage, stageReplaced) {
-		if err := r.saveState(ref, st, stageReplacing); err != nil {
-			return err
-		}
-		resource.Progress(ctx, "Restoring "+dbName+" to what was there before the import")
-		if err := r.restoreAdminBackup(ctx, db, dbName, file); err != nil {
-			return fmt.Errorf("undoing the import into %s failed: %w", dbName, err)
-		}
-		if err := r.saveState(ref, st, stageReplaced); err != nil {
-			return err
-		}
+	if err := r.letIn(ctx, ref, c, e, dbName, lockout); err != nil {
+		return fmt.Errorf("%s holds the import now, and %w. Undo this change or try again", dbName, err)
 	}
 	return r.saveState(ref, st, stageFinished)
 }
@@ -722,10 +934,10 @@ func (r *Runner) checkLogicalExists(ctx context.Context, db *database, dbName st
 	var cmd []string
 	var sql string
 	if db.kind.name == "PostgreSQL" {
-		cmd = []string{"sh", "-c", `exec psql -XAt -U "${POSTGRES_USER:-postgres}" -d postgres`}
+		cmd = []string{"sh", "-c", pgAdminShell + `; exec psql -XAt -U "${POSTGRES_USER:-postgres}" -d postgres`}
 		sql = fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s';\n", dbName)
 	} else {
-		cmd = []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb || command -v mysql); exec "$t" -uroot -N -B`}
+		cmd = []string{"sh", "-c", myAdminShell + `; t=$(command -v mariadb || command -v mysql); exec "$t" -uroot -N -B`}
 		sql = fmt.Sprintf("SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '%s';\n", dbName)
 	}
 	code, err := r.Client.Exec(ctx, db.id, db.tool(cmd), docker.Streams{Stdin: strings.NewReader(sql), Stdout: out, Stderr: errs})
@@ -733,7 +945,7 @@ func (r *Runner) checkLogicalExists(ctx context.Context, db *database, dbName st
 		return fmt.Errorf("can't check whether %s exists in %s: %w", dbName, db.name, err)
 	}
 	if code != 0 {
-		return fmt.Errorf("can't check whether %s exists in %s: %s", dbName, db.name, lastLines(errs.String(), 4))
+		return fmt.Errorf("can't check whether %s exists in %s: %s", dbName, db.name, scrubbed(errs.String()))
 	}
 	if strings.TrimSpace(out.String()) != "1" {
 		return fmt.Errorf("%s has no database called %s. Create it first, or choose an existing database", db.name, dbName)
@@ -741,51 +953,11 @@ func (r *Runner) checkLogicalExists(ctx context.Context, db *database, dbName st
 	return nil
 }
 
-// dumpOneAdmin dumps one logical database using the engine's admin tool inside
-// its container, gzipped into w, without exposing any password in argv.
-func (r *Runner) dumpOneAdmin(ctx context.Context, db *database, dbName string, w io.Writer) (int64, error) {
-	var cmd []string
-	if db.kind.name == "PostgreSQL" {
-		cmd = []string{
-			"env", "DW_DB=" + dbName, "sh", "-c",
-			`exec pg_dump --clean --if-exists --no-owner --no-acl -U "${POSTGRES_USER:-postgres}" -- "$DW_DB"`,
-		}
-	} else {
-		cmd = []string{
-			"env", "DW_DB=" + dbName, "sh", "-c",
-			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb-dump || command -v mysqldump); exec "$t" -uroot --single-transaction --routines --triggers --events --add-drop-table -- "$DW_DB"`,
-		}
-	}
-	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
-	if err != nil {
-		return 0, err
-	}
-	errs := &tail{}
-	plain := &counter{w: gz}
-	code, err := r.Client.Exec(ctx, db.id, db.tool(cmd), docker.Streams{Stdout: plain, Stderr: errs})
-	if err != nil {
-		return 0, fmt.Errorf("can't back up %s: %w", dbName, err)
-	}
-	if code != 0 {
-		return 0, fmt.Errorf("%s's dump exited with code %d: %s", db.kind.name, code, lastLines(errs.String(), 6))
-	}
-	return plain.n, gz.Close()
-}
-
-// restoreAdminBackup restores a pre-import gzipped SQL backup back into dbName.
-func (r *Runner) restoreAdminBackup(ctx context.Context, db *database, dbName, path string) error {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	return r.runDumpImport(ctx, db, dbName, path, ImportFormatSQLGZ, filepath.Base(path), uint64(fi.Size())) //nolint:gosec // fi.Size >= 0
-}
-
-// runDumpImport streams a staged dump file into the engine's native restore
-// tool inside its container, reporting byte progress and capturing the tool's
-// last lines on failure.
-func (r *Runner) runDumpImport(ctx context.Context, db *database, dbName, path, format, filename string, sizeBytes uint64) error {
-	f, err := os.Open(path) //nolint:gosec // validated staged dump or backup path
+// runDumpImport loads a staged dump into dbName strictly as the database's
+// owner through engines.Loader, with lock_timeout and sanitized tool error
+// output (H1, H2, M1, M4).
+func (r *Runner) runDumpImport(ctx context.Context, c *docker.Container, e *engines.Engine, dbName string, lockout *engines.Lockout, password, path, format, filename string, sizeBytes uint64) error {
+	f, err := os.Open(path) //nolint:gosec // validated staged dump path
 	if err != nil {
 		return err
 	}
@@ -802,92 +974,73 @@ func (r *Runner) runDumpImport(ctx context.Context, db *database, dbName, path, 
 		},
 	}
 
-	var stdin io.Reader = prog
-	var gz *gzip.Reader
+	user, prelude := lockout.Signer(password)
+	loadReq := engines.Load{
+		To:          c,
+		Engine:      e,
+		User:        user,
+		Password:    password,
+		Database:    dbName,
+		Prelude:     prelude,
+		LockTimeout: importLockTimeout,
+	}
+
+	if format == ImportFormatDump || format == ImportFormatTar {
+		pr, pw := io.Pipe()
+		convDone := make(chan error, 1)
+		go func() {
+			cerr := engines.Loader{Client: r.Client}.PGArchiveToSQL(ctx, c, format, true, prog, pw)
+			_ = pw.CloseWithError(cerr)
+			convDone <- cerr
+		}()
+		scanned := newSQLScanReader(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, pr)
+		loadErr := engines.Loader{Client: r.Client}.Load(ctx, loadReq, scanned)
+		_ = pr.CloseWithError(loadErr)
+		convErr := <-convDone
+		if scanned.err != nil {
+			return scanned.err
+		}
+		if convErr != nil && !errors.Is(convErr, io.ErrClosedPipe) {
+			return formatImportLoadError(e.Name, convErr)
+		}
+		if loadErr != nil {
+			return formatImportLoadError(e.Name, loadErr)
+		}
+		return nil
+	}
+
+	var sqlStream io.Reader = prog
 	if format == ImportFormatSQLGZ {
-		gz, err = gzip.NewReader(prog)
+		gz, err := gzip.NewReader(prog)
 		if err != nil {
 			return fmt.Errorf("can't decompress %s: %w", filename, err)
 		}
 		defer gz.Close()
-		stdin = gz
+		sqlStream = gz
 	}
-
-	var cmd []string
-	if db.kind.name == "PostgreSQL" {
-		// Terminate other sessions on dbName so DROP/CREATE/pg_restore --clean don't deadlock.
-		termSQL := fmt.Sprintf("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '%s' AND pid <> pg_backend_pid();\n", dbName)
-		_, _ = r.Client.Exec(ctx, db.id, db.tool([]string{"sh", "-c", `exec psql -XAt -U "${POSTGRES_USER:-postgres}" -d postgres`}), docker.Streams{Stdin: strings.NewReader(termSQL)})
-		switch format {
-		case ImportFormatSQL, ImportFormatSQLGZ:
-			cmd = []string{
-				"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec psql -X -v ON_ERROR_STOP=1 --single-transaction -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
-			}
-		case ImportFormatDump:
-			cmd = []string{
-				"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Fc -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
-			}
-		case ImportFormatTar:
-			cmd = []string{
-				"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Ft -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
-			}
-		default:
-			return fmt.Errorf("unsupported PostgreSQL import format %q", format)
-		}
-	} else {
-		if format != ImportFormatSQL && format != ImportFormatSQLGZ {
-			return fmt.Errorf("unsupported %s import format %q", db.kind.name, format)
-		}
-		cmd = []string{
-			"env", "DW_DB=" + dbName, "sh", "-c",
-			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb || command -v mysql); exec "$t" -uroot --binary-mode=1 -- "$DW_DB"`,
-		}
-	}
-
-	outTail := &tail{}
-	errTail := &tail{}
-	code, err := r.Client.Exec(ctx, db.id, db.tool(cmd), docker.Streams{Stdin: stdin, Stdout: outTail, Stderr: errTail})
-	if err != nil {
-		return err
-	}
-	if code != 0 {
-		said := lastLines(errTail.String(), importTailLines)
-		if said == "" {
-			said = lastLines(outTail.String(), importTailLines)
-		}
-		if said == "" {
-			return fmt.Errorf("%s exited with code %d", db.kind.name, code)
-		}
-		return fmt.Errorf("%s exited with code %d:\n%s", db.kind.name, code, said)
+	if err := (engines.Loader{Client: r.Client}).Load(ctx, loadReq, sqlStream); err != nil {
+		return formatImportLoadError(e.Name, err)
 	}
 	return nil
 }
 
-// lastLines returns up to maxLines trailing non-empty lines, bounded to importTailBytes.
-func lastLines(s string, maxLines int) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	var lines []string
-	sc := bufio.NewScanner(strings.NewReader(s))
-	for sc.Scan() {
-		line := strings.TrimRight(sc.Text(), "\r")
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
+func formatImportLoadError(engineName string, err error) error {
+	var le *engines.LoadError
+	if errors.As(err, &le) {
+		said := sanitizeImportError(firstNonEmpty(le.RawSaid, le.Said))
+		if said == "" {
+			return fmt.Errorf("%s exited with code %d", engineName, le.Code)
 		}
+		return fmt.Errorf("%s exited with code %d:\n%s", engineName, le.Code, said)
 	}
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
+	return err
+}
+
+func firstNonEmpty(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
 	}
-	joined := strings.Join(lines, "\n")
-	if len(joined) > importTailBytes {
-		joined = joined[len(joined)-importTailBytes:]
-	}
-	return joined
+	return b
 }
 
 type progressReader struct {
@@ -914,8 +1067,8 @@ func (p *progressReader) Read(b []byte) (int, error) {
 }
 
 // BeginImport forwards staged dump start/resume to the underlying Runner.
-func (c Calls) BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes uint64) (*ImportMeta, error) {
-	return c.Runner.BeginImport(owner, importID, serviceID, database, filename, format, sizeBytes)
+func (c Calls) BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes, dbSizeBytes uint64) (*ImportMeta, error) {
+	return c.Runner.BeginImport(owner, importID, serviceID, database, filename, format, sizeBytes, dbSizeBytes)
 }
 
 // WriteImport forwards staged dump streaming writes to the underlying Runner.

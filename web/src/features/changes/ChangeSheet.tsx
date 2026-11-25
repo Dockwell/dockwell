@@ -1532,6 +1532,19 @@ function PlanBody({
       serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
       // A service that runs a database is one (#798).
       kindLabel: (resource) => (runsADatabase(resource.id) ? t`database` : undefined),
+      // A single-database import or restore acts on that database, not the whole volume.
+      restoreNote: (restore) =>
+        restore.importFile
+          ? landed
+            ? t`Imported`
+            : t`Imports ${restore.importFile}`
+          : restore.undoes
+            ? landed
+              ? t`Put back`
+              : t`Puts back`
+            : landed
+              ? t`Restored`
+              : t`Restores`,
     }),
   );
   const steps = change?.steps ?? [];

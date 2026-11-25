@@ -96,9 +96,17 @@ func postgres(x dockertest.Exec) int {
 			_, _ = io.WriteString(x.Stderr, "pg_restore: error: could not execute query: ERROR: syntax error at or near \"FAIL_IMPORT\"\n")
 			return 1
 		}
+		// PGArchiveToSQL runs pg_restore with no -d and writes SQL to stdout.
+		if !slices.Contains(x.Cmd, "-d") && !strings.Contains(script, " -d ") {
+			_, _ = x.Stdout.Write(data)
+			return 0
+		}
 		if os.WriteFile(file, data, 0o600) != nil {
 			return 1
 		}
+	case len(x.Cmd) > 0 && x.Cmd[0] == "psql" && slices.Contains(x.Cmd, "-V"):
+		_, _ = io.WriteString(x.Stdout, "psql (PostgreSQL) 17.11\n")
+		return 0
 	case len(x.Cmd) > 0 && x.Cmd[0] == "psql" && slices.Contains(x.Cmd, "-c"):
 		// A question a restore drill asks, psql itself with -c, which comes with nothing
 		// on stdin (ADR 0068). A reading runs psql under sh -c, with its SQL on stdin.
@@ -120,6 +128,11 @@ func postgres(x dockertest.Exec) int {
 		case strings.Contains(sql, "FAIL_IMPORT"):
 			_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"FAIL_IMPORT\"\nLINE 1: FAIL_IMPORT;\n")
 			return 3
+		case askedLockout.MatchString(sql):
+			return postgresLockout(x, filepath.Dir(file), sql)
+		case strings.Contains(sql, "FROM pg_extension x WHERE x.oid >= 16384"):
+			// PgNotOwned check: everything in the fake DB belongs to its owner.
+			return 0
 		case askedLogical.MatchString(sql):
 			return postgresLogicalThere(x, filepath.Dir(file), sql)
 		case askedRole.MatchString(sql):
@@ -196,13 +209,38 @@ var (
 	dumpedDB     = regexp.MustCompile(`(?m)^(?:CREATE DATABASE |\\connect (?:-reuse-previous=on "dbname=)?)("?[^" ;]+"?|'[^']+')`)
 	dumpedTable  = regexp.MustCompile(`(?m)^CREATE TABLE ("?[^". ]+"?)\.("?[^". (]+"?) \(`)
 	madeRole     = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
-	madeDB       = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)"(?: OWNER "([a-z0-9_]+)")?' WHERE NOT EXISTS`)
+	madeDB       = regexp.MustCompile(`(?:SELECT ')?CREATE DATABASE "([a-z0-9_]+)"(?: OWNER "([a-z0-9_]+)")?(?:' WHERE NOT EXISTS|;)`)
 	alteredDB    = regexp.MustCompile(`ALTER DATABASE "([a-z0-9_]+)" OWNER TO "([a-z0-9_]+)"`)
 	droppedDB    = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	droppedRole  = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
 	askedRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 	askedLogical = regexp.MustCompile(`'exists', EXISTS \(SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'\), 'owner_exists', (true|EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\))`)
+	askedLockout = regexp.MustCompile(`FROM pg_database d JOIN pg_roles r ON r\.oid = d\.datdba WHERE d\.datname = '([a-z0-9_]+)'`)
 )
+
+// postgresLockout answers ReadLockout and OwnerOf queries from roles.json.
+func postgresLockout(x dockertest.Exec, dir, sql string) int {
+	m := askedLockout.FindStringSubmatch(sql)
+	if m == nil {
+		return 1
+	}
+	r := readRoles(dir)
+	db := m[1]
+	owner := r.Owns[db]
+	if db == "app" || db == "postgres" {
+		owner = db
+	}
+	if owner == "" {
+		return 0
+	}
+	super := owner == "postgres"
+	if strings.Contains(sql, "'login'") {
+		_, _ = fmt.Fprintf(x.Stdout, "{\"owner\":%q,\"login\":true,\"super\":%t,\"loader\":\"\"}\n", owner, super)
+	} else {
+		_, _ = fmt.Fprintf(x.Stdout, "{\"owner\":%q}\n", owner)
+	}
+	return 0
+}
 
 // postgresSignsIn signs a user in from another host: a user this fake made with the
 // password it was given, or one its reading lists by hand, as app, with any password

@@ -19857,14 +19857,17 @@ func (*DatabaseImportControlCall_Cancel) isDatabaseImportControlCall_Op() {}
 
 // DatabaseImportBegin starts a new staged dump upload or reads an existing one.
 type DatabaseImportBegin struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Database      string                 `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
-	Filename      string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
-	Format        string                 `protobuf:"bytes,3,opt,name=format,proto3" json:"format,omitempty"`
-	SizeBytes     uint64                 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	ServiceId     string                 `protobuf:"bytes,5,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Database  string                 `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
+	Filename  string                 `protobuf:"bytes,2,opt,name=filename,proto3" json:"filename,omitempty"`
+	Format    string                 `protobuf:"bytes,3,opt,name=format,proto3" json:"format,omitempty"`
+	SizeBytes uint64                 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	ServiceId string                 `protobuf:"bytes,5,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	// Current size of the target database in bytes, used to reserve room for the
+	// pre-import backup alongside the staged upload and restored size.
+	DatabaseSizeBytes uint64 `protobuf:"varint,6,opt,name=database_size_bytes,json=databaseSizeBytes,proto3" json:"database_size_bytes,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *DatabaseImportBegin) Reset() {
@@ -19930,6 +19933,13 @@ func (x *DatabaseImportBegin) GetServiceId() string {
 		return x.ServiceId
 	}
 	return ""
+}
+
+func (x *DatabaseImportBegin) GetDatabaseSizeBytes() uint64 {
+	if x != nil {
+		return x.DatabaseSizeBytes
+	}
+	return 0
 }
 
 // DatabaseImportReceive reads a chunk from ReceiveFile stream starting at offset.
@@ -21538,7 +21548,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\areceive\x18\x04 \x01(\v2(.dockwell.agent.v1.DatabaseImportReceiveH\x00R\areceive\x12D\n" +
 	"\ainspect\x18\x05 \x01(\v2(.dockwell.agent.v1.DatabaseImportInspectH\x00R\ainspect\x12A\n" +
 	"\x06cancel\x18\x06 \x01(\v2'.dockwell.agent.v1.DatabaseImportCancelH\x00R\x06cancelB\x04\n" +
-	"\x02op\"\xa3\x01\n" +
+	"\x02op\"\xd3\x01\n" +
 	"\x13DatabaseImportBegin\x12\x1a\n" +
 	"\bdatabase\x18\x01 \x01(\tR\bdatabase\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x16\n" +
@@ -21546,7 +21556,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\x12\x1d\n" +
 	"\n" +
-	"service_id\x18\x05 \x01(\tR\tserviceId\"G\n" +
+	"service_id\x18\x05 \x01(\tR\tserviceId\x12.\n" +
+	"\x13database_size_bytes\x18\x06 \x01(\x04R\x11databaseSizeBytes\"G\n" +
 	"\x15DatabaseImportReceive\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\"\x17\n" +

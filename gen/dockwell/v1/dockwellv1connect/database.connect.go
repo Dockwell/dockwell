@@ -141,20 +141,20 @@ type DatabaseServiceClient interface {
 	// kept as a secret (kind "database.user").
 	CreateLogicalDatabase(context.Context, *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error)
 	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
-	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+	// PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
 	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
 	// BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
 	// for a database on its server, or reports how far an existing upload got so
-	// the client can resume it. No API token can call it.
+	// the client can resume it. Admin-only; no API token can call it.
 	BeginDatabaseImport(context.Context, *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error)
 	// UploadDatabaseImport streams bounded chunks of a staged dump upload from
 	// offset to the database's server. Over REST it is a PUT whose body is the
-	// raw bytes of that chunk. No API token can call it.
+	// raw bytes of that chunk. Admin-only; no API token can call it.
 	UploadDatabaseImport(context.Context) *connect.ClientStreamForClient[v1.UploadDatabaseImportRequest, v1.UploadDatabaseImportResponse]
 	// PlanDatabaseImport plans importing a completed staged dump into the chosen
-	// logical database, backing up that database first (as restores do).
+	// logical database, backing up that database first (as restores do). Admin-only.
 	PlanDatabaseImport(context.Context, *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error)
-	// CancelDatabaseImport discards a staged dump upload on the server.
+	// CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
 	CancelDatabaseImport(context.Context, *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error)
 }
 
@@ -400,20 +400,20 @@ type DatabaseServiceHandler interface {
 	// kept as a secret (kind "database.user").
 	CreateLogicalDatabase(context.Context, *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error)
 	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
-	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+	// PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
 	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
 	// BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
 	// for a database on its server, or reports how far an existing upload got so
-	// the client can resume it. No API token can call it.
+	// the client can resume it. Admin-only; no API token can call it.
 	BeginDatabaseImport(context.Context, *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error)
 	// UploadDatabaseImport streams bounded chunks of a staged dump upload from
 	// offset to the database's server. Over REST it is a PUT whose body is the
-	// raw bytes of that chunk. No API token can call it.
+	// raw bytes of that chunk. Admin-only; no API token can call it.
 	UploadDatabaseImport(context.Context, *connect.ClientStream[v1.UploadDatabaseImportRequest]) (*connect.Response[v1.UploadDatabaseImportResponse], error)
 	// PlanDatabaseImport plans importing a completed staged dump into the chosen
-	// logical database, backing up that database first (as restores do).
+	// logical database, backing up that database first (as restores do). Admin-only.
 	PlanDatabaseImport(context.Context, *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error)
-	// CancelDatabaseImport discards a staged dump upload on the server.
+	// CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
 	CancelDatabaseImport(context.Context, *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error)
 }
 

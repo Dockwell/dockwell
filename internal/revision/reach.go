@@ -335,14 +335,16 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 }
 
 // checkDatabaseLinks refuses a change that deletes a logical database (or a
-// database user whose owned database is linked) while any app still links to
-// that database, unless its database server is being deleted in the same change
-// or the link itself is removed in the same change.
+// database user whose owned database is in use) while any app still uses that
+// database via a link, via the user's password secret (directly or through a
+// derived secret/variable), or via a secret, variable, or environment value
+// whose connection string names the database, unless its database server is
+// deleted in the same change or those references are removed in the same change.
 func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
 	if it.spec != nil || it.current == nil {
 		return nil
 	}
-	var svc, dbName string
+	var svc, dbName, userSecret string
 	switch cur := it.current.(type) {
 	case *resourcev1.LogicalDatabase:
 		svc = cur.GetService()
@@ -353,6 +355,7 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 		}
 		svc = cur.GetService()
 		dbName = database.Owned(it.ref.Name, cur)
+		userSecret = cur.GetPassword()
 	default:
 		return nil
 	}
@@ -366,6 +369,8 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 	} else if svcAfter == nil {
 		return nil
 	}
+
+	// 1. Refuse while any link names this database.
 	links, err := e.allLinks(ctx, tx, items)
 	if err != nil {
 		return err
@@ -378,7 +383,226 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 				l.ref.Name, where, dbName, svc)
 		}
 	}
+
+	env := it.ref.Scope
+
+	// 2. When deleting a database.user, refuse while any app uses its password
+	// secret (directly or through a derived secret/variable template).
+	if userSecret != "" {
+		apps, err := e.appsUsingValue(ctx, tx, items, resource.Ref{Kind: variable.SecretKind, Scope: env, Name: userSecret}, svc)
+		if err != nil {
+			return err
+		}
+		if len(apps) > 0 {
+			return fault.New(ErrInvalid, "%s still uses the database %s on %s (via secret %s), which this change deletes. Stop using %s in %s first",
+				strings.Join(apps, ", "), dbName, svc, userSecret, userSecret, strings.Join(apps, ", "))
+		}
+	}
+
+	// 3. Refuse while any app uses a secret or variable whose value/template names
+	// this database on svc, or has a literal environment value naming it.
+	for _, kind := range []resource.Kind{variable.SecretKind, variable.VariableKind} {
+		stored, err := tx.ListResources(ctx, env, string(kind))
+		if err != nil {
+			return err
+		}
+		refs := make([]resource.Ref, 0, len(stored))
+		for i := range stored {
+			refs = append(refs, resource.Ref{Kind: kind, Scope: env, Name: stored[i].Name})
+		}
+		for i := range items {
+			if items[i].ref.Kind == kind && items[i].ref.Scope == env && !slices.Contains(refs, items[i].ref) {
+				refs = append(refs, items[i].ref)
+			}
+		}
+		for _, ref := range refs {
+			spec, err := e.specAfter(ctx, tx, items, ref)
+			if err != nil {
+				return err
+			}
+			if spec == nil || !specNamesDatabase(spec, svc, dbName) {
+				continue
+			}
+			apps, err := e.appsUsingValue(ctx, tx, items, ref, svc)
+			if err != nil {
+				return err
+			}
+			if len(apps) > 0 {
+				return fault.New(ErrInvalid, "%s still uses %s %s, which names the database %s on %s that this change deletes. Update or remove %s first",
+					strings.Join(apps, ", "), ref.Kind, ref.Name, dbName, svc, ref.Name)
+			}
+		}
+	}
+
+	svcs, err := tx.ListResources(ctx, env, string(serviceKind))
+	if err != nil {
+		return err
+	}
+	svcRefs := make([]resource.Ref, 0, len(svcs))
+	for i := range svcs {
+		svcRefs = append(svcRefs, resource.Ref{Kind: serviceKind, Scope: env, Name: svcs[i].Name})
+	}
+	for i := range items {
+		if items[i].ref.Kind == serviceKind && items[i].ref.Scope == env && !slices.Contains(svcRefs, items[i].ref) {
+			svcRefs = append(svcRefs, items[i].ref)
+		}
+	}
+	for _, ref := range svcRefs {
+		if ref.Name == svc {
+			continue
+		}
+		spec, err := e.specAfter(ctx, tx, items, ref)
+		if err != nil {
+			return err
+		}
+		s, ok := spec.(*resourcev1.Service)
+		if !ok {
+			continue
+		}
+		for k, v := range s.GetApp().GetEnv() {
+			if database.ValueNamesDatabase(v, svc, dbName) {
+				return fault.New(ErrInvalid, "service %s sets %s to the database %s on %s, which this change deletes. Update %s first",
+					ref.Name, k, dbName, svc, ref.Name)
+			}
+		}
+	}
 	return nil
+}
+
+// specNamesDatabase reports whether a secret or variable spec's literal value
+// or template text contains a connection string targeting (svc, dbName).
+func specNamesDatabase(spec proto.Message, svc, dbName string) bool {
+	switch v := spec.(type) {
+	case *resourcev1.Secret:
+		if database.ValueNamesDatabase(v.GetValue(), svc, dbName) {
+			return true
+		}
+		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svc, dbName) {
+			return true
+		}
+	case *resourcev1.Variable:
+		if database.ValueNamesDatabase(v.GetValue(), svc, dbName) {
+			return true
+		}
+		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svc, dbName) {
+			return true
+		}
+	}
+	return false
+}
+
+// appsUsingValue finds all services (excluding ignoreSvc) that still use start
+// (a secret or variable) once the change applies, either directly or through
+// derived secrets and variables.
+func (e *Engine) appsUsingValue(ctx context.Context, tx *store.Tx, items []item, start resource.Ref, ignoreSvc string) ([]string, error) {
+	visited := map[resource.Ref]bool{start: true}
+	queue := []resource.Ref{start}
+	var apps []string
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		// Collect candidate dependents from the store and from the change's edits.
+		var candidates []resource.Ref
+		users, err := tx.UsersOf(ctx, cur.Scope, string(cur.Kind), cur.Name)
+		if err != nil {
+			return nil, err
+		}
+		for i := range users {
+			ref := resource.Ref{Kind: resource.Kind(users[i].Kind), Scope: users[i].Scope, Name: users[i].Name}
+			if !slices.Contains(candidates, ref) {
+				candidates = append(candidates, ref)
+			}
+		}
+		for i := range items {
+			if items[i].spec == nil {
+				continue
+			}
+			ref := items[i].ref
+			if ref.Kind != serviceKind && ref.Kind != variable.SecretKind && ref.Kind != variable.VariableKind {
+				continue
+			}
+			if !slices.Contains(candidates, ref) {
+				candidates = append(candidates, ref)
+			}
+		}
+
+		for _, cand := range candidates {
+			if cand.Kind == serviceKind && cand.Scope == start.Scope && cand.Name == ignoreSvc {
+				continue
+			}
+			spec, err := e.specAfter(ctx, tx, items, cand)
+			if err != nil {
+				return nil, err
+			}
+			if spec == nil {
+				continue
+			}
+			if !specReferencesRef(cand.Scope, spec, cur) {
+				continue
+			}
+			switch cand.Kind {
+			case serviceKind:
+				if !slices.Contains(apps, cand.Name) {
+					apps = append(apps, cand.Name)
+				}
+			case variable.SecretKind, variable.VariableKind:
+				if !visited[cand] {
+					visited[cand] = true
+					queue = append(queue, cand)
+				}
+			}
+		}
+	}
+	slices.Sort(apps)
+	return apps, nil
+}
+
+// specReferencesRef reports whether spec (at atScope) directly references target
+// (a secret or variable).
+func specReferencesRef(atScope string, spec proto.Message, target resource.Ref) bool {
+	switch v := spec.(type) {
+	case *resourcev1.Service:
+		if atScope != target.Scope {
+			return false
+		}
+		if target.Kind == variable.SecretKind {
+			return usesSecret(v, target.Name)
+		}
+		if target.Kind == variable.VariableKind {
+			for as, n := range v.GetVariables() {
+				if cmp.Or(n, as) == target.Name {
+					return true
+				}
+			}
+		}
+		return false
+	case *resourcev1.Secret, *resourcev1.Variable:
+		from := variable.FromOf(spec)
+		if from == nil {
+			return false
+		}
+		if val := from.GetValue(); val != nil {
+			srcScope := cmp.Or(val.GetEnvironment(), atScope)
+			srcKind := variable.VariableKind
+			if val.GetSecret() {
+				srcKind = variable.SecretKind
+			}
+			return srcScope == target.Scope && srcKind == target.Kind && val.GetName() == target.Name
+		}
+		if tmpl := from.GetTemplate(); tmpl != nil && atScope == target.Scope {
+			for _, p := range tmpl.GetNames() {
+				pKind := variable.VariableKind
+				if p.GetSecret() {
+					pKind = variable.SecretKind
+				}
+				if pKind == target.Kind && p.GetName() == target.Name {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // destinationKind is the backup destination kind.

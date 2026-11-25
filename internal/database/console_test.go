@@ -24,37 +24,38 @@ func TestConsoleCommandUsesEnvNeverArgvPasswords(t *testing.T) {
 			port:     5433,
 			db:       "shop",
 			wantTool: "psql",
-			wantEnv:  []string{"DW_DB=shop", "PGPORT=5433"},
-			wantSub:  []string{"PGPASSWORD", "exec psql -U", `-d "$db"`},
-			forbid:   []string{"-W", "password="},
+			wantEnv:  []string{"DW_DB=shop", "PGPORT=5433", "PSQL_HISTORY=/dev/null"},
+			wantSub:  []string{"PGPASSWORD", "PSQL_HISTORY=/dev/null", "PGDATABASE=", "exec psql -U"},
+			forbid:   []string{"-W", "password=", `-d "$db"`},
 		},
 		{
 			kind:     dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL,
 			db:       "billing",
 			wantTool: "mysql",
-			wantEnv:  []string{"DW_DB=billing"},
-			wantSub:  []string{"MYSQL_PWD", "exec \"$c\" -uroot"},
+			wantEnv:  []string{"DW_DB=billing", "MYSQL_HISTFILE=/dev/null"},
+			wantSub:  []string{"MYSQL_PWD", "MYSQL_HISTFILE=/dev/null", "exec \"$c\" -uroot"},
 			forbid:   []string{"-p\"", "-p$"},
 		},
 		{
 			kind:     dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB,
 			wantTool: "mariadb",
-			wantSub:  []string{"MYSQL_PWD", "mariadb", "exec \"$c\" -uroot"},
+			wantEnv:  []string{"MYSQL_HISTFILE=/dev/null"},
+			wantSub:  []string{"MYSQL_PWD", "MYSQL_HISTFILE=/dev/null", "mariadb", "exec \"$c\" -uroot"},
 			forbid:   []string{"-p\"", "-p$"},
 		},
 		{
 			kind:     dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 			port:     6380,
 			wantTool: "redis-cli",
-			wantEnv:  []string{"DW_PORT=6380"},
-			wantSub:  []string{"REDISCLI_AUTH", `exec "$c" -p "${DW_PORT:-6379}"`},
+			wantEnv:  []string{"DW_PORT=6380", "REDISCLI_HISTFILE=/dev/null"},
+			wantSub:  []string{"REDISCLI_AUTH", "REDISCLI_HISTFILE=/dev/null", `exec "$c" -p "${DW_PORT:-6379}"`},
 			forbid:   []string{"-a "},
 		},
 		{
 			kind:     dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY,
 			wantTool: "valkey-cli",
-			wantEnv:  []string{"DW_PORT=6379"},
-			wantSub:  []string{"REDISCLI_AUTH", "valkey-cli"},
+			wantEnv:  []string{"DW_PORT=6379", "REDISCLI_HISTFILE=/dev/null"},
+			wantSub:  []string{"REDISCLI_AUTH", "REDISCLI_HISTFILE=/dev/null", "valkey-cli"},
 			forbid:   []string{"-a "},
 		},
 		{
@@ -105,7 +106,7 @@ func TestCheckConsoleDatabaseNameRejectsUnsafe(t *testing.T) {
 			t.Errorf("CheckConsoleDatabaseName(%q) = %v, want nil", ok, err)
 		}
 	}
-	for _, bad := range []string{"-flag", "a b", "db/x", "db?auth=1", "db#frag", "db'quote", "db\"quote", "a\x00b", strings.Repeat("a", 129)} {
+	for _, bad := range []string{"-flag", "a b", "db/x", "db?auth=1", "host=elsewhere", "db#frag", "db'quote", "db\"quote", "a\x00b", strings.Repeat("a", 129)} {
 		if err := CheckConsoleDatabaseName(bad); err == nil {
 			t.Errorf("CheckConsoleDatabaseName(%q) = nil, want error", bad)
 		}

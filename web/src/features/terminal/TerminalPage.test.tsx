@@ -1168,10 +1168,7 @@ describe("TerminalPage", () => {
         expect.anything(),
       ),
     );
-    expect(await screen.findByRole("tab", { name: "pg-1 · hz-1" })).toHaveAttribute(
-      "title",
-      "psql/shop@pg-1 · hz-1",
-    );
+    expect(await screen.findByRole("tab", { name: "pg-1 · hz-1" })).toHaveAttribute("title", "psql/shop@pg-1 · hz-1");
     await waitFor(() => expect(screens.all.at(-1)?.written.join("")).toBe("shop=# "));
   });
 });

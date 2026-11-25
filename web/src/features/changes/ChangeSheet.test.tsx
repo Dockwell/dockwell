@@ -29,6 +29,7 @@ import {
   PlanSummarySchema,
   type PortMappingSchema,
   ResourceRefSchema,
+  RestorePlanSchema,
   RolloutPlanSchema,
   RouteAnswersSchema,
   RouteGoesSchema,
@@ -3302,8 +3303,21 @@ describe("the plan sheet, once it runs", () => {
       expect(sheet).not.toHaveTextContent("may not bring it back");
     });
 
-    it("says a dropped database's data doesn't come back, as nothing keeps it", async () => {
+    it("says a deleted SQL database's data is kept for 7 days and undo brings it back (H4)", async () => {
       const change = deletingData("database.user", "shop");
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(sheet).findByText("hz-1 keeps shop's data for 7 days, then deletes it")).toBeVisible();
+      expect(sheet).toHaveTextContent("Undoing this brings it back until then.");
+      expect(sheet).toHaveTextContent("kept 7 days, then deleted");
+      expect(sheet).not.toHaveTextContent("doesn't come back");
+    });
+
+    it("says a non-kept destructive step loses data permanently", async () => {
+      const change = deletingData("service", "shop");
       renderSheet(
         { kind: "plan", make: () => Promise.resolve({ change }) },
         { changes: { watchChange: feed<WatchChangeResponse>().stream } },
@@ -3312,6 +3326,33 @@ describe("the plan sheet, once it runs", () => {
       expect(await within(sheet).findByText("shop loses its data on hz-1")).toBeVisible();
       expect(sheet).toHaveTextContent("doesn't come back");
       expect(sheet).not.toHaveTextContent("kept 7 days");
+    });
+
+    it("shows single-database wording and concise notice for a dump import plan (L10a, L10f)", async () => {
+      const change = deletingData("volume", "data");
+      const server = change.plan?.servers[0];
+      const step = server?.steps[0];
+      const resource = change.plan?.resources[0];
+      if (!server || !step || !resource) throw new Error("expected plan step");
+      step.action = PlanAction.REPLACE;
+      resource.action = PlanAction.REPLACE;
+      step.restore = create(RestorePlanSchema, {
+        method: BackupMethod.DUMP,
+        database: "PostgreSQL",
+        databaseName: "reports",
+        importFile: "seed.sql",
+        importFormat: "sql",
+        sizeBytes: 1024n,
+      });
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(sheet).findByText("Imports seed.sql into reports on hz-1")).toBeVisible();
+      expect(sheet).toHaveTextContent("reports is backed up first and put back if the import fails.");
+      expect(sheet).not.toHaveTextContent("streaming");
+      expect(sheet).toHaveTextContent("Imports seed.sql");
     });
   });
 

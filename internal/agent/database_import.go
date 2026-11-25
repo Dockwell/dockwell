@@ -14,7 +14,7 @@ import (
 )
 
 type databaseImporter interface {
-	BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes uint64) (*backup.ImportMeta, error)
+	BeginImport(owner, importID, serviceID, database, filename, format string, sizeBytes, dbSizeBytes uint64) (*backup.ImportMeta, error)
 	WriteImport(ctx context.Context, importID, owner string, offset uint64, next func() ([]byte, error)) (*backup.ImportMeta, error)
 	InspectImport(importID, owner string) (*backup.ImportMeta, error)
 	CancelImport(importID, owner string) error
@@ -67,6 +67,7 @@ func (c *calls) databaseImport(ctx context.Context, ask *agentv1.DatabaseImportC
 			b.GetFilename(),
 			b.GetFormat(),
 			b.GetSizeBytes(),
+			b.GetDatabaseSizeBytes(),
 		)
 		if err != nil {
 			return fail(err)
@@ -115,7 +116,7 @@ func (c *calls) databaseImport(ctx context.Context, ask *agentv1.DatabaseImportC
 		}
 		out.ImportId = ask.GetImportId()
 	default:
-		out.Error = "unknown database import operation"
+		out.Error = "that database import operation isn't recognised. Update the control plane and agent to matching versions"
 		out.Reason = "invalid"
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_DatabaseImport{DatabaseImport: out}}

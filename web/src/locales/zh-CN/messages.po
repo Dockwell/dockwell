@@ -10066,8 +10066,15 @@ msgstr "镜像标签已设置"
 msgid "Images imported"
 msgstr "已导入镜像"
 
+msgid "Imported"
+msgstr "已导入"
+
 msgid "Importing images"
 msgstr "正在导入镜像"
+
+#. placeholder {0}: restore.importFile
+msgid "Imports {0}"
+msgstr "导入 {0}"
 
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
@@ -10174,6 +10181,9 @@ msgstr "推送失败"
 msgid "Pushing image"
 msgstr "正在推送镜像"
 
+msgid "Puts back"
+msgstr "恢复原状"
+
 msgid "Re-enabling Docker cleanup"
 msgstr "正在重新启用 Docker 清理"
 
@@ -10200,6 +10210,12 @@ msgstr "已在 {server} 上重启 {name}"
 
 msgid "Restarting {name} on {server}"
 msgstr "正在 {server} 上重启 {name}"
+
+msgid "Restored"
+msgstr "已恢复"
+
+msgid "Restores"
+msgstr "恢复"
 
 msgid "Result unknown"
 msgstr "结果未知"
@@ -10913,6 +10929,11 @@ msgstr "如果重新加载失败，Dockwell 会使用之前的设置重启 Docke
 msgid "Image config digest"
 msgstr "镜像配置摘要"
 
+#. placeholder {0}: restore.importFile
+#. placeholder {1}: restore.databaseName
+msgid "Import <0>{0}</0> into <1>{1}</1>"
+msgstr "将 <0>{0}</0> 导入到 <1>{1}</1>"
+
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "其 Dockerfile 能读取 {buildLogins} 可读取的任何镜像"
 
@@ -10998,6 +11019,10 @@ msgstr "随附安装"
 msgid "Pulls with the registry login {0}"
 msgstr "拉取时使用镜像仓库登录 {0}"
 
+#. placeholder {0}: restore.databaseName
+msgid "Put back <0>{0}</0>"
+msgstr "将 <0>{0}</0> 恢复为导入前的状态"
+
 msgid "Re-enable Docker cleanup on <0>{server}</0>"
 msgstr "在 <0>{server}</0> 上重新启用 Docker 清理"
 
@@ -11015,6 +11040,10 @@ msgstr "重新加载 {server} 上的 Docker"
 
 msgid "Restart Docker on {server}"
 msgstr "重启 {server} 上的 Docker"
+
+#. placeholder {0}: restore.databaseName
+msgid "Restore <0>{0}</0>"
+msgstr "恢复 <0>{0}</0>"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "运行控制平面自带的安装脚本（SHA-256 {sha}），它会先校验发布版本的签名再安装"
@@ -11998,9 +12027,6 @@ msgstr "开发者可以在 {zones} 发布域名，并通过 DNS 验证自己在�
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker 清理将永久删除所选 Docker 对象"
 
-msgid "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
-msgstr "Dockwell 会在将 {file} 流式导入 {database} 之前先备份 {target}。如果导入失败，{target} 原有的数据会自动恢复。导入前的备份会在 {server} 上保留 7 天。"
-
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell 无法列出该仓库的分支和标签"
 
@@ -12397,6 +12423,9 @@ msgstr "{name} 备份的一小时时限只是估计"
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
 
+msgid "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
+msgstr "导入前备份（待导入 {size}）会在 {server} 上保留 7 天，撤销后可恢复。"
+
 msgid "The registry can accept another write between the final check and publication."
 msgstr "从最后检查到发布期间，其他发布者仍可写入此标签。"
 
@@ -12544,6 +12573,9 @@ msgstr "此后产生的内容会丢失。"
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "卷中现在的内容会存入服务器保留 7 天的副本。"
 
+msgid "What's in {target} now goes to a backup the server keeps for 7 days."
+msgstr "{target} 当前的数据会备份并在服务器上保留 7 天。"
+
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "在启用 SELinux 的服务器上，Docker 会把那里的所有内容重新标记为此应用私有，其他内容都无法再使用。"
 
@@ -12611,10 +12643,6 @@ msgstr "{0, plural, other {{list} 在加载期间停止，此后产生的内容�
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, other {{list} 会在此期间停止}}"
-
-#. placeholder {0}: server.serverName
-msgid "{0} keeps {name}'s data for 7 days, then deletes it"
-msgstr "{0} 会将 {name} 的数据保留 7 天，然后删除"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app} 的数据留在 {before} 中；{after} 从空库开始"
@@ -12712,9 +12740,8 @@ msgstr "{name} 将永久离开服务器群"
 msgid "{name} lets in someone {path} kept out"
 msgstr "{name} 会放进 {path} 原本挡住的人"
 
-#. placeholder {0}: server.serverName
-msgid "{name} loses its data on {0}"
-msgstr "{name} 将丢失它在 {0} 上的数据"
+msgid "{name} loses its data on {serverShown}"
+msgstr "{name} 在 {serverShown} 上的数据将会丢失"
 
 msgid "{name} loses what its image keeps at {paths}"
 msgstr "{name} 将失去其镜像保存在 {paths} 的内容"
@@ -12868,11 +12895,17 @@ msgstr "{project} 已在运行 {names}"
 msgid "{project} already runs {names}, and this deletes {deleted}"
 msgstr "{project} 已在运行 {names}，此计划会删除 {deleted}"
 
+msgid "{serverShown} keeps {name}'s data for 7 days, then deletes it"
+msgstr "{serverShown} 会将 {name} 的数据保留 7 天，之后再删除"
+
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} 已离线，它保留的 {name} 日志会留在磁盘上，直到它恢复连接"
 
-msgid "{target} is backed up first ({size} to import); undoing puts back what was there."
-msgstr "会先备份 {target}（待导入 {size}）；撤销可还原到导入前的状态。"
+msgid "{target} is backed up first and put back if the import fails."
+msgstr "会先备份 {target}，若导入失败则自动恢复原状。"
+
+msgid "{target} on {server} goes back to what was there before"
+msgstr "{server} 上的 {target} 将恢复到之前的状态"
 
 msgid "{tool} still manages {container}"
 msgstr "{tool} 仍在管理 {container}"
@@ -14718,8 +14751,8 @@ msgstr "{servers}，未加密"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, other {# 个用户}}"
 
-msgid "Create a database first before importing a dump"
-msgstr "导入转储文件前请先创建一个数据库"
+msgid "Create a database to import into"
+msgstr "请先创建一个用于导入的数据库"
 
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
@@ -14747,11 +14780,11 @@ msgstr "数据库服务器自身保留了 {0}"
 msgid "Its volume isn't one Dockwell backs up"
 msgstr "Dockwell 不会备份此数据卷"
 
-msgid "Linked by {linked}. Disconnect first"
-msgstr "正被 {linked} 关联，请先断开连接"
-
 msgid "No server has said yet"
 msgstr "还没有服务器报告"
+
+msgid "Used by {linked}. Disconnect or stop using it first"
+msgstr "正被 {linked} 使用，请先断开或停止使用"
 
 #. placeholder {0}: read.unlisted
 msgid "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
@@ -14914,6 +14947,10 @@ msgstr "没有使用此引擎的数据库。"
 msgid "No databases yet"
 msgstr "还没有数据库"
 
+#. placeholder {0}: firstReading(db)?.serverName || t`its server`
+msgid "No public address known for {0}"
+msgstr "未配置 {0} 的公网地址"
+
 msgid "No volume"
 msgstr "没有卷"
 
@@ -15020,14 +15057,14 @@ msgid "Use an SSH tunnel"
 msgstr "使用 SSH 隧道"
 
 #. placeholder {0}: extensions.join(", ")
-msgid "Accepts {0}. Streamed in chunks to the server."
-msgstr "支持 {0}，将分块流式上传到服务器。"
+msgid "Accepts {0}."
+msgstr "支持 {0}。"
 
 msgid "Backed up automatically before the dump loads."
 msgstr "加载转储前会自动备份。"
 
-msgid "Backs up the chosen database first, then restores with {engine}'s own tool"
-msgstr "先备份所选数据库，再用 {engine} 自带工具还原"
+msgid "Backs up the chosen database first, then loads as its owner. Admins only."
+msgstr "会先备份所选数据库，再以其所有者身份导入。仅限管理员操作。"
 
 msgid "Choose a dump file to import."
 msgstr "请选择要导入的转储文件。"
@@ -15035,8 +15072,8 @@ msgstr "请选择要导入的转储文件。"
 msgid "Choose another file"
 msgstr "另选文件"
 
-msgid "Create a database first before importing a dump."
-msgstr "导入转储文件前请先创建一个数据库。"
+msgid "Create a database to import into."
+msgstr "请先创建一个用于导入的数据库。"
 
 msgid "Dump file"
 msgstr "转储文件"
@@ -15101,8 +15138,8 @@ msgstr "Dockwell 会为新用户生成密码，并将其保存为密钥。"
 msgid "New database in {name}"
 msgstr "在 {name} 中新建数据库"
 
-msgid "The logical database to create in {engine}."
-msgstr "要在 {engine} 中创建的逻辑数据库。"
+msgid "The database to create in {engine}."
+msgstr "要在 {engine} 中创建的数据库。"
 
 msgid "This database can't be planned"
 msgstr "无法规划此数据库"

@@ -26,6 +26,7 @@ import { appOf as appOfService } from "../apps/app";
 import { useDetectionWords } from "../apps/detection";
 import { useServices } from "../apps/useServices";
 import { engineOfImage } from "../databases/useDatabases";
+import { useFleetView } from "../servers/useFleet";
 import { installationOf, useGitHubApps } from "../settings/github";
 import {
   asGoodAsRoot,
@@ -738,8 +739,8 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
       out.push({
         key: `restore-${key}`,
         title: t`Imports ${file} into ${target} on ${server}`,
-        detail: t`${target} is backed up first (${size} to import); undoing puts back what was there.`,
-        more: t`Dockwell backs up ${target} before streaming ${file} into ${database}. If the import fails, what was in ${target} goes back automatically. The pre-import backup stays on ${server} for 7 days.`,
+        detail: t`${target} is backed up first and put back if the import fails.`,
+        more: t`The pre-import backup (${size} to import) stays on ${server} for 7 days, and undoing restores it.`,
       });
     } else if (restore.intoNew) {
       // A new database, filled before it first starts: nothing that runs is touched (ADR 0106).
@@ -755,11 +756,16 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
           : t`The copy is ${size}, unpacked into the new volume before it first starts. If that fails, Dockwell removes what this made.`,
       });
     } else if (restore.undoes !== "") {
+      const target = restore.databaseName || name;
       out.push({
         key: `restore-${key}`,
-        title: t`Everything in ${name} on ${server} goes back to what was there before the restore`,
+        title: restore.databaseName
+          ? t`${target} on ${server} goes back to what was there before`
+          : t`Everything in ${name} on ${server} goes back to what was there before the restore`,
         detail: t`That's what the server kept on ${taken}, ${size}.`,
-        more: t`What's in the volume now goes to a copy the server keeps for 7 days.`,
+        more: restore.databaseName
+          ? t`What's in ${target} now goes to a backup the server keeps for 7 days.`
+          : t`What's in the volume now goes to a copy the server keeps for 7 days.`,
       });
     } else {
       // A title and one sentence, what stops in it; the rest is How this works (#793).
@@ -815,9 +821,12 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
 
 export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { t } = useLingui();
+  const { servers: fleetServers } = useFleetView();
   const restoreNotices = useRestoreNotices();
   const { root } = useReaches(plan);
   const managed = useManagedElsewhere();
+  const shownServer = (s: { serverId: string; serverName: string }) =>
+    fleetServers?.find((f) => f.id === s.serverId)?.name || s.serverName;
   if (!plan) return [];
   const imageAction = dockerImageAction(plan);
   if (imageAction?.push) {
@@ -879,8 +888,9 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
       const key = `${server.serverId}/${step.resourceId}`;
+      const serverShown = shownServer(server);
       if (step.restore) {
-        out.push(...restoreNotices(step.restore, name, key, server.serverName));
+        out.push(...restoreNotices(step.restore, name, key, serverShown));
       } else if (step.keptPaths.length > 0) {
         const paths = step.keptPaths.join(", ");
         out.push({
@@ -889,17 +899,17 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           more: t`The server keeps that data for 7 days, and undoing this brings it back. After that it is gone.`,
         });
       } else if (keepsData(step)) {
-        // A deleted volume stays on its server for 7 days, so undo brings it back until then.
+        // A deleted volume or SQL database stays backed up on its server for 7 days, so undo brings it back until then.
         out.push({
           key: `data-${key}`,
           amber: true,
-          title: t`${server.serverName} keeps ${name}'s data for 7 days, then deletes it`,
+          title: t`${serverShown} keeps ${name}'s data for 7 days, then deletes it`,
           detail: t`Undoing this brings it back until then.`,
         });
       } else if (step.destroysData) {
         out.push({
           key: `data-${key}`,
-          title: t`${name} loses its data on ${server.serverName}`,
+          title: t`${name} loses its data on ${serverShown}`,
           detail: t`Back it up first if you need it: undo may not bring it back.`,
         });
       }

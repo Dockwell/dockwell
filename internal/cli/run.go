@@ -531,6 +531,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	logicals := &database.LogicalDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	go users.Clean(ctx)
+	go database.KeepDeletedBackupsPruned(ctx, filepath.Join(dir.Agent(), "databases"))
 	probes := &probe.Runner{Client: client, Logger: logger}
 	go func() {
 		if err := probes.Clean(ctx); err != nil {

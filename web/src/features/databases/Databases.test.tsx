@@ -2248,7 +2248,7 @@ describe("how a database is backed up (#793)", () => {
     await user.click(within(table).getByRole("button", { name: "Actions for shop" }));
     const shopDelete = await screen.findByRole("menuitem", { name: /^Delete/ });
     expect(shopDelete).toHaveAttribute("aria-disabled", "true");
-    expect(shopDelete).toHaveTextContent("Linked by web. Disconnect first");
+    expect(shopDelete).toHaveTextContent("Used by web. Disconnect or stop using it first");
     await user.keyboard("{Escape}");
 
     // Unmanaged database cannot be deleted.
@@ -2293,6 +2293,8 @@ describe("how a database is backed up (#793)", () => {
     const user = userEvent.setup({ applyAccept: false });
     const beganCalls: { id: string; database: string; filename: string; sizeBytes: bigint }[] = [];
     const plannedCalls: { id: string; importId: string }[] = [];
+    const canceledCalls: { id: string; importId: string }[] = [];
+    const discardedCalls: string[] = [];
 
     // Stub XMLHttpRequest for uploadDatabaseImportPart in jsdom.
     const sentUrls: string[] = [];
@@ -2356,16 +2358,24 @@ describe("how a database is backed up (#793)", () => {
             plannedCalls.push({ id: req.id, importId: req.importId });
             return { change: webPlanned() };
           },
-          cancelDatabaseImport: () => ({}),
+          cancelDatabaseImport: (req) => {
+            canceledCalls.push({ id: req.id, importId: req.importId });
+            return {};
+          },
         },
         changes: {
           watchChange: feed<WatchChangeResponse>().stream,
-          discardChange: () => ({}),
+          discardChange: (req) => {
+            discardedCalls.push(req.id);
+            return {};
+          },
         },
       });
 
       await user.click(await screen.findByRole("button", { name: "Import dump" }));
       const dialog = await screen.findByRole("dialog", { name: "Import dump into db" });
+      expect(dialog).toHaveTextContent("Admins only");
+      expect(dialog).not.toHaveTextContent("Streamed in chunks");
       const fileInput = within(dialog).getByLabelText("Dump file") as HTMLInputElement;
 
       // Rejects unsupported file extension.
@@ -2378,14 +2388,41 @@ describe("how a database is backed up (#793)", () => {
       await user.upload(fileInput, sqlFile);
       await user.click(within(dialog).getByRole("button", { name: "Upload and review plan" }));
 
-      await screen.findByRole("dialog", { name: "Review plan" });
+      const planDialog = await screen.findByRole("dialog", { name: "Review plan" });
       expect(beganCalls).toEqual([
         { id: "svc_db", database: "shop", filename: "seed.sql", sizeBytes: BigInt(sqlFile.size) },
       ]);
       expect(sentUrls).toEqual(["/v1/databases/svc_db/imports/imp_01TESTIMPORT12345?offset=0"]);
       expect(plannedCalls).toEqual([{ id: "svc_db", importId: "imp_01TESTIMPORT12345" }]);
+
+      // L8 & M3: Closing the plan sheet while still PLANNED discards the planned change
+      // and cancels the staged upload on the server.
+      await user.click(within(planDialog).getByRole("button", { name: "Cancel" }));
+      await waitFor(() => {
+        expect(discardedCalls).toEqual([webPlanned().id]);
+        expect(canceledCalls).toEqual([{ id: "svc_db", importId: "imp_01TESTIMPORT12345" }]);
+      });
     } finally {
       globalThis.XMLHttpRequest = OrigXHR;
     }
+  });
+
+  it("disables external connection string copy when the server has no public address (L4)", async () => {
+    const user = userEvent.setup();
+    const dbExternal = aDatabase({
+      id: "svc_ext_noaddr",
+      resource: { kind: "service", scope: ENV, name: "extnoaddr" },
+      host: "extnoaddr",
+      externalAccess: { port: 5432, allowFrom: ["203.0.113.7"] },
+    });
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(aServer({ id: SERVER, name: "hz-1", inventory: { addresses: [] } })), snapshotComplete);
+    renderAt("/databases", api([dbExternal], { servers: { watchServers: watch.stream } }));
+
+    const table = await screen.findByRole("table", { name: "Databases" });
+    await user.click(within(table).getByRole("button", { name: "Actions for extnoaddr" }));
+    const extCopy = await screen.findByRole("menuitem", { name: /^Copy external connection string/ });
+    expect(extCopy).toHaveAttribute("aria-disabled", "true");
+    expect(extCopy).toHaveTextContent("No public address known for hz-1");
   });
 });

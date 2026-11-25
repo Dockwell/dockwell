@@ -34,9 +34,6 @@ func importOwner(ctx context.Context) (string, error) {
 	if p.Token != nil {
 		return "", authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, authapi.ReasonNeedsSession)
 	}
-	if p.Session.ID != "" {
-		return "session:" + p.Session.ID, nil
-	}
 	return "user:" + p.User.ID, nil
 }
 
@@ -142,9 +139,10 @@ func (h *Handler) BeginDatabaseImport(ctx context.Context, req *connect.Request[
 		return nil, err
 	}
 	var format string
+	var dbSizeBytes uint64
 	if m.GetImportId() != "" {
 		if !backup.ValidImportID(m.GetImportId()) {
-			return nil, authapi.Invalid(errors.New("invalid import ID"))
+			return nil, authapi.Invalid(errors.New("that staged import ID isn't valid. Start a new dump upload"))
 		}
 	} else {
 		if err := database.CheckSQLName("database", m.GetDatabase()); err != nil {
@@ -164,7 +162,15 @@ func (h *Handler) BeginDatabaseImport(ctx context.Context, req *connect.Request[
 			return nil, authapi.Invalid(errors.New("that dump file is empty. Choose a non-empty dump file"))
 		}
 		if m.GetSizeBytes() > backup.MaxImportBytes {
-			return nil, authapi.ReasonError(connect.CodeResourceExhausted, errors.New("that dump file is larger than the 16 GiB limit"), "too_large")
+			return nil, authapi.ReasonError(connect.CodeResourceExhausted, errors.New("that dump file is larger than the 16 GiB limit. Split it, or import it from the server's console"), "too_large")
+		}
+		if reading, ok := h.fresh(srv.ID, one.db.GetId(), one.made, h.now()); ok {
+			for _, d := range reading.GetDatabases() {
+				if sz := d.GetSizeBytes(); d.GetName() == m.GetDatabase() && sz > 0 {
+					dbSizeBytes = uint64(sz)
+					break
+				}
+			}
 		}
 	}
 
@@ -173,11 +179,12 @@ func (h *Handler) BeginDatabaseImport(ctx context.Context, req *connect.Request[
 		Owner:    owner,
 		Op: &agentv1.DatabaseImportControlCall_Begin{
 			Begin: &agentv1.DatabaseImportBegin{
-				Database:  m.GetDatabase(),
-				Filename:  m.GetFilename(),
-				Format:    format,
-				SizeBytes: m.GetSizeBytes(),
-				ServiceId: one.db.GetId(),
+				Database:          m.GetDatabase(),
+				Filename:          m.GetFilename(),
+				Format:            format,
+				SizeBytes:         m.GetSizeBytes(),
+				ServiceId:         one.db.GetId(),
+				DatabaseSizeBytes: dbSizeBytes,
 			},
 		},
 	}, importControlTimeout)
@@ -212,7 +219,7 @@ func (h *Handler) UploadDatabaseImport(ctx context.Context, stream *connect.Clie
 	first := stream.Msg()
 	importID := first.GetImportId()
 	if !backup.ValidImportID(importID) {
-		return nil, authapi.Invalid(errors.New("invalid import ID"))
+		return nil, authapi.Invalid(errors.New("that staged import ID isn't valid. Start a new dump upload"))
 	}
 	_, srv, session, err := h.pickImportTarget(ctx, first.GetId(), first.GetProject(), first.GetEnvironment(), "")
 	if err != nil {
@@ -278,7 +285,7 @@ func (h *Handler) PlanDatabaseImport(ctx context.Context, req *connect.Request[d
 	m := req.Msg
 	importID := m.GetImportId()
 	if !backup.ValidImportID(importID) {
-		return nil, authapi.Invalid(errors.New("invalid import ID"))
+		return nil, authapi.Invalid(errors.New("that staged import ID isn't valid. Start a new dump upload"))
 	}
 	one, srv, session, err := h.pickImportTarget(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), "")
 	if err != nil {
@@ -319,16 +326,16 @@ func (h *Handler) PlanDatabaseImport(ctx context.Context, req *connect.Request[d
 	return connect.NewResponse(&dockwellv1.PlanDatabaseImportResponse{Change: change}), nil
 }
 
-// CancelDatabaseImport discards a staged dump upload on its server.
+// CancelDatabaseImport discards a staged dump upload on its server. Because
+// this RPC requires admin role, any project admin can clear a stuck upload.
 func (h *Handler) CancelDatabaseImport(ctx context.Context, req *connect.Request[dockwellv1.CancelDatabaseImportRequest]) (*connect.Response[dockwellv1.CancelDatabaseImportResponse], error) {
-	owner, err := importOwner(ctx)
-	if err != nil {
+	if _, err := importOwner(ctx); err != nil {
 		return nil, err
 	}
 	m := req.Msg
 	importID := m.GetImportId()
 	if !backup.ValidImportID(importID) {
-		return nil, authapi.Invalid(errors.New("invalid import ID"))
+		return nil, authapi.Invalid(errors.New("that staged import ID isn't valid. Start a new dump upload"))
 	}
 	_, srv, session, err := h.pickImportTarget(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), "")
 	if err != nil {
@@ -336,7 +343,7 @@ func (h *Handler) CancelDatabaseImport(ctx context.Context, req *connect.Request
 	}
 	out, err := session.DatabaseImport(ctx, &agentv1.DatabaseImportControlCall{
 		ImportId: importID,
-		Owner:    owner,
+		Owner:    "",
 		Op:       &agentv1.DatabaseImportControlCall_Cancel{Cancel: &agentv1.DatabaseImportCancel{}},
 	}, importControlTimeout)
 	if err != nil {

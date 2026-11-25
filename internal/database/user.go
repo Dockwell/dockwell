@@ -299,6 +299,9 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 	case there.owner != "":
 		return resource.Decision{}, fmt.Errorf("%s has a database %s already, which Dockwell didn't make. Choose another name", u.GetService(), Owned(ref.Name, u))
 	}
+	if u.GetCopyFrom() == nil && e.SQL() && hasDeletedBackup(d.Dir, time.Now(), ref.Scope, u.GetService(), Owned(ref.Name, u)) {
+		dec.Restores = true
+	}
 	return dec, nil
 }
 
@@ -870,6 +873,14 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 				return err
 			}
 			g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
+		} else if e.SQL() && (step.Restores || hasDeletedBackup(d.Dir, time.Now(), ref.Scope, u.GetService(), db)) {
+			// Undo of a delete brings back the backup taken just before DROP.
+			if err := restoreDeletedBackup(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, u.GetService(), db, ref.Name, password); err != nil {
+				if derr := d.run(context.WithoutCancel(ctx), c, e, e.drop(ref.Name, db)); derr == nil {
+					_ = d.record(ref, nil)
+				}
+				return err
+			}
 		}
 	} else if from != nil {
 		// A copy is made once, with the user, and what it came from can't change.
@@ -1124,6 +1135,12 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 			return err
 		}
 		return d.record(ref, nil)
+	}
+	if e.SQL() {
+		// Back up the database before dropping so Undo restores its data; refuse if backup fails.
+		if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, g.Service, db, ref.Name); err != nil {
+			return err
+		}
 	}
 	if err := d.run(ctx, c, e, e.drop(ref.Name, db)); err != nil {
 		return err

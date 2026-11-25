@@ -10066,8 +10066,15 @@ msgstr "Image tag set"
 msgid "Images imported"
 msgstr "Images imported"
 
+msgid "Imported"
+msgstr "Imported"
+
 msgid "Importing images"
 msgstr "Importing images"
+
+#. placeholder {0}: restore.importFile
+msgid "Imports {0}"
+msgstr "Imports {0}"
 
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
@@ -10174,6 +10181,9 @@ msgstr "Push failed"
 msgid "Pushing image"
 msgstr "Pushing image"
 
+msgid "Puts back"
+msgstr "Puts back"
+
 msgid "Re-enabling Docker cleanup"
 msgstr "Re-enabling Docker cleanup"
 
@@ -10200,6 +10210,12 @@ msgstr "Restarted {name} on {server}"
 
 msgid "Restarting {name} on {server}"
 msgstr "Restarting {name} on {server}"
+
+msgid "Restored"
+msgstr "Restored"
+
+msgid "Restores"
+msgstr "Restores"
 
 msgid "Result unknown"
 msgstr "Result unknown"
@@ -10913,6 +10929,11 @@ msgstr "If reload fails, Dockwell restarts Docker with the previous settings."
 msgid "Image config digest"
 msgstr "Image config digest"
 
+#. placeholder {0}: restore.importFile
+#. placeholder {1}: restore.databaseName
+msgid "Import <0>{0}</0> into <1>{1}</1>"
+msgstr "Import <0>{0}</0> into <1>{1}</1>"
+
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
 
@@ -10998,6 +11019,10 @@ msgstr "Pulled in"
 msgid "Pulls with the registry login {0}"
 msgstr "Pulls with the registry login {0}"
 
+#. placeholder {0}: restore.databaseName
+msgid "Put back <0>{0}</0>"
+msgstr "Put back <0>{0}</0>"
+
 msgid "Re-enable Docker cleanup on <0>{server}</0>"
 msgstr "Re-enable Docker cleanup on <0>{server}</0>"
 
@@ -11015,6 +11040,10 @@ msgstr "Reload Docker on {server}"
 
 msgid "Restart Docker on {server}"
 msgstr "Restart Docker on {server}"
+
+#. placeholder {0}: restore.databaseName
+msgid "Restore <0>{0}</0>"
+msgstr "Restore <0>{0}</0>"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
@@ -11998,9 +12027,6 @@ msgstr "Developers can publish names in {zones} and prove the names they publish
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker cleanup permanently removes the selected Docker artifacts"
 
-msgid "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
-msgstr "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
-
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell couldn't list the repository's branches and tags"
 
@@ -12397,6 +12423,9 @@ msgstr "The hour {name}'s backup gets is a guess"
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
 
+msgid "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
+msgstr "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
+
 msgid "The registry can accept another write between the final check and publication."
 msgstr "The registry can accept another write between the final check and publication."
 
@@ -12544,6 +12573,9 @@ msgstr "What was made since goes."
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
 
+msgid "What's in {target} now goes to a backup the server keeps for 7 days."
+msgstr "What's in {target} now goes to a backup the server keeps for 7 days."
+
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 
@@ -12611,10 +12643,6 @@ msgstr "{0, plural, one {{list} stops while it loads, and what was made since go
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
-
-#. placeholder {0}: server.serverName
-msgid "{0} keeps {name}'s data for 7 days, then deletes it"
-msgstr "{0} keeps {name}'s data for 7 days, then deletes it"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app}'s data stays in {before}; {after} starts empty"
@@ -12712,9 +12740,8 @@ msgstr "{name} leaves the fleet for good"
 msgid "{name} lets in someone {path} kept out"
 msgstr "{name} lets in someone {path} kept out"
 
-#. placeholder {0}: server.serverName
-msgid "{name} loses its data on {0}"
-msgstr "{name} loses its data on {0}"
+msgid "{name} loses its data on {serverShown}"
+msgstr "{name} loses its data on {serverShown}"
 
 msgid "{name} loses what its image keeps at {paths}"
 msgstr "{name} loses what its image keeps at {paths}"
@@ -12868,11 +12895,17 @@ msgstr "{project} already runs {names}"
 msgid "{project} already runs {names}, and this deletes {deleted}"
 msgstr "{project} already runs {names}, and this deletes {deleted}"
 
+msgid "{serverShown} keeps {name}'s data for 7 days, then deletes it"
+msgstr "{serverShown} keeps {name}'s data for 7 days, then deletes it"
+
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 
-msgid "{target} is backed up first ({size} to import); undoing puts back what was there."
-msgstr "{target} is backed up first ({size} to import); undoing puts back what was there."
+msgid "{target} is backed up first and put back if the import fails."
+msgstr "{target} is backed up first and put back if the import fails."
+
+msgid "{target} on {server} goes back to what was there before"
+msgstr "{target} on {server} goes back to what was there before"
 
 msgid "{tool} still manages {container}"
 msgstr "{tool} still manages {container}"
@@ -14718,8 +14751,8 @@ msgstr "{servers}, unencrypted"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, one {# user} other {# users}}"
 
-msgid "Create a database first before importing a dump"
-msgstr "Create a database first before importing a dump"
+msgid "Create a database to import into"
+msgstr "Create a database to import into"
 
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
@@ -14747,11 +14780,11 @@ msgstr "Its server keeps {0} for itself"
 msgid "Its volume isn't one Dockwell backs up"
 msgstr "Its volume isn't one Dockwell backs up"
 
-msgid "Linked by {linked}. Disconnect first"
-msgstr "Linked by {linked}. Disconnect first"
-
 msgid "No server has said yet"
 msgstr "No server has said yet"
+
+msgid "Used by {linked}. Disconnect or stop using it first"
+msgstr "Used by {linked}. Disconnect or stop using it first"
 
 #. placeholder {0}: read.unlisted
 msgid "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
@@ -14914,6 +14947,10 @@ msgstr "No database of this engine here."
 msgid "No databases yet"
 msgstr "No databases yet"
 
+#. placeholder {0}: firstReading(db)?.serverName || t`its server`
+msgid "No public address known for {0}"
+msgstr "No public address known for {0}"
+
 msgid "No volume"
 msgstr "No volume"
 
@@ -15020,14 +15057,14 @@ msgid "Use an SSH tunnel"
 msgstr "Use an SSH tunnel"
 
 #. placeholder {0}: extensions.join(", ")
-msgid "Accepts {0}. Streamed in chunks to the server."
-msgstr "Accepts {0}. Streamed in chunks to the server."
+msgid "Accepts {0}."
+msgstr "Accepts {0}."
 
 msgid "Backed up automatically before the dump loads."
 msgstr "Backed up automatically before the dump loads."
 
-msgid "Backs up the chosen database first, then restores with {engine}'s own tool"
-msgstr "Backs up the chosen database first, then restores with {engine}'s own tool"
+msgid "Backs up the chosen database first, then loads as its owner. Admins only."
+msgstr "Backs up the chosen database first, then loads as its owner. Admins only."
 
 msgid "Choose a dump file to import."
 msgstr "Choose a dump file to import."
@@ -15035,8 +15072,8 @@ msgstr "Choose a dump file to import."
 msgid "Choose another file"
 msgstr "Choose another file"
 
-msgid "Create a database first before importing a dump."
-msgstr "Create a database first before importing a dump."
+msgid "Create a database to import into."
+msgstr "Create a database to import into."
 
 msgid "Dump file"
 msgstr "Dump file"
@@ -15101,8 +15138,8 @@ msgstr "Dockwell generates a password for the new user and keeps it as a secret.
 msgid "New database in {name}"
 msgstr "New database in {name}"
 
-msgid "The logical database to create in {engine}."
-msgstr "The logical database to create in {engine}."
+msgid "The database to create in {engine}."
+msgstr "The database to create in {engine}."
 
 msgid "This database can't be planned"
 msgstr "This database can't be planned"

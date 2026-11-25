@@ -231,7 +231,7 @@ export function NewDatabaseSheet({ db, read, onClose }: { db: Database; read: Da
           spellCheck={false}
           placeholder="analytics"
           error={databaseError ?? databaseCheck}
-          hint={t`The logical database to create in ${engine}.`}
+          hint={t`The database to create in ${engine}.`}
           onChange={(event) => {
             setDatabase(event.target.value);
             setDatabaseError(undefined);

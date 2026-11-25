@@ -419,7 +419,7 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
   const externalAddressOf = (db: Database): string => {
     const reading = firstReading(db);
     const server = servers?.find((s) => s.id === reading?.serverId);
-    return server?.address || reading?.serverName || "";
+    return server?.address || "";
   };
 
   const copyConnection = async (db: Database, mode: "internal" | "external") => {
@@ -534,12 +534,15 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
         label: t`Copy connection string`,
         onSelect: () => void copyConnection(db, "internal"),
       },
-      ...(db.externalAccess && externalHost
+      ...(db.externalAccess
         ? [
             {
               id: "copy-external-connection",
               icon: "copy" as const,
               label: t`Copy external connection string`,
+              off: externalHost
+                ? undefined
+                : t`No public address known for ${firstReading(db)?.serverName || t`its server`}`,
               onSelect: () => void copyConnection(db, "external"),
             },
           ]

@@ -163,22 +163,25 @@ service DatabaseService {
   }
 
   // DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
-  // PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+  // PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
   rpc DeleteLogicalDatabase(DeleteLogicalDatabaseRequest) returns (DeleteLogicalDatabaseResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
     option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "delete-database"};
-    option (google.api.http) = {delete: "/v1/databases/{id}/databases/{database}"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/databases/{database}:delete"
+      body: "*"
+    };
   }
 
   // BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
   // for a database on its server, or reports how far an existing upload got so
-  // the client can resume it. No API token can call it.
+  // the client can resume it. Admin-only; no API token can call it.
   rpc BeginDatabaseImport(BeginDatabaseImportRequest) returns (BeginDatabaseImportResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_session) = true;
@@ -191,10 +194,10 @@ service DatabaseService {
 
   // UploadDatabaseImport streams bounded chunks of a staged dump upload from
   // offset to the database's server. Over REST it is a PUT whose body is the
-  // raw bytes of that chunk. No API token can call it.
+  // raw bytes of that chunk. Admin-only; no API token can call it.
   rpc UploadDatabaseImport(stream UploadDatabaseImportRequest) returns (UploadDatabaseImportResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_session) = true;
@@ -206,11 +209,11 @@ service DatabaseService {
   }
 
   // PlanDatabaseImport plans importing a completed staged dump into the chosen
-  // logical database, backing up that database first (as restores do).
+  // logical database, backing up that database first (as restores do). Admin-only.
   rpc PlanDatabaseImport(PlanDatabaseImportRequest) returns (PlanDatabaseImportResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_session) = true;
     option (dockwell.v1.command) = {verb: "plan-import"};
@@ -220,10 +223,10 @@ service DatabaseService {
     };
   }
 
-  // CancelDatabaseImport discards a staged dump upload on the server.
+  // CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
   rpc CancelDatabaseImport(CancelDatabaseImportRequest) returns (CancelDatabaseImportResponse) {
-    option (dockwell.v1.effect) = EFFECT_APPLY;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.needs_session) = true;

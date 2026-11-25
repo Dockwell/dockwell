@@ -254,6 +254,14 @@ func (m *Manager) startInContainer(ctx context.Context, container, exact string,
 			return nil, "", in, err
 		}
 		env = append(env, extraEnv...)
+		if eng.KeyValue() {
+			// When Redis or Valkey is configured via --requirepass in Cmd rather
+			// than an environment variable, pass it through REDISCLI_AUTH so the
+			// console signs in automatically without putting it on argv.
+			if pw := database.FlagValue(c.Config.Cmd, "--requirepass"); pw != "" {
+				env = append(env, "REDISCLI_AUTH="+pw)
+			}
+		}
 		title = tool + "@" + name
 		if dbName != "" {
 			title = tool + "/" + dbName + "@" + name

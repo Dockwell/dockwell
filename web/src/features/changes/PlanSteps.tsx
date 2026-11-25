@@ -16,6 +16,7 @@ import {
   type PlanRollout,
   type PlanStep,
   PlanWarning,
+  type RestorePlan,
   type ServerPlan,
   type StepProgress,
   StepState,
@@ -509,6 +510,8 @@ function StepRow({
             <PanelLine panel={step.panel} server={server} />
           ) : step.agentUpgrade ? (
             <AgentUpgradeLine upgrade={step.agentUpgrade} server={server} />
+          ) : step.restore?.databaseName ? (
+            <OneDatabaseRestoreLine restore={step.restore} />
           ) : (
             <>
               {step.adopts
@@ -631,6 +634,29 @@ function AgentUpgradePlan({ upgrade }: { upgrade: HostAgentUpgrade }) {
         <span className="plan-step-warn">{t`An upgrade can't be undone`}</span>
       </span>
     </div>
+  );
+}
+
+/** What a single-database import or restore step does, rather than saying the whole volume is replaced. */
+function OneDatabaseRestoreLine({ restore }: { restore: RestorePlan }) {
+  if (restore.importFile) {
+    return (
+      <Trans>
+        Import <code>{restore.importFile}</code> into <code>{restore.databaseName}</code>
+      </Trans>
+    );
+  }
+  if (restore.undoes) {
+    return (
+      <Trans>
+        Put back <code>{restore.databaseName}</code>
+      </Trans>
+    );
+  }
+  return (
+    <Trans>
+      Restore <code>{restore.databaseName}</code>
+    </Trans>
   );
 }
 

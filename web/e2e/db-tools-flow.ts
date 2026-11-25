@@ -80,7 +80,7 @@ export async function dbToolsFlow(page: Page, { origin, step, shoot }: FlowRun) 
   await page.getByRole("menuitem", { name: "Open console" }).click();
   await page.waitForURL(/\/servers\/[^/]+\/terminal\?.*console=true/, { timeout: 20_000 });
   const confirm = page.getByRole("button", { name: "Confirm with your passkey" });
-  const consoleTab = page.getByRole("tab", { name: /^psql/ });
+  const consoleTab = page.locator('[role="tab"][title^="psql"]');
   await Promise.race([
     consoleTab.waitFor({ timeout: 20_000 }),
     confirm.waitFor({ timeout: 20_000 }).then(() => confirm.click()),

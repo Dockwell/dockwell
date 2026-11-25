@@ -1503,7 +1503,7 @@ func Methods() []*apicli.Method {
 			Noun:      "databases",
 			Verb:      "begin-import",
 			Short:     "Start a staged dump upload (.sql",
-			Long:      "Start a staged dump upload (.sql, .sql.gz, .dump, .tar) for a database on its\nserver, or reports how far an existing upload got so the client can resume it.\nNo API token can call it.",
+			Long:      "Start a staged dump upload (.sql, .sql.gz, .dump, .tar) for a database on its\nserver, or reports how far an existing upload got so the client can resume it.\nAdmin-only; no API token can call it.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service that runs the database server, by ID or by name.", Arg: true},
@@ -1524,8 +1524,8 @@ func Methods() []*apicli.Method {
 			Noun:      "databases",
 			Verb:      "cancel-import",
 			Short:     "Discard a staged dump upload on the server",
-			Long:      "Discard a staged dump upload on the server.",
-			Effect:    v1.Effect_EFFECT_APPLY,
+			Long:      "Discard a staged dump upload on the server. Admin-only.",
+			Effect:    v1.Effect_EFFECT_DESTRUCTIVE,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service that runs the database server, by ID or by name.", Arg: true},
 				{Path: "import_id", Help: "The staged upload's identifier."},
@@ -1600,11 +1600,11 @@ func Methods() []*apicli.Method {
 		{
 			Name:      "dockwell.v1.DatabaseService.DeleteLogicalDatabase",
 			Procedure: dockwellv1connect.DatabaseServiceDeleteLogicalDatabaseProcedure,
-			HTTP:      "DELETE /v1/databases/{id}/databases/{database}",
+			HTTP:      "POST /v1/databases/{id}/databases/{database}:delete",
 			Noun:      "databases",
 			Verb:      "delete-database",
 			Short:     "Plan dropping a logical database Dockwell manages on a PostgreSQL",
-			Long:      "Plan dropping a logical database Dockwell manages on a PostgreSQL, MySQL or\nMariaDB server. Refused while any app links to it.",
+			Long:      "Plan dropping a logical database Dockwell manages on a PostgreSQL, MySQL or\nMariaDB server. Refused while any app uses it.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service that runs the database server, by ID or by name.", Arg: true},
@@ -1666,7 +1666,7 @@ func Methods() []*apicli.Method {
 			Noun:      "databases",
 			Verb:      "plan-import",
 			Short:     "Plan importing a completed staged dump into the chosen logical database",
-			Long:      "Plan importing a completed staged dump into the chosen logical database, backing\nup that database first (as restores do).",
+			Long:      "Plan importing a completed staged dump into the chosen logical database, backing\nup that database first (as restores do). Admin-only.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service that runs the database server, by ID or by name.", Arg: true},
@@ -1684,7 +1684,7 @@ func Methods() []*apicli.Method {
 			Noun:      "databases",
 			Verb:      "upload-import",
 			Short:     "Stream bounded chunks of a staged dump upload from offset to the database's server",
-			Long:      "Stream bounded chunks of a staged dump upload from offset to the database's\nserver. Over REST it is a PUT whose body is the raw bytes of that chunk. No API\ntoken can call it.",
+			Long:      "Stream bounded chunks of a staged dump upload from offset to the database's\nserver. Over REST it is a PUT whose body is the raw bytes of that chunk.\nAdmin-only; no API token can call it.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service that runs the database server, by ID or by name.", Arg: true},

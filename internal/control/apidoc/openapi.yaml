@@ -2900,13 +2900,13 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/databases/{id}/databases/{database}:
-        delete:
+    /v1/databases/{id}/databases/{database}:delete:
+        post:
             tags:
                 - DatabaseService
             description: |-
                 DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
-                 PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+                 PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
             operationId: DatabaseService_DeleteLogicalDatabase
             parameters:
                 - name: id
@@ -2921,16 +2921,12 @@ paths:
                   required: true
                   schema:
                     type: string
-                - name: project
-                  in: query
-                  description: The project of a service named by name, by name or ID.
-                  schema:
-                    type: string
-                - name: environment
-                  in: query
-                  description: The environment of a service named by name, by name or ID.
-                  schema:
-                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteLogicalDatabaseRequest'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -2951,7 +2947,7 @@ paths:
             description: |-
                 BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
                  for a database on its server, or reports how far an existing upload got so
-                 the client can resume it. No API token can call it.
+                 the client can resume it. Admin-only; no API token can call it.
             operationId: DatabaseService_BeginDatabaseImport
             parameters:
                 - name: id
@@ -2986,7 +2982,7 @@ paths:
             description: |-
                 UploadDatabaseImport streams bounded chunks of a staged dump upload from
                  offset to the database's server. Over REST it is a PUT whose body is the
-                 raw bytes of that chunk. No API token can call it.
+                 raw bytes of that chunk. Admin-only; no API token can call it.
             operationId: DatabaseService_UploadDatabaseImport
             parameters:
                 - name: id
@@ -3041,7 +3037,7 @@ paths:
         delete:
             tags:
                 - DatabaseService
-            description: CancelDatabaseImport discards a staged dump upload on the server.
+            description: CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
             operationId: DatabaseService_CancelDatabaseImport
             parameters:
                 - name: id
@@ -3085,7 +3081,7 @@ paths:
                 - DatabaseService
             description: |-
                 PlanDatabaseImport plans importing a completed staged dump into the chosen
-                 logical database, backing up that database first (as restores do).
+                 logical database, backing up that database first (as restores do). Admin-only.
             operationId: DatabaseService_PlanDatabaseImport
             parameters:
                 - name: id
@@ -17232,6 +17228,24 @@ components:
             type: object
             properties: {}
             description: DeleteGitHookResponse says the hook is gone.
+        DeleteLogicalDatabaseRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs the database server, by ID or by name.
+                database:
+                    type: string
+                    description: The database's name inside the server.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+            description: |-
+                DeleteLogicalDatabaseRequest names a database server and a logical database
+                 Dockwell manages in it to drop.
         DeleteLogicalDatabaseResponse:
             type: object
             properties:
