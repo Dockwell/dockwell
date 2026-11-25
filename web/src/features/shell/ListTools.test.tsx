@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { i18n } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { ListPager, ListSearchField, SortHeader, useListPlace, useRowMenu } from "./ListTools";
+import { ListPager, ListSearchField, SortHeader, useListPlace, useRowMenu, useRowSelection } from "./ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "./list";
 
 interface Row {
@@ -128,5 +128,38 @@ describe("the shared list toolkit", () => {
     await user.click(screen.getByRole("menuitem", { name: "Open" }));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ name: "item 120" }));
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("clearing a selection", () => {
+  function Picked() {
+    const selection = useRowSelection(["a", "b"]);
+    return (
+      <>
+        <section ref={selection.list as React.RefObject<HTMLElement>} tabIndex={-1} aria-label="List" />
+        <button type="button" onClick={selection.clear}>
+          Clear
+        </button>
+        <button type="button">Menu item</button>
+      </>
+    );
+  }
+
+  it("gives focus back to the list, unless something took it first", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
+    plainRender(<Picked />);
+    const clear = screen.getByRole("button", { name: "Clear" });
+    clear.focus();
+    fireEvent.click(clear);
+    for (const cb of frames.splice(0)) cb(0);
+    expect(document.activeElement).toBe(screen.getByLabelText("List"));
+
+    clear.focus();
+    fireEvent.click(clear);
+    screen.getByRole("button", { name: "Menu item" }).focus();
+    for (const cb of frames.splice(0)) cb(0);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Menu item" }));
+    raf.mockRestore();
   });
 });

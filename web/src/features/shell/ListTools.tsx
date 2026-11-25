@@ -387,7 +387,14 @@ export function useRowSelection(
   const clear = useCallback(() => {
     setPicked(new Set());
     setAnchor(undefined);
-    requestAnimationFrame(() => (list.current ?? fallback?.current)?.focus({ preventScroll: true }));
+    // Focus goes back to the list only if nothing took it meanwhile: a row menu
+    // opened right after Clear keeps its focus, or its blur would close it.
+    const from = document.activeElement;
+    requestAnimationFrame(() => {
+      const now = document.activeElement;
+      if (now !== from && now !== document.body && now?.isConnected) return;
+      (list.current ?? fallback?.current)?.focus({ preventScroll: true });
+    });
   }, [fallback]);
   return {
     enabled,
