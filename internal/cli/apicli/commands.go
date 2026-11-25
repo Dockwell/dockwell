@@ -247,6 +247,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.ChangeService.PlanReboot":                  true,
 	"dockwell.v1.ChangeService.PlanAgentUpgrade":            true,
 	"dockwell.v1.ChangeService.PlanRemoveServer":            true,
+	"dockwell.v1.ChangeService.PlanHostToolbox":             true,
 	"dockwell.v1.ChangeService.PlanSystemServiceAction":     true,
 	"dockwell.v1.ChangeService.PlanServerLabels":            true,
 	"dockwell.v1.ChangeService.DiscardChange":               false,

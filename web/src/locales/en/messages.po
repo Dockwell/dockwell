@@ -10012,6 +10012,15 @@ msgstr "Building image"
 msgid "Cleaning up Docker"
 msgstr "Cleaning up Docker"
 
+#. placeholder {0}: toolboxService.name
+#. placeholder {1}: toolboxService.user
+msgid "Confirm creating {0} on {toolboxServer} as {1} with your passkey."
+msgstr "Confirm creating {0} on {toolboxServer} as {1} with your passkey."
+
+#. placeholder {0}: change.summary
+msgid "Confirm with your passkey · {0}"
+msgstr "Confirm with your passkey · {0}"
+
 msgid "Copy {at}"
 msgstr "Copy {at}"
 
@@ -10579,6 +10588,9 @@ msgstr "Copy SSH test command"
 msgid "Keep the change"
 msgstr "Keep the change"
 
+msgid "Keep the host settings on {name}"
+msgstr "Keep the host settings on {name}"
+
 msgid "Once kept, SSH stays open only from {from}."
 msgstr "Once kept, SSH stays open only from {from}."
 
@@ -10605,6 +10617,12 @@ msgstr "Run this command from {testAddress}."
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
+
+msgid "The agent couldn’t open a fresh connection. The previous settings will return when the timer ends."
+msgstr "The agent couldn’t open a fresh connection. The previous settings will return when the timer ends."
+
+msgid "The agent opened a fresh connection to the control server."
+msgstr "The agent opened a fresh connection to the control server."
 
 msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 msgstr "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
@@ -10636,11 +10654,17 @@ msgstr "{name} is putting back its firewall as it was."
 msgid "{name} is restoring its SSH settings."
 msgstr "{name} is restoring its SSH settings."
 
+msgid "{name} is restoring its host settings."
+msgstr "{name} is restoring its host settings."
+
 msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
 
 msgid "{name} restores its SSH settings in {left} s unless you keep them."
 msgstr "{name} restores its SSH settings in {left} s unless you keep them."
+
+msgid "{name} restores its host settings in {left} s unless you keep them."
+msgstr "{name} restores its host settings in {left} s unless you keep them."
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
@@ -11422,6 +11446,32 @@ msgstr "This stopped before it reached that, and Dockwell put back the rest."
 
 msgid "What ran before runs again"
 msgstr "What ran before runs again"
+
+msgid "Developers with access to {environment} can edit its source values."
+msgstr "Developers with access to {environment} can edit its source values."
+
+msgid "Entered in this plan"
+msgstr "Entered in this plan"
+
+msgid "Environment bindings"
+msgstr "Environment bindings"
+
+msgid "Files to remove"
+msgstr "Files to remove"
+
+msgid "Host change"
+msgstr "Host change"
+
+msgid "Secret · Hidden"
+msgstr "Secret · Hidden"
+
+msgid "Systemd unit file"
+msgstr "Systemd unit file"
+
+#. placeholder {0}: b.source
+#. placeholder {1}: b.environmentName
+msgid "{0} in {1}"
+msgstr "{0} in {1}"
 
 msgid "Another unit that needs it can still start it"
 msgstr "Another unit that needs it can still start it"
@@ -21942,6 +21992,9 @@ msgstr "System log"
 msgid "System services"
 msgstr "System services"
 
+msgid "Toolbox"
+msgstr "Toolbox"
+
 msgid "1 min"
 msgstr "1 min"
 
@@ -22648,6 +22701,219 @@ msgstr "{name} reaches the network through it"
 
 msgid "{name}'s services and sign-ins go through it"
 msgstr "{name}'s services and sign-ins go through it"
+
+msgid "APT package cache"
+msgstr "APT package cache"
+
+msgid "Add direct value"
+msgstr "Add direct value"
+
+msgid "Add hosts entry"
+msgstr "Add hosts entry"
+
+msgid "Add swap"
+msgstr "Add swap"
+
+msgid "Add value"
+msgstr "Add value"
+
+msgid "Age"
+msgstr "Age"
+
+msgid "An admin can use the host toolbox."
+msgstr "An admin can use the host toolbox."
+
+msgid "Archived journals"
+msgstr "Archived journals"
+
+msgid "Arguments"
+msgstr "Arguments"
+
+msgid "Background services"
+msgstr "Background services"
+
+msgid "Change DNS"
+msgstr "Change DNS"
+
+msgid "Change hostname"
+msgstr "Change hostname"
+
+msgid "Change swappiness"
+msgstr "Change swappiness"
+
+msgid "Change time zone"
+msgstr "Change time zone"
+
+msgid "Checking the server"
+msgstr "Checking the server"
+
+msgid "Choose a variable or secret"
+msgstr "Choose a variable or secret"
+
+msgid "Creating background services requires systemd."
+msgstr "Creating background services requires systemd."
+
+msgid "DNS and hosts"
+msgstr "DNS and hosts"
+
+msgid "DNS servers"
+msgstr "DNS servers"
+
+msgid "Direct environment name"
+msgstr "Direct environment name"
+
+msgid "Direct environment value"
+msgstr "Direct environment value"
+
+msgid "Docker cleanup"
+msgstr "Docker cleanup"
+
+msgid "Dockwell hosts entries"
+msgstr "Dockwell hosts entries"
+
+msgid "Dockwell value"
+msgstr "Dockwell value"
+
+msgid "Enter one argument per line."
+msgstr "Enter one argument per line."
+
+msgid "Enter one to three IP addresses, separated by commas."
+msgstr "Enter one to three IP addresses, separated by commas."
+
+msgid "Executable"
+msgstr "Executable"
+
+msgid "Files to scan"
+msgstr "Files to scan"
+
+msgid "Global DNS servers"
+msgstr "Global DNS servers"
+
+msgid "Host cleanup"
+msgstr "Host cleanup"
+
+msgid "Identity and time"
+msgstr "Identity and time"
+
+msgid "Keep journals by"
+msgstr "Keep journals by"
+
+msgid "Keep up to (MiB)"
+msgstr "Keep up to (MiB)"
+
+msgid "Link DNS servers"
+msgstr "Link DNS servers"
+
+msgid "New background service"
+msgstr "New background service"
+
+msgid "New service"
+msgstr "New service"
+
+msgid "No active swap"
+msgstr "No active swap"
+
+msgid "No background services created in Dockwell."
+msgstr "No background services created in Dockwell."
+
+msgid "No eligible files found."
+msgstr "No eligible files found."
+
+msgid "Older than (days)"
+msgstr "Older than (days)"
+
+msgid "On failure"
+msgstr "On failure"
+
+msgid "Package cache, archived journals, rotated logs and old temporary files."
+msgstr "Package cache, archived journals, rotated logs and old temporary files."
+
+msgid "Reading host settings"
+msgstr "Reading host settings"
+
+msgid "Remove hosts entry for {hostname}"
+msgstr "Remove hosts entry for {hostname}"
+
+msgid "Remove swap"
+msgstr "Remove swap"
+
+#. placeholder {0}: binding.name
+#. placeholder {0}: row.name
+msgid "Remove {0}"
+msgstr "Remove {0}"
+
+msgid "Remove {unit}"
+msgstr "Remove {unit}"
+
+msgid "Resize swap"
+msgstr "Resize swap"
+
+msgid "Resolver owner"
+msgstr "Resolver owner"
+
+msgid "Rotated logs"
+msgstr "Rotated logs"
+
+msgid "Run as user"
+msgstr "Run as user"
+
+msgid "Scan files"
+msgstr "Scan files"
+
+msgid "Scan host files"
+msgstr "Scan host files"
+
+msgid "Scanning host files"
+msgstr "Scanning host files"
+
+msgid "Service settings"
+msgstr "Service settings"
+
+msgid "Size (MiB)"
+msgstr "Size (MiB)"
+
+msgid "Swap size"
+msgstr "Swap size"
+
+msgid "Swappiness"
+msgstr "Swappiness"
+
+msgid "Synchronized"
+msgstr "Synchronized"
+
+msgid "Temporary files"
+msgstr "Temporary files"
+
+msgid "This agent needs an update to manage host settings."
+msgstr "This agent needs an update to manage host settings."
+
+msgid "Time synchronization"
+msgstr "Time synchronization"
+
+msgid "Turn NTP off"
+msgstr "Turn NTP off"
+
+msgid "Turn NTP on"
+msgstr "Turn NTP on"
+
+msgid "Waiting for sync"
+msgstr "Waiting for sync"
+
+msgid "Working folder"
+msgstr "Working folder"
+
+#. placeholder {0}: v.name
+msgid "{0} (secret)"
+msgstr "{0} (secret)"
+
+#. placeholder {0}: String(status.swapFreeMib)
+msgid "{0} MiB available for a new swap file."
+msgstr "{0} MiB available for a new swap file."
+
+#. placeholder {0}: String(item.usedMib)
+#. placeholder {1}: String(item.sizeMib)
+msgid "{0} of {1} MiB used"
+msgstr "{0} of {1} MiB used"
 
 msgid "1 join command waiting · expires in {first}"
 msgstr "1 join command waiting · expires in {first}"
@@ -25716,9 +25982,6 @@ msgstr "Copy selection"
 msgid "Ended"
 msgstr "Ended"
 
-msgid "Executable"
-msgstr "Executable"
-
 msgid "Exit fullscreen"
 msgstr "Exit fullscreen"
 
@@ -26429,10 +26692,6 @@ msgstr "Remove the variable {0}"
 
 msgid "Remove the variable {name}"
 msgstr "Remove the variable {name}"
-
-#. placeholder {0}: row.name
-msgid "Remove {0}"
-msgstr "Remove {0}"
 
 msgid "Reveal {name}"
 msgstr "Reveal {name}"

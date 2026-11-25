@@ -288,6 +288,20 @@ service ChangeService {
     };
   }
 
+  // PlanHostToolbox reviews one host operation before it changes anything.
+  rpc PlanHostToolbox(PlanHostToolboxRequest) returns (PlanHostToolboxResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "plan-toolbox"};
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}:planToolbox"
+      body: "*"
+    };
+  }
+
   // PlanSystemServiceAction plans an action on one of a server's system
   // services, its systemd units or OpenRC services: starting, stopping,
   // restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -1573,6 +1587,7 @@ enum IntentKind {
 
 // PlannedResource is what a plan does to one resource as a whole.
 message PlannedResource {
+  HostToolboxPlan toolbox = 403;
   DockerDaemonPlan docker_daemon = 401;
   DockerMaintenance docker_maintenance = 400;
   // The resource's ID. A new resource has its ID from when it is planned.
@@ -1856,6 +1871,7 @@ message ServerPlan {
 
 // PlanStep is what applying does to one resource on one server.
 message PlanStep {
+  HostToolboxPlan toolbox = 403;
   DockerDaemonPlan docker_daemon = 401;
   DockerStorageGuard docker_storage_guard = 402;
   DockerMaintenance docker_maintenance = 400;
@@ -3231,4 +3247,153 @@ message DockerContainerLifecycle {
   uint32 timeout_seconds = 3;
   bool remove_anonymous_volumes = 4;
   repeated DockerContainerTarget targets = 5;
+}
+
+// PlanHostToolboxRequest describes one operation on a server.
+message PlanHostToolboxRequest {
+  string server_id = 1;
+  HostToolboxOperation operation = 2;
+}
+
+// PlanHostToolboxResponse carries the change to review and apply.
+message PlanHostToolboxResponse {
+  Change change = 1;
+}
+
+// HostToolboxOperation selects one change to the server itself.
+message HostToolboxOperation {
+  oneof operation {
+    ToolboxSwap swap = 1;
+    uint32 swappiness = 2;
+    string hostname = 3;
+    string time_zone = 4;
+    bool ntp = 5;
+    ToolboxDNS dns = 6;
+    ToolboxHosts hosts = 7;
+    ToolboxCleanup cleanup = 8;
+    ToolboxService service = 9;
+  }
+}
+
+// ToolboxSwap sets the size of Dockwell's swap file.
+message ToolboxSwap {
+  // Zero removes Dockwell's swap file. Other values are its desired size.
+  uint64 size_mib = 1;
+}
+
+// ToolboxDNS sets name servers through the owner of the resolver configuration.
+message ToolboxDNS {
+  repeated string servers = 1;
+}
+
+// ToolboxHosts adds, changes or removes one Dockwell-owned hosts entry.
+message ToolboxHosts {
+  string hostname = 1;
+  // Empty removes the entry Dockwell owns for this name.
+  string address = 2;
+}
+
+// ToolboxCleanupKind identifies the host files a scan is allowed to consider.
+enum ToolboxCleanupKind {
+  TOOLBOX_CLEANUP_KIND_UNSPECIFIED = 0;
+  TOOLBOX_CLEANUP_KIND_APT = 1;
+  TOOLBOX_CLEANUP_KIND_JOURNAL = 2;
+  TOOLBOX_CLEANUP_KIND_ROTATED_LOGS = 3;
+  TOOLBOX_CLEANUP_KIND_TEMPORARY = 4;
+}
+
+// ToolboxCleanup supplies the limits for a scan and its cleanup plan.
+message ToolboxCleanup {
+  ToolboxCleanupKind kind = 1;
+  uint32 days = 2;
+  // For journal cleanup, a size limit takes the place of an age limit.
+  uint64 keep_mib = 3;
+}
+
+// ToolboxService creates or removes a Dockwell-owned systemd service.
+message ToolboxService {
+  string name = 1;
+  string user = 2;
+  string working_directory = 3;
+  // Absolute executable followed by its literal arguments.
+  repeated string argv = 4;
+  string restart = 5;
+  bool start_on_boot = 6;
+  bool remove = 7;
+  repeated ToolboxBinding environment = 8;
+}
+
+// ToolboxBinding sets an environment name from a Dockwell variable or secret.
+message ToolboxBinding {
+  string name = 1;
+  string environment_id = 2;
+  string source = 3;
+  bool secret = 4;
+  // The control plane pins this value's revision while planning.
+  int64 revision = 5;
+  // Request only. The control plane replaces this with a sealed literal.
+  optional string literal_value = 6;
+  // The control plane fills the environment name and the reviewed plain value.
+  string environment_name = 7;
+  string reviewed_value = 8;
+  // Keyed verification of the immutable revision's resolved value.
+  bytes value_digest = 9;
+  bool environment_protected = 10;
+  // A directly entered value, sealed by the control plane before planning.
+  bytes sealed_literal = 11;
+}
+
+// ToolboxFile is a file eligible for cleanup, with its allocated disk size.
+message ToolboxFile {
+  string path = 1;
+  uint64 bytes = 2;
+}
+
+// ToolboxDifference shows the current and proposed form of a host setting.
+message ToolboxDifference {
+  string subject = 1;
+  string before = 2;
+  string after = 3;
+}
+
+// HostToolboxPlan records the exact operation and the state reviewed before apply.
+message HostToolboxPlan {
+  HostToolboxOperation operation = 1;
+  repeated ToolboxDifference differences = 2;
+  repeated ToolboxFile files = 3;
+  string unit_file = 4;
+  string evidence = 5;
+  bool keep = 6;
+  string change_id = 7;
+}
+
+// HostToolboxStatus reports the current settings and capabilities of the host.
+message HostToolboxStatus {
+  string hostname = 1;
+  string time_zone = 2;
+  bool ntp_available = 3;
+  bool ntp_enabled = 4;
+  bool ntp_synced = 5;
+  uint32 swappiness = 6;
+  uint64 recommended_swap_mib = 7;
+  uint64 swap_free_mib = 8;
+  repeated ToolboxActiveSwap active_swap = 9;
+  uint64 managed_swap_mib = 10;
+  string swap_unavailable = 11;
+  string dns_owner = 12;
+  repeated string dns_servers = 13;
+  repeated ToolboxHosts hosts = 14;
+  repeated string services = 15;
+  bool systemd = 16;
+  repeated string time_zones = 17;
+  bool can_edit_dns = 18;
+  repeated string link_dns_servers = 19;
+  string recovery_error = 20;
+}
+
+// ToolboxActiveSwap reports one active swap area and its usage.
+message ToolboxActiveSwap {
+  string path = 1;
+  uint64 size_mib = 2;
+  uint64 used_mib = 3;
 }

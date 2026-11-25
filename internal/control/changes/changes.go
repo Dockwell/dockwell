@@ -74,7 +74,8 @@ type Handler struct {
 	removalNotes func(ctx context.Context, server, name string) ([]revision.Note, error)
 	// gitLogins checks and fills what fetches a build's private repository, for
 	// its project (ADR 0098). Nil leaves a build as it's sent.
-	gitLogins GitLogins
+	gitLogins     GitLogins
+	toolboxValues *secrets.Keeper
 	// Address has edits that route a catalog app's web to a domain, or stop, write
 	// what follows the app's address too, and says so (ADR 0103). Nil writes nothing
 	// more.
@@ -578,6 +579,17 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
 	client, _ := authapi.ClientFrom(ctx)
 	switch {
+	case r.State == store.ChangePlanned && r.Plan.HasToolbox():
+		target := toolboxStepUpTarget(r.Plan, r.ID, r.Fingerprint)
+		if req.Msg.GetProof() == "" {
+			h.auth.AskedForStepUp(p, auth.StepUpApplyHostToolbox, target, func() { h.noteUnconfirmed(r.ID, who) })
+			return nil, stepUpNeeded(auth.ErrNeedsStepUp, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_HOST_TOOLBOX, target)
+		}
+		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApplyHostToolbox, target)
+		if err != nil {
+			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_HOST_TOOLBOX, target)
+		}
+		giveBack = back
 	case r.State == store.ChangePlanned && (pushPermission || r.Plan.HasDockerMaintenance() || slices.ContainsFunc(r.Plan.Resources, func(p revision.ResourcePlan) bool { return p.DockerDaemon != nil })):
 		target := r.ID + ":" + r.Fingerprint
 		if req.Msg.GetProof() == "" {
@@ -692,6 +704,17 @@ func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwe
 	}
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
+	}
+	if r.Plan.HasToolbox() {
+		switch verdict {
+		case resource.AccessNotProved:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("the agent couldn't make a fresh connection to the control server"), "toolbox_not_proved")
+		case resource.AccessRolledBack:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("the server restored its previous host settings"), "rolled_back")
+		case resource.AccessNotKept:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("the server couldn't keep its host settings. Check its disk space"), "not_kept")
+		default:
+		}
 	}
 	if err := verdictError(changeID, verdict); err != nil {
 		return nil, err
@@ -1702,7 +1725,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
-			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), DockerDaemon: r.DockerDaemon, DockerMaintenance: r.DockerMaintenance, Panel: resourcepb.Panel(r.Panel),
+			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), Toolbox: r.Toolbox.Proto(), DockerDaemon: r.DockerDaemon, DockerMaintenance: r.DockerMaintenance, Panel: resourcepb.Panel(r.Panel),
 			AgentUpgrade:  resourcepb.AgentUpgrade(r.AgentUpgrade),
 			LetsGo:        r.Forget,
 			Storage:       linkStorageProto(r.Storage),

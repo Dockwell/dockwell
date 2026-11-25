@@ -371,7 +371,9 @@ const (
 	StepUpAction_STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS StepUpAction = 267
 	// Downloading a domain certificate's private key, with
 	// DomainService.DownloadCertificate. The target is the domain name.
-	StepUpAction_STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY    StepUpAction = 268
+	StepUpAction_STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY StepUpAction = 268
+	// Applying a host toolbox plan, bound to its change ID and fingerprint.
+	StepUpAction_STEP_UP_ACTION_APPLY_HOST_TOOLBOX          StepUpAction = 269
 	StepUpAction_STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD StepUpAction = 263
 	// Reveals one of a service's own environment variables that reads hidden.
 	// Its target is the service's ID and the name, as "svc_…:NAME". Numbered
@@ -429,6 +431,7 @@ var (
 		266: "STEP_UP_ACTION_BAN_SSH_ADDRESS",
 		267: "STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS",
 		268: "STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY",
+		269: "STEP_UP_ACTION_APPLY_HOST_TOOLBOX",
 		263: "STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD",
 		60:  "STEP_UP_ACTION_REVEAL_SERVICE_VALUE",
 	}
@@ -480,6 +483,7 @@ var (
 		"STEP_UP_ACTION_BAN_SSH_ADDRESS":                       266,
 		"STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS":                  267,
 		"STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY":              268,
+		"STEP_UP_ACTION_APPLY_HOST_TOOLBOX":                    269,
 		"STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD":           263,
 		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":                  60,
 	}
@@ -5147,7 +5151,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xd7\x0e\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xff\x0e\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -5196,7 +5200,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"%STEP_UP_ACTION_DISCONNECT_SSH_SESSION\x10\x89\x02\x12#\n" +
 	"\x1eSTEP_UP_ACTION_BAN_SSH_ADDRESS\x10\x8a\x02\x12(\n" +
 	"#STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS\x10\x8b\x02\x12,\n" +
-	"'STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY\x10\x8c\x02\x12/\n" +
+	"'STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY\x10\x8c\x02\x12&\n" +
+	"!STEP_UP_ACTION_APPLY_HOST_TOOLBOX\x10\x8d\x02\x12/\n" +
 	"*STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD\x10\x87\x02\x12'\n" +
 	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<*\x86\x01\n" +
 	"\fStepUpPolicy\x12\x1e\n" +

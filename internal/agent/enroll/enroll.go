@@ -500,16 +500,22 @@ var silentFor = 15 * time.Second
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment
 // names one, as gRPC requires.
 func httpClient(cfg *tls.Config) *http.Client {
+	return &http.Client{Transport: ControlTransport(cfg)}
+}
+
+// ControlTransport configures the agent's control connection, including the
+// proxy selection, proxy authentication and HTTP/2 over TLS.
+func ControlTransport(cfg *tls.Config) *http.Transport {
 	var p http.Protocols
 	p.SetHTTP2(true)
-	return &http.Client{Transport: &http.Transport{
+	return &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
 		TLSClientConfig:     cfg,
 		Protocols:           &p,
 		TLSHandshakeTimeout: 10 * time.Second,
 		IdleConnTimeout:     90 * time.Second,
 		HTTP2:               &http.HTTP2Config{SendPingTimeout: silentFor, PingTimeout: silentFor},
-	}}
+	}
 }
 
 func encodeKey(key *ecdsa.PrivateKey) ([]byte, error) {

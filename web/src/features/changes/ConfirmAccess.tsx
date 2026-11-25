@@ -29,6 +29,7 @@ export function ConfirmAccess({
   wait,
   stays,
   appliedBy,
+  toolbox = false,
 }: {
   changeId: string;
   wait: ChangeConfirmation;
@@ -36,6 +37,7 @@ export function ConfirmAccess({
   stays?: AccessStays;
   /** The ID of whoever applied the change: only they can keep it. */
   appliedBy?: string;
+  toolbox?: boolean;
 }) {
   const { t } = useLingui();
   const me = useSignedInUser();
@@ -96,7 +98,7 @@ export function ConfirmAccess({
   return (
     <Callout
       tone="warning"
-      title={t`Check you can still reach ${name}`}
+      title={toolbox ? t`Keep the host settings on ${name}` : t`Check you can still reach ${name}`}
       className="plan-confirm"
       actions={
         theirs || !proved ? undefined : (
@@ -107,7 +109,9 @@ export function ConfirmAccess({
       }
     >
       <p>
-        {wait.sshAccount ? (
+        {toolbox ? (
+          <Trans>The agent opened a fresh connection to the control server.</Trans>
+        ) : wait.sshAccount ? (
           proved && login ? (
             identity ? (
               <Trans>
@@ -167,7 +171,15 @@ export function ConfirmAccess({
         </p>
       ) : null}
       <p className="plan-confirm-left" aria-live="polite">
-        {wait.sshAccount && open ? (
+        {toolbox ? (
+          open ? (
+            <Trans>
+              {name} restores its host settings in {left} s unless you keep them.
+            </Trans>
+          ) : (
+            <Trans>{name} is restoring its host settings.</Trans>
+          )
+        ) : wait.sshAccount && open ? (
           <Trans>
             {name} restores its SSH settings in {left} s unless you keep them.
           </Trans>
@@ -191,9 +203,11 @@ export function ConfirmAccess({
               ? t`The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again.`
               : reasonOf(error) === "not_waiting"
                 ? t`That wait is over: this sheet shows whether the server kept the change.`
-                : reasonOf(error) === "ssh_not_proved"
-                  ? t`Run the test command from the expected address and wait for verification before choosing Keep again.`
-                  : sentence(error)}
+                : reasonOf(error) === "toolbox_not_proved"
+                  ? t`The agent couldn’t open a fresh connection. The previous settings will return when the timer ends.`
+                  : reasonOf(error) === "ssh_not_proved"
+                    ? t`Run the test command from the expected address and wait for verification before choosing Keep again.`
+                    : sentence(error)}
         </p>
       ) : null}
     </Callout>

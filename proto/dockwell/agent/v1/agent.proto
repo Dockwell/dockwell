@@ -428,6 +428,9 @@ message Draining {}
 
 // Hello introduces the agent at the start of a stream.
 message Hello {
+  bool host_toolbox = 510;
+  // A guarded host edit could not yet be restored on startup.
+  string host_toolbox_recovery_error = 513;
   // The agent's build.
   dockwell.v1.BuildInfo build = 1;
   // What the server is, as the agent sees it now.
@@ -989,6 +992,7 @@ message Call {
     dockwell.v1.EditServerSshKeyRequest edit_ssh_key = 441;
     // Database tools use 470 to 479.
     DatabaseImportControlCall database_import = 472;
+    HostToolboxReadCall host_toolbox_read = 511;
     dockwell.v1.ListServerSshSessionsRequest list_ssh_sessions = 442;
     dockwell.v1.DisconnectServerSshSessionRequest disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsRequest list_ssh_logins = 444;
@@ -2565,6 +2569,7 @@ message UpgradeAgent {
 
 // DesiredResource is one resource as a change wants it.
 message DesiredResource {
+  dockwell.v1.HostToolboxPlan host_toolbox = 512;
   dockwell.v1.DockerMaintenance docker_maintenance = 400;
   // Sealed registry credentials for an exact image operation on this stream.
   bytes docker_registry_auth = 401;
@@ -2905,6 +2910,7 @@ message CallResult {
     dockwell.v1.EditServerSshKeyResponse edit_ssh_key = 441;
     // Database tools use 470 to 479.
     DatabaseImportControlResult database_import = 472;
+    dockwell.v1.HostToolboxStatus host_toolbox_read = 511;
     dockwell.v1.ListServerSshSessionsResponse list_ssh_sessions = 442;
     dockwell.v1.DisconnectServerSshSessionResponse disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsResponse list_ssh_logins = 444;
@@ -3601,3 +3607,5 @@ message ReadCertificateResult {
   repeated string dns_names = 10;
   repeated string dns_serves = 11;
 }
+// HostToolboxReadCall asks the agent for its current host settings.
+message HostToolboxReadCall {}

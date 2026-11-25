@@ -153,6 +153,7 @@ import {
   withoutIds,
 } from "./plan";
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
+import { ToolboxPlanView } from "./ToolboxPlanView";
 import { UpgradeLine, UpgradePhases } from "./UpgradeLead";
 import { isBuildUpgrade, upgradeOf, upgradePhases } from "./upgrade";
 import { useAlsoWords, useChangeWords } from "./words";
@@ -648,6 +649,21 @@ function ChangeSheet({
 
   const plan = change?.plan;
   const phase = phaseOf(opening, change, failure, witnessed);
+  const toolbox = plan?.resources.find((resource) => resource.toolbox)?.toolbox;
+  const toolboxOp = toolbox?.operation?.operation;
+  const toolboxService = toolboxOp?.case === "service" ? toolboxOp.value : undefined;
+  const toolboxServer = plan?.servers[0]?.serverName;
+  const passkeyNote =
+    toolboxService && !toolboxService.remove && toolboxServer ? (
+      <Trans>
+        Confirm creating {toolboxService.name} on {toolboxServer} as {toolboxService.user} with your passkey.
+      </Trans>
+    ) : toolbox && change?.summary ? (
+      <Trans>Confirm with your passkey · {change.summary}</Trans>
+    ) : (
+      <Trans>Applying this asks for your passkey</Trans>
+    );
+
   const confirming = phase === "review" && (needsConfirming(plan) || Boolean(opening.confirmName));
   const confirmWith = confirming ? opening.confirmName || shortFingerprint(plan) : "";
   const confirmed = confirmWith === "" || typed.trim().toLowerCase() === confirmWith.toLowerCase();
@@ -799,6 +815,7 @@ function ChangeSheet({
       installs(plan) ||
       reboots(plan) ||
       unitWithoutUndo(plan) ||
+      toolbox ||
       plan?.removes ||
       panelStartsAgain(plan) ||
       cleansDocker(plan) ||
@@ -894,7 +911,7 @@ function ChangeSheet({
           {needsPasskey(plan) || approves ? (
             <span className="dw-sheet-note">
               <Icon name="key" size={14} />
-              <Trans>Applying this asks for your passkey</Trans>
+              {passkeyNote}
             </span>
           ) : null}
         </div>
@@ -948,7 +965,7 @@ function ChangeSheet({
             {undoNote}
             <span className="dw-sheet-note">
               <Icon name="key" size={14} />
-              <Trans>Applying this asks for your passkey</Trans>
+              {passkeyNote}
             </span>
           </span>
         ) : (
@@ -1659,6 +1676,7 @@ function PlanBody({
             plan?.servers.find((s) => s.serverId === confirmation.serverId)?.steps.find((step) => step.stays)?.stays
           }
           appliedBy={change.appliedBy?.id}
+          toolbox={plan?.resources.some((r) => r.toolbox?.keep)}
         />
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
@@ -1756,8 +1774,13 @@ function PlanBody({
       {phase !== "discarded" ? <Places plan={plan} /> : null}
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
       {showSteps ? null : <CloudflareSteps plan={plan} />}
+      {plan?.resources.map((r) => r.toolbox && <ToolboxPlanView key={r.id} plan={r.toolbox} />)}
       {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
-      {unitOnly || cleansDocker(plan) || dockerLifecycle(plan) || dockerImageAction(plan) ? null : (
+      {unitOnly ||
+      plan?.resources.some((r) => r.toolbox) ||
+      cleansDocker(plan) ||
+      dockerLifecycle(plan) ||
+      dockerImageAction(plan) ? null : (
         <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
           {cameToNothing ? (
             <h3 className="dw-text-label plan-heading">{setOut}</h3>

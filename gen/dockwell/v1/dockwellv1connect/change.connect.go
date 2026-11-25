@@ -73,6 +73,9 @@ const (
 	// ChangeServicePlanRemoveServerProcedure is the fully-qualified name of the ChangeService's
 	// PlanRemoveServer RPC.
 	ChangeServicePlanRemoveServerProcedure = "/dockwell.v1.ChangeService/PlanRemoveServer"
+	// ChangeServicePlanHostToolboxProcedure is the fully-qualified name of the ChangeService's
+	// PlanHostToolbox RPC.
+	ChangeServicePlanHostToolboxProcedure = "/dockwell.v1.ChangeService/PlanHostToolbox"
 	// ChangeServicePlanSystemServiceActionProcedure is the fully-qualified name of the ChangeService's
 	// PlanSystemServiceAction RPC.
 	ChangeServicePlanSystemServiceActionProcedure = "/dockwell.v1.ChangeService/PlanSystemServiceAction"
@@ -193,6 +196,8 @@ type ChangeServiceClient interface {
 	// it takes a person's passkey, and the control server can't be removed. See
 	// docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
 	PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error)
+	// PlanHostToolbox reviews one host operation before it changes anything.
+	PlanHostToolbox(context.Context, *connect.Request[v1.PlanHostToolboxRequest]) (*connect.Response[v1.PlanHostToolboxResponse], error)
 	// PlanSystemServiceAction plans an action on one of a server's system
 	// services, its systemd units or OpenRC services: starting, stopping,
 	// restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -318,6 +323,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("PlanRemoveServer")),
 			connect.WithClientOptions(opts...),
 		),
+		planHostToolbox: connect.NewClient[v1.PlanHostToolboxRequest, v1.PlanHostToolboxResponse](
+			httpClient,
+			baseURL+ChangeServicePlanHostToolboxProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanHostToolbox")),
+			connect.WithClientOptions(opts...),
+		),
 		planSystemServiceAction: connect.NewClient[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse](
 			httpClient,
 			baseURL+ChangeServicePlanSystemServiceActionProcedure,
@@ -367,6 +378,7 @@ type changeServiceClient struct {
 	planReboot              *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
 	planAgentUpgrade        *connect.Client[v1.PlanAgentUpgradeRequest, v1.PlanAgentUpgradeResponse]
 	planRemoveServer        *connect.Client[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse]
+	planHostToolbox         *connect.Client[v1.PlanHostToolboxRequest, v1.PlanHostToolboxResponse]
 	planSystemServiceAction *connect.Client[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse]
 	planServerLabels        *connect.Client[v1.PlanServerLabelsRequest, v1.PlanServerLabelsResponse]
 	listDrift               *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
@@ -437,6 +449,11 @@ func (c *changeServiceClient) PlanAgentUpgrade(ctx context.Context, req *connect
 // PlanRemoveServer calls dockwell.v1.ChangeService.PlanRemoveServer.
 func (c *changeServiceClient) PlanRemoveServer(ctx context.Context, req *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error) {
 	return c.planRemoveServer.CallUnary(ctx, req)
+}
+
+// PlanHostToolbox calls dockwell.v1.ChangeService.PlanHostToolbox.
+func (c *changeServiceClient) PlanHostToolbox(ctx context.Context, req *connect.Request[v1.PlanHostToolboxRequest]) (*connect.Response[v1.PlanHostToolboxResponse], error) {
+	return c.planHostToolbox.CallUnary(ctx, req)
 }
 
 // PlanSystemServiceAction calls dockwell.v1.ChangeService.PlanSystemServiceAction.
@@ -568,6 +585,8 @@ type ChangeServiceHandler interface {
 	// it takes a person's passkey, and the control server can't be removed. See
 	// docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
 	PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error)
+	// PlanHostToolbox reviews one host operation before it changes anything.
+	PlanHostToolbox(context.Context, *connect.Request[v1.PlanHostToolboxRequest]) (*connect.Response[v1.PlanHostToolboxResponse], error)
 	// PlanSystemServiceAction plans an action on one of a server's system
 	// services, its systemd units or OpenRC services: starting, stopping,
 	// restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -689,6 +708,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("PlanRemoveServer")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanHostToolboxHandler := connect.NewUnaryHandler(
+		ChangeServicePlanHostToolboxProcedure,
+		svc.PlanHostToolbox,
+		connect.WithSchema(changeServiceMethods.ByName("PlanHostToolbox")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServicePlanSystemServiceActionHandler := connect.NewUnaryHandler(
 		ChangeServicePlanSystemServiceActionProcedure,
 		svc.PlanSystemServiceAction,
@@ -748,6 +773,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServicePlanAgentUpgradeHandler.ServeHTTP(w, r)
 		case ChangeServicePlanRemoveServerProcedure:
 			changeServicePlanRemoveServerHandler.ServeHTTP(w, r)
+		case ChangeServicePlanHostToolboxProcedure:
+			changeServicePlanHostToolboxHandler.ServeHTTP(w, r)
 		case ChangeServicePlanSystemServiceActionProcedure:
 			changeServicePlanSystemServiceActionHandler.ServeHTTP(w, r)
 		case ChangeServicePlanServerLabelsProcedure:
@@ -817,6 +844,10 @@ func (UnimplementedChangeServiceHandler) PlanAgentUpgrade(context.Context, *conn
 
 func (UnimplementedChangeServiceHandler) PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanRemoveServer is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanHostToolbox(context.Context, *connect.Request[v1.PlanHostToolboxRequest]) (*connect.Response[v1.PlanHostToolboxResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanHostToolbox is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {

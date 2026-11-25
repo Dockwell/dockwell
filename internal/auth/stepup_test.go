@@ -666,3 +666,10 @@ func TestAPasskeyStillAnswersOnceExported(t *testing.T) {
 		t.Fatalf("its proof: %v", err)
 	}
 }
+
+func TestToolboxStepUpNamesWhatItConfirms(t *testing.T) {
+	const operation = "creating background service queue-worker (runs as root) on ams-1-03"
+	if got := doing(StepUpApplyHostToolbox, "chg_example:fingerprint\n"+operation); got != operation {
+		t.Fatalf("toolbox step-up = %q", got)
+	}
+}

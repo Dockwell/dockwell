@@ -35,6 +35,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// ServerServiceGetHostToolboxProcedure is the fully-qualified name of the ServerService's
+	// GetHostToolbox RPC.
+	ServerServiceGetHostToolboxProcedure = "/dockwell.v1.ServerService/GetHostToolbox"
 	// ServerServiceListServersProcedure is the fully-qualified name of the ServerService's ListServers
 	// RPC.
 	ServerServiceListServersProcedure = "/dockwell.v1.ServerService/ListServers"
@@ -83,6 +86,8 @@ const (
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
 type ServerServiceClient interface {
+	// GetHostToolbox reads the host settings on one server.
+	GetHostToolbox(context.Context, *connect.Request[v1.GetHostToolboxRequest]) (*connect.Response[v1.GetHostToolboxResponse], error)
 	// ListServers returns every server, connected or not, without history.
 	ListServers(context.Context, *connect.Request[v1.ListServersRequest]) (*connect.Response[v1.ListServersResponse], error)
 	// GetServer returns one server, with its recent history.
@@ -188,6 +193,13 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 	baseURL = strings.TrimRight(baseURL, "/")
 	serverServiceMethods := v1.File_dockwell_v1_server_proto.Services().ByName("ServerService").Methods()
 	return &serverServiceClient{
+		getHostToolbox: connect.NewClient[v1.GetHostToolboxRequest, v1.GetHostToolboxResponse](
+			httpClient,
+			baseURL+ServerServiceGetHostToolboxProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("GetHostToolbox")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		listServers: connect.NewClient[v1.ListServersRequest, v1.ListServersResponse](
 			httpClient,
 			baseURL+ServerServiceListServersProcedure,
@@ -292,6 +304,7 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // serverServiceClient implements ServerServiceClient.
 type serverServiceClient struct {
+	getHostToolbox         *connect.Client[v1.GetHostToolboxRequest, v1.GetHostToolboxResponse]
 	listServers            *connect.Client[v1.ListServersRequest, v1.ListServersResponse]
 	getServer              *connect.Client[v1.GetServerRequest, v1.GetServerResponse]
 	watchServers           *connect.Client[v1.WatchServersRequest, v1.WatchServersResponse]
@@ -307,6 +320,11 @@ type serverServiceClient struct {
 	watchSystemLog         *connect.Client[v1.WatchSystemLogRequest, v1.WatchSystemLogResponse]
 	getServerHistory       *connect.Client[v1.GetServerHistoryRequest, v1.GetServerHistoryResponse]
 	getContainerHistory    *connect.Client[v1.GetContainerHistoryRequest, v1.GetContainerHistoryResponse]
+}
+
+// GetHostToolbox calls dockwell.v1.ServerService.GetHostToolbox.
+func (c *serverServiceClient) GetHostToolbox(ctx context.Context, req *connect.Request[v1.GetHostToolboxRequest]) (*connect.Response[v1.GetHostToolboxResponse], error) {
+	return c.getHostToolbox.CallUnary(ctx, req)
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -386,6 +404,8 @@ func (c *serverServiceClient) GetContainerHistory(ctx context.Context, req *conn
 
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
 type ServerServiceHandler interface {
+	// GetHostToolbox reads the host settings on one server.
+	GetHostToolbox(context.Context, *connect.Request[v1.GetHostToolboxRequest]) (*connect.Response[v1.GetHostToolboxResponse], error)
 	// ListServers returns every server, connected or not, without history.
 	ListServers(context.Context, *connect.Request[v1.ListServersRequest]) (*connect.Response[v1.ListServersResponse], error)
 	// GetServer returns one server, with its recent history.
@@ -487,6 +507,13 @@ type ServerServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	serverServiceMethods := v1.File_dockwell_v1_server_proto.Services().ByName("ServerService").Methods()
+	serverServiceGetHostToolboxHandler := connect.NewUnaryHandler(
+		ServerServiceGetHostToolboxProcedure,
+		svc.GetHostToolbox,
+		connect.WithSchema(serverServiceMethods.ByName("GetHostToolbox")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	serverServiceListServersHandler := connect.NewUnaryHandler(
 		ServerServiceListServersProcedure,
 		svc.ListServers,
@@ -588,6 +615,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case ServerServiceGetHostToolboxProcedure:
+			serverServiceGetHostToolboxHandler.ServeHTTP(w, r)
 		case ServerServiceListServersProcedure:
 			serverServiceListServersHandler.ServeHTTP(w, r)
 		case ServerServiceGetServerProcedure:
@@ -626,6 +655,10 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 
 // UnimplementedServerServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedServerServiceHandler struct{}
+
+func (UnimplementedServerServiceHandler) GetHostToolbox(context.Context, *connect.Request[v1.GetHostToolboxRequest]) (*connect.Response[v1.GetHostToolboxResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetHostToolbox is not implemented"))
+}
 
 func (UnimplementedServerServiceHandler) ListServers(context.Context, *connect.Request[v1.ListServersRequest]) (*connect.Response[v1.ListServersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.ListServers is not implemented"))

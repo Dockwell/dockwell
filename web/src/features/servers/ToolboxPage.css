@@ -1,0 +1,72 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.toolbox {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.toolbox h2 {
+  margin: 0;
+}
+
+.toolbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.toolbox-grid .dw-panel-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.toolbox-line,
+.toolbox-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.toolbox-fact {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.toolbox-fact > span:first-child {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.toolbox :is(code, a) {
+  overflow-wrap: anywhere;
+}
+
+.toolbox a {
+  color: var(--link);
+}
+
+.toolbox p {
+  margin: 0;
+}
+
+.toolbox-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toolbox-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.toolbox-form .dw-advanced .toolbox-form {
+  padding-top: var(--space-3);
+}

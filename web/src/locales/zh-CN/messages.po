@@ -10012,6 +10012,15 @@ msgstr "正在构建镜像"
 msgid "Cleaning up Docker"
 msgstr "正在清理 Docker"
 
+#. placeholder {0}: toolboxService.name
+#. placeholder {1}: toolboxService.user
+msgid "Confirm creating {0} on {toolboxServer} as {1} with your passkey."
+msgstr "使用通行密钥确认以 {1} 身份在 {toolboxServer} 上创建 {0}。"
+
+#. placeholder {0}: change.summary
+msgid "Confirm with your passkey · {0}"
+msgstr "使用通行密钥确认 · {0}"
+
 msgid "Copy {at}"
 msgstr "复制 {at}"
 
@@ -10579,6 +10588,9 @@ msgstr "复制 SSH 测试命令"
 msgid "Keep the change"
 msgstr "保留更改"
 
+msgid "Keep the host settings on {name}"
+msgstr "保留 {name} 上的主机设置"
+
 msgid "Once kept, SSH stays open only from {from}."
 msgstr "保留后，SSH 只对 {from} 开放。"
 
@@ -10605,6 +10617,12 @@ msgstr "请从 {testAddress} 运行此命令。"
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
+
+msgid "The agent couldn’t open a fresh connection. The previous settings will return when the timer ends."
+msgstr "代理无法建立新连接。倒计时结束后将恢复原设置。"
+
+msgid "The agent opened a fresh connection to the control server."
+msgstr "代理已重新连接到控制服务器。"
 
 msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 msgstr "服务器还没能保留此更改，所以它仍在等待。请先释放服务器磁盘空间，再点击保留。"
@@ -10636,11 +10654,17 @@ msgstr "{name} 正在把防火墙恢复为原样。"
 msgid "{name} is restoring its SSH settings."
 msgstr "{name} 正在恢复 SSH 设置。"
 
+msgid "{name} is restoring its host settings."
+msgstr "{name} 正在恢复主机设置。"
+
 msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢复为原样。"
 
 msgid "{name} restores its SSH settings in {left} s unless you keep them."
 msgstr "如果不保留这些设置，{name} 将在 {left} 秒后恢复原来的 SSH 设置。"
+
+msgid "{name} restores its host settings in {left} s unless you keep them."
+msgstr "如果不保留设置，{name} 将在 {left} 秒后恢复原设置。"
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
@@ -11422,6 +11446,32 @@ msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部
 
 msgid "What ran before runs again"
 msgstr "之前运行的内容已重新运行"
+
+msgid "Developers with access to {environment} can edit its source values."
+msgstr "有权访问 {environment} 的开发者可以编辑源值。"
+
+msgid "Entered in this plan"
+msgstr "在此计划中直接输入"
+
+msgid "Environment bindings"
+msgstr "环境变量绑定"
+
+msgid "Files to remove"
+msgstr "待删除的文件"
+
+msgid "Host change"
+msgstr "主机变更"
+
+msgid "Secret · Hidden"
+msgstr "机密 · 已隐藏"
+
+msgid "Systemd unit file"
+msgstr "systemd 单元文件"
+
+#. placeholder {0}: b.source
+#. placeholder {1}: b.environmentName
+msgid "{0} in {1}"
+msgstr "{1} 中的 {0}"
 
 msgid "Another unit that needs it can still start it"
 msgstr "依赖它的其他单元仍可启动它"
@@ -21942,6 +21992,9 @@ msgstr "系统日志"
 msgid "System services"
 msgstr "系统服务"
 
+msgid "Toolbox"
+msgstr "工具箱"
+
 msgid "1 min"
 msgstr "1 分钟"
 
@@ -22648,6 +22701,219 @@ msgstr "{name} 通过它连接网络"
 
 msgid "{name}'s services and sign-ins go through it"
 msgstr "{name} 的服务和登录都依赖它"
+
+msgid "APT package cache"
+msgstr "APT 软件包缓存"
+
+msgid "Add direct value"
+msgstr "添加直接输入的值"
+
+msgid "Add hosts entry"
+msgstr "添加 hosts 条目"
+
+msgid "Add swap"
+msgstr "添加交换空间"
+
+msgid "Add value"
+msgstr "添加值"
+
+msgid "Age"
+msgstr "保留时间"
+
+msgid "An admin can use the host toolbox."
+msgstr "管理员可以使用主机工具箱。"
+
+msgid "Archived journals"
+msgstr "已归档的系统日志"
+
+msgid "Arguments"
+msgstr "参数"
+
+msgid "Background services"
+msgstr "后台服务"
+
+msgid "Change DNS"
+msgstr "更改 DNS"
+
+msgid "Change hostname"
+msgstr "更改主机名"
+
+msgid "Change swappiness"
+msgstr "更改交换倾向"
+
+msgid "Change time zone"
+msgstr "更改时区"
+
+msgid "Checking the server"
+msgstr "正在检查服务器"
+
+msgid "Choose a variable or secret"
+msgstr "选择变量或密钥"
+
+msgid "Creating background services requires systemd."
+msgstr "创建后台服务需要 systemd。"
+
+msgid "DNS and hosts"
+msgstr "DNS 和 hosts"
+
+msgid "DNS servers"
+msgstr "DNS 服务器"
+
+msgid "Direct environment name"
+msgstr "环境变量名称"
+
+msgid "Direct environment value"
+msgstr "直接输入的环境变量值"
+
+msgid "Docker cleanup"
+msgstr "Docker 清理"
+
+msgid "Dockwell hosts entries"
+msgstr "Dockwell 管理的 hosts 条目"
+
+msgid "Dockwell value"
+msgstr "Dockwell 变量或密钥"
+
+msgid "Enter one argument per line."
+msgstr "每行输入一个参数。"
+
+msgid "Enter one to three IP addresses, separated by commas."
+msgstr "输入一到三个 IP 地址，用逗号分隔。"
+
+msgid "Executable"
+msgstr "可执行文件"
+
+msgid "Files to scan"
+msgstr "扫描范围"
+
+msgid "Global DNS servers"
+msgstr "全局 DNS 服务器"
+
+msgid "Host cleanup"
+msgstr "主机清理"
+
+msgid "Identity and time"
+msgstr "主机名和时间"
+
+msgid "Keep journals by"
+msgstr "日志保留方式"
+
+msgid "Keep up to (MiB)"
+msgstr "最多保留（MiB）"
+
+msgid "Link DNS servers"
+msgstr "网络接口的 DNS 服务器"
+
+msgid "New background service"
+msgstr "新建后台服务"
+
+msgid "New service"
+msgstr "新建服务"
+
+msgid "No active swap"
+msgstr "没有启用的交换空间"
+
+msgid "No background services created in Dockwell."
+msgstr "尚未在 Dockwell 中创建后台服务。"
+
+msgid "No eligible files found."
+msgstr "没有找到符合条件的文件。"
+
+msgid "Older than (days)"
+msgstr "早于（天）"
+
+msgid "On failure"
+msgstr "失败时"
+
+msgid "Package cache, archived journals, rotated logs and old temporary files."
+msgstr "软件包缓存、归档日志、轮转日志和旧的临时文件。"
+
+msgid "Reading host settings"
+msgstr "正在读取主机设置"
+
+msgid "Remove hosts entry for {hostname}"
+msgstr "删除 {hostname} 的 hosts 条目"
+
+msgid "Remove swap"
+msgstr "删除交换空间"
+
+#. placeholder {0}: binding.name
+#. placeholder {0}: row.name
+msgid "Remove {0}"
+msgstr "移除 {0}"
+
+msgid "Remove {unit}"
+msgstr "删除 {unit}"
+
+msgid "Resize swap"
+msgstr "调整交换空间大小"
+
+msgid "Resolver owner"
+msgstr "DNS 解析配置由谁管理"
+
+msgid "Rotated logs"
+msgstr "轮转日志"
+
+msgid "Run as user"
+msgstr "运行用户"
+
+msgid "Scan files"
+msgstr "扫描文件"
+
+msgid "Scan host files"
+msgstr "扫描主机文件"
+
+msgid "Scanning host files"
+msgstr "正在扫描主机文件"
+
+msgid "Service settings"
+msgstr "服务设置"
+
+msgid "Size (MiB)"
+msgstr "大小（MiB）"
+
+msgid "Swap size"
+msgstr "交换空间大小"
+
+msgid "Swappiness"
+msgstr "交换倾向"
+
+msgid "Synchronized"
+msgstr "已同步"
+
+msgid "Temporary files"
+msgstr "临时文件"
+
+msgid "This agent needs an update to manage host settings."
+msgstr "更新此代理后即可管理主机设置。"
+
+msgid "Time synchronization"
+msgstr "时间同步"
+
+msgid "Turn NTP off"
+msgstr "关闭 NTP"
+
+msgid "Turn NTP on"
+msgstr "开启 NTP"
+
+msgid "Waiting for sync"
+msgstr "等待同步"
+
+msgid "Working folder"
+msgstr "工作目录"
+
+#. placeholder {0}: v.name
+msgid "{0} (secret)"
+msgstr "{0}（密钥）"
+
+#. placeholder {0}: String(status.swapFreeMib)
+msgid "{0} MiB available for a new swap file."
+msgstr "有 {0} MiB 可用于创建交换文件。"
+
+#. placeholder {0}: String(item.usedMib)
+#. placeholder {1}: String(item.sizeMib)
+msgid "{0} of {1} MiB used"
+msgstr "已用 {0} MiB，共 {1} MiB"
 
 msgid "1 join command waiting · expires in {first}"
 msgstr "1 条加入命令等待中 · {first}后过期"
@@ -25716,9 +25982,6 @@ msgstr "复制所选内容"
 msgid "Ended"
 msgstr "已结束"
 
-msgid "Executable"
-msgstr "可执行文件"
-
 msgid "Exit fullscreen"
 msgstr "退出全屏"
 
@@ -26429,10 +26692,6 @@ msgstr "移除变量 {0}"
 
 msgid "Remove the variable {name}"
 msgstr "移除变量 {name}"
-
-#. placeholder {0}: row.name
-msgid "Remove {0}"
-msgstr "移除 {0}"
 
 msgid "Reveal {name}"
 msgstr "显示 {name}"

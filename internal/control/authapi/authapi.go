@@ -428,6 +428,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_BAN_SSH_ADDRESS:                       auth.StepUpBanSSHAddress,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:                           auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:                         auth.StepUpOpenTerminal,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_HOST_TOOLBOX:                    auth.StepUpApplyHostToolbox,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE:                        auth.StepUpApproveChange,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN:                      auth.StepUpMakeWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN:                      auth.StepUpMoveWayBackIn,
