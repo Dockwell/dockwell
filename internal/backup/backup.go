@@ -139,6 +139,12 @@ type Runner struct {
 	// server's free memory, for a test.
 	DrillDisk   func() drillDisk
 	DrillMemory DrillMemory
+
+	importMu       sync.Mutex
+	importBusy     map[string]bool
+	importInUse    map[string]int
+	importCancel   map[string]context.CancelFunc
+	importCanceled map[string]bool
 }
 
 func (r *Runner) now() time.Time {
@@ -902,6 +908,7 @@ func (r *Runner) Prune() error {
 		}
 		r.logger().Info("removed what a restore replaced, kept for 7 days", slog.String("path", archive))
 	}
+	r.SweepImports()
 	return nil
 }
 
@@ -928,19 +935,28 @@ func (r *Runner) Keep(ctx context.Context) {
 	}
 }
 
-// keepPruned prunes every hour until ctx is done.
+// keepPruned prunes every hour and sweeps abandoned staged dump uploads on a
+// shorter timer until ctx is done.
 func (r *Runner) keepPruned(ctx context.Context) {
 	t := time.NewTicker(volume.PruneEvery)
 	defer t.Stop()
+	imp := time.NewTicker(importSweepEvery)
+	defer imp.Stop()
+	if err := r.Prune(); err != nil && ctx.Err() == nil {
+		r.logger().Warn("can't remove what restores replaced; the agent tries again in an hour", slog.String("error", err.Error()))
+	}
+	r.sweepIdle(ctx)
 	for {
-		if err := r.Prune(); err != nil && ctx.Err() == nil {
-			r.logger().Warn("can't remove what restores replaced; the agent tries again in an hour", slog.String("error", err.Error()))
-		}
-		r.sweepIdle(ctx)
 		select {
 		case <-ctx.Done():
 			return
+		case <-imp.C:
+			r.SweepImports()
 		case <-t.C:
+			if err := r.Prune(); err != nil && ctx.Err() == nil {
+				r.logger().Warn("can't remove what restores replaced; the agent tries again in an hour", slog.String("error", err.Error()))
+			}
+			r.sweepIdle(ctx)
 		}
 	}
 }

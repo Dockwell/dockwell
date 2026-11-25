@@ -18,6 +18,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
+import type { AppHealth } from "../apps/health";
 import { useMay } from "../auth/may";
 import { installIn, useCatalog, useInstalls } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
@@ -27,7 +28,7 @@ export function useDatabases() {
   return useQuery(DatabaseService.method.listDatabases, {}, { refetchInterval: READ_EVERY_MS });
 }
 
-/** Users that go with a deleted database, including when its server is silent. */
+/** Users and logical databases that go with a deleted database, including when its server is silent. */
 export function useDatabaseDeleteUsers(db: Database) {
   const scope = db.resource?.scope ?? "";
   const users = useQuery(
@@ -35,15 +36,29 @@ export function useDatabaseDeleteUsers(db: Database) {
     { kind: "database.user", scope },
     { enabled: scope !== "" },
   );
+  const logicals = useQuery(
+    ResourceService.method.listResources,
+    { kind: "database.logical", scope },
+    { enabled: scope !== "" },
+  );
   const databases = useDatabases();
   const only = databases.data?.databases.filter((d) => d.resource?.scope === scope).length === 1;
-  const made = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)));
+  const madeUsers = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)));
+  const madeLogicals = new Set(db.readings.flatMap((r) => r.databases.map((d) => d.resourceId)));
   return {
-    alongside: (users.data?.resources ?? []).filter((u) => only || made.has(u.id)),
-    pending: (scope !== "" && users.isPending) || databases.isPending,
-    error: users.error ?? databases.error,
+    alongside: [
+      ...(users.data?.resources ?? []).filter(
+        (u) => u.resource?.kind === "database.user" && (only || madeUsers.has(u.id)),
+      ),
+      ...(logicals.data?.resources ?? []).filter(
+        (l) => l.resource?.kind === "database.logical" && (only || madeLogicals.has(l.id)),
+      ),
+    ],
+    pending: (scope !== "" && (users.isPending || logicals.isPending)) || databases.isPending,
+    error: users.error ?? logicals.error ?? databases.error,
     retry: () => {
       if (users.error) void users.refetch();
+      if (logicals.error) void logicals.refetch();
       if (databases.error) void databases.refetch();
     },
   };
@@ -115,6 +130,17 @@ export function readOf(reading: DatabaseReading | undefined): DatabaseReading | 
   return reading && reading.unread === "" ? reading : undefined;
 }
 
+/** Where a database's interactive console opens: its server and container name, when known. */
+export function consoleTarget(db: Database, health?: AppHealth): { serverId: string; container: string } | undefined {
+  const runningReading = db.readings.find((r) => r.serverId !== "" && r.container !== "" && r.unread === "");
+  if (runningReading) return { serverId: runningReading.serverId, container: runningReading.container };
+  const anyReading = db.readings.find((r) => r.serverId !== "" && r.container !== "");
+  if (anyReading) return { serverId: anyReading.serverId, container: anyReading.container };
+  const server = health?.servers.find((s) => s.serverId !== "" && s.container !== "");
+  if (server) return { serverId: server.serverId, container: server.container };
+  return undefined;
+}
+
 /** A short muted state for a database the agent couldn't read, for a table cell or metric caption. */
 export function useUnreadWord() {
   const { t } = useLingui();
@@ -141,17 +167,16 @@ export function engineAndVersion(db: Database, reading = readOf(firstReading(db)
   return `${engineName(db.engine)} ${versionOf(db, reading)}`;
 }
 
-/**
- * The URL a service beside it connects with: with the password where it's given, and
- * with none where it isn't, as a person copies it before revealing the secret.
- */
-export function connectionURL(
+function buildConnectionURL(
   db: Database,
   reading: DatabaseReading | undefined,
+  host: string,
+  port: number,
   password: string | undefined,
 ): string {
   const scheme = SCHEMES[db.engine];
-  const where = `${db.host}:${db.port}`;
+  const address = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  const where = `${address}:${port}`;
   const secret = password === undefined ? "" : `:${encodeURIComponent(password)}`;
   if (db.engine === DatabaseEngine.MONGODB) {
     // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.
@@ -163,6 +188,32 @@ export function connectionURL(
   const user = encodeURIComponent(firstUser(db, reading));
   const name = db.engine === DatabaseEngine.POSTGRESQL ? `/${firstDatabase(reading) || "postgres"}` : "";
   return `${scheme}://${user}${secret}@${where}${name}`;
+}
+
+/**
+ * The URL a service beside it connects with: with the password where it's given, and
+ * with none where it isn't, as a person copies it before revealing the secret.
+ */
+export function connectionURL(
+  db: Database,
+  reading: DatabaseReading | undefined,
+  password: string | undefined,
+): string {
+  return buildConnectionURL(db, reading, db.host, db.port, password);
+}
+
+/**
+ * The URL from outside the server, only when external access is on and the server's
+ * address is known. Empty otherwise.
+ */
+export function externalConnectionURL(
+  db: Database,
+  reading: DatabaseReading | undefined,
+  serverAddress: string,
+  password: string | undefined,
+): string {
+  if (!db.externalAccess || !serverAddress) return "";
+  return buildConnectionURL(db, reading, serverAddress, db.externalAccess.port || db.port, password);
 }
 
 /** The user a database's password is for: the one Dockwell signs in as, or the image's first. */

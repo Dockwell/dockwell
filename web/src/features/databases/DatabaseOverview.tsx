@@ -61,6 +61,7 @@ import {
   engineName,
   firstReading,
   firstUser,
+  makesUsers,
   policiesOf,
   readOf,
   speaksSQL,
@@ -116,9 +117,21 @@ function WhoIsIn({ db, read }: { db: Database; read: DatabaseReading }) {
     <Panel
       title={t`Users`}
       actions={
-        <RouterButtonLink to="/databases/$serviceId/users" params={{ serviceId: db.id }} size="sm" variant="ghost">
-          <Trans>Open Users</Trans>
-        </RouterButtonLink>
+        <>
+          {makesUsers(db.engine) ? (
+            <RouterButtonLink
+              to="/databases/$serviceId/databases"
+              params={{ serviceId: db.id }}
+              size="sm"
+              variant="ghost"
+            >
+              <Trans>Open Databases</Trans>
+            </RouterButtonLink>
+          ) : null}
+          <RouterButtonLink to="/databases/$serviceId/users" params={{ serviceId: db.id }} size="sm" variant="ghost">
+            <Trans>Open Users</Trans>
+          </RouterButtonLink>
+        </>
       }
     >
       <p className="database-line">{counts}</p>

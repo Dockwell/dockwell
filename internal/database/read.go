@@ -78,21 +78,32 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return unread("Its container isn't on this server")
 	case err != nil:
 		return unread("Dockwell can't read its container: " + clause(err))
-	case !c.State.Running || c.State.Restarting:
-		return unread(e.Name + " isn't running, so it can't say how it is")
+	}
+	containerName := strings.TrimPrefix(c.Name, "/")
+	if !c.State.Running || c.State.Restarting {
+		r := unread(e.Name + " isn't running, so it can't say how it is")
+		r.Container = containerName
+		return r
 	}
 	if why := e.TooOld(c.Config.Image); why != "" {
-		return unread(why)
+		r := unread(why)
+		r.Container = containerName
+		return r
 	}
 	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
-		return unread(err.Error())
+		r := unread(err.Error())
+		r.Container = containerName
+		return r
 	}
 	reading, err := e.parse(said)
 	if err != nil {
-		return unread(fmt.Sprintf("Dockwell can't read what %s said: %s", e.Name, clause(err)))
+		r := unread(fmt.Sprintf("Dockwell can't read what %s said: %s", e.Name, clause(err)))
+		r.Container = containerName
+		return r
 	}
+	reading.Container = containerName
 	return reading
 }
 
@@ -375,7 +386,8 @@ var postgresRead = `SELECT json_build_object(
   'database_count', (SELECT count(*) FROM pg_database WHERE NOT datistemplate),
   'user_count', (SELECT count(*) FROM pg_roles WHERE rolname !~ '^pg_'),
   'databases', (SELECT coalesce(json_agg(d ORDER BY d.name), '[]'::json) FROM (
-    SELECT datname AS name, pg_get_userbyid(datdba) AS owner, pg_database_size(oid) AS size
+    SELECT datname AS name, pg_get_userbyid(datdba) AS owner, pg_database_size(oid) AS size,
+      (SELECT count(*) FROM pg_stat_activity a WHERE a.datname = pg_database.datname AND a.backend_type = 'client backend' AND a.pid <> pg_backend_pid()) AS connections
     FROM pg_database WHERE NOT datistemplate ORDER BY datname LIMIT ` + strconv.Itoa(MaxListed) + `) d),
   'users', (SELECT coalesce(json_agg(u ORDER BY u.name), '[]'::json) FROM (
     SELECT rolname AS name, rolsuper AS super, rolcanlogin AS login
@@ -401,6 +413,7 @@ SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected', 'Uptime', 'Innod
 SELECT 'd', s.SCHEMA_NAME, COALESCE(SUM(t.DATA_LENGTH + t.INDEX_LENGTH), 0) FROM information_schema.SCHEMATA s LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME GROUP BY s.SCHEMA_NAME ORDER BY s.SCHEMA_NAME;
 SELECT 'u', User, Host, Super_priv FROM mysql.user ORDER BY User, Host;
 SELECT 'g', User, Host, Db FROM mysql.db ORDER BY User, Host, Db;
+SELECT 'c', db, COUNT(*) FROM information_schema.PROCESSLIST WHERE db IS NOT NULL AND ID <> CONNECTION_ID() GROUP BY db;
 `
 
 // capped keeps what's written up to max bytes, and says if there was more.

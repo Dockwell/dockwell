@@ -49,6 +49,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		scope.EnvironmentType{},
 		&task.Driver{},
 		&database.UserDriver{},
+		&database.LogicalDriver{},
 		alert.Rule{},
 		alert.Channel{},
 		alert.Check{},

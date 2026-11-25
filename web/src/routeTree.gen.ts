@@ -70,6 +70,7 @@ import { Route as ShellAppsServiceIdSettingsRouteImport } from './routes/_shell/
 import { Route as ShellCatalogEntryIdInstallRouteImport } from './routes/_shell/catalog.$entryId.install'
 import { Route as ShellDatabasesServiceIdIndexRouteImport } from './routes/_shell/databases.$serviceId.index'
 import { Route as ShellDatabasesServiceIdBackupsRouteImport } from './routes/_shell/databases.$serviceId.backups'
+import { Route as ShellDatabasesServiceIdDatabasesRouteImport } from './routes/_shell/databases.$serviceId.databases'
 import { Route as ShellDatabasesServiceIdUsersRouteImport } from './routes/_shell/databases.$serviceId.users'
 import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/servers.$serverId.index'
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
@@ -416,6 +417,12 @@ const ShellDatabasesServiceIdBackupsRoute =
     path: '/backups',
     getParentRoute: () => ShellDatabasesServiceIdRoute,
   } as any)
+const ShellDatabasesServiceIdDatabasesRoute =
+  ShellDatabasesServiceIdDatabasesRouteImport.update({
+    id: '/databases',
+    path: '/databases',
+    getParentRoute: () => ShellDatabasesServiceIdRoute,
+  } as any)
 const ShellDatabasesServiceIdUsersRoute =
   ShellDatabasesServiceIdUsersRouteImport.update({
     id: '/users',
@@ -691,6 +698,7 @@ export interface FileRoutesByFullPath {
   '/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
   '/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
+  '/databases/$serviceId/databases': typeof ShellDatabasesServiceIdDatabasesRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
@@ -779,6 +787,7 @@ export interface FileRoutesByTo {
   '/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
   '/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
+  '/databases/$serviceId/databases': typeof ShellDatabasesServiceIdDatabasesRoute
   '/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
@@ -873,6 +882,7 @@ export interface FileRoutesById {
   '/_shell/apps/$serviceId/settings': typeof ShellAppsServiceIdSettingsRoute
   '/_shell/catalog/$entryId/install': typeof ShellCatalogEntryIdInstallRoute
   '/_shell/databases/$serviceId/backups': typeof ShellDatabasesServiceIdBackupsRoute
+  '/_shell/databases/$serviceId/databases': typeof ShellDatabasesServiceIdDatabasesRoute
   '/_shell/databases/$serviceId/users': typeof ShellDatabasesServiceIdUsersRoute
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/_shell/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
@@ -966,6 +976,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/settings'
     | '/catalog/$entryId/install'
     | '/databases/$serviceId/backups'
+    | '/databases/$serviceId/databases'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
     | '/servers/$serverId/firewall'
@@ -1054,6 +1065,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId/settings'
     | '/catalog/$entryId/install'
     | '/databases/$serviceId/backups'
+    | '/databases/$serviceId/databases'
     | '/databases/$serviceId/users'
     | '/servers/$serverId/files'
     | '/servers/$serverId/firewall'
@@ -1147,6 +1159,7 @@ export interface FileRouteTypes {
     | '/_shell/apps/$serviceId/settings'
     | '/_shell/catalog/$entryId/install'
     | '/_shell/databases/$serviceId/backups'
+    | '/_shell/databases/$serviceId/databases'
     | '/_shell/databases/$serviceId/users'
     | '/_shell/servers/$serverId/files'
     | '/_shell/servers/$serverId/firewall'
@@ -1608,6 +1621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellDatabasesServiceIdBackupsRouteImport
       parentRoute: typeof ShellDatabasesServiceIdRoute
     }
+    '/_shell/databases/$serviceId/databases': {
+      id: '/_shell/databases/$serviceId/databases'
+      path: '/databases'
+      fullPath: '/databases/$serviceId/databases'
+      preLoaderRoute: typeof ShellDatabasesServiceIdDatabasesRouteImport
+      parentRoute: typeof ShellDatabasesServiceIdRoute
+    }
     '/_shell/databases/$serviceId/users': {
       id: '/_shell/databases/$serviceId/users'
       path: '/users'
@@ -1903,6 +1923,7 @@ const ShellCatalogEntryIdRouteWithChildren =
 
 interface ShellDatabasesServiceIdRouteChildren {
   ShellDatabasesServiceIdBackupsRoute: typeof ShellDatabasesServiceIdBackupsRoute
+  ShellDatabasesServiceIdDatabasesRoute: typeof ShellDatabasesServiceIdDatabasesRoute
   ShellDatabasesServiceIdUsersRoute: typeof ShellDatabasesServiceIdUsersRoute
   ShellDatabasesServiceIdIndexRoute: typeof ShellDatabasesServiceIdIndexRoute
 }
@@ -1910,6 +1931,8 @@ interface ShellDatabasesServiceIdRouteChildren {
 const ShellDatabasesServiceIdRouteChildren: ShellDatabasesServiceIdRouteChildren =
   {
     ShellDatabasesServiceIdBackupsRoute: ShellDatabasesServiceIdBackupsRoute,
+    ShellDatabasesServiceIdDatabasesRoute:
+      ShellDatabasesServiceIdDatabasesRoute,
     ShellDatabasesServiceIdUsersRoute: ShellDatabasesServiceIdUsersRoute,
     ShellDatabasesServiceIdIndexRoute: ShellDatabasesServiceIdIndexRoute,
   }

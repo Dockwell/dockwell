@@ -187,6 +187,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 			BackupId: r.Backup, Undoes: r.Undoes, Method: BackupMethod(r.Method), Database: r.Database,
 			TakenAt: timestamppb.New(r.Taken), SizeBytes: r.Size, Stops: r.Stops, WrittenBy: r.WrittenBy, RunsOn: r.RunsOn,
 			Reached: r.Reached, DatabaseName: r.OneDatabase, IntoNew: r.IntoNew,
+			ImportFile: r.ImportFile, ImportFormat: r.ImportFormat,
 		}
 	}
 	p.Install = Install(s.Install)
@@ -578,6 +579,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Method: BackupMethodFrom(r.GetMethod()), Database: r.GetDatabase(),
 			Taken: r.GetTakenAt().AsTime(), Size: r.GetSizeBytes(), Stops: r.GetStops(), WrittenBy: r.GetWrittenBy(), RunsOn: r.GetRunsOn(),
 			Reached: r.GetReached(), OneDatabase: r.GetDatabaseName(), IntoNew: r.GetIntoNew(),
+			ImportFile: r.GetImportFile(), ImportFormat: r.GetImportFormat(),
 		}
 	}
 	s.Install = InstallFrom(p.GetInstall())

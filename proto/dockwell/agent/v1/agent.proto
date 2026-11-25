@@ -479,6 +479,11 @@ message Hello {
   // take a call for a container as one for the server, so the control plane sends it
   // none.
   bool container_terminals = 52;
+  // True when the agent opens a database's interactive client inside its container
+  // (OpenTerminalCall.database_console). Database tools use 470 to 479.
+  bool database_console = 470;
+  // True when the agent stages and imports uploaded database dumps.
+  bool database_imports = 472;
   // True when the agent's proxy keeps out who a route's access doesn't let in,
   // and asks each private route what a stranger gets (ADR 0087). The control
   // plane plans no route with access on an agent that doesn't say so, which
@@ -977,6 +982,8 @@ message Call {
     GetArchiveJobCall get_archive_job = 422;
     dockwell.v1.ListServerSshKeysRequest list_ssh_keys = 440;
     dockwell.v1.EditServerSshKeyRequest edit_ssh_key = 441;
+    // Database tools use 470 to 479.
+    DatabaseImportControlCall database_import = 472;
     dockwell.v1.ListServerSshSessionsRequest list_ssh_sessions = 442;
     dockwell.v1.DisconnectServerSshSessionRequest disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsRequest list_ssh_logins = 444;
@@ -1404,6 +1411,10 @@ message OpenTerminalCall {
   string container_id = 400;
   // An explicit container executable and arguments. Empty selects a shell.
   repeated string argv = 401;
+  // Open the container's database client as its admin user. Database tools use 470 to 479.
+  bool database_console = 470;
+  // The database inside the container to connect to when database_console is set.
+  string database = 471;
 }
 
 // OpenTerminalResult is the terminal, running.
@@ -1823,6 +1834,11 @@ message RestoreSource {
   // reads the backup only from that volume's own backups, and refuses a name that
   // would lead out of them.
   dockwell.v1.ResourceRef from = 4;
+  // Staged dump import fields (database tools use 470 to 479).
+  string import_id = 472;
+  string import_database = 473;
+  string import_filename = 474;
+  string import_format = 475;
 }
 
 // DatabaseCall asks what databases say of themselves, each read in its own
@@ -2477,6 +2493,9 @@ message Deploy {
   // be confirmed, or its timer to run out, before the step ends (ADR 0052).
   // Numbered in the server overview's block, as open work adds here.
   bool last_access_step = 45;
+  // The change ID this step undoes or rolls back, if any, so an Undo of a
+  // deleted database restores only that change's pre-delete backup (470-479).
+  string undoes = 476;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -2532,6 +2551,8 @@ message DesiredResource {
   // Says a rollback is planning it, which runs before anyone reads its plan, so it
   // takes nothing only a person may approve.
   bool rollback = 6;
+  // The change ID this step undoes or rolls back, if any (470-479).
+  string undoes = 476;
   // Takes on this container, by its full ID, as what the resource runs, in place
   // of making one.
   string adopt = 7;
@@ -2849,6 +2870,8 @@ message CallResult {
     GetArchiveJobResult get_archive_job = 422;
     dockwell.v1.ListServerSshKeysResponse list_ssh_keys = 440;
     dockwell.v1.EditServerSshKeyResponse edit_ssh_key = 441;
+    // Database tools use 470 to 479.
+    DatabaseImportControlResult database_import = 472;
     dockwell.v1.ListServerSshSessionsResponse list_ssh_sessions = 442;
     dockwell.v1.DisconnectServerSshSessionResponse disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsResponse list_ssh_logins = 444;
@@ -3351,4 +3374,59 @@ message DockerLifecyclePreviewCall {
 // DockerLifecyclePreviewResult holds the bounded, reviewed external targets.
 message DockerLifecyclePreviewResult {
   repeated dockwell.v1.DockerContainerTarget targets = 1;
+}
+
+// DatabaseImportControlCall stages, streams, inspects, or cancels an uploaded
+// database dump on the server before a restore plan imports it.
+message DatabaseImportControlCall {
+  // The staged import ID (empty when starting a new one via begin).
+  string import_id = 1;
+  // Session/user owner binding that began this staged import.
+  string owner = 2;
+  oneof op {
+    DatabaseImportBegin begin = 3;
+    DatabaseImportReceive receive = 4;
+    DatabaseImportInspect inspect = 5;
+    DatabaseImportCancel cancel = 6;
+  }
+}
+
+// DatabaseImportBegin starts a new staged dump upload or reads an existing one.
+message DatabaseImportBegin {
+  string database = 1;
+  string filename = 2;
+  string format = 3;
+  uint64 size_bytes = 4;
+  string service_id = 5;
+  // Current size of the target database in bytes, used to reserve room for the
+  // pre-import backup alongside the staged upload and restored size.
+  uint64 database_size_bytes = 6;
+}
+
+// DatabaseImportReceive reads a chunk from ReceiveFile stream starting at offset.
+message DatabaseImportReceive {
+  uint64 stream = 1;
+  uint64 offset = 2;
+}
+
+// DatabaseImportInspect checks that a staged upload is complete and valid.
+message DatabaseImportInspect {}
+
+// DatabaseImportCancel removes a staged upload from disk.
+message DatabaseImportCancel {}
+
+// DatabaseImportControlResult reports the staged upload state or refusal.
+message DatabaseImportControlResult {
+  string import_id = 1;
+  uint64 offset = 2;
+  uint64 size_bytes = 3;
+  bool complete = 4;
+  string database = 5;
+  string filename = 6;
+  string format = 7;
+  string service_id = 8;
+  uint64 max_bytes = 9;
+  uint64 part_bytes = 10;
+  string error = 11;
+  string reason = 12;
 }

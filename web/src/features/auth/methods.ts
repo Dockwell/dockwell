@@ -156,13 +156,20 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },
   "ContainerService.listContainers": "may",
 
+  // Dump import requires project admin role (and a browser session) because it replaces a database's contents.
+  "DatabaseService.beginDatabaseImport": "may",
+  "DatabaseService.cancelDatabaseImport": "may",
   "DatabaseService.changeDatabasePassword": "may",
   "DatabaseService.checkDatabaseSignIn": "may",
   "DatabaseService.connectDatabase": "may",
   "DatabaseService.createDatabaseUser": "may",
+  "DatabaseService.createLogicalDatabase": "may",
+  "DatabaseService.deleteLogicalDatabase": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",
+  "DatabaseService.planDatabaseImport": "may",
   "DatabaseService.setDatabaseExternalAccess": "may",
+  "DatabaseService.uploadDatabaseImport": "may",
 
   "DockerService.checkDockerNetwork": "may",
   "DockerService.abortDockerArtifact": { within: "DockerService.beginDockerArtifactUpload" },

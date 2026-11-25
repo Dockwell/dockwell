@@ -825,6 +825,12 @@ type RestoreSource struct {
 	// database's volume rather than into From itself: the step that makes that
 	// database's service does it, before its container first starts (ADR 0106).
 	From Ref `json:",omitzero"`
+	// ImportID, ImportDatabase, ImportFilename and ImportFormat are set when
+	// restoring from a staged dump upload instead of a backup.
+	ImportID       string `json:",omitempty"`
+	ImportDatabase string `json:",omitempty"`
+	ImportFilename string `json:",omitempty"`
+	ImportFormat   string `json:",omitempty"`
 }
 
 // IntoNew says it restores into a new database's volume (From).
@@ -878,6 +884,10 @@ type RestorePlan struct {
 	// From is the volume whose backups hold Backup, for IntoNew. Only the agent that
 	// applies the step reads it, from what the change asked (RestoreOf).
 	From Ref `json:"-"`
+	// ImportFile and ImportFormat describe an uploaded dump file imported into
+	// OneDatabase (empty for backup restores).
+	ImportFile   string `json:",omitempty"`
+	ImportFormat string `json:",omitempty"`
 }
 
 // Install is what installing a server's updates does: every package, from the

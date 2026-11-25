@@ -14,6 +14,8 @@ import type { Change, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
+import type { HttpBody } from "../../google/api/httpbody_pb";
+import { file_google_api_httpbody } from "../../google/api/httpbody_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -22,7 +24,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/database.proto.
  */
 export const file_dockwell_v1_database: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEi7QMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCRI8Cg9leHRlcm5hbF9hY2Nlc3MYESABKAsyIy5kb2Nrd2VsbC52MS5EYXRhYmFzZUV4dGVybmFsQWNjZXNzIjoKFkRhdGFiYXNlRXh0ZXJuYWxBY2Nlc3MSDAoEcG9ydBgBIAEoDRISCgphbGxvd19mcm9tGAIgAygJIt4DCg9EYXRhYmFzZVJlYWRpbmcSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEi0KCXJlYWRfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGdW5yZWFkGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoAxITCgtjb25uZWN0aW9ucxgHIAEoAxIXCg9tYXhfY29ubmVjdGlvbnMYCCABKAMSDAoEdXNlchgJIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgKIAEoAxIWCgljYWNoZV9oaXQYCyABKAFIAIgBARItCglkYXRhYmFzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Jbm5lckRhdGFiYXNlEisKBXVzZXJzGA0gAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VBY2NvdW50EgwKBGtleXMYDiABKAMSEAoIdW5saXN0ZWQYDyABKAUSHQoVZmVhdHVyZV9jb21wYXRpYmlsaXR5GBAgASgJEhMKC3JlcGxpY2Ffc2V0GBEgASgJEhUKDWNoZWNrc19ub19vbmUYEiABKAhCDAoKX2NhY2hlX2hpdCJQCg1Jbm5lckRhdGFiYXNlEgwKBG5hbWUYASABKAkSDQoFb3duZXIYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoAxIOCgZzeXN0ZW0YBCABKAgi2gEKD0RhdGFiYXNlQWNjb3VudBIMCgRuYW1lGAEgASgJEgwKBGhvc3QYAiABKAkSEQoJc3VwZXJ1c2VyGAMgASgIEhMKC2Nhbl9zaWduX2luGAQgASgIEhEKCWRhdGFiYXNlcxgFIAMoCRIOCgZzeXN0ZW0YBiABKAgSDgoGc2VjcmV0GAcgASgJEg8KB3VzZWRfYnkYCCADKAkSEwoLcmVzb3VyY2VfaWQYCSABKAkSFQoNYXV0aF9kYXRhYmFzZRgKIAEoCRITCgtub19wYXNzd29yZBhQIAEoCCIWChRMaXN0RGF0YWJhc2VzUmVxdWVzdCJBChVMaXN0RGF0YWJhc2VzUmVzcG9uc2USKAoJZGF0YWJhc2VzGAEgAygLMhUuZG9ja3dlbGwudjEuRGF0YWJhc2UiRgoSR2V0RGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkiyAEKGkNoZWNrRGF0YWJhc2VTaWduSW5SZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSDAoEdXNlchgEIAEoCRIjCghkYXRhYmFzZRgFIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSEwoLYXBwX3Byb2plY3QYBiABKAkSFwoPYXBwX2Vudmlyb25tZW50GAcgASgJEhcKD3Bhc3N3b3JkX3NlY3JldBgIIAEoCSJnChtDaGVja0RhdGFiYXNlU2lnbkluUmVzcG9uc2USEAoIc2lnbnNfaW4YASABKAgSDAoEc2FpZBgCIAEoCRIVCg1hZG1pbmlzdHJhdG9yGAMgASgIEhEKCW5vX3JpZ2h0cxgEIAEoCCLoAwoWQ29ubmVjdERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEgsKA2FwcBgEIAEoCRITCgthcHBfcHJvamVjdBgFIAEoCRIXCg9hcHBfZW52aXJvbm1lbnQYBiABKAkSDAoEbGluaxgHIAEoCRIjCghkYXRhYmFzZRgIIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSDAoEdXNlchgJIAEoCRIXCg9wYXNzd29yZF9zZWNyZXQYCiABKAkSOwoEc2V0cxgLIAMoCzItLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlcXVlc3QuU2V0c0VudHJ5EkUKCXRlbXBsYXRlcxgMIAMoCzIyLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlcXVlc3QuVGVtcGxhdGVzRW50cnkaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ARowCg5UZW1wbGF0ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIj4KF0Nvbm5lY3REYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSKQAQoZQ3JlYXRlRGF0YWJhc2VVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgR1c2VyGAIgASgJEiMKCGRhdGFiYXNlGAMgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIOCgZzZWNyZXQYBCABKAkSDwoHcHJvamVjdBgFIAEoCRITCgtlbnZpcm9ubWVudBgGIAEoCSJBChpDcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiXwodQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlcXVlc3QSCgoCaWQYASABKAkSDAoEdXNlchgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJIkUKHkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UidQogU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1JlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRISCgphbGxvd19mcm9tGAQgAygJEgsKA29mZhgFIAEoCCJICiFTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIj4KE0dldERhdGFiYXNlUmVzcG9uc2USJwoIZGF0YWJhc2UYASABKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSqpAgoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleRIoChdEQVRBQkFTRV9FTkdJTkVfTU9OR09EQhAGGguiuxgHTW9uZ29EQjKzCQoPRGF0YWJhc2VTZXJ2aWNlEoABCg1MaXN0RGF0YWJhc2VzEiEuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVzcG9uc2UiKJACAaC7GAHAuxgCyLsYAtC7GASC0+STAg8SDS92MS9kYXRhYmFzZXMSfwoLR2V0RGF0YWJhc2USHy5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlc3BvbnNlIi2QAgGguxgBwLsYAsi7GALQuxgEgtPkkwIUEhIvdjEvZGF0YWJhc2VzL3tpZH0SqAEKEkNyZWF0ZURhdGFiYXNlVXNlchImLmRvY2t3ZWxsLnYxLkNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QaJy5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZSJBoLsYAqq7GAoSCGFkZC11c2VywLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvZGF0YWJhc2VzL3tpZH0vdXNlcnMSxAEKFkNoYW5nZURhdGFiYXNlUGFzc3dvcmQSKi5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZSJRoLsYAqq7GBESD2NoYW5nZS1wYXNzd29yZMC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2RhdGFiYXNlcy97aWR9OmNoYW5nZVBhc3N3b3JkEs0BChlTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzEi0uZG9ja3dlbGwudjEuU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1JlcXVlc3QaLi5kb2Nrd2VsbC52MS5TZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVzcG9uc2UiUaC7GAKquxgREg9leHRlcm5hbC1hY2Nlc3PAuxgEyLsYBNC7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpleHRlcm5hbEFjY2VzcxK2AQoTQ2hlY2tEYXRhYmFzZVNpZ25JbhInLmRvY2t3ZWxsLnYxLkNoZWNrRGF0YWJhc2VTaWduSW5SZXF1ZXN0GiguZG9ja3dlbGwudjEuQ2hlY2tEYXRhYmFzZVNpZ25JblJlc3BvbnNlIkyQAgGguxgBqrsYDxINY2hlY2stc2lnbi1pbsC7GAPIuxgE0LsYBILT5JMCIBIeL3YxL2RhdGFiYXNlcy97aWR9OmNoZWNrU2lnbkluEqABCg9Db25uZWN0RGF0YWJhc2USIy5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0GiQuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVzcG9uc2UiQqC7GAKquxgJEgdjb25uZWN0wLsYA8i7GAPQuxgEgtPkkwIfOgEqIhovdjEvZGF0YWJhc2VzL3tpZH06Y29ubmVjdEKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEi7QMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCRI8Cg9leHRlcm5hbF9hY2Nlc3MYESABKAsyIy5kb2Nrd2VsbC52MS5EYXRhYmFzZUV4dGVybmFsQWNjZXNzIjoKFkRhdGFiYXNlRXh0ZXJuYWxBY2Nlc3MSDAoEcG9ydBgBIAEoDRISCgphbGxvd19mcm9tGAIgAygJIvEDCg9EYXRhYmFzZVJlYWRpbmcSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEi0KCXJlYWRfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGdW5yZWFkGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoAxITCgtjb25uZWN0aW9ucxgHIAEoAxIXCg9tYXhfY29ubmVjdGlvbnMYCCABKAMSDAoEdXNlchgJIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgKIAEoAxIWCgljYWNoZV9oaXQYCyABKAFIAIgBARItCglkYXRhYmFzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Jbm5lckRhdGFiYXNlEisKBXVzZXJzGA0gAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VBY2NvdW50EgwKBGtleXMYDiABKAMSEAoIdW5saXN0ZWQYDyABKAUSHQoVZmVhdHVyZV9jb21wYXRpYmlsaXR5GBAgASgJEhMKC3JlcGxpY2Ffc2V0GBEgASgJEhUKDWNoZWNrc19ub19vbmUYEiABKAgSEQoJY29udGFpbmVyGBMgASgJQgwKCl9jYWNoZV9oaXQipAEKDUlubmVyRGF0YWJhc2USDAoEbmFtZRgBIAEoCRINCgVvd25lchgCIAEoCRISCgpzaXplX2J5dGVzGAMgASgDEg4KBnN5c3RlbRgEIAEoCBITCgtjb25uZWN0aW9ucxgFIAEoAxITCgtyZXNvdXJjZV9pZBgGIAEoCRIVCg1yZXNvdXJjZV9raW5kGAcgASgJEhEKCWxpbmtlZF9ieRgIIAMoCSLaAQoPRGF0YWJhc2VBY2NvdW50EgwKBG5hbWUYASABKAkSDAoEaG9zdBgCIAEoCRIRCglzdXBlcnVzZXIYAyABKAgSEwoLY2FuX3NpZ25faW4YBCABKAgSEQoJZGF0YWJhc2VzGAUgAygJEg4KBnN5c3RlbRgGIAEoCBIOCgZzZWNyZXQYByABKAkSDwoHdXNlZF9ieRgIIAMoCRITCgtyZXNvdXJjZV9pZBgJIAEoCRIVCg1hdXRoX2RhdGFiYXNlGAogASgJEhMKC25vX3Bhc3N3b3JkGFAgASgIIhYKFExpc3REYXRhYmFzZXNSZXF1ZXN0IkEKFUxpc3REYXRhYmFzZXNSZXNwb25zZRIoCglkYXRhYmFzZXMYASADKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSJGChJHZXREYXRhYmFzZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCSLIAQoaQ2hlY2tEYXRhYmFzZVNpZ25JblJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIMCgR1c2VyGAQgASgJEiMKCGRhdGFiYXNlGAUgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRITCgthcHBfcHJvamVjdBgGIAEoCRIXCg9hcHBfZW52aXJvbm1lbnQYByABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAggASgJImcKG0NoZWNrRGF0YWJhc2VTaWduSW5SZXNwb25zZRIQCghzaWduc19pbhgBIAEoCBIMCgRzYWlkGAIgASgJEhUKDWFkbWluaXN0cmF0b3IYAyABKAgSEQoJbm9fcmlnaHRzGAQgASgIIugDChZDb25uZWN0RGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSCwoDYXBwGAQgASgJEhMKC2FwcF9wcm9qZWN0GAUgASgJEhcKD2FwcF9lbnZpcm9ubWVudBgGIAEoCRIMCgRsaW5rGAcgASgJEiMKCGRhdGFiYXNlGAggASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIMCgR1c2VyGAkgASgJEhcKD3Bhc3N3b3JkX3NlY3JldBgKIAEoCRI7CgRzZXRzGAsgAygLMi0uZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdC5TZXRzRW50cnkSRQoJdGVtcGxhdGVzGAwgAygLMjIuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdC5UZW1wbGF0ZXNFbnRyeRpRCglTZXRzRW50cnkSCwoDa2V5GAEgASgJEjMKBXZhbHVlGAIgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua1BhcnQ6AjgBGjAKDlRlbXBsYXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPgoXQ29ubmVjdERhdGFiYXNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIpABChlDcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSIwoIZGF0YWJhc2UYAyABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEg4KBnNlY3JldBgEIAEoCRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJIkEKGkNyZWF0ZURhdGFiYXNlVXNlclJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJfCh1DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgR1c2VyGAIgASgJEg8KB3Byb2plY3QYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkiRQoeQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJ1CiBTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEhIKCmFsbG93X2Zyb20YBCADKAkSCwoDb2ZmGAUgASgIIkgKIVNldERhdGFiYXNlRXh0ZXJuYWxBY2Nlc3NSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiPgoTR2V0RGF0YWJhc2VSZXNwb25zZRInCghkYXRhYmFzZRgBIAEoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIqIBChxDcmVhdGVMb2dpY2FsRGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEiMKCGRhdGFiYXNlGAIgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRINCgVvd25lchgDIAEoCRIMCgR1c2VyGAQgASgJEg4KBnNlY3JldBgFIAEoCRIPCgdwcm9qZWN0GAYgASgJEhMKC2Vudmlyb25tZW50GAcgASgJIkQKHUNyZWF0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJ1ChxEZWxldGVMb2dpY2FsRGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEiMKCGRhdGFiYXNlGAIgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJIkQKHURlbGV0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK8AQoaQmVnaW5EYXRhYmFzZUltcG9ydFJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIjCghkYXRhYmFzZRgEIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSEAoIZmlsZW5hbWUYBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoBBIOCgZzZXJ2ZXIYByABKAkSEQoJaW1wb3J0X2lkGAggASgJIooBChtCZWdpbkRhdGFiYXNlSW1wb3J0UmVzcG9uc2USEQoJaW1wb3J0X2lkGAEgASgJEg4KBm9mZnNldBgCIAEoBBISCgpwYXJ0X2J5dGVzGAMgASgEEhEKCW1heF9ieXRlcxgEIAEoBBIRCglzZXJ2ZXJfaWQYBSABKAkSDgoGZm9ybWF0GAYgASgJIpkBChtVcGxvYWREYXRhYmFzZUltcG9ydFJlcXVlc3QSCgoCaWQYASABKAkSEQoJaW1wb3J0X2lkGAIgASgJEg4KBm9mZnNldBgDIAEoBBIlCgdjb250ZW50GAQgASgLMhQuZ29vZ2xlLmFwaS5IdHRwQm9keRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJImcKHFVwbG9hZERhdGFiYXNlSW1wb3J0UmVzcG9uc2USEQoJaW1wb3J0X2lkGAEgASgJEg4KBm9mZnNldBgCIAEoBBISCgpzaXplX2J5dGVzGAMgASgEEhAKCGNvbXBsZXRlGAQgASgIInEKGVBsYW5EYXRhYmFzZUltcG9ydFJlcXVlc3QSCgoCaWQYASABKAkSEQoJaW1wb3J0X2lkGAIgASgJEg8KB3Byb2plY3QYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSDwoHc3VtbWFyeRgFIAEoCSJBChpQbGFuRGF0YWJhc2VJbXBvcnRSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiYgobQ2FuY2VsRGF0YWJhc2VJbXBvcnRSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCWltcG9ydF9pZBgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJIh4KHENhbmNlbERhdGFiYXNlSW1wb3J0UmVzcG9uc2UqqQIKDkRhdGFiYXNlRW5naW5lEh8KG0RBVEFCQVNFX0VOR0lORV9VTlNQRUNJRklFRBAAEi4KGkRBVEFCQVNFX0VOR0lORV9QT1NUR1JFU1FMEAEaDqK7GApQb3N0Z3JlU1FMEiQKFURBVEFCQVNFX0VOR0lORV9NWVNRTBACGgmiuxgFTXlTUUwSKAoXREFUQUJBU0VfRU5HSU5FX01BUklBREIQAxoLorsYB01hcmlhREISJAoVREFUQUJBU0VfRU5HSU5FX1JFRElTEAQaCaK7GAVSZWRpcxImChZEQVRBQkFTRV9FTkdJTkVfVkFMS0VZEAUaCqK7GAZWYWxrZXkSKAoXREFUQUJBU0VfRU5HSU5FX01PTkdPREIQBhoLorsYB01vbmdvREIy0hIKD0RhdGFiYXNlU2VydmljZRKAAQoNTGlzdERhdGFiYXNlcxIhLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvZGF0YWJhc2VzEn8KC0dldERhdGFiYXNlEh8uZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXNwb25zZSItkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCFBISL3YxL2RhdGFiYXNlcy97aWR9EqgBChJDcmVhdGVEYXRhYmFzZVVzZXISJi5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2UiQaC7GAKquxgKEghhZGQtdXNlcsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL2RhdGFiYXNlcy97aWR9L3VzZXJzEsQBChZDaGFuZ2VEYXRhYmFzZVBhc3N3b3JkEiouZG9ja3dlbGwudjEuQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlcXVlc3QaKy5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVzcG9uc2UiUaC7GAKquxgREg9jaGFuZ2UtcGFzc3dvcmTAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpjaGFuZ2VQYXNzd29yZBLNAQoZU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2VzcxItLmRvY2t3ZWxsLnYxLlNldERhdGFiYXNlRXh0ZXJuYWxBY2Nlc3NSZXF1ZXN0Gi4uZG9ja3dlbGwudjEuU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1Jlc3BvbnNlIlGguxgCqrsYERIPZXh0ZXJuYWwtYWNjZXNzwLsYBMi7GATQuxgEgtPkkwImOgEqIiEvdjEvZGF0YWJhc2VzL3tpZH06ZXh0ZXJuYWxBY2Nlc3MStgEKE0NoZWNrRGF0YWJhc2VTaWduSW4SJy5kb2Nrd2VsbC52MS5DaGVja0RhdGFiYXNlU2lnbkluUmVxdWVzdBooLmRvY2t3ZWxsLnYxLkNoZWNrRGF0YWJhc2VTaWduSW5SZXNwb25zZSJMkAIBoLsYAaq7GA8SDWNoZWNrLXNpZ24taW7AuxgDyLsYBNC7GASC0+STAiASHi92MS9kYXRhYmFzZXMve2lkfTpjaGVja1NpZ25JbhKgAQoPQ29ubmVjdERhdGFiYXNlEiMuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlc3BvbnNlIkKguxgCqrsYCRIHY29ubmVjdMC7GAPIuxgD0LsYBILT5JMCHzoBKiIaL3YxL2RhdGFiYXNlcy97aWR9OmNvbm5lY3QSuQEKFUNyZWF0ZUxvZ2ljYWxEYXRhYmFzZRIpLmRvY2t3ZWxsLnYxLkNyZWF0ZUxvZ2ljYWxEYXRhYmFzZVJlcXVlc3QaKi5kb2Nrd2VsbC52MS5DcmVhdGVMb2dpY2FsRGF0YWJhc2VSZXNwb25zZSJJoLsYAqq7GA4SDGFkZC1kYXRhYmFzZcC7GAPIuxgD0LsYBILT5JMCIToBKiIcL3YxL2RhdGFiYXNlcy97aWR9L2RhdGFiYXNlcxLOAQoVRGVsZXRlTG9naWNhbERhdGFiYXNlEikuZG9ja3dlbGwudjEuRGVsZXRlTG9naWNhbERhdGFiYXNlUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLkRlbGV0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlIl6guxgCqrsYERIPZGVsZXRlLWRhdGFiYXNlwLsYA8i7GAPQuxgEgtPkkwIzOgEqIi4vdjEvZGF0YWJhc2VzL3tpZH0vZGF0YWJhc2VzL3tkYXRhYmFzZX06ZGVsZXRlErUBChNCZWdpbkRhdGFiYXNlSW1wb3J0EicuZG9ja3dlbGwudjEuQmVnaW5EYXRhYmFzZUltcG9ydFJlcXVlc3QaKC5kb2Nrd2VsbC52MS5CZWdpbkRhdGFiYXNlSW1wb3J0UmVzcG9uc2UiS6C7GAOquxgOEgxiZWdpbi1pbXBvcnSwuxgBwLsYBMi7GATQuxgEgtPkkwIfOgEqIhovdjEvZGF0YWJhc2VzL3tpZH0vaW1wb3J0cxLNAQoUVXBsb2FkRGF0YWJhc2VJbXBvcnQSKC5kb2Nrd2VsbC52MS5VcGxvYWREYXRhYmFzZUltcG9ydFJlcXVlc3QaKS5kb2Nrd2VsbC52MS5VcGxvYWREYXRhYmFzZUltcG9ydFJlc3BvbnNlIl6guxgDqrsYDxINdXBsb2FkLWltcG9ydLC7GAHAuxgEyLsYBNC7GASC0+STAjE6B2NvbnRlbnQaJi92MS9kYXRhYmFzZXMve2lkfS9pbXBvcnRzL3tpbXBvcnRfaWR9KAESwgEKElBsYW5EYXRhYmFzZUltcG9ydBImLmRvY2t3ZWxsLnYxLlBsYW5EYXRhYmFzZUltcG9ydFJlcXVlc3QaJy5kb2Nrd2VsbC52MS5QbGFuRGF0YWJhc2VJbXBvcnRSZXNwb25zZSJboLsYAqq7GA0SC3BsYW4taW1wb3J0sLsYAcC7GATIuxgE0LsYBILT5JMCMDoBKiIrL3YxL2RhdGFiYXNlcy97aWR9L2ltcG9ydHMve2ltcG9ydF9pZH06cGxhbhLCAQoUQ2FuY2VsRGF0YWJhc2VJbXBvcnQSKC5kb2Nrd2VsbC52MS5DYW5jZWxEYXRhYmFzZUltcG9ydFJlcXVlc3QaKS5kb2Nrd2VsbC52MS5DYW5jZWxEYXRhYmFzZUltcG9ydFJlc3BvbnNlIlWguxgEqrsYDxINY2FuY2VsLWltcG9ydLC7GAHAuxgEyLsYBNC7GASC0+STAigqJi92MS9kYXRhYmFzZXMve2lkfS9pbXBvcnRzL3tpbXBvcnRfaWR9QqYBCg9jb20uZG9ja3dlbGwudjFCDURhdGFiYXNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
 
 /**
  * Database is a service that runs a database.
@@ -343,6 +345,14 @@ export type DatabaseReading = Message<"dockwell.v1.DatabaseReading"> & {
    * @generated from field: bool checks_no_one = 18;
    */
   checksNoOne: boolean;
+
+  /**
+   * The container running this database on the server, by name, for opening a
+   * console in it.
+   *
+   * @generated from field: string container = 19;
+   */
+  container: string;
 };
 
 /**
@@ -367,7 +377,7 @@ export type InnerDatabase = Message<"dockwell.v1.InnerDatabase"> & {
   name: string;
 
   /**
-   * The user that owns it, for PostgreSQL.
+   * The user that owns it, for PostgreSQL, or is granted full rights on it, for MySQL and MariaDB.
    *
    * @generated from field: string owner = 2;
    */
@@ -386,6 +396,34 @@ export type InnerDatabase = Message<"dockwell.v1.InnerDatabase"> & {
    * @generated from field: bool system = 4;
    */
   system: boolean;
+
+  /**
+   * How many client connections are open to this database now.
+   *
+   * @generated from field: int64 connections = 5;
+   */
+  connections: bigint;
+
+  /**
+   * The resource's ID, for a database Dockwell made (kind "database.logical" or "database.user").
+   *
+   * @generated from field: string resource_id = 6;
+   */
+  resourceId: string;
+
+  /**
+   * The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
+   *
+   * @generated from field: string resource_kind = 7;
+   */
+  resourceKind: string;
+
+  /**
+   * The apps linking to this database, where visible to the caller.
+   *
+   * @generated from field: repeated string linked_by = 8;
+   */
+  linkedBy: string[];
 };
 
 /**
@@ -1061,6 +1099,511 @@ export const GetDatabaseResponseSchema: GenMessage<GetDatabaseResponse> = /*@__P
   messageDesc(file_dockwell_v1_database, 18);
 
 /**
+ * CreateLogicalDatabaseRequest names a database server and a new logical database
+ * to make in it, owned either by an existing user or by a new user Dockwell makes.
+ *
+ * @generated from message dockwell.v1.CreateLogicalDatabaseRequest
+ */
+export type CreateLogicalDatabaseRequest = Message<"dockwell.v1.CreateLogicalDatabaseRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The database's name, such as "shop": lowercase letters, digits and underscores,
+   * starting with a letter, at most 32.
+   *
+   * @generated from field: string database = 2;
+   */
+  database: string;
+
+  /**
+   * An existing user on the server to own the database. Empty creates a new user
+   * with a generated password kept as a secret.
+   *
+   * @generated from field: string owner = 3;
+   */
+  owner: string;
+
+  /**
+   * When owner is empty: the new user's name. Empty takes the database's name.
+   *
+   * @generated from field: string user = 4;
+   */
+  user: string;
+
+  /**
+   * When owner is empty: the secret their password goes in. Empty takes the user's
+   * name in capitals followed by "_DATABASE_PASSWORD".
+   *
+   * @generated from field: string secret = 5;
+   */
+  secret: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 6;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 7;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateLogicalDatabaseRequest.
+ * Use `create(CreateLogicalDatabaseRequestSchema)` to create a new message.
+ */
+export const CreateLogicalDatabaseRequestSchema: GenMessage<CreateLogicalDatabaseRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 19);
+
+/**
+ * CreateLogicalDatabaseResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.CreateLogicalDatabaseResponse
+ */
+export type CreateLogicalDatabaseResponse = Message<"dockwell.v1.CreateLogicalDatabaseResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateLogicalDatabaseResponse.
+ * Use `create(CreateLogicalDatabaseResponseSchema)` to create a new message.
+ */
+export const CreateLogicalDatabaseResponseSchema: GenMessage<CreateLogicalDatabaseResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 20);
+
+/**
+ * DeleteLogicalDatabaseRequest names a database server and a logical database
+ * Dockwell manages in it to drop.
+ *
+ * @generated from message dockwell.v1.DeleteLogicalDatabaseRequest
+ */
+export type DeleteLogicalDatabaseRequest = Message<"dockwell.v1.DeleteLogicalDatabaseRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The database's name inside the server.
+   *
+   * @generated from field: string database = 2;
+   */
+  database: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 4;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteLogicalDatabaseRequest.
+ * Use `create(DeleteLogicalDatabaseRequestSchema)` to create a new message.
+ */
+export const DeleteLogicalDatabaseRequestSchema: GenMessage<DeleteLogicalDatabaseRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 21);
+
+/**
+ * DeleteLogicalDatabaseResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.DeleteLogicalDatabaseResponse
+ */
+export type DeleteLogicalDatabaseResponse = Message<"dockwell.v1.DeleteLogicalDatabaseResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteLogicalDatabaseResponse.
+ * Use `create(DeleteLogicalDatabaseResponseSchema)` to create a new message.
+ */
+export const DeleteLogicalDatabaseResponseSchema: GenMessage<DeleteLogicalDatabaseResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 22);
+
+/**
+ * BeginDatabaseImportRequest begins staging a dump file to import into a
+ * logical database on a PostgreSQL, MySQL or MariaDB server, or asks how far an
+ * existing upload got when import_id is set.
+ *
+ * @generated from message dockwell.v1.BeginDatabaseImportRequest
+ */
+export type BeginDatabaseImportRequest = Message<"dockwell.v1.BeginDatabaseImportRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * The logical database inside the server to import into.
+   *
+   * @generated from field: string database = 4;
+   */
+  database: string;
+
+  /**
+   * The dump filename (used to pick format: .sql, .sql.gz, .dump, .tar).
+   *
+   * @generated from field: string filename = 5;
+   */
+  filename: string;
+
+  /**
+   * Total size of the dump file in bytes.
+   *
+   * @generated from field: uint64 size_bytes = 6;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * The server to stage the upload on when the database runs on more than one.
+   *
+   * @generated from field: string server = 7;
+   */
+  server: string;
+
+  /**
+   * An existing staged upload ID to inspect for resume.
+   *
+   * @generated from field: string import_id = 8;
+   */
+  importId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BeginDatabaseImportRequest.
+ * Use `create(BeginDatabaseImportRequestSchema)` to create a new message.
+ */
+export const BeginDatabaseImportRequestSchema: GenMessage<BeginDatabaseImportRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 23);
+
+/**
+ * BeginDatabaseImportResponse reports the staged upload state and chunk sizing.
+ *
+ * @generated from message dockwell.v1.BeginDatabaseImportResponse
+ */
+export type BeginDatabaseImportResponse = Message<"dockwell.v1.BeginDatabaseImportResponse"> & {
+  /**
+   * The staged upload's identifier.
+   *
+   * @generated from field: string import_id = 1;
+   */
+  importId: string;
+
+  /**
+   * How many bytes the server already holds.
+   *
+   * @generated from field: uint64 offset = 2;
+   */
+  offset: bigint;
+
+  /**
+   * Suggested chunk size in bytes for each PUT request.
+   *
+   * @generated from field: uint64 part_bytes = 3;
+   */
+  partBytes: bigint;
+
+  /**
+   * Maximum accepted dump size in bytes.
+   *
+   * @generated from field: uint64 max_bytes = 4;
+   */
+  maxBytes: bigint;
+
+  /**
+   * The server holding this staged upload.
+   *
+   * @generated from field: string server_id = 5;
+   */
+  serverId: string;
+
+  /**
+   * Normalized dump format: sql, sql.gz, dump, or tar.
+   *
+   * @generated from field: string format = 6;
+   */
+  format: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BeginDatabaseImportResponse.
+ * Use `create(BeginDatabaseImportResponseSchema)` to create a new message.
+ */
+export const BeginDatabaseImportResponseSchema: GenMessage<BeginDatabaseImportResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 24);
+
+/**
+ * UploadDatabaseImportRequest carries a chunk of a staged dump upload.
+ *
+ * @generated from message dockwell.v1.UploadDatabaseImportRequest
+ */
+export type UploadDatabaseImportRequest = Message<"dockwell.v1.UploadDatabaseImportRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The staged upload's identifier from BeginDatabaseImport.
+   *
+   * @generated from field: string import_id = 2;
+   */
+  importId: string;
+
+  /**
+   * Byte offset where this chunk starts; must match the server's offset.
+   *
+   * @generated from field: uint64 offset = 3;
+   */
+  offset: bigint;
+
+  /**
+   * Raw bytes of this chunk.
+   *
+   * @generated from field: google.api.HttpBody content = 4;
+   */
+  content?: HttpBody | undefined;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 5;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 6;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.UploadDatabaseImportRequest.
+ * Use `create(UploadDatabaseImportRequestSchema)` to create a new message.
+ */
+export const UploadDatabaseImportRequestSchema: GenMessage<UploadDatabaseImportRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 25);
+
+/**
+ * UploadDatabaseImportResponse reports how far the staged upload has progressed.
+ *
+ * @generated from message dockwell.v1.UploadDatabaseImportResponse
+ */
+export type UploadDatabaseImportResponse = Message<"dockwell.v1.UploadDatabaseImportResponse"> & {
+  /**
+   * The staged upload's identifier.
+   *
+   * @generated from field: string import_id = 1;
+   */
+  importId: string;
+
+  /**
+   * Total bytes received by the server so far.
+   *
+   * @generated from field: uint64 offset = 2;
+   */
+  offset: bigint;
+
+  /**
+   * Expected total size in bytes.
+   *
+   * @generated from field: uint64 size_bytes = 3;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * True once all size_bytes have been received.
+   *
+   * @generated from field: bool complete = 4;
+   */
+  complete: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.UploadDatabaseImportResponse.
+ * Use `create(UploadDatabaseImportResponseSchema)` to create a new message.
+ */
+export const UploadDatabaseImportResponseSchema: GenMessage<UploadDatabaseImportResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 26);
+
+/**
+ * PlanDatabaseImportRequest plans importing a completed staged dump upload.
+ *
+ * @generated from message dockwell.v1.PlanDatabaseImportRequest
+ */
+export type PlanDatabaseImportRequest = Message<"dockwell.v1.PlanDatabaseImportRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The staged upload's identifier.
+   *
+   * @generated from field: string import_id = 2;
+   */
+  importId: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 4;
+   */
+  environment: string;
+
+  /**
+   * Optional custom change summary.
+   *
+   * @generated from field: string summary = 5;
+   */
+  summary: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanDatabaseImportRequest.
+ * Use `create(PlanDatabaseImportRequestSchema)` to create a new message.
+ */
+export const PlanDatabaseImportRequestSchema: GenMessage<PlanDatabaseImportRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 27);
+
+/**
+ * PlanDatabaseImportResponse carries the planned import change.
+ *
+ * @generated from message dockwell.v1.PlanDatabaseImportResponse
+ */
+export type PlanDatabaseImportResponse = Message<"dockwell.v1.PlanDatabaseImportResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanDatabaseImportResponse.
+ * Use `create(PlanDatabaseImportResponseSchema)` to create a new message.
+ */
+export const PlanDatabaseImportResponseSchema: GenMessage<PlanDatabaseImportResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 28);
+
+/**
+ * CancelDatabaseImportRequest discards a staged dump upload on its server.
+ *
+ * @generated from message dockwell.v1.CancelDatabaseImportRequest
+ */
+export type CancelDatabaseImportRequest = Message<"dockwell.v1.CancelDatabaseImportRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The staged upload's identifier.
+   *
+   * @generated from field: string import_id = 2;
+   */
+  importId: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 4;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CancelDatabaseImportRequest.
+ * Use `create(CancelDatabaseImportRequestSchema)` to create a new message.
+ */
+export const CancelDatabaseImportRequestSchema: GenMessage<CancelDatabaseImportRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 29);
+
+/**
+ * CancelDatabaseImportResponse is empty.
+ *
+ * @generated from message dockwell.v1.CancelDatabaseImportResponse
+ */
+export type CancelDatabaseImportResponse = Message<"dockwell.v1.CancelDatabaseImportResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.CancelDatabaseImportResponse.
+ * Use `create(CancelDatabaseImportResponseSchema)` to create a new message.
+ */
+export const CancelDatabaseImportResponseSchema: GenMessage<CancelDatabaseImportResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 30);
+
+/**
  * DatabaseEngine is which database a service runs.
  *
  * @generated from enum dockwell.v1.DatabaseEngine
@@ -1246,6 +1789,75 @@ export const DatabaseService: GenService<{
     methodKind: "unary";
     input: typeof ConnectDatabaseRequestSchema;
     output: typeof ConnectDatabaseResponseSchema;
+  },
+  /**
+   * CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+   * or MariaDB server, owned either by an existing user picked on that server
+   * (kind "database.logical") or by a new owner user with a generated password
+   * kept as a secret (kind "database.user").
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.CreateLogicalDatabase
+   */
+  createLogicalDatabase: {
+    methodKind: "unary";
+    input: typeof CreateLogicalDatabaseRequestSchema;
+    output: typeof CreateLogicalDatabaseResponseSchema;
+  },
+  /**
+   * DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+   * PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.DeleteLogicalDatabase
+   */
+  deleteLogicalDatabase: {
+    methodKind: "unary";
+    input: typeof DeleteLogicalDatabaseRequestSchema;
+    output: typeof DeleteLogicalDatabaseResponseSchema;
+  },
+  /**
+   * BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
+   * for a database on its server, or reports how far an existing upload got so
+   * the client can resume it. Admin-only; no API token can call it.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.BeginDatabaseImport
+   */
+  beginDatabaseImport: {
+    methodKind: "unary";
+    input: typeof BeginDatabaseImportRequestSchema;
+    output: typeof BeginDatabaseImportResponseSchema;
+  },
+  /**
+   * UploadDatabaseImport streams bounded chunks of a staged dump upload from
+   * offset to the database's server. Over REST it is a PUT whose body is the
+   * raw bytes of that chunk. Admin-only; no API token can call it.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.UploadDatabaseImport
+   */
+  uploadDatabaseImport: {
+    methodKind: "client_streaming";
+    input: typeof UploadDatabaseImportRequestSchema;
+    output: typeof UploadDatabaseImportResponseSchema;
+  },
+  /**
+   * PlanDatabaseImport plans importing a completed staged dump into the chosen
+   * logical database, backing up that database first (as restores do). Admin-only.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.PlanDatabaseImport
+   */
+  planDatabaseImport: {
+    methodKind: "unary";
+    input: typeof PlanDatabaseImportRequestSchema;
+    output: typeof PlanDatabaseImportResponseSchema;
+  },
+  /**
+   * CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.CancelDatabaseImport
+   */
+  cancelDatabaseImport: {
+    methodKind: "unary";
+    input: typeof CancelDatabaseImportRequestSchema;
+    output: typeof CancelDatabaseImportResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_database, 0);

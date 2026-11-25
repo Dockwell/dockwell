@@ -9,6 +9,7 @@ import "dockwell/v1/backup.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/api/httpbody.proto";
 import "google/protobuf/timestamp.proto";
 
 // DatabaseService is the services that run a database Dockwell knows:
@@ -144,6 +145,94 @@ service DatabaseService {
       body: "*"
     };
   }
+
+  // CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+  // or MariaDB server, owned either by an existing user picked on that server
+  // (kind "database.logical") or by a new owner user with a generated password
+  // kept as a secret (kind "database.user").
+  rpc CreateLogicalDatabase(CreateLogicalDatabaseRequest) returns (CreateLogicalDatabaseResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "add-database"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/databases"
+      body: "*"
+    };
+  }
+
+  // DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+  // PostgreSQL, MySQL or MariaDB server. Refused while any app uses it.
+  rpc DeleteLogicalDatabase(DeleteLogicalDatabaseRequest) returns (DeleteLogicalDatabaseResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "delete-database"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/databases/{database}:delete"
+      body: "*"
+    };
+  }
+
+  // BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
+  // for a database on its server, or reports how far an existing upload got so
+  // the client can resume it. Admin-only; no API token can call it.
+  rpc BeginDatabaseImport(BeginDatabaseImportRequest) returns (BeginDatabaseImportResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "begin-import"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/imports"
+      body: "*"
+    };
+  }
+
+  // UploadDatabaseImport streams bounded chunks of a staged dump upload from
+  // offset to the database's server. Over REST it is a PUT whose body is the
+  // raw bytes of that chunk. Admin-only; no API token can call it.
+  rpc UploadDatabaseImport(stream UploadDatabaseImportRequest) returns (UploadDatabaseImportResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "upload-import"};
+    option (google.api.http) = {
+      put: "/v1/databases/{id}/imports/{import_id}"
+      body: "content"
+    };
+  }
+
+  // PlanDatabaseImport plans importing a completed staged dump into the chosen
+  // logical database, backing up that database first (as restores do). Admin-only.
+  rpc PlanDatabaseImport(PlanDatabaseImportRequest) returns (PlanDatabaseImportResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "plan-import"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/imports/{import_id}:plan"
+      body: "*"
+    };
+  }
+
+  // CancelDatabaseImport discards a staged dump upload on the server. Admin-only.
+  rpc CancelDatabaseImport(CancelDatabaseImportRequest) returns (CancelDatabaseImportResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "cancel-import"};
+    option (google.api.http) = {delete: "/v1/databases/{id}/imports/{import_id}"};
+  }
 }
 
 // DatabaseEngine is which database a service runs.
@@ -274,6 +363,9 @@ message DatabaseReading {
   // True when it checks no one, as MongoDB does without --auth: anything that
   // reaches its port signs in as anyone.
   bool checks_no_one = 18;
+  // The container running this database on the server, by name, for opening a
+  // console in it.
+  string container = 19;
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -281,12 +373,20 @@ message DatabaseReading {
 message InnerDatabase {
   // Its name, such as "shop".
   string name = 1;
-  // The user that owns it, for PostgreSQL.
+  // The user that owns it, for PostgreSQL, or is granted full rights on it, for MySQL and MariaDB.
   string owner = 2;
   // How much it takes on disk, in bytes.
   int64 size_bytes = 3;
   // True for one the server made for itself, such as PostgreSQL's postgres.
   bool system = 4;
+  // How many client connections are open to this database now.
+  int64 connections = 5;
+  // The resource's ID, for a database Dockwell made (kind "database.logical" or "database.user").
+  string resource_id = 6;
+  // The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
+  string resource_kind = 7;
+  // The apps linking to this database, where visible to the caller.
+  repeated string linked_by = 8;
 }
 
 // DatabaseAccount is someone who can sign in to a database server: a user, as
@@ -506,3 +606,151 @@ message GetDatabaseResponse {
   // The database.
   Database database = 1;
 }
+
+// CreateLogicalDatabaseRequest names a database server and a new logical database
+// to make in it, owned either by an existing user or by a new user Dockwell makes.
+message CreateLogicalDatabaseRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The database's name, such as "shop": lowercase letters, digits and underscores,
+  // starting with a letter, at most 32.
+  string database = 2 [(dockwell.v1.flag) = "database-name"];
+  // An existing user on the server to own the database. Empty creates a new user
+  // with a generated password kept as a secret.
+  string owner = 3;
+  // When owner is empty: the new user's name. Empty takes the database's name.
+  string user = 4;
+  // When owner is empty: the secret their password goes in. Empty takes the user's
+  // name in capitals followed by "_DATABASE_PASSWORD".
+  string secret = 5;
+  // The project of a service named by name, by name or ID.
+  string project = 6;
+  // The environment of a service named by name, by name or ID.
+  string environment = 7;
+}
+
+// CreateLogicalDatabaseResponse carries the planned change.
+message CreateLogicalDatabaseResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// DeleteLogicalDatabaseRequest names a database server and a logical database
+// Dockwell manages in it to drop.
+message DeleteLogicalDatabaseRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The database's name inside the server.
+  string database = 2 [(dockwell.v1.flag) = "database-name"];
+  // The project of a service named by name, by name or ID.
+  string project = 3;
+  // The environment of a service named by name, by name or ID.
+  string environment = 4;
+}
+
+// DeleteLogicalDatabaseResponse carries the planned change.
+message DeleteLogicalDatabaseResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// BeginDatabaseImportRequest begins staging a dump file to import into a
+// logical database on a PostgreSQL, MySQL or MariaDB server, or asks how far an
+// existing upload got when import_id is set.
+message BeginDatabaseImportRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+  // The logical database inside the server to import into.
+  string database = 4 [(dockwell.v1.flag) = "database-name"];
+  // The dump filename (used to pick format: .sql, .sql.gz, .dump, .tar).
+  string filename = 5;
+  // Total size of the dump file in bytes.
+  uint64 size_bytes = 6;
+  // The server to stage the upload on when the database runs on more than one.
+  string server = 7;
+  // An existing staged upload ID to inspect for resume.
+  string import_id = 8;
+}
+
+// BeginDatabaseImportResponse reports the staged upload state and chunk sizing.
+message BeginDatabaseImportResponse {
+  // The staged upload's identifier.
+  string import_id = 1;
+  // How many bytes the server already holds.
+  uint64 offset = 2;
+  // Suggested chunk size in bytes for each PUT request.
+  uint64 part_bytes = 3;
+  // Maximum accepted dump size in bytes.
+  uint64 max_bytes = 4;
+  // The server holding this staged upload.
+  string server_id = 5;
+  // Normalized dump format: sql, sql.gz, dump, or tar.
+  string format = 6;
+}
+
+// UploadDatabaseImportRequest carries a chunk of a staged dump upload.
+message UploadDatabaseImportRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The staged upload's identifier from BeginDatabaseImport.
+  string import_id = 2;
+  // Byte offset where this chunk starts; must match the server's offset.
+  uint64 offset = 3;
+  // Raw bytes of this chunk.
+  google.api.HttpBody content = 4;
+  // The project of a service named by name, by name or ID.
+  string project = 5;
+  // The environment of a service named by name, by name or ID.
+  string environment = 6;
+}
+
+// UploadDatabaseImportResponse reports how far the staged upload has progressed.
+message UploadDatabaseImportResponse {
+  // The staged upload's identifier.
+  string import_id = 1;
+  // Total bytes received by the server so far.
+  uint64 offset = 2;
+  // Expected total size in bytes.
+  uint64 size_bytes = 3;
+  // True once all size_bytes have been received.
+  bool complete = 4;
+}
+
+// PlanDatabaseImportRequest plans importing a completed staged dump upload.
+message PlanDatabaseImportRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The staged upload's identifier.
+  string import_id = 2;
+  // The project of a service named by name, by name or ID.
+  string project = 3;
+  // The environment of a service named by name, by name or ID.
+  string environment = 4;
+  // Optional custom change summary.
+  string summary = 5;
+}
+
+// PlanDatabaseImportResponse carries the planned import change.
+message PlanDatabaseImportResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// CancelDatabaseImportRequest discards a staged dump upload on its server.
+message CancelDatabaseImportRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The staged upload's identifier.
+  string import_id = 2;
+  // The project of a service named by name, by name or ID.
+  string project = 3;
+  // The environment of a service named by name, by name or ID.
+  string environment = 4;
+}
+
+// CancelDatabaseImportResponse is empty.
+message CancelDatabaseImportResponse {}

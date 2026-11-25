@@ -39,11 +39,34 @@ type Lockout struct {
 	Login bool `json:"login,omitempty"`
 	// Loader is the PostgreSQL role made to load, a member of the owner.
 	Loader string `json:"loader,omitempty"`
+	// Verifier is PostgreSQL's pg_authid.rolpassword hash read before lockout, so
+	// LetIn restores the owner's password even if an import altered it (N2).
+	Verifier string `json:"verifier,omitempty"`
 	// Host is a MySQL or MariaDB owner's host, and Restore the statement that gives
 	// it back how it signed in, as the server says it: what the server keeps of its
 	// password, never the password.
 	Host    string `json:"host,omitempty"`
 	Restore string `json:"restore,omitempty"`
+}
+
+// LockoutRefusedError is a refusal from ReadLockout that carries both the
+// single-database restore message and import-specific wording (N8).
+type LockoutRefusedError struct {
+	RestoreMsg string
+	ImportMsg  string
+}
+
+func (e *LockoutRefusedError) Error() string { return e.RestoreMsg }
+
+// FormatImportLockoutError rewrites a ReadLockout refusal with import-specific
+// wording so dump imports never tell the reader to "Restore the whole server
+// instead".
+func FormatImportLockoutError(db string, err error) error {
+	var lre *LockoutRefusedError
+	if errors.As(err, &lre) && lre.ImportMsg != "" {
+		return errors.New(lre.ImportMsg)
+	}
+	return fmt.Errorf("can't import into %s as its owner: %w", db, err)
 }
 
 // Signer is who loads, with their password, and what they run first.
@@ -78,22 +101,27 @@ func ReadLockout(ctx context.Context, client *docker.Client, c *docker.Container
 	switch e.Kind {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
 		said, err := r.ask(ctx, c.ID, e, cmd, "SELECT json_build_object('owner', r.rolname, 'login', r.rolcanlogin, 'super', r.rolsuper, "+
-			"'loader', (SELECT m.rolname FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member WHERE a.roleid = r.oid AND m.rolname LIKE 'dw\\_restore\\_%' ORDER BY m.rolname LIMIT 1)) "+
+			"'loader', (SELECT m.rolname FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member WHERE a.roleid = r.oid AND m.rolname LIKE 'dw\\_restore\\_%' ORDER BY m.rolname LIMIT 1), "+
+			"'verifier', (SELECT coalesce(a.rolpassword, '') FROM pg_authid a WHERE a.oid = r.oid)) "+
 			"FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '"+db+"';\n")
 		if err != nil {
 			return nil, err
 		}
 		var got struct {
-			Owner  string `json:"owner"`
-			Login  bool   `json:"login"`
-			Super  bool   `json:"super"`
-			Loader string `json:"loader"`
+			Owner    string `json:"owner"`
+			Login    bool   `json:"login"`
+			Super    bool   `json:"super"`
+			Loader   string `json:"loader"`
+			Verifier string `json:"verifier"`
 		}
 		if err := json.Unmarshal([]byte(strings.TrimSpace(string(said))), &got); err != nil || got.Owner == "" {
 			return nil, fmt.Errorf("it has no database %s", db)
 		}
 		if got.Super {
-			return nil, fmt.Errorf("%s is %s's, who runs the whole server, so it can't be kept out to restore %s alone. Restore the whole server instead", db, got.Owner, db)
+			return nil, &LockoutRefusedError{
+				RestoreMsg: fmt.Sprintf("%s is %s's, who runs the whole server, so it can't be kept out to restore %s alone. Restore the whole server instead", db, got.Owner, db),
+				ImportMsg:  fmt.Sprintf("%s is owned by %s, who runs the whole server, so a dump can't be imported into it as its owner. Give %s its own non-admin owner first", db, got.Owner, db),
+			}
 		}
 		if err := CheckSQLName("user", got.Owner); err != nil {
 			return nil, err
@@ -101,7 +129,7 @@ func ReadLockout(ctx context.Context, client *docker.Client, c *docker.Container
 		if err := pgOwnsAll(ctx, r, c, e, cmd, db, got.Owner); err != nil {
 			return nil, err
 		}
-		l := &Lockout{Owner: got.Owner, Login: got.Login, Loader: loaderPrefix + randomHex(6)}
+		l := &Lockout{Owner: got.Owner, Login: got.Login, Loader: loaderPrefix + randomHex(6), Verifier: got.Verifier}
 		if got.Loader != "" {
 			// An earlier restore made it and its record is gone: the owner signed in
 			// before that restore, as an app's user does, and goes on with this one.
@@ -118,13 +146,23 @@ func ReadLockout(ctx context.Context, client *docker.Client, c *docker.Container
 		}
 		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
 		if len(lines) != 1 || lines[0] == "" {
-			return nil, fmt.Errorf("%s has %d users of its own where one app's database has one, so it can't be kept to one to restore it alone. Restore the whole server instead", db, len(lines))
+			count := len(lines)
+			if len(lines) == 1 && lines[0] == "" {
+				count = 0
+			}
+			return nil, &LockoutRefusedError{
+				RestoreMsg: fmt.Sprintf("%s has %d users of its own where one app's database has one, so it can't be kept to one to restore it alone. Restore the whole server instead", db, count),
+				ImportMsg:  fmt.Sprintf("%s has %d users of its own where one app's database has one, so a dump can't be imported into it as its owner", db, count),
+			}
 		}
 		user, host, _ := strings.Cut(lines[0], "\t")
 		if CheckSQLName("user", user) != nil || host != "%" {
-			return nil, fmt.Errorf("%s's user isn't one Dockwell made, so it can't be kept out to restore %s alone. Restore the whole server instead", db, db)
+			return nil, &LockoutRefusedError{
+				RestoreMsg: fmt.Sprintf("%s's user isn't one Dockwell made, so it can't be kept out to restore %s alone. Restore the whole server instead", db, db),
+				ImportMsg:  db + "'s user isn't one Dockwell made, so a dump can't be imported into it as its owner",
+			}
 		}
-		create, err := myCreateUser(ctx, r, c, e, cmd, user)
+		create, err := myCreateUser(ctx, r, c, e, cmd, user, db)
 		if err != nil {
 			return nil, err
 		}
@@ -157,8 +195,10 @@ func pgOwnsAll(ctx context.Context, r Reader, c *docker.Container, e *Engine, cm
 	}
 	if what := strings.TrimSpace(string(said)); what != "" {
 		first, _, _ := strings.Cut(what, "\n")
-		return fmt.Errorf("%s holds %s, which isn't %s's, so a load as %s would stop partway, and nothing was changed. "+
-			"Restore the whole server instead", db, first, owner, owner)
+		return &LockoutRefusedError{
+			RestoreMsg: fmt.Sprintf("%s holds %s, which isn't %s's, so a load as %s would stop partway, and nothing was changed. Restore the whole server instead", db, first, owner, owner),
+			ImportMsg:  fmt.Sprintf("%s holds %s, which isn't owned by %s, so a dump can't be imported into it as its owner. Drop or transfer %s first", db, first, owner, first),
+		}
 	}
 	return nil
 }
@@ -335,7 +375,7 @@ func LockOut(ctx context.Context, client *docker.Client, c *docker.Container, e 
 		}
 		// Marked by what the server keeps of the restore's password, which a
 		// restore with no record of this one reads as not the app's.
-		create, err := myCreateUser(ctx, r, c, e, cmd, l.Owner)
+		create, err := myCreateUser(ctx, r, c, e, cmd, l.Owner, db)
 		if err != nil {
 			return "", err
 		}
@@ -375,6 +415,9 @@ func LetIn(ctx context.Context, client *docker.Client, c *docker.Container, e *E
 		if l.Login {
 			in = "ALTER ROLE " + pgName(l.Owner) + " LOGIN;\n" + in
 		}
+		if l.Verifier != "" && !strings.ContainsAny(l.Verifier, "\x00\r\n") {
+			in = "ALTER ROLE " + pgName(l.Owner) + " PASSWORD '" + strings.ReplaceAll(l.Verifier, "'", "''") + "';\n" + in
+		}
 		if _, err := r.ask(ctx, c.ID, e, cmd, in); err != nil {
 			return err
 		}
@@ -413,7 +456,7 @@ func LetIn(ctx context.Context, client *docker.Client, c *docker.Container, e *E
 
 // myCreateUser is how a MySQL or MariaDB user signs in, as SHOW CREATE USER says it:
 // what the server keeps of its password, never the password.
-func myCreateUser(ctx context.Context, r Reader, c *docker.Container, e *Engine, cmd []string, user string) (string, error) {
+func myCreateUser(ctx context.Context, r Reader, c *docker.Container, e *Engine, cmd []string, user, db string) (string, error) {
 	show := ""
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
 		// What it keeps of a password can hold any byte, which only hex keeps whole.
@@ -425,7 +468,10 @@ func myCreateUser(ctx context.Context, r Reader, c *docker.Container, e *Engine,
 	}
 	create := strings.TrimSpace(string(said))
 	if !strings.HasPrefix(create, "CREATE USER ") || strings.Contains(create, "\n") {
-		return "", errors.New("can't read how its user signs in, so it isn't kept out. Restore the whole server instead")
+		return "", &LockoutRefusedError{
+			RestoreMsg: "can't read how its user signs in, so it isn't kept out. Restore the whole server instead",
+			ImportMsg:  fmt.Sprintf("can't read how %s's user signs in, so a dump can't be imported into it as its owner", db),
+		}
 	}
 	return create, nil
 }

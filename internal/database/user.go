@@ -233,15 +233,25 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 	dec, err := d.Plan(actual, desired, changes)
 	if err == nil && dec.Action == resource.ActionDelete {
 		// Taking a Redis user away deletes no key: what it wrote stays on the server.
-		if g, ok, err := d.recorded(ref); err != nil {
-			return resource.Decision{}, err
-		} else if ok && g.Redis != "" {
+		g, ok, rerr := d.recorded(ref)
+		if rerr != nil {
+			return resource.Decision{}, rerr
+		}
+		switch {
+		case ok && g.Redis != "":
 			dec.Destroys, dec.KeysLeft = false, g.KeyPrefix+"*"
-		} else if ok && g.TakenOn {
+		case ok && g.TakenOn:
 			// Letting go of one taken on drops nothing: it and its database stay the
 			// server's, which the plan says (ADR 0084).
 			dec.Destroys = false
 			dec.Leaves = Owned(ref.Name, &resourcev1.DatabaseUser{DatabaseName: g.Database})
+		case ok && !deletedHere(ctx, ref.Scope, g.Service):
+			db := Owned(ref.Name, &resourcev1.DatabaseUser{DatabaseName: g.Database})
+			if c, e, serr := d.server(ctx, ref, g.Service); serr == nil && e.SQL() {
+				if users, uerr := activeDatabaseUsers(ctx, d.Client, c, e, db); uerr == nil && len(users) > 0 {
+					return resource.Decision{}, fmt.Errorf("%s on %s still has active connections from %s, so it can't be deleted while apps are connected. Stop or disconnect them first", db, g.Service, strings.Join(users, ", "))
+				}
+			}
 		}
 	}
 	if err != nil || dec.Action != resource.ActionCreate {
@@ -298,6 +308,9 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 		return resource.Decision{}, fmt.Errorf("%s has a user %s already, which Dockwell didn't make. Choose another name", u.GetService(), ref.Name)
 	case there.owner != "":
 		return resource.Decision{}, fmt.Errorf("%s has a database %s already, which Dockwell didn't make. Choose another name", u.GetService(), Owned(ref.Name, u))
+	}
+	if undoes := resource.DeployOf(ctx).Undoes; undoes != "" && u.GetCopyFrom() == nil && e.SQL() && hasDeletedBackup(d.Dir, time.Now(), undoes, ref.Scope, u.GetService(), Owned(ref.Name, u)) {
+		dec.Restores = true
 	}
 	return dec, nil
 }
@@ -395,6 +408,13 @@ func (d *UserDriver) whileStarting(ctx context.Context, f func() error) error {
 func madeHere(ctx context.Context, scope, service string) bool {
 	return slices.ContainsFunc(resource.DesiredIn(ctx), func(d resource.Desired) bool {
 		return d.Ref.Kind == "service" && d.Ref.Scope == scope && d.Ref.Name == service && d.Spec != nil
+	})
+}
+
+// deletedHere reports a service the change being planned deletes on this server.
+func deletedHere(ctx context.Context, scope, service string) bool {
+	return slices.ContainsFunc(resource.DesiredIn(ctx), func(d resource.Desired) bool {
+		return d.Ref.Kind == "service" && d.Ref.Scope == scope && d.Ref.Name == service && d.Spec == nil
 	})
 }
 
@@ -870,6 +890,14 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 				return err
 			}
 			g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
+		} else if e.SQL() && step.Restores {
+			// Undo of a delete brings back the backup taken just before DROP for that change.
+			if err := restoreDeletedBackup(ctx, d.Client, d.Dir, time.Now(), resource.DeployOf(ctx).Undoes, c, e, ref.Scope, u.GetService(), db, ref.Name, password); err != nil {
+				if derr := d.run(context.WithoutCancel(ctx), c, e, e.drop(ref.Name, db)); derr == nil {
+					_ = d.record(ref, nil)
+				}
+				return err
+			}
 		}
 	} else if from != nil {
 		// A copy is made once, with the user, and what it came from can't change.
@@ -1124,6 +1152,12 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 			return err
 		}
 		return d.record(ref, nil)
+	}
+	if e.SQL() {
+		// Back up the database before dropping so Undo restores its data; refuse if backup fails.
+		if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), resource.DeployOf(ctx).Change, c, e, ref.Scope, g.Service, db, ref.Name); err != nil {
+			return err
+		}
 	}
 	if err := d.run(ctx, c, e, e.drop(ref.Name, db)); err != nil {
 		return err

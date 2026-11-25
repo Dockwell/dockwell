@@ -105,8 +105,9 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		DiskSize: func(string) (int64, error) { return 50 << 30, nil },
 	}
 	users := &database.UserDriver{Client: client, Dir: t.TempDir()}
+	logicals := &database.LogicalDriver{Client: client, Dir: users.Dir}
 	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups}, volumeType, &network.Driver{Client: client}, users, tasks}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups}, volumeType, &network.Driver{Client: client}, users, logicals, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -93,6 +94,9 @@ type Handler struct {
 	// signInsBy are when each person's last checks reached an agent, by user ID, which
 	// signInsPerMinute holds them to.
 	signInsBy map[string][]time.Time
+
+	// planImport plans a volume restore from a staged dump upload.
+	planImport func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error)
 }
 
 // signInsPerMinute is how many sign-in checks one person makes reach an agent in a
@@ -121,6 +125,11 @@ type keptReading struct {
 // database says, and backups for what's kept of each.
 func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
 	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}, signIns: map[string]signInAnswer{}, signInsBy: map[string][]time.Time{}}
+}
+
+// ImportWith sets how PlanDatabaseImport plans a restore from a staged dump upload.
+func (h *Handler) ImportWith(fn func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error)) {
+	h.planImport = fn
 }
 
 // placed is a database with where it runs.
@@ -252,7 +261,7 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	password, err := generate(passwordLength)
+	password, err := generate()
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -281,6 +290,276 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.CreateDatabaseUserResponse{Change: change}), nil
+}
+
+// CreateLogicalDatabase plans a logical database inside a PostgreSQL, MySQL or
+// MariaDB server. When owner is empty, it creates a new owner user and secret
+// (kind "database.user") alongside the database; when owner names an existing
+// user on that server, it plans a "database.logical" resource owned by them.
+func (h *Handler) CreateLogicalDatabase(ctx context.Context, req *connect.Request[dockwellv1.CreateLogicalDatabaseRequest]) (*connect.Response[dockwellv1.CreateLogicalDatabaseResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("the request names no database. Pass its service's ID, or its name"))
+	}
+	dbName := m.GetDatabase()
+	if err := database.CheckSQLName("database", dbName); err != nil {
+		return nil, invalidField("database", err)
+	}
+	if database.SystemDatabase(dbName) {
+		return nil, invalidField("database", fmt.Errorf("%s is a database its server keeps for itself. Choose another name", dbName))
+	}
+	owner := m.GetOwner()
+	if owner != "" {
+		if err := database.CheckSQLName("owner", owner); err != nil {
+			return nil, invalidField("owner", err)
+		}
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	server, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	engine := database.Of(server.db.GetEngine())
+	if !engine.SQL() {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which doesn't support logical databases here", server.ref.Name, engine.Name))
+	}
+	if len(server.servers) == 0 {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs on no server now, and a database is made where it runs. Deploy it first", server.ref.Name))
+	}
+	env := server.ref.Scope
+	servers := make([]string, 0, len(server.servers))
+	for i := range server.servers {
+		servers = append(servers, server.servers[i].ID)
+	}
+
+	// Check whether any Dockwell-managed database on this server already uses dbName.
+	checkDBFree := func(tx *store.Tx) error {
+		logicals, err := tx.ListResources(ctx, env, string(database.LogicalKind))
+		if err != nil {
+			return err
+		}
+		for i := range logicals {
+			spec := &resourcev1.LogicalDatabase{}
+			if err := proto.Unmarshal(logicals[i].Spec, spec); err != nil {
+				return err
+			}
+			if spec.GetService() == server.ref.Name && database.LogicalName(logicals[i].Name, spec) == dbName {
+				return invalidField("database", fmt.Errorf("%s already has a database called %s. Choose another name", server.ref.Name, dbName))
+			}
+		}
+		users, err := tx.ListResources(ctx, env, string(database.UserKind))
+		if err != nil {
+			return err
+		}
+		for i := range users {
+			spec := &resourcev1.DatabaseUser{}
+			if err := proto.Unmarshal(users[i].Spec, spec); err != nil {
+				return err
+			}
+			if spec.GetService() == server.ref.Name && database.Owned(users[i].Name, spec) == dbName {
+				return invalidField("database", fmt.Errorf("%s already has a database called %s. Choose another name", server.ref.Name, dbName))
+			}
+		}
+		return nil
+	}
+
+	// Path A: pick an existing user on the server -> database.logical resource.
+	// Name the resource <service>-<db> so two engines in the same environment
+	// can each hold a database with the same SQL name (L5).
+	if owner != "" {
+		if err := h.db.View(ctx, checkDBFree); err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		resName := database.LogicalResourceName(server.ref.Name, dbName)
+		spec := &resourcev1.LogicalDatabase{Service: server.ref.Name, DatabaseName: dbName, Owner: owner}
+		edits := []*dockwellv1.Edit{
+			{
+				Resource: &dockwellv1.ResourceRef{Kind: string(database.LogicalKind), Scope: env, Name: resName},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_LogicalDatabase{LogicalDatabase: spec}},
+				Servers:  servers,
+			},
+		}
+		summary := fmt.Sprintf("Create database %s on %s owned by %s", dbName, server.ref.Name, owner)
+		change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(&dockwellv1.CreateLogicalDatabaseResponse{Change: change}), nil
+	}
+
+	// Path B (default): make a new owner user and generated secret alongside the database.
+	user := cmp.Or(m.GetUser(), dbName)
+	if err := database.CheckSQLName("user", user); err != nil {
+		return nil, invalidField("user", err)
+	}
+	if database.ReservedUser(user) {
+		return nil, invalidField("user", fmt.Errorf("%s is a user its server keeps for itself. Choose another name", user))
+	}
+	secret := cmp.Or(m.GetSecret(), strings.ToUpper(user)+"_DATABASE_PASSWORD")
+	if err := variable.CheckName("secret", secret); err != nil {
+		return nil, invalidField("secret", err)
+	}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		if err := checkDBFree(tx); err != nil {
+			return err
+		}
+		for _, taken := range []struct {
+			kind              resource.Kind
+			field, name, what string
+		}{
+			{database.UserKind, "user", user, fmt.Sprintf("a database user %s in this environment already. Choose another name", user)},
+			{variable.SecretKind, "secret", secret, fmt.Sprintf("a secret %s in this environment already, and a new user's password goes in a new one. Choose another name for it", secret)},
+			{variable.VariableKind, "secret", secret, fmt.Sprintf("a variable %s in this environment already, and a new user's password goes in a secret of its own. Choose another name for it", secret)},
+		} {
+			r, err := tx.GetResource(ctx, string(taken.kind), env, taken.name)
+			switch {
+			case err == nil && r.Spec != nil:
+				return invalidField(taken.field, errors.New("there's "+taken.what))
+			case err != nil && !errors.Is(err, store.ErrNotFound):
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	password, err := generate()
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	spec := &resourcev1.DatabaseUser{Service: server.ref.Name, Password: secret}
+	if dbName != user {
+		spec.DatabaseName = dbName
+	}
+	edits := []*dockwellv1.Edit{
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: secret},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: password}}},
+		},
+		{
+			Resource: &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: env, Name: user},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: spec}},
+			Servers:  servers,
+		},
+	}
+	summary := fmt.Sprintf("Create database %s on %s with new user %s", dbName, server.ref.Name, user)
+	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.CreateLogicalDatabaseResponse{Change: change}), nil
+}
+
+// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+// PostgreSQL, MySQL or MariaDB server. Refused by the revision engine while any
+// app links to it.
+func (h *Handler) DeleteLogicalDatabase(ctx context.Context, req *connect.Request[dockwellv1.DeleteLogicalDatabaseRequest]) (*connect.Response[dockwellv1.DeleteLogicalDatabaseResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, authapi.Invalid(errors.New("the request names no database. Pass its service's ID, or its name"))
+	}
+	dbName := m.GetDatabase()
+	if err := database.CheckSQLName("database", dbName); err != nil {
+		return nil, invalidField("database", err)
+	}
+	if database.SystemDatabase(dbName) {
+		return nil, invalidField("database", fmt.Errorf("%s is a database its server keeps for itself, so Dockwell never deletes it", dbName))
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	server, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	engine := database.Of(server.db.GetEngine())
+	if !engine.SQL() {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which doesn't support logical databases here", server.ref.Name, engine.Name))
+	}
+	env := server.ref.Scope
+	var (
+		target      *dockwellv1.ResourceRef
+		extraSecret *dockwellv1.ResourceRef
+		summary     string
+	)
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		logicals, err := tx.ListResources(ctx, env, string(database.LogicalKind))
+		if err != nil {
+			return err
+		}
+		for i := range logicals {
+			spec := &resourcev1.LogicalDatabase{}
+			if err := proto.Unmarshal(logicals[i].Spec, spec); err != nil {
+				return err
+			}
+			if spec.GetService() == server.ref.Name && database.LogicalName(logicals[i].Name, spec) == dbName {
+				target = &dockwellv1.ResourceRef{Kind: string(database.LogicalKind), Scope: env, Name: logicals[i].Name}
+				if spec.GetOwner() != "" {
+					summary = fmt.Sprintf("Delete database %s from %s (keeps user %s)", dbName, server.ref.Name, spec.GetOwner())
+				} else {
+					summary = fmt.Sprintf("Delete database %s from %s", dbName, server.ref.Name)
+				}
+				return nil
+			}
+		}
+		users, err := tx.ListResources(ctx, env, string(database.UserKind))
+		if err != nil {
+			return err
+		}
+		for i := range users {
+			spec := &resourcev1.DatabaseUser{}
+			if err := proto.Unmarshal(users[i].Spec, spec); err != nil {
+				return err
+			}
+			if spec.GetService() == server.ref.Name && !spec.GetTakenOn() && database.Owned(users[i].Name, spec) == dbName {
+				target = &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: env, Name: users[i].Name}
+				summary = fmt.Sprintf("Delete database %s and its user %s from %s", dbName, users[i].Name, server.ref.Name)
+				// Also delete the user's password secret in the same plan when
+				// nothing else uses it (L9).
+				if secretName := spec.GetPassword(); secretName != "" {
+					if r, err := tx.GetResource(ctx, string(variable.SecretKind), env, secretName); err == nil && r.Spec != nil {
+						uses, err := tx.UsersOf(ctx, env, string(variable.SecretKind), secretName)
+						if err != nil {
+							return err
+						}
+						otherUser := false
+						for j := range uses {
+							if uses[j].Kind == string(database.UserKind) && uses[j].Scope == env && uses[j].Name == users[i].Name {
+								continue
+							}
+							otherUser = true
+							break
+						}
+						if !otherUser {
+							extraSecret = &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: secretName}
+						}
+					}
+				}
+				return nil
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	if target == nil {
+		return nil, authapi.Invalid(fmt.Errorf("no managed database %s on %s to delete, as Dockwell didn't make it", dbName, server.ref.Name))
+	}
+	edits := []*dockwellv1.Edit{{Resource: target, Delete: true}}
+	if extraSecret != nil {
+		edits = append(edits, &dockwellv1.Edit{Resource: extraSecret, Delete: true})
+	}
+	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.DeleteLogicalDatabaseResponse{Change: change}), nil
 }
 
 // ChangeDatabasePassword plans a new generated password for a database's first user,
@@ -339,7 +618,7 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 			return nil, h.fail(ctx, err)
 		}
 	}
-	password, err := generate(passwordLength)
+	password, err := generate()
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -411,11 +690,11 @@ func invalidField(field string, err error) *connect.Error {
 	return authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid_"+field)
 }
 
-// generate makes a password of n characters, each as likely as any other.
-func generate(n int) (string, error) {
+// generate makes a password of passwordLength characters, each as likely as any other.
+func generate() (string, error) {
 	var b strings.Builder
 	size := big.NewInt(int64(len(passwordAlphabet)))
-	for range n {
+	for range passwordLength {
 		i, err := rand.Int(rand.Reader, size)
 		if err != nil {
 			return "", fmt.Errorf("generating a password: %w", err)
@@ -527,6 +806,19 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			if spec.GetKeyPrefix() != "" {
 				prefixed[key] = append(prefixed[key], u.Name)
 			}
+		}
+		logicals, err := tx.ListKind(ctx, string(database.LogicalKind))
+		if err != nil {
+			return err
+		}
+		for i := range logicals {
+			l := &logicals[i]
+			spec := &resourcev1.LogicalDatabase{}
+			if err := proto.Unmarshal(l.Spec, spec); err != nil {
+				return fmt.Errorf("can't read the logical database %s: %w", l.Name, err)
+			}
+			key := l.Scope + "/" + spec.GetService()
+			users[key] = append(users[key], l.ID+"@"+strconv.Itoa(l.Revision))
 		}
 		inScope := map[string][]string{}
 		for i := range services {
@@ -668,30 +960,277 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 		byScope[p.ref.Scope] = append(byScope[p.ref.Scope], p)
 	}
 	return h.db.View(ctx, func(tx *store.Tx) error {
+		// Collect active links pointing to logical databases so the UI knows which
+		// apps depend on each logical database (respecting caller visibility).
+		linkedBy := map[string][]string{} // key: meetsEnv+"/"+service+"/"+dbName
+		if tree, err := scope.Load(ctx, tx); err == nil {
+			visible := place.Reachable(ctx, tree)
+			envProject := map[string]string{}
+			visibleEnv := map[string]bool{}
+			for _, p := range visible.Projects {
+				for _, e := range p.Environments {
+					visibleEnv[e.ID] = true
+					envProject[e.ID] = p.Name
+				}
+			}
+			if links, err := tx.ListKind(ctx, linkKind); err == nil {
+				var stored []store.StoredSpec
+				var live []store.Resource
+				for _, r := range links {
+					if r.Spec != nil {
+						stored = append(stored, store.StoredSpec{At: store.InRevision(r.ID, r.Kind, r.Revision), Spec: r.Spec})
+						live = append(live, r)
+					}
+				}
+				if decoded, _, err := h.keeper.DecodeEach(ctx, tx, stored); err == nil {
+					for i, spec := range decoded {
+						l, ok := spec.(*resourcev1.Link)
+						if !ok || l.GetService() == "" || l.GetDatabaseName() == "" {
+							continue
+						}
+						meets := cmp.Or(l.GetMeetsEnvironment(), live[i].Scope)
+						key := meets + "/" + l.GetService() + "/" + l.GetDatabaseName()
+						label := "another project"
+						if visibleEnv[live[i].Scope] {
+							label = cmp.Or(envProject[live[i].Scope], live[i].Name)
+						}
+						if !slices.Contains(linkedBy[key], label) {
+							linkedBy[key] = append(linkedBy[key], label)
+						}
+					}
+				}
+			}
+		}
 		for env, dbs := range byScope {
 			uses, err := tx.UsersOf(ctx, env, string(variable.SecretKind))
 			if err != nil {
 				return err
 			}
-			// The services that use a secret, but the database that has it as its own.
-			usedBy := func(secret, own string) []string {
+			varUses, err := tx.UsersOf(ctx, env, string(variable.VariableKind))
+			if err != nil {
+				return err
+			}
+			// Find services that use a secret or variable directly or through derived
+			// secrets/variables, excluding own (the database server itself).
+			usedByKind := func(startKind, startName, own string) []string {
+				type node struct{ kind, name string }
+				visited := map[node]bool{{startKind, startName}: true}
+				queue := []node{{startKind, startName}}
 				var out []string
-				for j := range uses {
-					if uses[j].Kind == string(service.Kind) && uses[j].Uses.Name == secret && uses[j].Name != own && !slices.Contains(out, uses[j].Name) {
-						out = append(out, uses[j].Name)
+				for len(queue) > 0 {
+					cur := queue[0]
+					queue = queue[1:]
+					list := uses
+					if cur.kind == string(variable.VariableKind) {
+						list = varUses
+					}
+					for j := range list {
+						if list[j].Uses.Name != cur.name {
+							continue
+						}
+						switch list[j].Kind {
+						case string(service.Kind):
+							if list[j].Name != own && !slices.Contains(out, list[j].Name) {
+								out = append(out, list[j].Name)
+							}
+						case string(variable.SecretKind), string(variable.VariableKind):
+							next := node{list[j].Kind, list[j].Name}
+							if !visited[next] {
+								visited[next] = true
+								queue = append(queue, next)
+							}
+						}
 					}
 				}
 				return out
 			}
+			usedBy := func(secret, own string) []string {
+				return usedByKind(string(variable.SecretKind), secret, own)
+			}
+			// Decode secrets and variables in env to detect connection URLs/DSNs that
+			// name any database on these servers so LinkedBy reflects secret usage (H3).
+			type namedVal struct {
+				kind, name string
+				spec       proto.Message
+			}
+			var envVals []namedVal
+			for _, kind := range []resource.Kind{variable.SecretKind, variable.VariableKind} {
+				rawList, err := tx.ListResources(ctx, env, string(kind))
+				if err != nil {
+					return err
+				}
+				var stored []store.StoredSpec
+				var live []store.Resource
+				for j := range rawList {
+					if rawList[j].Spec != nil {
+						stored = append(stored, store.StoredSpec{At: store.InRevision(rawList[j].ID, rawList[j].Kind, rawList[j].Revision), Spec: rawList[j].Spec})
+						live = append(live, rawList[j])
+					}
+				}
+				if len(stored) > 0 {
+					if decoded, _, derr := h.keeper.DecodeEach(ctx, tx, stored); derr == nil {
+						for j, sp := range decoded {
+							if sp != nil {
+								envVals = append(envVals, namedVal{kind: string(kind), name: live[j].Name, spec: sp})
+							}
+						}
+					}
+				}
+			}
+			valNamesDB := func(spec proto.Message, hosts []string, dbName string) bool {
+				switch v := spec.(type) {
+				case *resourcev1.Secret:
+					if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
+						return true
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
+						return true
+					}
+				case *resourcev1.Variable:
+					if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
+						return true
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
+						return true
+					}
+				}
+				return false
+			}
+			// Decode services in env so plain env vars (DB_NAME, POSTGRES_DB, MYSQL_DATABASE),
+			// aliases, and admin-credential apps also surface in LinkedBy (H3).
+			type decodedSvc struct {
+				name string
+				spec *resourcev1.Service
+			}
+			var envSvcs []decodedSvc
+			if rawSvcs, serr := tx.ListResources(ctx, env, string(service.Kind)); serr == nil {
+				var stored []store.StoredSpec
+				var live []store.Resource
+				for j := range rawSvcs {
+					if rawSvcs[j].Spec != nil {
+						stored = append(stored, store.StoredSpec{At: store.InRevision(rawSvcs[j].ID, rawSvcs[j].Kind, rawSvcs[j].Revision), Spec: rawSvcs[j].Spec})
+						live = append(live, rawSvcs[j])
+					}
+				}
+				if len(stored) > 0 {
+					if decoded, _, derr := h.keeper.DecodeEach(ctx, tx, stored); derr == nil {
+						for j, sp := range decoded {
+							if s, ok := sp.(*resourcev1.Service); ok {
+								envSvcs = append(envSvcs, decodedSvc{name: live[j].Name, spec: s})
+							}
+						}
+					}
+				}
+			}
+			valByKey := map[string][]string{} // "secret/name" or "variable/name" -> values/templates
+			for _, nv := range envVals {
+				var vals []string
+				switch v := nv.spec.(type) {
+				case *resourcev1.Secret:
+					if v.GetValue() != "" {
+						vals = append(vals, v.GetValue())
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+						vals = append(vals, t.GetText())
+					}
+				case *resourcev1.Variable:
+					if v.GetValue() != "" {
+						vals = append(vals, v.GetValue())
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+						vals = append(vals, t.GetText())
+					}
+				}
+				valByKey[nv.kind+"/"+nv.name] = vals
+			}
+			appendUnique := func(dst *[]string, items []string) {
+				for _, item := range items {
+					if !slices.Contains(*dst, item) {
+						*dst = append(*dst, item)
+					}
+				}
+			}
 			for _, p := range dbs {
 				secret := p.db.GetPasswordSecret()
-				if secret == "" {
-					continue
+				hosts := []string{p.ref.Name, p.ref.Name + "-1", env + "-" + p.ref.Name + "-1"}
+				for _, sv := range envSvcs {
+					if sv.name != p.ref.Name {
+						continue
+					}
+					app := sv.spec.GetApp()
+					for _, a := range app.GetAliases() {
+						appendUnique(&hosts, []string{a})
+					}
+					for _, a := range app.GetNetworkAliases() {
+						appendUnique(&hosts, []string{a})
+					}
+					if hn := app.GetHostname(); hn != "" {
+						appendUnique(&hosts, []string{hn})
+					}
+				}
+				var adminApps []string
+				if secret != "" {
+					adminApps = usedBy(secret, p.ref.Name)
 				}
 				for _, r := range p.db.GetReadings() {
-					for _, a := range r.GetUsers() {
-						if r.GetUser() != "" && a.GetName() == r.GetUser() && a.GetSecret() == "" {
-							a.Secret, a.UsedBy = secret, usedBy(secret, p.ref.Name)
+					if secret != "" {
+						for _, a := range r.GetUsers() {
+							if r.GetUser() != "" && a.GetName() == r.GetUser() && a.GetSecret() == "" {
+								a.Secret, a.UsedBy = secret, adminApps
+							}
+						}
+					}
+					for _, d := range r.GetDatabases() {
+						dbName := d.GetName()
+						if linked := linkedBy[env+"/"+p.ref.Name+"/"+dbName]; len(linked) > 0 {
+							d.LinkedBy = slices.Clone(linked)
+						}
+						for _, nv := range envVals {
+							if valNamesDB(nv.spec, hosts, dbName) {
+								appendUnique(&d.LinkedBy, usedByKind(nv.kind, nv.name, p.ref.Name))
+							}
+						}
+						for _, sv := range envSvcs {
+							if sv.name == p.ref.Name {
+								continue
+							}
+							usesAdmin := slices.Contains(adminApps, sv.name)
+							reaches := usesAdmin
+							namesDB := false
+							namesOther := false
+							checkVal := func(k, v string) {
+								if database.ValueNamesDatabaseHosts(v, hosts, dbName) {
+									namesDB = true
+									reaches = true
+								}
+								if database.ValueReachesHost(v, hosts) {
+									reaches = true
+								}
+								trimmed := strings.TrimSpace(v)
+								if trimmed == dbName {
+									namesDB = true
+								}
+								if database.ValueNamesOtherDatabase(v, hosts, dbName) ||
+									(database.IsDBNameEnvKey(k) && trimmed != "" && trimmed != dbName) {
+									namesOther = true
+								}
+							}
+							for k, v := range sv.spec.GetApp().GetEnv() {
+								checkVal(k, v)
+							}
+							for k, vn := range sv.spec.GetVariables() {
+								for _, v := range valByKey[string(variable.VariableKind)+"/"+cmp.Or(vn, k)] {
+									checkVal(k, v)
+								}
+							}
+							for k, sn := range sv.spec.GetSecrets() {
+								for _, v := range valByKey[string(variable.SecretKind)+"/"+cmp.Or(sn, k)] {
+									checkVal(k, v)
+								}
+							}
+							if (reaches && namesDB) || (usesAdmin && !namesOther) {
+								appendUnique(&d.LinkedBy, []string{sv.name})
+							}
 						}
 					}
 				}
@@ -706,7 +1245,8 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 				if err := proto.Unmarshal(u.Spec, spec); err != nil {
 					return fmt.Errorf("can't read the database user %s: %w", u.Name, err)
 				}
-				usedBy := usedBy(spec.GetPassword(), "")
+				usedByApps := usedBy(spec.GetPassword(), spec.GetService())
+				ownedDB := database.Owned(u.Name, spec)
 				for _, p := range dbs {
 					if p.ref.Name != spec.GetService() {
 						continue
@@ -714,7 +1254,44 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 					for _, r := range p.db.GetReadings() {
 						for _, a := range r.GetUsers() {
 							if a.GetName() == u.Name {
-								a.Secret, a.UsedBy, a.ResourceId = spec.GetPassword(), usedBy, u.ID
+								a.Secret, a.UsedBy, a.ResourceId = spec.GetPassword(), usedByApps, u.ID
+							}
+						}
+						if !spec.GetTakenOn() {
+							for _, d := range r.GetDatabases() {
+								if d.GetName() == ownedDB {
+									if d.GetResourceId() == "" {
+										d.ResourceId, d.ResourceKind = u.ID, string(database.UserKind)
+									}
+									appendUnique(&d.LinkedBy, usedByApps)
+								}
+							}
+						}
+					}
+				}
+			}
+			logicals, err := tx.ListResources(ctx, env, string(database.LogicalKind))
+			if err != nil {
+				return err
+			}
+			for i := range logicals {
+				l := &logicals[i]
+				spec := &resourcev1.LogicalDatabase{}
+				if err := proto.Unmarshal(l.Spec, spec); err != nil {
+					return fmt.Errorf("can't read the logical database %s: %w", l.Name, err)
+				}
+				dbName := database.LogicalName(l.Name, spec)
+				for _, p := range dbs {
+					if p.ref.Name != spec.GetService() {
+						continue
+					}
+					for _, r := range p.db.GetReadings() {
+						for _, d := range r.GetDatabases() {
+							if d.GetName() == dbName {
+								d.ResourceId, d.ResourceKind = l.ID, string(database.LogicalKind)
+								if d.GetOwner() == "" && spec.GetOwner() != "" {
+									d.Owner = spec.GetOwner()
+								}
 							}
 						}
 					}

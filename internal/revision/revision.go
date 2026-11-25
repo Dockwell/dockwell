@@ -1360,11 +1360,20 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			})
 		}
 	}
-	// What the change leaves behind it, such as a redirect left landing on nothing.
+	// What the change leaves behind it, such as a redirect left landing on nothing,
+	// or a database deletion where Dockwell can't verify every app reaching its engine.
 	var across []Note
 	if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
 		across, err = e.noteAcross(ctx, tx, items)
-		return err
+		if err != nil {
+			return err
+		}
+		dbNotes, err := e.databaseDeleteNotes(ctx, tx, items)
+		if err != nil {
+			return err
+		}
+		across = append(across, dbNotes...)
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -2397,6 +2406,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		if err := e.checkConnectionLinks(ctx, tx, items, it); err != nil {
 			return err
 		}
+		if err := e.checkDatabaseLinks(ctx, tx, items, it); err != nil {
+			return err
+		}
 		if err := e.checkConnectionDestinations(ctx, tx, items, it); err != nil {
 			return err
 		}
@@ -3179,7 +3191,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		sp.Offline = !online && len(its) > 0
 		if online && len(its) > 0 {
 			var err error
-			if steps, err = e.planOn(ctx, agent, server, sp.Name, its); err != nil {
+			if steps, err = e.planOn(ctx, agent, server, sp.Name, its, with.reverts); err != nil {
 				if !rollback {
 					return nil, err
 				}
@@ -3856,7 +3868,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 }
 
 // planOn asks a server's agent what the items would take there.
-func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
+func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item, reverts string) ([]resource.Step, error) {
 	if len(its) == 1 {
 		if approved := its[0].unfinished[server]; approved != nil && approved.DockerDaemon != nil {
 			// The daemon can be down during recovery. Resume the frozen step;
@@ -3873,7 +3885,11 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 			guards[it.ref] = guard
 			retrying[it.ref] = it.unfinished[server] != nil
 		}
-		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
+		undoes := ""
+		if it.reverses || it.rollback {
+			undoes = reverts
+		}
+		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Undoes: undoes, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
 		desired[i].NeedsPauseControl = resource.RunIntent(it.currentOn(server)) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 		desired[i].DockerStorageGuard = guards[it.ref]
@@ -5205,10 +5221,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			callCtx = resource.WithAgentUpgrade(callCtx, ask)
 		}
 		last, guarded := lastAccess[q.server]
-		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
-		// A restore into a new database reads its backup from the volume the change
-		// names, which the step's plan doesn't carry (ADR 0106).
-		if src := it.restoreOn(q.server); src != nil && src.IntoNew() {
+		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), Undoes: c.Reverts, LastAccess: guarded && last == qi})
+		// A restore into a new database or from a staged dump upload passes its
+		// source through ctx, as the step's plan doesn't carry From or ImportID.
+		if src := it.restoreOn(q.server); src != nil && (src.IntoNew() || src.ImportID != "") {
 			callCtx = resource.WithRestore(callCtx, *src)
 		}
 		// The call to its agent is what a wave's servers wait on side by side. What

@@ -10066,8 +10066,15 @@ msgstr "Image tag set"
 msgid "Images imported"
 msgstr "Images imported"
 
+msgid "Imported"
+msgstr "Imported"
+
 msgid "Importing images"
 msgstr "Importing images"
+
+#. placeholder {0}: restore.importFile
+msgid "Imports {0}"
+msgstr "Imports {0}"
 
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
@@ -10174,6 +10181,9 @@ msgstr "Push failed"
 msgid "Pushing image"
 msgstr "Pushing image"
 
+msgid "Puts back"
+msgstr "Puts back"
+
 msgid "Re-enabling Docker cleanup"
 msgstr "Re-enabling Docker cleanup"
 
@@ -10200,6 +10210,12 @@ msgstr "Restarted {name} on {server}"
 
 msgid "Restarting {name} on {server}"
 msgstr "Restarting {name} on {server}"
+
+msgid "Restored"
+msgstr "Restored"
+
+msgid "Restores"
+msgstr "Restores"
 
 msgid "Result unknown"
 msgstr "Result unknown"
@@ -10913,6 +10929,11 @@ msgstr "If reload fails, Dockwell restarts Docker with the previous settings."
 msgid "Image config digest"
 msgstr "Image config digest"
 
+#. placeholder {0}: restore.importFile
+#. placeholder {1}: restore.databaseName
+msgid "Import <0>{0}</0> into <1>{1}</1>"
+msgstr "Import <0>{0}</0> into <1>{1}</1>"
+
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
 
@@ -10998,6 +11019,10 @@ msgstr "Pulled in"
 msgid "Pulls with the registry login {0}"
 msgstr "Pulls with the registry login {0}"
 
+#. placeholder {0}: restore.databaseName
+msgid "Put back <0>{0}</0>"
+msgstr "Put back <0>{0}</0>"
+
 msgid "Re-enable Docker cleanup on <0>{server}</0>"
 msgstr "Re-enable Docker cleanup on <0>{server}</0>"
 
@@ -11015,6 +11040,10 @@ msgstr "Reload Docker on {server}"
 
 msgid "Restart Docker on {server}"
 msgstr "Restart Docker on {server}"
+
+#. placeholder {0}: restore.databaseName
+msgid "Restore <0>{0}</0>"
+msgstr "Restore <0>{0}</0>"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
@@ -12070,6 +12099,12 @@ msgstr "If your address isn't one of these, or stops being one, SSH closes to yo
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 
+msgid "Importing {size}. The pre-import backup stays on {server} for 7 days, and undoing restores it."
+msgstr "Importing {size}. The pre-import backup stays on {server} for 7 days, and undoing restores it."
+
+msgid "Imports {file} into {target} on {server}"
+msgstr "Imports {file} into {target} on {server}"
+
 msgid "Installed apps don't change. An upgrade is a plan you apply."
 msgstr "Installed apps don't change. An upgrade is a plan you apply."
 
@@ -12538,6 +12573,9 @@ msgstr "What was made since goes."
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
 
+msgid "What's in {target} now goes to a backup the server keeps for 7 days."
+msgstr "What's in {target} now goes to a backup the server keeps for 7 days."
+
 msgid "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 msgstr "Where SELinux is enforced, Docker relabels everything there as private to this app, so nothing else can use it."
 
@@ -12605,10 +12643,6 @@ msgstr "{0, plural, one {{list} stops while it loads, and what was made since go
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
-
-#. placeholder {0}: server.serverName
-msgid "{0} keeps {name}'s data for 7 days, then deletes it"
-msgstr "{0} keeps {name}'s data for 7 days, then deletes it"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app}'s data stays in {before}; {after} starts empty"
@@ -12706,9 +12740,8 @@ msgstr "{name} leaves the fleet for good"
 msgid "{name} lets in someone {path} kept out"
 msgstr "{name} lets in someone {path} kept out"
 
-#. placeholder {0}: server.serverName
-msgid "{name} loses its data on {0}"
-msgstr "{name} loses its data on {0}"
+msgid "{name} loses its data on {serverShown}"
+msgstr "{name} loses its data on {serverShown}"
 
 msgid "{name} loses what its image keeps at {paths}"
 msgstr "{name} loses what its image keeps at {paths}"
@@ -12862,8 +12895,17 @@ msgstr "{project} already runs {names}"
 msgid "{project} already runs {names}, and this deletes {deleted}"
 msgstr "{project} already runs {names}, and this deletes {deleted}"
 
+msgid "{serverShown} keeps {name}'s data for 7 days, then deletes it"
+msgstr "{serverShown} keeps {name}'s data for 7 days, then deletes it"
+
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+
+msgid "{target} is backed up first and put back if the import fails."
+msgstr "{target} is backed up first and put back if the import fails."
+
+msgid "{target} on {server} goes back to what was there before"
+msgstr "{target} on {server} goes back to what was there before"
 
 msgid "{tool} still manages {container}"
 msgstr "{tool} still manages {container}"
@@ -14021,6 +14063,7 @@ msgstr "used by {usageList}"
 msgid "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
 msgstr "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
 
+#. placeholder {0}: Number(d.connections)
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, one {# connection} other {# connections}}"
@@ -14517,8 +14560,14 @@ msgstr "Nothing changed on the server. The page tries again by itself."
 msgid "Open as an app"
 msgstr "Open as an app"
 
+msgid "Open console"
+msgstr "Open console"
+
 msgid "Review the change to {next}"
 msgstr "Review the change to {next}"
+
+msgid "The database container isn't running on a server yet"
+msgstr "The database container isn't running on a server yet"
 
 msgid "Users"
 msgstr "Users"
@@ -14702,6 +14751,51 @@ msgstr "{servers}, unencrypted"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, one {# user} other {# users}}"
 
+msgid "Create a database to import into"
+msgstr "Create a database to import into"
+
+msgid "Databases in {name}"
+msgstr "Databases in {name}"
+
+#. placeholder {0}: d.name
+msgid "Dockwell didn't make {0}, so it doesn't delete it"
+msgstr "Dockwell didn't make {0}, so it doesn't delete it"
+
+msgid "Import dump"
+msgstr "Import dump"
+
+msgid "It needs a managed volume so Dockwell can back it up first"
+msgstr "It needs a managed volume so Dockwell can back it up first"
+
+msgid "Its databases show again once it does."
+msgstr "Its databases show again once it does."
+
+msgid "Its own"
+msgstr "Its own"
+
+#. placeholder {0}: d.name
+msgid "Its server keeps {0} for itself"
+msgstr "Its server keeps {0} for itself"
+
+msgid "Its volume isn't one Dockwell backs up"
+msgstr "Its volume isn't one Dockwell backs up"
+
+msgid "No server has said yet"
+msgstr "No server has said yet"
+
+msgid "Used by {linked}. Disconnect or stop using it first"
+msgstr "Used by {linked}. Disconnect or stop using it first"
+
+#. placeholder {0}: read.unlisted
+msgid "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+
+msgid "{engine} didn't list its databases"
+msgstr "{engine} didn't list its databases"
+
 msgid "Actions for {who}"
 msgstr "Actions for {who}"
 
@@ -14710,9 +14804,6 @@ msgstr "Apps sign in with a password. Inside its own container, nothing asks for
 
 msgid "Can do anything"
 msgstr "Can do anything"
-
-msgid "Databases in {name}"
-msgstr "Databases in {name}"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
@@ -14729,17 +14820,11 @@ msgstr "Has roles in"
 msgid "Hide why"
 msgstr "Hide why"
 
-msgid "Its own"
-msgstr "Its own"
-
 msgid "Its password isn't one Dockwell keeps"
 msgstr "Its password isn't one Dockwell keeps"
 
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
-
-msgid "No server has said yet"
-msgstr "No server has said yet"
 
 msgid "None of their own"
 msgstr "None of their own"
@@ -14774,9 +14859,6 @@ msgstr "They can't sign in"
 msgid "Users of {name}"
 msgstr "Users of {name}"
 
-msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
-msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
-
 msgid "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
 msgstr "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
 
@@ -14795,6 +14877,21 @@ msgstr "+{left}"
 msgid "Beside it"
 msgstr "Beside it"
 
+msgid "Connection string copied"
+msgstr "Connection string copied"
+
+msgid "Connection string copied without the password"
+msgstr "Connection string copied without the password"
+
+msgid "Connection string wasn't copied"
+msgstr "Connection string wasn't copied"
+
+msgid "Copy connection string"
+msgstr "Copy connection string"
+
+msgid "Copy external connection string"
+msgstr "Copy external connection string"
+
 msgid "Create a database"
 msgstr "Create a database"
 
@@ -14810,6 +14907,12 @@ msgstr "Engines"
 msgid "Every engine"
 msgstr "Every engine"
 
+msgid "External connection string copied"
+msgstr "External connection string copied"
+
+msgid "External connection string copied without the password"
+msgstr "External connection string copied without the password"
+
 msgid "Filter by name or engine"
 msgstr "Filter by name or engine"
 
@@ -14821,6 +14924,9 @@ msgstr "From the catalog, with its password kept as a secret"
 
 msgid "In a volume Dockwell didn't make"
 msgstr "In a volume Dockwell didn't make"
+
+msgid "It has no volume to back up"
+msgstr "It has no volume to back up"
 
 msgid "Last run"
 msgstr "Last run"
@@ -14840,6 +14946,10 @@ msgstr "No database of this engine here."
 
 msgid "No databases yet"
 msgstr "No databases yet"
+
+#. placeholder {0}: shownServerOf(db) || t`its server`
+msgid "No public address known for {0}"
+msgstr "No public address known for {0}"
 
 msgid "No volume"
 msgstr "No volume"
@@ -14862,6 +14972,9 @@ msgstr "Read the database users"
 msgid "Reading what happened"
 msgstr "Reading what happened"
 
+msgid "Ready to copy"
+msgstr "Ready to copy"
+
 msgid "Recent activity"
 msgstr "Recent activity"
 
@@ -14873,6 +14986,9 @@ msgstr "Take one on from its page: it keeps running, with no restart."
 
 msgid "This database has no service to manage"
 msgstr "This database has no service to manage"
+
+msgid "Your browser blocked copying after confirmation. Click Copy to put it on your clipboard."
+msgstr "Your browser blocked copying after confirmation. Click Copy to put it on your clipboard."
 
 msgid "not scheduled"
 msgstr "not scheduled"
@@ -14940,8 +15056,117 @@ msgstr "Unencrypted over the network"
 msgid "Use an SSH tunnel"
 msgstr "Use an SSH tunnel"
 
+#. placeholder {0}: extensions.join(", ")
+msgid "Accepts {0}."
+msgstr "Accepts {0}."
+
+msgid "Backed up automatically before the dump loads."
+msgstr "Backed up automatically before the dump loads."
+
+msgid "Backs up the chosen database first, then loads as its owner. Admins only."
+msgstr "Backs up the chosen database first, then loads as its owner. Admins only."
+
+msgid "Choose a dump file to import."
+msgstr "Choose a dump file to import."
+
+msgid "Choose another file"
+msgstr "Choose another file"
+
+msgid "Create a database to import into."
+msgstr "Create a database to import into."
+
+msgid "Dump file"
+msgstr "Dump file"
+
+msgid "Import dump into {name}"
+msgstr "Import dump into {name}"
+
+msgid "Nothing changes in the database until you apply the plan"
+msgstr "Nothing changes in the database until you apply the plan"
+
+msgid "Target database"
+msgstr "Target database"
+
+msgid "That dump file is empty. Choose a non-empty file."
+msgstr "That dump file is empty. Choose a non-empty file."
+
+msgid "The upload was interrupted. Try again."
+msgstr "The upload was interrupted. Try again."
+
+msgid "This dump can't be imported"
+msgstr "This dump can't be imported"
+
+msgid "Upload and review plan"
+msgstr "Upload and review plan"
+
+#. placeholder {0}: file.name
+msgid "Uploading {0}"
+msgstr "Uploading {0}"
+
+msgid "Uploading…"
+msgstr "Uploading…"
+
+#. placeholder {0}: file.name
+#. placeholder {1}: formatBytes(BigInt(file.size), i18n.locale)
+msgid "{0} ({1})"
+msgstr "{0} ({1})"
+
+msgid "{engine} accepts {list} dumps. Choose a matching file."
+msgstr "{engine} accepts {list} dumps. Choose a matching file."
+
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"
+
+msgid "A user and a secret named for the database"
+msgstr "A user and a secret named for the database"
+
+msgid "CLI command"
+msgstr "CLI command"
+
+msgid "Create a new owner user"
+msgstr "Create a new owner user"
+
+msgid "Creates a database and an owner user with a generated password"
+msgstr "Creates a database and an owner user with a generated password"
+
+msgid "Creates a database owned by {owner}"
+msgstr "Creates a database owned by {owner}"
+
+msgid "Dockwell generates a password for the new user and keeps it as a secret."
+msgstr "Dockwell generates a password for the new user and keeps it as a secret."
+
+msgid "New database in {name}"
+msgstr "New database in {name}"
+
+msgid "The database to create in {engine}."
+msgstr "The database to create in {engine}."
+
+msgid "This database can't be planned"
+msgstr "This database can't be planned"
+
+msgid "Use letters, digits and underscores, starting with a letter, such as ANALYTICS_DATABASE_PASSWORD."
+msgstr "Use letters, digits and underscores, starting with a letter, such as ANALYTICS_DATABASE_PASSWORD."
+
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as analytics."
+msgstr "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as analytics."
+
+msgid "User {theUser} · secret {theSecret}"
+msgstr "User {theUser} · secret {theSecret}"
+
+msgid "Who signs in to own this database."
+msgstr "Who signs in to own this database."
+
+msgid "{name} already has a database called {wantedDB}."
+msgstr "{name} already has a database called {wantedDB}."
+
+msgid "{owner} keeps its existing password and gets full access to this database."
+msgstr "{owner} keeps its existing password and gets full access to this database."
+
+msgid "{theUser} signs in to {name} already. Pick them as owner or choose another user name."
+msgstr "{theUser} signs in to {name} already. Pick them as owner or choose another user name."
+
+msgid "{wantedDB} is kept by {engine} itself. Choose another name."
+msgstr "{wantedDB} is kept by {engine} itself. Choose another name."
 
 msgid "Continue"
 msgstr "Continue"
@@ -25236,6 +25461,9 @@ msgstr "Find the one before"
 msgid "Fullscreen"
 msgstr "Fullscreen"
 
+msgid "No console open in <0>{wanted}</0>"
+msgstr "No console open in <0>{wanted}</0>"
+
 msgid "No shell open in <0>{wanted}</0>"
 msgstr "No shell open in <0>{wanted}</0>"
 
@@ -25265,6 +25493,9 @@ msgstr "Open a terminal session first."
 
 msgid "Open somewhere else"
 msgstr "Open somewhere else"
+
+msgid "Opens the database client inside <0>{wanted}</0> as its admin user, signing in from the container's environment."
+msgstr "Opens the database client inside <0>{wanted}</0> as its admin user, signing in from the container's environment."
 
 #. placeholder {0}: index + 1
 msgid "Remove argument {0}"

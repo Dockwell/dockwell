@@ -99,6 +99,7 @@ import (
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -546,6 +547,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 	reach := settings.NewReach()
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
+	var databasesHandler http.Handler
 	var artifactHandler *containers.Handler
 	var appOpener *opener.Opener
 	var firewallHandler *firewall.Handler
@@ -910,12 +912,19 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		(*backupsOut).InstallWith(imports.PlanInstall)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 		dbs := databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger)
+		dbs.ImportWith(func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error) {
+			return ch.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
+				return cfg.Changes.RestoreWith(ctx, ref, source, revision.RestoreAs{}, who, summary)
+			})
+		})
 		cfg.Changes.FeaturesFrom(dbs.LastFeatures)
 		// The database servers an app may share, as ways to meet its needs (ADR 0084).
 		catalogHandler.ShareWith(dbs)
 		// An app's database, alone, backs up and restores from the app's page.
 		catalogHandler.BackUpWith(*backupsOut)
-		handle(dockwellv1connect.NewDatabaseServiceHandler(dbs, opts...))
+		dbPath, dbH := dockwellv1connect.NewDatabaseServiceHandler(dbs, opts...)
+		handle(dbPath, dbH)
+		databasesHandler = dbH
 		if cfg.connections != nil && cfg.Fleet != nil {
 			// The connections apps use, their check from where an app is, and an app
 			// connected to one (ADR 0099).
@@ -944,6 +953,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 	}
 	if filesHandler != nil {
 		streamTransfers(mux, filesHandler, guardREST, authorize)
+	}
+	if databasesHandler != nil {
+		streamDatabaseImports(mux, databasesHandler, guardREST, authorize)
 	}
 	mux.Handle("GET "+apidoc.Path, apidoc.Handler())
 

@@ -168,6 +168,10 @@ interface Then {
    * leave the page that opened it. Undefined when no plan came of it.
    */
   onClose?: (change: Change | undefined) => void;
+  /** Called as the change loads or moves between states while the sheet is open. */
+  onChange?: (change: Change | undefined) => void;
+  /** Called as soon as the user starts applying the plan, before the RPC returns. */
+  onApplying?: () => void;
   /** What the button at the end of a change that applied says, in place of "Done", such as "Open web". */
   doneLabel?: string;
   /**
@@ -638,6 +642,10 @@ function ChangeSheet({
     if (state === ChangeState.APPLYING || state === ChangeState.PLANNED) setWitnessed(true);
   }, [state]);
 
+  useEffect(() => {
+    opening.onChange?.(change);
+  }, [opening, change]);
+
   const plan = change?.plan;
   const phase = phaseOf(opening, change, failure, witnessed);
   const confirming = phase === "review" && (needsConfirming(plan) || Boolean(opening.confirmName));
@@ -675,6 +683,7 @@ function ChangeSheet({
     // Closing the sheet while it applies leaves it to apply.
     const held = proposal.current;
     if (held) held.keep = true;
+    opening.onApplying?.();
     try {
       const fingerprint = change.plan?.fingerprint ?? "";
       const res = await withStepUpIfAsked(transport, StepUpAction.APPLY_ROOT_CHANGE, change.id, (proof) =>
@@ -684,6 +693,7 @@ function ChangeSheet({
     } catch (err) {
       // Still planned: closing discards it, as before.
       if (held) held.keep = false;
+      opening.onChange?.(change);
       if (err instanceof PasskeyError && err.problem === "cancelled") {
         setFailure(
           new Error(
@@ -696,7 +706,7 @@ function ChangeSheet({
     } finally {
       setBusy(undefined);
     }
-  }, [change, canApply, busy, client, transport, explain, t]);
+  }, [change, canApply, busy, client, transport, explain, t, opening]);
 
   // Closing lets go of the plan this sheet made, which discards it unless it applied.
   const close = useCallback(() => onClose(change), [onClose, change]);
@@ -1532,6 +1542,19 @@ function PlanBody({
       serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
       // A service that runs a database is one (#798).
       kindLabel: (resource) => (runsADatabase(resource.id) ? t`database` : undefined),
+      // A single-database import or restore acts on that database, not the whole volume.
+      restoreNote: (restore) =>
+        restore.importFile
+          ? landed
+            ? t`Imported`
+            : t`Imports ${restore.importFile}`
+          : restore.undoes
+            ? landed
+              ? t`Put back`
+              : t`Puts back`
+            : landed
+              ? t`Restored`
+              : t`Restores`,
     }),
   );
   const steps = change?.steps ?? [];

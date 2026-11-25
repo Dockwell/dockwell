@@ -530,7 +530,9 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
 	go tasks.Keep(ctx)
 	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
+	logicals := &database.LogicalDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	go users.Clean(ctx)
+	go database.KeepDeletedBackupsPruned(ctx, filepath.Join(dir.Agent(), "databases"))
 	probes := &probe.Runner{Client: client, Logger: logger}
 	go func() {
 		if err := probes.Clean(ctx); err != nil {
@@ -574,7 +576,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		DockerSettings: daemon,
 		Drivers: resource.NewRegistry(daemon, &containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups, Moves: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
-			users, tasks,
+			users, logicals, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}, &sshconfig.Driver{Backend: firewalls},
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, WithRunIntent: runtime.WithRunIntent, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,

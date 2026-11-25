@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -226,5 +227,76 @@ func TestExactTerminalRejectsAnExecBoundToADifferentContainer(t *testing.T) {
 	_, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_exact", ContainerId: id, Argv: []string{"/bin/sh"}})
 	if !errors.Is(err, docker.ErrExecContainerChanged) || len(m.Known()) != 0 || started.Load() {
 		t.Fatalf("a terminal must open in the instance whose access was checked: %v", err)
+	}
+}
+
+func TestDatabaseConsoleValidatesAndOpensRecognisedEngine(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddLocalImage("postgres:17", dockertest.Image{Shell: "/bin/sh"})
+	e.AddLocalImage("nginx:1.27", dockertest.Image{Shell: "/bin/sh"})
+	e.AddContainer(docker.Container{Name: "/pg-1", Config: docker.Config{Image: "postgres:17"}})
+	e.AddContainer(docker.Container{Name: "/web-1", Config: docker.Config{Image: "nginx:1.27"}})
+	m := New(Options{
+		Docker: e.Client(),
+		AsGoodAsRoot: func(_ context.Context, _ string) (bool, error) {
+			return false, nil
+		},
+	})
+	t.Cleanup(m.closeAll)
+
+	// Host terminal cannot request database_console.
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_host", DatabaseConsole: true}); err == nil {
+		t.Fatal("host terminal accepted database_console")
+	}
+	// Non-database container is refused.
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_web", Container: "web-1", DatabaseConsole: true}); err == nil {
+		t.Fatal("non-database container opened a database console")
+	}
+	// Recognised database container opens with client title.
+	res, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_pg", Container: "pg-1", DatabaseConsole: true, Database: "shop", Columns: 80, Rows: 24})
+	if err != nil {
+		t.Fatalf("database console failed: %v", err)
+	}
+	if res.GetTitle() != "psql/shop@pg-1" {
+		t.Errorf("title = %q, want %q", res.GetTitle(), "psql/shop@pg-1")
+	}
+
+	// L2 & L3: Redis with password only in --requirepass passes REDISCLI_AUTH
+	// and REDISCLI_HISTFILE=/dev/null to the exec create request.
+	var mu sync.Mutex
+	var gotRedisBody string
+	e.AddLocalImage("redis:7", dockertest.Image{Shell: "/bin/sh"})
+	e.AddContainer(docker.Container{
+		Name: "/redis-1",
+		Config: docker.Config{
+			Image: "redis:7",
+			Cmd:   []string{"redis-server", "--requirepass", "cmd-only-secret"},
+		},
+	})
+	e.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/exec") {
+			b, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			gotRedisBody = string(b)
+			mu.Unlock()
+			r.Body = io.NopCloser(strings.NewReader(string(b)))
+		}
+		return nil
+	})
+	redisRes, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_redis", Container: "redis-1", DatabaseConsole: true, Columns: 80, Rows: 24})
+	if err != nil {
+		t.Fatalf("redis console failed: %v", err)
+	}
+	if redisRes.GetTitle() != "redis-cli@redis-1" {
+		t.Errorf("redis title = %q, want redis-cli@redis-1", redisRes.GetTitle())
+	}
+	mu.Lock()
+	body := gotRedisBody
+	mu.Unlock()
+	if !strings.Contains(body, "REDISCLI_AUTH=cmd-only-secret") {
+		t.Errorf("L2: redis console exec body missing REDISCLI_AUTH=cmd-only-secret; got %s", body)
+	}
+	if !strings.Contains(body, "REDISCLI_HISTFILE=/dev/null") {
+		t.Errorf("L3: redis console exec body missing REDISCLI_HISTFILE=/dev/null; got %s", body)
 	}
 }

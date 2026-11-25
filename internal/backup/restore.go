@@ -295,6 +295,9 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 	} else if s.Stage == stageFinished {
 		return resource.Decision{}, false, nil
 	}
+	if src.ImportID != "" {
+		return r.judgeImport(ctx, ref, src)
+	}
 	m, _, err := r.source(ref, src)
 	if err != nil {
 		return resource.Decision{}, false, err
@@ -366,6 +369,12 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	undone := st.Stage == stageUndone
 	if undone {
 		st.Stage = stageCopied
+	}
+	if src.ImportID != "" {
+		if undone {
+			st.Stage = ""
+		}
+		return r.applyImport(ctx, ref, t, st, src)
 	}
 	run := "restore-" + src.Change
 	began, err := r.began(st, run)

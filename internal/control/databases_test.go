@@ -3,6 +3,7 @@
 package control
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/sha256"
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -207,15 +209,18 @@ type pgState struct {
 }
 
 var (
-	createRole = regexp.MustCompile(`SELECT 'CREATE ROLE "([a-z0-9_]+)" LOGIN' WHERE NOT EXISTS`)
-	alterRole  = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" (?:LOGIN )?PASSWORD '([^']*)'`)
-	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
-	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
-	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
-	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
-	askReach   = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
-	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
-	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	createRole   = regexp.MustCompile(`SELECT 'CREATE ROLE "([a-z0-9_]+)" LOGIN' WHERE NOT EXISTS`)
+	alterRole    = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" (?:LOGIN )?PASSWORD '([^']*)'`)
+	createDB     = regexp.MustCompile(`(?:SELECT ')?CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"(?:' WHERE NOT EXISTS|;)`)
+	createDBOnly = regexp.MustCompile(`(?:SELECT ')?CREATE DATABASE "([a-z0-9_]+)"(?:' WHERE NOT EXISTS|;)`)
+	alterDBOwner = regexp.MustCompile(`ALTER DATABASE "([a-z0-9_]+)" OWNER TO "([a-z0-9_]+)"`)
+	dropDB       = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
+	dropRole     = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askLockout   = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askReach     = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	askOwner     = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askRole      = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	askLogical   = regexp.MustCompile(`'exists', EXISTS \(SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'\), 'owner_exists', (true|EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\))`)
 )
 
 // image is a postgres that keeps users and databases as psql would make them.
@@ -223,6 +228,10 @@ func (s *pgState) image() dockertest.Image {
 	return dockertest.Image{
 		Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}},
 		Exec: func(x dockertest.Exec) int {
+			if len(x.Cmd) >= 2 && x.Cmd[0] == "psql" && x.Cmd[1] == "-V" {
+				_, _ = io.WriteString(x.Stdout, "psql (PostgreSQL) 17.6\n")
+				return 0
+			}
 			// Anyone signing in from another host needs a password, as the official
 			// image's pg_hba.conf has it.
 			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-2] != "127.0.0.1" {
@@ -249,7 +258,11 @@ func (s *pgState) image() dockertest.Image {
 				s.mu.Lock()
 				defer s.mu.Unlock()
 				s.said = append(s.said, script)
-				_, _ = io.WriteString(x.Stdout, "CREATE TABLE posts (id int);\n--\n-- PostgreSQL database dump complete\n--\n")
+				cur := "CREATE TABLE posts (id int);\n"
+				if s.loaded["shop"] != "" {
+					cur = s.loaded["shop"] + "\n"
+				}
+				_, _ = io.WriteString(x.Stdout, cur+"--\n-- PostgreSQL database dump complete\n--\n")
 				return 0
 			}
 			b, _ := io.ReadAll(x.Stdin)
@@ -262,6 +275,32 @@ func (s *pgState) image() dockertest.Image {
 					s.loaded = map[string]string{}
 				}
 				s.loaded[x.Cmd[5]] = sql
+				return 0
+			}
+			if strings.HasPrefix(strings.TrimSpace(sql), "SELECT pg_terminate_backend") && !strings.Contains(sql, "DROP DATABASE") {
+				return 0
+			}
+			if m := regexp.MustCompile(`^SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'`).FindStringSubmatch(strings.TrimSpace(sql)); m != nil {
+				if _, ok := s.databases[m[1]]; ok {
+					_, _ = io.WriteString(x.Stdout, "1\n")
+				}
+				return 0
+			}
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, `-d "$DW_DB"`) {
+				if strings.Contains(sql, "BROKEN_DUMP") {
+					_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"BROKEN_DUMP\"\n")
+					return 3
+				}
+				if s.loaded == nil {
+					s.loaded = map[string]string{}
+				}
+				dbName := "shop"
+				for _, arg := range x.Cmd {
+					if v, ok := strings.CutPrefix(arg, "DW_DB="); ok {
+						dbName = v
+					}
+				}
+				s.loaded[dbName] = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sql), "--\n-- PostgreSQL database dump complete\n--"))
 				return 0
 			}
 			if m := askLockout.FindStringSubmatch(sql); m != nil {
@@ -279,6 +318,15 @@ func (s *pgState) image() dockertest.Image {
 				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q}`+"\n", s.databases[m[1]])
 				return 0
 			}
+			if m := askLogical.FindStringSubmatch(sql); m != nil {
+				owner, exists := s.databases[m[1]]
+				ownerExists := true
+				if m[3] != "" {
+					_, ownerExists = s.roles[m[3]]
+				}
+				_, _ = fmt.Fprintf(x.Stdout, `{"exists":%t,"owner_exists":%t,"owner":%q}`+"\n", exists, ownerExists, owner)
+				return 0
+			}
 			if m := askRole.FindStringSubmatch(sql); m != nil {
 				_, has := s.roles[m[1]]
 				_, _ = fmt.Fprintf(x.Stdout, `{"user":%t,"owner":%q}`+"\n", has, s.databases[m[2]])
@@ -291,8 +339,14 @@ func (s *pgState) image() dockertest.Image {
 				}
 				slices.Sort(users)
 				var dbs []string
-				for name, size := range s.sizes {
-					dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":%d}`, name, s.databases[name], size))
+				if s.sizes != nil {
+					for name, size := range s.sizes {
+						dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":%d}`, name, s.databases[name], size))
+					}
+				} else {
+					for name, owner := range s.databases {
+						dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":1048576,"connections":1}`, name, owner))
+					}
 				}
 				slices.Sort(dbs)
 				_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.2","user":"postgres","databases":[%s],"users":[%s]}`+"\n", strings.Join(dbs, ","), strings.Join(users, ","))
@@ -312,6 +366,16 @@ func (s *pgState) image() dockertest.Image {
 			}
 			for _, m := range createDB.FindAllStringSubmatch(sql, -1) {
 				if _, has := s.databases[m[1]]; !has {
+					s.databases[m[1]] = m[2]
+				}
+			}
+			for _, m := range createDBOnly.FindAllStringSubmatch(sql, -1) {
+				if _, has := s.databases[m[1]]; !has {
+					s.databases[m[1]] = "postgres"
+				}
+			}
+			for _, m := range alterDBOwner.FindAllStringSubmatch(sql, -1) {
+				if _, has := s.databases[m[1]]; has {
 					s.databases[m[1]] = m[2]
 				}
 			}
@@ -755,5 +819,320 @@ func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.
 	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}))
 	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "unavailable" || !strings.Contains(err.Error(), "isn't connected") {
 		t.Errorf("a database on a server that's away: %v", err)
+	}
+}
+
+// One PostgreSQL engine hosts several logical databases: creating one with a new
+// owner user+secret or with an existing owner, deleting an unlinked logical
+// database without dropping its owner, refusing deletion while an app links to
+// it, and offering the engine as a candidate for another app's database need.
+func TestLogicalDatabasesInOneEngine(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testLogicalDatabasesInOneEngine)
+}
+
+func testLogicalDatabasesInOneEngine(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	var redis []string
+	e.Registry["redis:7"] = readableRedis(&redis)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	ch := changeClient(b, b.origin)
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "first-password"}, false))
+	dc := databaseClient(b, b.origin)
+
+	// 1. Create a database with default new owner user + secret.
+	madeDefault, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (default owner): %v", err)
+	}
+	if got := apply(t, ch, madeDefault.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying analytics ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	// 2. Create a second database owned by that existing user (database.logical, no new role/secret).
+	madeOwned, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "reports",
+		Owner:    "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (existing owner): %v", err)
+	}
+	if got := apply(t, ch, madeOwned.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying reports ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	// 3. Create a third unlinked logical database owned by analytics so we can test Delete.
+	madeTemp, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "staging",
+		Owner:    "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (staging): %v", err)
+	}
+	if got := apply(t, ch, madeTemp.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying staging ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	pg.mu.Lock()
+	if pg.databases["analytics"] != "analytics" || pg.databases["reports"] != "analytics" || pg.databases["staging"] != "analytics" {
+		t.Errorf("pg databases = %v, want analytics, reports, staging owned by analytics", pg.databases)
+	}
+	pg.mu.Unlock()
+
+	// 4. Link an app to reports; deletion of reports must be refused while linked.
+	envScope := madeDefault.Msg.GetChange().GetPlan().GetResources()[0].GetResource().GetScope()
+	apply(t, ch, propose(t, ch, "Link web to reports", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: envScope, Name: "web-reports"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label:        "Database",
+			Service:      "db",
+			Engine:       resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL,
+			Version:      "17",
+			Accepts:      []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}},
+			Sets:         []*resourcev1.LinkSet{{Name: "DB_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}},
+			DatabaseName: "reports",
+			User:         "analytics",
+		}}},
+	}))
+
+	_, err = dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "reports",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "reports") {
+		t.Fatalf("deleting linked database reports = %v, want refusal naming reports", err)
+	}
+
+	// Reading the engine shows the logical databases, their managed resource IDs, and linked_by.
+	read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*dockwellv1.InnerDatabase{}
+	for _, inner := range read.Msg.GetDatabase().GetReadings()[0].GetDatabases() {
+		byName[inner.GetName()] = inner
+	}
+	if byName["reports"].GetResourceKind() != "database.logical" || len(byName["reports"].GetLinkedBy()) == 0 {
+		t.Errorf("reports reading = %v, want database.logical with linked_by", byName["reports"])
+	}
+	if byName["analytics"].GetResourceKind() != "database.user" || byName["analytics"].GetResourceId() == "" {
+		t.Errorf("analytics reading = %v, want database.user with resource_id", byName["analytics"])
+	}
+
+	// 5. Deleting an unlinked logical database drops the database while keeping its owner role.
+	delStaging, err := dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "staging",
+	}))
+	if err != nil {
+		t.Fatalf("DeleteLogicalDatabase(staging): %v", err)
+	}
+	applyDestructive(t, ch, delStaging.Msg.GetChange())
+	pg.mu.Lock()
+	_, stagingStillThere := pg.databases["staging"]
+	_, ownerStillThere := pg.roles["analytics"]
+	pg.mu.Unlock()
+	if stagingStillThere {
+		t.Error("staging database was not dropped")
+	}
+	if !ownerStillThere {
+		t.Error("deleting logical database staging dropped its owner role analytics")
+	}
+
+	// 6. Import a dump via BeginDatabaseImport + REST chunked PUT + PlanDatabaseImport + Apply + Undo.
+	dumpPayload := []byte("INSERT INTO analytics_events VALUES (42);\n")
+	began, err := dc.BeginDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.BeginDatabaseImportRequest{
+		Id:        "db",
+		Database:  "analytics",
+		Filename:  "events.sql",
+		SizeBytes: uint64(len(dumpPayload)),
+	}))
+	if err != nil {
+		t.Fatalf("BeginDatabaseImport: %v", err)
+	}
+	// Stream in two chunks over the REST PUT streaming route.
+	half := len(dumpPayload) / 2
+	for _, part := range []struct {
+		offset int
+		data   []byte
+	}{
+		{0, dumpPayload[:half]},
+		{half, dumpPayload[half:]},
+	} {
+		url := fmt.Sprintf("%s/v1/databases/db/imports/%s?offset=%d", b.origin, began.Msg.GetImportId(), part.offset)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, url, bytes.NewReader(part.data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Origin", b.origin)
+		resp, err := b.client.Do(req)
+		if err != nil {
+			t.Fatalf("PUT chunk at %d: %v", part.offset, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("PUT chunk at %d returned %d: %s", part.offset, resp.StatusCode, string(body))
+		}
+	}
+
+	plannedImport, err := dc.PlanDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.PlanDatabaseImportRequest{
+		Id:       "db",
+		ImportId: began.Msg.GetImportId(),
+	}))
+	if err != nil {
+		t.Fatalf("PlanDatabaseImport: %v", err)
+	}
+	restorePlan := plannedImport.Msg.GetChange().GetPlan().GetServers()[0].GetSteps()[0].GetRestore()
+	if restorePlan.GetImportFile() != "events.sql" || restorePlan.GetDatabaseName() != "analytics" {
+		t.Fatalf("import RestorePlan = %v, want import_file=events.sql database_name=analytics", restorePlan)
+	}
+	applyDestructive(t, ch, plannedImport.Msg.GetChange())
+	pg.mu.Lock()
+	gotLoaded := pg.loaded["analytics"]
+	pg.mu.Unlock()
+	if !strings.Contains(gotLoaded, "INSERT INTO analytics_events VALUES (42);") {
+		t.Errorf("analytics loaded = %q, want imported SQL", gotLoaded)
+	}
+
+	// 7. H1: A developer API token is refused on BeginDatabaseImport (admin-only + session required).
+	devToken, _ := narrowedToken(t, b, &dockwellv1.CreateTokenRequest{Role: dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER})
+	devTokenDC := databaseClient(&http.Client{}, b.origin)
+	devReq := connect.NewRequest(&dockwellv1.BeginDatabaseImportRequest{
+		Id:        "db",
+		Database:  "analytics",
+		Filename:  "seed.sql",
+		SizeBytes: 128,
+	})
+	devReq.Header().Set("Authorization", "Bearer "+devToken)
+	if _, err := devTokenDC.BeginDatabaseImport(t.Context(), devReq); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("H1: developer token BeginDatabaseImport = %v, want PermissionDenied", err)
+	}
+
+	// 8. L9: Deleting an unused database.user (made via New database default path) deletes its
+	// unused password secret in the same plan; while an app uses its secret, Delete is refused (H3)
+	// and GetDatabase lists the app in LinkedBy.
+	madeDisposable, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "disposable",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase(disposable): %v", err)
+	}
+	apply(t, ch, madeDisposable.Msg.GetChange())
+
+	// Attach an app to DISPOSABLE_DATABASE_PASSWORD -> Delete refused (H3) & shown in LinkedBy.
+	apply(t, ch, propose(t, ch, "App using disposable secret", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: envScope, Name: "disposable-app"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+			Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:7"}},
+			Secrets: map[string]string{"DB_PW": "DISPOSABLE_DATABASE_PASSWORD"},
+		}}},
+	}))
+	readAfter, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundUsedBy := false
+	for _, inner := range readAfter.Msg.GetDatabase().GetReadings()[0].GetDatabases() {
+		if inner.GetName() == "disposable" && slices.Contains(inner.GetLinkedBy(), "disposable-app") {
+			foundUsedBy = true
+		}
+	}
+	if !foundUsedBy {
+		t.Errorf("H3: disposable database reading missing disposable-app in LinkedBy")
+	}
+	if _, err := dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "disposable",
+	})); err == nil || !strings.Contains(err.Error(), "disposable-app") {
+		t.Fatalf("H3: deleting database while app uses its user secret = %v, want refusal naming disposable-app", err)
+	}
+
+	// Remove the app, then DeleteLogicalDatabase deletes both database.user and its password secret (L9).
+	applyDestructive(t, ch, propose(t, ch, "Remove disposable-app", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: envScope, Name: "disposable-app"},
+		Delete:   true,
+	}))
+	delDisp, err := dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "disposable",
+	}))
+	if err != nil {
+		t.Fatalf("DeleteLogicalDatabase(disposable): %v", err)
+	}
+	deletesSecret := false
+	for _, r := range delDisp.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "secret" && r.GetResource().GetName() == "DISPOSABLE_DATABASE_PASSWORD" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE {
+			deletesSecret = true
+		}
+	}
+	if !deletesSecret {
+		t.Errorf("L9: deleting unused database.user did not delete DISPOSABLE_DATABASE_PASSWORD in the same plan")
+	}
+	applyDestructive(t, ch, delDisp.Msg.GetChange())
+
+	// 9. L5: A second PostgreSQL engine in the same environment can also have a logical database named "reports".
+	pg2 := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:16"] = pg2.image()
+	apply(t, ch, propose(t, ch, "Add second postgres engine",
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: envScope, Name: "DB2_PASSWORD"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "second-password"}}},
+		},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: envScope, Name: "db2"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "postgres:16",
+					Env:   map[string]string{"POSTGRES_USER": "postgres"},
+				}},
+				Secrets: map[string]string{"POSTGRES_PASSWORD": "DB2_PASSWORD"},
+			}}},
+		},
+	))
+	madeSecond, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db2",
+		Database: "reports",
+		Owner:    "postgres",
+	}))
+	if err != nil {
+		t.Fatalf("L5: CreateLogicalDatabase(reports on db2): %v", err)
+	}
+	if resName := madeSecond.Msg.GetChange().GetPlan().GetResources()[0].GetResource().GetName(); resName != "db2-reports" {
+		t.Errorf("L5: logical database resource name = %q, want db2-reports", resName)
+	}
+}
+
+// H1: A signed-in browser user with developer role (non-admin) is refused on
+// BeginDatabaseImport, PlanDatabaseImport, and CancelDatabaseImport.
+func TestDatabaseImportRequiresAdminSession(t *testing.T) {
+	t.Parallel()
+	s := newInviteStand(t, store.SQLite)
+	dev, _ := s.joins(t, "dev@example.com", "Dev User", dockwellv1.Role_ROLE_DEVELOPER)
+	dc := databaseClient(dev, s.origin)
+	if _, err := dc.BeginDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.BeginDatabaseImportRequest{
+		Id:        "db",
+		Database:  "analytics",
+		Filename:  "seed.sql",
+		SizeBytes: 128,
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("developer session BeginDatabaseImport = %v, want PermissionDenied", err)
+	}
+	if _, err := dc.CancelDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.CancelDatabaseImportRequest{
+		Id:       "db",
+		ImportId: "imp_0123456789abcdef",
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("developer session CancelDatabaseImport = %v, want PermissionDenied", err)
 	}
 }

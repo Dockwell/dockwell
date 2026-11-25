@@ -43,15 +43,23 @@ import (
 // no one else without their password, and reaches only the new server. The
 // database names go as arguments of the shell, never inside its script.
 
+// pgAdminShell reads PostgreSQL's admin password from POSTGRES_PASSWORD or
+// POSTGRES_PASSWORD_FILE and exports PGPASSWORD without putting it on argv.
+const pgAdminShell = `p="${POSTGRES_PASSWORD:-}"; [ -z "$p" ] && [ -n "${POSTGRES_PASSWORD_FILE:-}" ] && p="$(cat "$POSTGRES_PASSWORD_FILE")"; [ -n "$p" ] && export PGPASSWORD="$p"`
+
+// myAdminShell reads MySQL/MariaDB's root password from env or _FILE
+// variables and exports MYSQL_PWD without putting it on argv.
+const myAdminShell = `p="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; [ -z "$p" ] && [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MARIADB_ROOT_PASSWORD_FILE")"; [ -z "$p" ] && [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MYSQL_ROOT_PASSWORD_FILE")"; [ -n "$p" ] && export MYSQL_PWD="$p"`
+
 // dumpOne writes one database's schema and data to stdout, owned by no one, so what
 // loads it makes them its own. PostgreSQL's runs as the database's owner, the shell's
 // second argument, not the server's administrator: on a server other apps share, a
 // user of it could otherwise turn a dump that runs as the administrator against it
 // (CVE-2024-7348, fixed in 16.4, 15.8, 14.13, 13.16 and 12.20).
 var dumpOne = map[dockwellv1.DatabaseEngine][]string{
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dump -U "$2" --no-owner --no-acl -d "$1"`, "sh"},
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `export MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}"; exec mysqldump -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db --set-gtid-purged=OFF "$1"`, "sh"},
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; c=mysqldump; command -v mariadb-dump >/dev/null 2>&1 && c=mariadb-dump; exec "$c" -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db "$1"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", pgAdminShell + `; exec pg_dump -U "$2" --no-owner --no-acl -d "$1"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", myAdminShell + `; exec mysqldump -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db --set-gtid-purged=OFF "$1"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", myAdminShell + `; c=mysqldump; command -v mariadb-dump >/dev/null 2>&1 && c=mariadb-dump; exec "$c" -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db "$1"`, "sh"},
 }
 
 // loadOne reads such a dump into one database as its user, stopping at the first
@@ -236,12 +244,20 @@ type Load struct {
 	Engine                   *Engine
 	User, Password, Database string
 	Prelude                  string
+	// LockTimeout bounds how long statements wait on locks (e.g. "30s").
+	LockTimeout string
+	// RequireRefusals refuses to load when the image's client lacks a built-in
+	// client-command refusal guard (\restrict on psql, --sandbox or
+	// --skip-system-command on MariaDB/MySQL) so the SQL pre-scanner is never
+	// the only guard on untrusted dump imports (N1).
+	RequireRefusals bool
 }
 
 // LoadError is a load the server's client stopped, with what it said.
 type LoadError struct {
-	Code int
-	Said string
+	Code    int
+	Said    string
+	RawSaid string
 }
 
 func (e *LoadError) Error() string {
@@ -269,23 +285,64 @@ func (ld Loader) Load(ctx context.Context, l Load, dump io.Reader) error {
 		return fmt.Errorf("%s lets anyone on its networks sign in as its administrator with no password, so a dump loaded into it could take the whole server, and nothing was loaded. "+
 			"Have it ask for passwords, as POSTGRES_HOST_AUTH_METHOD=scram-sha-256 or a root password does, then try again", serviceOf(to))
 	}
-	first, options := ld.refusals(ctx, to, e)
+	first, options, refuseErr := ld.refusalsWithReason(ctx, to, e)
+	if l.RequireRefusals && refuseErr != nil {
+		return refuseErr
+	}
 	cmd := append(slices.Clone(load), l.User, l.Database, port, addr)
 	cmd = append(cmd, options...)
+	prelude := l.Prelude
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL && l.LockTimeout != "" {
+		prelude = "SET lock_timeout = '" + l.LockTimeout + "';\n" + prelude
+	}
 	var in io.Reader
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 		in = withoutRestrict(dump)
 	} else {
 		in = withoutDefiners(dump)
 	}
-	in = io.MultiReader(strings.NewReader(first+l.Prelude), in)
+	in = io.MultiReader(strings.NewReader(first+prelude), in)
 	said := &capped{max: 4 << 10}
 	code, err := ld.throwaway(ctx, to.Config.Image, network, l.User, []string{copyPassword[e.Kind] + "=" + l.Password}, cmd, in, said)
 	switch {
 	case err != nil:
 		return err
 	case code != 0:
-		return &LoadError{Code: code, Said: scrubbed(strings.TrimSpace(said.String()))}
+		raw := strings.TrimSpace(said.String())
+		return &LoadError{Code: code, Said: scrubbed(raw), RawSaid: raw}
+	}
+	return nil
+}
+
+// PGArchiveToSQL converts a PostgreSQL custom (.dump) or tar (.tar) archive on
+// in to plain SQL on out using pg_restore inside a networkless, read-only
+// throwaway container with --no-owner --no-acl so the resulting SQL can be
+// scanned and loaded strictly as the target database's owner role.
+func (ld Loader) PGArchiveToSQL(ctx context.Context, to *docker.Container, format string, clean bool, in io.Reader, out io.Writer) error {
+	var flag string
+	switch format {
+	case "dump":
+		flag = "-Fc"
+	case "tar":
+		flag = "-Ft"
+	default:
+		return fmt.Errorf("unsupported PostgreSQL archive format %q", format)
+	}
+	cmd := []string{"pg_restore", "--no-owner", "--no-acl"}
+	if clean {
+		cmd = append(cmd, "--clean", "--if-exists")
+	}
+	// -f - writes the SQL to standard output; pg_restore 18 refuses to run
+	// with neither -f nor -d.
+	cmd = append(cmd, flag, "-f", "-")
+	said := &capped{max: 4 << 10}
+	code, err := ld.throwawayStreams(ctx, to.Config.Image, "none", "pgrestore", nil, cmd, docker.Streams{Stdin: in, Stdout: out, Stderr: said})
+	switch {
+	case err != nil:
+		return err
+	case code != 0:
+		raw := strings.TrimSpace(said.String())
+		return &LoadError{Code: code, Said: scrubbed(raw), RawSaid: raw}
 	}
 	return nil
 }
@@ -466,28 +523,65 @@ func envOf(env []string, name string) string {
 	return ""
 }
 
-// refusals is what the new server's client is told to refuse client commands
-// with: a first line for psql, from 17.6, 16.10, 15.14, 14.19 and 13.22 on, which
-// takes no backslash command after it but one with a key no dump can know, or
-// options for a MySQL or MariaDB client that has them.
-func (ld Loader) refusals(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string) {
+// CheckClientRefusals verifies that to's database client can refuse client
+// commands on its own:
+//   - PostgreSQL: psql -X (--no-psqlrc) plus \restrict (13.22+, 14.19+, 15.14+, 16.10+, 17.6+, 18+)
+//   - MariaDB: --sandbox (10.5.25+, 10.6.18+, 10.11.8+, 11.4.2+) or --skip-system-command
+//   - MySQL: --skip-system-command (8.0.21+, 8.4+, 9.x) or --sandbox
+func (ld Loader) CheckClientRefusals(ctx context.Context, to *docker.Container, e *Engine) error {
+	_, _, err := ld.refusalsWithReason(ctx, to, e)
+	return err
+}
+
+// refusalsWithReason is what the new server's client is told to refuse client
+// commands with: a first line for psql, from 17.6, 16.10, 15.14, 14.19 and 13.22
+// on, which takes no backslash command after it but one with a key no dump can
+// know (alongside -X / --no-psqlrc in loadOne), or options for a MySQL (8.0.21+)
+// or MariaDB (10.5.25+/10.6.18+/10.11.8+/11.4.2+) client that has them.
+func (ld Loader) refusalsWithReason(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string, unsupported error) {
 	said := &capped{max: 256 << 10}
 	if code, err := ld.Client.Exec(ctx, to.ID, clientSays[e.Kind], docker.Streams{Stdin: strings.NewReader(""), Stdout: said}); err != nil || code != 0 {
-		return "", nil
+		return "", nil, fmt.Errorf("can't check whether the %s client in %s can refuse client commands, so a dump isn't imported", e.Name, to.Config.Image)
 	}
+	out := said.String()
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
-		if restricts(said.String()) {
-			return `\restrict ` + randomHex(16) + "\n", nil
+		if restricts(out) {
+			return `\restrict ` + randomHex(16) + "\n", nil, nil
 		}
-		return "", nil
+		return "", nil, fmt.Errorf("psql in %s can't refuse client commands, so a dump could run them. Update the image to %s or later", to.Config.Image, pgMinRestrictRelease(out))
 	}
-	if strings.Contains(said.String(), "--sandbox") {
+	hasGuard := false
+	if strings.Contains(out, "--sandbox") {
 		options = append(options, "--sandbox")
+		hasGuard = true
 	}
-	if strings.Contains(said.String(), "--system-command") {
+	if strings.Contains(out, "--system-command") {
 		options = append(options, "--skip-system-command")
+		hasGuard = true
 	}
-	return "", options
+	if strings.Contains(out, "--init-command") {
+		options = append(options, "--init-command=SET SESSION lock_wait_timeout=30")
+	}
+	if !hasGuard {
+		if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB {
+			return "", options, fmt.Errorf("the MariaDB client in %s doesn't support --sandbox, so a dump could run client commands. Update the image to MariaDB 10.5.25, 10.6.18, 10.11.8, 11.4.2 or later", to.Config.Image)
+		}
+		return "", options, fmt.Errorf("the MySQL client in %s doesn't support --skip-system-command, so a dump could run shell commands. Update the image to MySQL 8.0.21 or later", to.Config.Image)
+	}
+	return "", options, nil
+}
+
+// pgMinRestrictRelease returns the minimum patched release for the major version
+// reported by psql -V that supports \restrict.
+func pgMinRestrictRelease(version string) string {
+	fixed := map[int]string{17: "17.6", 16: "16.10", 15: "15.14", 14: "14.19", 13: "13.22"}
+	if m := psqlRelease().FindStringSubmatch(version); m != nil {
+		major, _ := strconv.Atoi(m[1])
+		if target, ok := fixed[major]; ok {
+			return target
+		}
+	}
+	return "13.22"
 }
 
 // restricts reports a psql that takes \restrict, as psql -V says its release.
@@ -511,12 +605,16 @@ var psqlRelease = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompi
 // throwaway runs cmd in a container of image made for it, on network alone, with
 // nothing mounted and every capability dropped, and removes it after.
 func (ld Loader) throwaway(ctx context.Context, image, network, user string, env, cmd []string, in io.Reader, said io.Writer) (int, error) {
+	return ld.throwawayStreams(ctx, image, network, user, env, cmd, docker.Streams{Stdin: in, Stdout: io.Discard, Stderr: said})
+}
+
+func (ld Loader) throwawayStreams(ctx context.Context, image, network, user string, env, cmd []string, streams docker.Streams) (int, error) {
 	req := &docker.CreateRequest{
 		Config: docker.Config{
 			Image: image, Entrypoint: []string{}, Cmd: cmd, Env: env,
 			Labels: map[string]string{docker.LabelOneoff: "True", LabelCopy: user},
 			// Docker closes its input when the dump ends, which ends the load.
-			OpenStdin: in != nil, StdinOnce: in != nil,
+			OpenStdin: streams.Stdin != nil, StdinOnce: streams.Stdin != nil,
 		},
 		HostConfig: docker.HostConfig{
 			NetworkMode: network, ReadonlyRootfs: true,
@@ -534,7 +632,7 @@ func (ld Loader) throwaway(ctx context.Context, image, network, user string, env
 		defer cancel()
 		_ = ld.Client.RemoveOneOff(gone, id)
 	}()
-	return ld.Client.RunAttached(ctx, id, docker.Streams{Stdin: in, Stdout: io.Discard, Stderr: said})
+	return ld.Client.RunAttached(ctx, id, streams)
 }
 
 // randomHex is n random bytes, as hex.
