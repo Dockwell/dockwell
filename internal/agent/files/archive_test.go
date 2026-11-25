@@ -264,7 +264,20 @@ func TestArchiveJobsUseOwnPoolAndAttempt(t *testing.T) {
 	rel1()
 	rel2()
 	unblock := make(chan struct{})
-	defer close(unblock)
+	// The hung Compress goes on in the background once let go: wait for it to
+	// return before the test's folder is removed (main's CI on e7a2bea6e:
+	// "directory not empty").
+	t.Cleanup(func() {
+		close(unblock)
+		deadline := time.Now().Add(10 * time.Second)
+		for d.server.stuckCount() > 0 {
+			if time.Now().After(deadline) {
+				t.Error("the hung Compress never returned")
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
 	d.server.AnswerWithin = 80 * time.Millisecond
 	hung := filepath.Join(site, "hung.zip")
 	d.server.Touching = func(p string) {
