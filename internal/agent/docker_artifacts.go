@@ -5,7 +5,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"io"
 	"time"
 
 	"connectrpc.com/connect"
@@ -157,21 +156,12 @@ func (c *calls) receiveDockerArtifact(ctx context.Context, id, owner string, ask
 	if err != nil {
 		return nil, err
 	}
-	stream, err := client.ReceiveFile(ctx, connect.NewRequest(&agentv1.ReceiveFileRequest{Stream: ask.GetStream()}))
+	parts, err := client.ReceiveParts(ctx, &agentv1.ReceiveFileRequest{Stream: ask.GetStream()})
 	if err != nil {
 		return nil, err
 	}
-	defer stream.Close()
-	next := func() ([]byte, error) {
-		if stream.Receive() {
-			return stream.Msg().GetData(), nil
-		}
-		if err := stream.Err(); err != nil {
-			return nil, err
-		}
-		return nil, io.EOF
-	}
-	return c.cfg.artifacts.Receive(ctx, id, owner, ask.GetOffset(), ask.GetLength(), next)
+	defer parts.Close()
+	return c.cfg.artifacts.Receive(ctx, id, owner, ask.GetOffset(), ask.GetLength(), parts.Next)
 }
 
 type artifactSender func([]byte) error

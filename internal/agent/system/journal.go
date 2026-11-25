@@ -212,56 +212,86 @@ func journalLine(b []byte) (*dockwellv1.SystemLogLine, bool) {
 	return line, ok
 }
 
+// journalEntryJSON is the fields of journalctl's JSON that a line is made of.
+// Decoding a line into it once, not into a map of every field and then each field
+// again, takes half the time and a third of the allocations: two follows of a
+// flooding journal took 80% of a CPU where they took 103%, at the collector's
+// target an agent runs at (docs/adr/0109-the-agents-memory-headroom.md).
+type journalEntryJSON struct {
+	Cursor     journalValue `json:"__CURSOR"`
+	Realtime   journalValue `json:"__REALTIME_TIMESTAMP"`
+	Message    journalValue `json:"MESSAGE"`
+	Priority   journalValue `json:"PRIORITY"`
+	SystemUnit journalValue `json:"_SYSTEMD_UNIT"`
+	Identifier journalValue `json:"SYSLOG_IDENTIFIER"`
+	PID        journalValue `json:"_PID"`
+	Unit       journalValue `json:"UNIT"`
+}
+
+// journalValue is a field's text. A field journald keeps as bytes is an array of
+// numbers: text when they're UTF-8, as a coloured line is, and otherwise said as
+// bytes. Anything else reads as nothing.
+type journalValue string
+
+func (v *journalValue) UnmarshalJSON(b []byte) error {
+	switch {
+	case len(b) >= 2 && b[0] == '"':
+		// Most fields have nothing escaped, and read as they are.
+		if inner := b[1 : len(b)-1]; bytes.IndexByte(inner, '\\') < 0 && utf8.Valid(inner) {
+			*v = journalValue(inner)
+			return nil
+		}
+		var s string
+		if json.Unmarshal(b, &s) == nil {
+			*v = journalValue(s)
+		}
+	case len(b) > 0 && b[0] == '[':
+		var nums []int
+		if json.Unmarshal(b, &nums) == nil {
+			*v = journalBytes(nums)
+		}
+	}
+	return nil
+}
+
+// journalBytes is a field journald keeps as bytes, each a number from 0 to 255.
+func journalBytes(nums []int) journalValue {
+	bs := make([]byte, 0, len(nums))
+	for _, n := range nums {
+		bs = append(bs, byte(n&0xff))
+	}
+	if utf8.Valid(bs) {
+		return journalValue(bs)
+	}
+	return journalValue(fmt.Sprintf("a binary message of %d bytes", len(bs)))
+}
+
 // parseJournal reads an entry, and the unit a line of systemd's own is about.
 func parseJournal(b []byte) (*dockwellv1.SystemLogLine, string, bool) {
-	var e map[string]json.RawMessage
+	var e journalEntryJSON
 	if json.Unmarshal(b, &e) != nil {
 		return nil, "", false
 	}
-	str := func(k string) string {
-		raw, ok := e[k]
-		if !ok {
-			return ""
-		}
-		var s string
-		if json.Unmarshal(raw, &s) == nil {
-			return s
-		}
-		var bs []byte
-		var nums []int
-		if json.Unmarshal(raw, &nums) == nil {
-			bs = make([]byte, 0, len(nums))
-			for _, n := range nums {
-				// journald writes each byte as a number from 0 to 255.
-				bs = append(bs, byte(n&0xff))
-			}
-			if utf8.Valid(bs) {
-				return string(bs)
-			}
-			return fmt.Sprintf("a binary message of %d bytes", len(bs))
-		}
-		return ""
-	}
-	line := &dockwellv1.SystemLogLine{Cursor: str("__CURSOR"), Message: cut(strings.TrimRight(str("MESSAGE"), "\n"))}
+	line := &dockwellv1.SystemLogLine{Cursor: string(e.Cursor), Message: cut(strings.TrimRight(string(e.Message), "\n"))}
 	if line.Cursor == "" {
 		return nil, "", false
 	}
-	if us, err := strconv.ParseInt(str("__REALTIME_TIMESTAMP"), 10, 64); err == nil {
+	if us, err := strconv.ParseInt(string(e.Realtime), 10, 64); err == nil {
 		line.Time = timestamppb.New(time.UnixMicro(us))
 	}
-	line.Unit = str("_SYSTEMD_UNIT")
-	if id := str("SYSLOG_IDENTIFIER"); line.Unit == "" || line.Unit == "init.scope" && id != "" {
+	line.Unit = string(e.SystemUnit)
+	if id := string(e.Identifier); line.Unit == "" || line.Unit == "init.scope" && id != "" {
 		line.Unit = id
 	}
-	if pid, err := strconv.ParseUint(str("_PID"), 10, 32); err == nil {
+	if pid, err := strconv.ParseUint(string(e.PID), 10, 32); err == nil {
 		line.Pid = uint32(pid)
 	}
 	if line.Unit == "init.scope" && line.Pid == 1 {
 		// systemd's own lines, about a unit, as journald keeps them without an identifier.
 		line.Unit = "systemd"
 	}
-	line.Level = priorityLevel(str("PRIORITY"))
-	return line, str("UNIT"), true
+	line.Level = priorityLevel(string(e.Priority))
+	return line, string(e.Unit), true
 }
 
 func cut(s string) string {

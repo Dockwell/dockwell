@@ -151,16 +151,16 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	return err
 }
 
-// agentGC is the collector's target for an agent on its own, as GOGC says it: half
-// of Go's own. An idle agent keeps about 4 MB live, nearly all of it what the
-// protocol's messages register once, and Go lets the heap grow to twice what's
+// agentGC is the collector's target for an agent on its own, as GOGC says it: a
+// quarter of Go's own. An idle agent keeps about 4 MB live, nearly all of it what
+// the protocol's messages register once, and Go lets the heap grow to twice what's
 // live before it collects, so at Go's own target half of an idle agent's heap was
-// garbage waiting. At 50 it idles about 2 MB lower, on every server, for a
-// collection every 15 s or so at idle in place of every 30 s, which takes about
-// 0.01% of a CPU. Transfers already run at this target (ADR 0045), and
-// make logs-load holds the agent's CPU under a flood to its limits with it
-// (docs/adr/0060-what-an-idle-agent-keeps-in-memory.md).
-const agentGC = 50
+// garbage waiting. At 50 it idled about 2 MB lower (ADR 0060), and at 25 about
+// 0.9 MB lower again, on every server, for a collection every 5 s or so at idle,
+// which takes a few hundredths of a percent of a CPU. Transfers run at this target
+// too (transferGC, ADR 0045), and make logs-load holds the agent's CPU under a
+// flood to its limits with it (docs/adr/0109-the-agents-memory-headroom.md).
+const agentGC = 25
 
 // runAgentAlone runs the agent of a server that joined a control plane, which is
 // all its process runs, with the collector's target an agent on its own gets. A
@@ -169,6 +169,7 @@ const agentGC = 50
 // and runs with runAgent as it is.
 func runAgentAlone(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
 	defer collectAsAnAgent(stdio)()
+	defer runOnAgentCPUs(stdio)()
 	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil, nil)
 }
 

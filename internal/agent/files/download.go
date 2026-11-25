@@ -226,6 +226,39 @@ func sameAs(fd int, was *unix.Stat_t, kind uint32) bool {
 		(kind != unix.S_IFREG || st.Nlink == 1)
 }
 
+// readHead reads as much of a file's beginning as heldBack needs to tell what it
+// holds: the first MiB, as a read shows it, unless its first part already shows
+// a binary file, which heldBack lets go whatever the rest holds. Downloads are
+// mostly binary, and four at once each held a MiB here (ADR 0109); the parts
+// after the first go by keyScan, as the rest of a file does.
+func readHead(f io.Reader) ([]byte, error) {
+	head := make([]byte, FrameBytes)
+	n, err := io.ReadFull(f, head)
+	if err != nil || showsBinary(head) {
+		return head[:n], err
+	}
+	full := make([]byte, MaxFileBytes)
+	copy(full, head)
+	m, err := io.ReadFull(f, full[n:])
+	return full[:n+m], err
+}
+
+// showsBinary says whether the start of a file is enough to tell that isBinary
+// holds for more of it: a NUL, or bytes that aren't UTF-8 before where the start
+// was cut, as a character the cut split reads as UTF-8 once it's whole.
+func showsBinary(start []byte) bool {
+	if bytes.IndexByte(start, 0) >= 0 {
+		return true
+	}
+	for cut := range min(utf8.UTFMax, len(start)+1) {
+		whole, split := start[:len(start)-cut], start[len(start)-cut:]
+		if utf8.Valid(whole) && (cut == 0 || !utf8.FullRune(split)) {
+			return false
+		}
+	}
+	return true
+}
+
 // heldBack says what a file's beginning holds that a read refuses, or nothing.
 func heldBack(head []byte) string {
 	if isBinary(head) {
@@ -235,12 +268,10 @@ func heldBack(head []byte) string {
 }
 
 func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1.DownloadFileResult, error) {
-	head := make([]byte, MaxFileBytes)
-	n, err := io.ReadFull(o.f, head)
+	head, err := readHead(o.f)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
 	}
-	head = head[:n]
 	if why := heldBack(head); why != "" {
 		return &agentv1.DownloadFileResult{Refusal: refused(o.where, why)}, nil
 	}
@@ -255,7 +286,7 @@ func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1
 		return nil, err
 	}
 	// The rest a part at a time, each looked at before it goes, read straight into
-	// the part on its way. The first MiB's buffer isn't read into again, so it
+	// the part on its way. The head's buffer isn't read into again, so it
 	// goes: kept for the whole file, three downloads at once held 3 MiB more than
 	// they need (#883).
 	for {

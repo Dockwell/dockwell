@@ -15,17 +15,16 @@ import (
 	"sync/atomic"
 	"time"
 
-	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
-	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/desired"
+	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/delivery"
@@ -119,7 +118,7 @@ type calls struct {
 
 type transferConnection struct {
 	sync.Mutex
-	client  agentv1connect.AgentServiceClient
+	client  *enroll.Transfers
 	release func()
 }
 
@@ -1703,7 +1702,7 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 
 // transferClient is the client uploads and downloads go over, made the first time
 // one asks.
-func (c *calls) transferClient(artifact bool) (agentv1connect.AgentServiceClient, error) {
+func (c *calls) transferClient(artifact bool) (*enroll.Transfers, error) {
 	conn := &c.transfers
 	if artifact {
 		conn = &c.artifactTransfers
@@ -1743,21 +1742,12 @@ func (c *calls) writeUpload(ctx context.Context, call *agentv1.WriteUploadCall) 
 	if err != nil {
 		return fail(err)
 	}
-	stream, err := client.ReceiveFile(ctx, connect.NewRequest(&agentv1.ReceiveFileRequest{Stream: call.GetStream()}))
+	parts, err := client.ReceiveParts(ctx, &agentv1.ReceiveFileRequest{Stream: call.GetStream()})
 	if err != nil {
 		return fail(err)
 	}
-	defer stream.Close()
-	next := func() ([]byte, error) {
-		if stream.Receive() {
-			return stream.Msg().GetData(), nil
-		}
-		if err := stream.Err(); err != nil {
-			return nil, err
-		}
-		return nil, io.EOF
-	}
-	out, err := c.cfg.Files.WriteUpload(ctx, call.GetUploadId(), call.GetOwner(), call.GetOffset(), next)
+	defer parts.Close()
+	out, err := c.cfg.Files.WriteUpload(ctx, call.GetUploadId(), call.GetOwner(), call.GetOffset(), parts.Next)
 	if err != nil {
 		return fail(err)
 	}
