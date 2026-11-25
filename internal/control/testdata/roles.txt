@@ -128,6 +128,8 @@ DatabaseService.ChangeDatabasePassword         plan         developer  developer
 DatabaseService.CheckDatabaseSignIn            read         developer  admin      project
 DatabaseService.ConnectDatabase                plan         developer  developer  project
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
+DatabaseService.CreateLogicalDatabase          plan         developer  developer  project
+DatabaseService.DeleteLogicalDatabase          plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
 DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project

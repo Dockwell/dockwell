@@ -144,6 +144,33 @@ service DatabaseService {
       body: "*"
     };
   }
+
+  // CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+  // or MariaDB server, owned either by an existing user picked on that server
+  // (kind "database.logical") or by a new owner user with a generated password
+  // kept as a secret (kind "database.user").
+  rpc CreateLogicalDatabase(CreateLogicalDatabaseRequest) returns (CreateLogicalDatabaseResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "add-database"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}/databases"
+      body: "*"
+    };
+  }
+
+  // DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+  // PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+  rpc DeleteLogicalDatabase(DeleteLogicalDatabaseRequest) returns (DeleteLogicalDatabaseResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "delete-database"};
+    option (google.api.http) = {delete: "/v1/databases/{id}/databases/{database}"};
+  }
 }
 
 // DatabaseEngine is which database a service runs.
@@ -284,12 +311,20 @@ message DatabaseReading {
 message InnerDatabase {
   // Its name, such as "shop".
   string name = 1;
-  // The user that owns it, for PostgreSQL.
+  // The user that owns it, for PostgreSQL, or is granted full rights on it, for MySQL and MariaDB.
   string owner = 2;
   // How much it takes on disk, in bytes.
   int64 size_bytes = 3;
   // True for one the server made for itself, such as PostgreSQL's postgres.
   bool system = 4;
+  // How many client connections are open to this database now.
+  int64 connections = 5;
+  // The resource's ID, for a database Dockwell made (kind "database.logical" or "database.user").
+  string resource_id = 6;
+  // The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
+  string resource_kind = 7;
+  // The apps linking to this database, where visible to the caller.
+  repeated string linked_by = 8;
 }
 
 // DatabaseAccount is someone who can sign in to a database server: a user, as
@@ -508,4 +543,51 @@ message SetDatabaseExternalAccessResponse {
 message GetDatabaseResponse {
   // The database.
   Database database = 1;
+}
+
+// CreateLogicalDatabaseRequest names a database server and a new logical database
+// to make in it, owned either by an existing user or by a new user Dockwell makes.
+message CreateLogicalDatabaseRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The database's name, such as "shop": lowercase letters, digits and underscores,
+  // starting with a letter, at most 32.
+  string database = 2 [(dockwell.v1.flag) = "database-name"];
+  // An existing user on the server to own the database. Empty creates a new user
+  // with a generated password kept as a secret.
+  string owner = 3;
+  // When owner is empty: the new user's name. Empty takes the database's name.
+  string user = 4;
+  // When owner is empty: the secret their password goes in. Empty takes the user's
+  // name in capitals followed by "_DATABASE_PASSWORD".
+  string secret = 5;
+  // The project of a service named by name, by name or ID.
+  string project = 6;
+  // The environment of a service named by name, by name or ID.
+  string environment = 7;
+}
+
+// CreateLogicalDatabaseResponse carries the planned change.
+message CreateLogicalDatabaseResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// DeleteLogicalDatabaseRequest names a database server and a logical database
+// Dockwell manages in it to drop.
+message DeleteLogicalDatabaseRequest {
+  // The service that runs the database server, by ID or by name.
+  string id = 1;
+  // The database's name inside the server.
+  string database = 2 [(dockwell.v1.flag) = "database-name"];
+  // The project of a service named by name, by name or ID.
+  string project = 3;
+  // The environment of a service named by name, by name or ID.
+  string environment = 4;
+}
+
+// DeleteLogicalDatabaseResponse carries the planned change.
+message DeleteLogicalDatabaseResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
 }

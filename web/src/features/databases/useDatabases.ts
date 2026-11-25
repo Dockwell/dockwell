@@ -28,7 +28,7 @@ export function useDatabases() {
   return useQuery(DatabaseService.method.listDatabases, {}, { refetchInterval: READ_EVERY_MS });
 }
 
-/** Users that go with a deleted database, including when its server is silent. */
+/** Users and logical databases that go with a deleted database, including when its server is silent. */
 export function useDatabaseDeleteUsers(db: Database) {
   const scope = db.resource?.scope ?? "";
   const users = useQuery(
@@ -36,15 +36,29 @@ export function useDatabaseDeleteUsers(db: Database) {
     { kind: "database.user", scope },
     { enabled: scope !== "" },
   );
+  const logicals = useQuery(
+    ResourceService.method.listResources,
+    { kind: "database.logical", scope },
+    { enabled: scope !== "" },
+  );
   const databases = useDatabases();
   const only = databases.data?.databases.filter((d) => d.resource?.scope === scope).length === 1;
-  const made = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)));
+  const madeUsers = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)));
+  const madeLogicals = new Set(db.readings.flatMap((r) => r.databases.map((d) => d.resourceId)));
   return {
-    alongside: (users.data?.resources ?? []).filter((u) => only || made.has(u.id)),
-    pending: (scope !== "" && users.isPending) || databases.isPending,
-    error: users.error ?? databases.error,
+    alongside: [
+      ...(users.data?.resources ?? []).filter(
+        (u) => u.resource?.kind === "database.user" && (only || madeUsers.has(u.id)),
+      ),
+      ...(logicals.data?.resources ?? []).filter(
+        (l) => l.resource?.kind === "database.logical" && (only || madeLogicals.has(l.id)),
+      ),
+    ],
+    pending: (scope !== "" && (users.isPending || logicals.isPending)) || databases.isPending,
+    error: users.error ?? logicals.error ?? databases.error,
     retry: () => {
       if (users.error) void users.refetch();
+      if (logicals.error) void logicals.refetch();
       if (databases.error) void databases.refetch();
     },
   };

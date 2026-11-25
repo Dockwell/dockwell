@@ -56,6 +56,12 @@ const (
 	// DatabaseServiceConnectDatabaseProcedure is the fully-qualified name of the DatabaseService's
 	// ConnectDatabase RPC.
 	DatabaseServiceConnectDatabaseProcedure = "/dockwell.v1.DatabaseService/ConnectDatabase"
+	// DatabaseServiceCreateLogicalDatabaseProcedure is the fully-qualified name of the
+	// DatabaseService's CreateLogicalDatabase RPC.
+	DatabaseServiceCreateLogicalDatabaseProcedure = "/dockwell.v1.DatabaseService/CreateLogicalDatabase"
+	// DatabaseServiceDeleteLogicalDatabaseProcedure is the fully-qualified name of the
+	// DatabaseService's DeleteLogicalDatabase RPC.
+	DatabaseServiceDeleteLogicalDatabaseProcedure = "/dockwell.v1.DatabaseService/DeleteLogicalDatabase"
 )
 
 // DatabaseServiceClient is a client for the dockwell.v1.DatabaseService service.
@@ -117,6 +123,14 @@ type DatabaseServiceClient interface {
 	// another project is reached on a link network of the app's own, which it joins
 	// in place. The app runs on the server the database runs on.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
+	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+	// or MariaDB server, owned either by an existing user picked on that server
+	// (kind "database.logical") or by a new owner user with a generated password
+	// kept as a secret (kind "database.user").
+	CreateLogicalDatabase(context.Context, *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error)
+	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the dockwell.v1.DatabaseService service. By
@@ -175,6 +189,18 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("ConnectDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		createLogicalDatabase: connect.NewClient[v1.CreateLogicalDatabaseRequest, v1.CreateLogicalDatabaseResponse](
+			httpClient,
+			baseURL+DatabaseServiceCreateLogicalDatabaseProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("CreateLogicalDatabase")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteLogicalDatabase: connect.NewClient[v1.DeleteLogicalDatabaseRequest, v1.DeleteLogicalDatabaseResponse](
+			httpClient,
+			baseURL+DatabaseServiceDeleteLogicalDatabaseProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("DeleteLogicalDatabase")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -187,6 +213,8 @@ type databaseServiceClient struct {
 	setDatabaseExternalAccess *connect.Client[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse]
 	checkDatabaseSignIn       *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
 	connectDatabase           *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
+	createLogicalDatabase     *connect.Client[v1.CreateLogicalDatabaseRequest, v1.CreateLogicalDatabaseResponse]
+	deleteLogicalDatabase     *connect.Client[v1.DeleteLogicalDatabaseRequest, v1.DeleteLogicalDatabaseResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -222,6 +250,16 @@ func (c *databaseServiceClient) CheckDatabaseSignIn(ctx context.Context, req *co
 // ConnectDatabase calls dockwell.v1.DatabaseService.ConnectDatabase.
 func (c *databaseServiceClient) ConnectDatabase(ctx context.Context, req *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error) {
 	return c.connectDatabase.CallUnary(ctx, req)
+}
+
+// CreateLogicalDatabase calls dockwell.v1.DatabaseService.CreateLogicalDatabase.
+func (c *databaseServiceClient) CreateLogicalDatabase(ctx context.Context, req *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error) {
+	return c.createLogicalDatabase.CallUnary(ctx, req)
+}
+
+// DeleteLogicalDatabase calls dockwell.v1.DatabaseService.DeleteLogicalDatabase.
+func (c *databaseServiceClient) DeleteLogicalDatabase(ctx context.Context, req *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error) {
+	return c.deleteLogicalDatabase.CallUnary(ctx, req)
 }
 
 // DatabaseServiceHandler is an implementation of the dockwell.v1.DatabaseService service.
@@ -283,6 +321,14 @@ type DatabaseServiceHandler interface {
 	// another project is reached on a link network of the app's own, which it joins
 	// in place. The app runs on the server the database runs on.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
+	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+	// or MariaDB server, owned either by an existing user picked on that server
+	// (kind "database.logical") or by a new owner user with a generated password
+	// kept as a secret (kind "database.user").
+	CreateLogicalDatabase(context.Context, *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error)
+	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -337,6 +383,18 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("ConnectDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceCreateLogicalDatabaseHandler := connect.NewUnaryHandler(
+		DatabaseServiceCreateLogicalDatabaseProcedure,
+		svc.CreateLogicalDatabase,
+		connect.WithSchema(databaseServiceMethods.ByName("CreateLogicalDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceDeleteLogicalDatabaseHandler := connect.NewUnaryHandler(
+		DatabaseServiceDeleteLogicalDatabaseProcedure,
+		svc.DeleteLogicalDatabase,
+		connect.WithSchema(databaseServiceMethods.ByName("DeleteLogicalDatabase")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceListDatabasesProcedure:
@@ -353,6 +411,10 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCheckDatabaseSignInHandler.ServeHTTP(w, r)
 		case DatabaseServiceConnectDatabaseProcedure:
 			databaseServiceConnectDatabaseHandler.ServeHTTP(w, r)
+		case DatabaseServiceCreateLogicalDatabaseProcedure:
+			databaseServiceCreateLogicalDatabaseHandler.ServeHTTP(w, r)
+		case DatabaseServiceDeleteLogicalDatabaseProcedure:
+			databaseServiceDeleteLogicalDatabaseHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -388,4 +450,12 @@ func (UnimplementedDatabaseServiceHandler) CheckDatabaseSignIn(context.Context, 
 
 func (UnimplementedDatabaseServiceHandler) ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ConnectDatabase is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) CreateLogicalDatabase(context.Context, *connect.Request[v1.CreateLogicalDatabaseRequest]) (*connect.Response[v1.CreateLogicalDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.CreateLogicalDatabase is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.DeleteLogicalDatabase is not implemented"))
 }

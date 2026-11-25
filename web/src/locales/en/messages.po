@@ -14021,6 +14021,7 @@ msgstr "used by {usageList}"
 msgid "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
 msgstr "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
 
+#. placeholder {0}: Number(d.connections)
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, one {# connection} other {# connections}}"
@@ -14708,6 +14709,39 @@ msgstr "{servers}, unencrypted"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, one {# user} other {# users}}"
 
+msgid "Databases in {name}"
+msgstr "Databases in {name}"
+
+#. placeholder {0}: d.name
+msgid "Dockwell didn't make {0}, so it doesn't delete it"
+msgstr "Dockwell didn't make {0}, so it doesn't delete it"
+
+msgid "Its databases show again once it does."
+msgstr "Its databases show again once it does."
+
+msgid "Its own"
+msgstr "Its own"
+
+#. placeholder {0}: d.name
+msgid "Its server keeps {0} for itself"
+msgstr "Its server keeps {0} for itself"
+
+msgid "Linked by {linked}. Disconnect first"
+msgstr "Linked by {linked}. Disconnect first"
+
+msgid "No server has said yet"
+msgstr "No server has said yet"
+
+#. placeholder {0}: read.unlisted
+msgid "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+msgstr "{0, plural, one {# more database or user isn't listed here} other {# more databases and users aren't listed here}}"
+
+msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
+
+msgid "{engine} didn't list its databases"
+msgstr "{engine} didn't list its databases"
+
 msgid "Actions for {who}"
 msgstr "Actions for {who}"
 
@@ -14716,9 +14750,6 @@ msgstr "Apps sign in with a password. Inside its own container, nothing asks for
 
 msgid "Can do anything"
 msgstr "Can do anything"
-
-msgid "Databases in {name}"
-msgstr "Databases in {name}"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
@@ -14735,17 +14766,11 @@ msgstr "Has roles in"
 msgid "Hide why"
 msgstr "Hide why"
 
-msgid "Its own"
-msgstr "Its own"
-
 msgid "Its password isn't one Dockwell keeps"
 msgstr "Its password isn't one Dockwell keeps"
 
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
-
-msgid "No server has said yet"
-msgstr "No server has said yet"
 
 msgid "None of their own"
 msgstr "None of their own"
@@ -14779,9 +14804,6 @@ msgstr "They can't sign in"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
-
-msgid "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
-msgstr "{count, plural, one {# of your own in {name}} other {# of your own in {name}}}"
 
 msgid "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
 msgstr "{count, plural, one {# user of {name}, {signIn} of whom can sign in} other {# users of {name}, {signIn} of whom can sign in}}"
@@ -14981,6 +15003,57 @@ msgstr "Use an SSH tunnel"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"
+
+msgid "A user and a secret named for the database"
+msgstr "A user and a secret named for the database"
+
+msgid "CLI command"
+msgstr "CLI command"
+
+msgid "Create a new owner user"
+msgstr "Create a new owner user"
+
+msgid "Creates a database and an owner user with a generated password"
+msgstr "Creates a database and an owner user with a generated password"
+
+msgid "Creates a database owned by {owner}"
+msgstr "Creates a database owned by {owner}"
+
+msgid "Dockwell generates a password for the new user and keeps it as a secret."
+msgstr "Dockwell generates a password for the new user and keeps it as a secret."
+
+msgid "New database in {name}"
+msgstr "New database in {name}"
+
+msgid "The logical database to create in {engine}."
+msgstr "The logical database to create in {engine}."
+
+msgid "This database can't be planned"
+msgstr "This database can't be planned"
+
+msgid "Use letters, digits and underscores, starting with a letter, such as ANALYTICS_DATABASE_PASSWORD."
+msgstr "Use letters, digits and underscores, starting with a letter, such as ANALYTICS_DATABASE_PASSWORD."
+
+msgid "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as analytics."
+msgstr "Use up to 32 lowercase letters, digits and underscores, starting with a letter, such as analytics."
+
+msgid "User {theUser} · secret {theSecret}"
+msgstr "User {theUser} · secret {theSecret}"
+
+msgid "Who signs in to own this database."
+msgstr "Who signs in to own this database."
+
+msgid "{name} already has a database called {wantedDB}."
+msgstr "{name} already has a database called {wantedDB}."
+
+msgid "{owner} keeps its existing password and gets full access to this database."
+msgstr "{owner} keeps its existing password and gets full access to this database."
+
+msgid "{theUser} signs in to {name} already. Pick them as owner or choose another user name."
+msgstr "{theUser} signs in to {name} already. Pick them as owner or choose another user name."
+
+msgid "{wantedDB} is kept by {engine} itself. Choose another name."
+msgstr "{wantedDB} is kept by {engine} itself. Choose another name."
 
 msgid "Continue"
 msgstr "Continue"

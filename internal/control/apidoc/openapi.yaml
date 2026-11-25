@@ -2864,6 +2864,86 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/databases:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+                 or MariaDB server, owned either by an existing user picked on that server
+                 (kind "database.logical") or by a new owner user with a generated password
+                 kept as a secret (kind "database.user").
+            operationId: DatabaseService_CreateLogicalDatabase
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateLogicalDatabaseRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateLogicalDatabaseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/databases/{database}:
+        delete:
+            tags:
+                - DatabaseService
+            description: |-
+                DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+                 PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+            operationId: DatabaseService_DeleteLogicalDatabase
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: database
+                  in: path
+                  description: The database's name inside the server.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project of a service named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment of a service named by name, by name or ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteLogicalDatabaseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/databases/{id}/users:
         post:
             tags:
@@ -16269,6 +16349,47 @@ components:
                     type: string
                     description: The ticket itself, for dockwell join on the new server. Nothing shows it again.
             description: CreateJoinTicketResponse carries the ticket, once.
+        CreateLogicalDatabaseRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs the database server, by ID or by name.
+                database:
+                    type: string
+                    description: |-
+                        The database's name, such as "shop": lowercase letters, digits and underscores,
+                         starting with a letter, at most 32.
+                owner:
+                    type: string
+                    description: |-
+                        An existing user on the server to own the database. Empty creates a new user
+                         with a generated password kept as a secret.
+                user:
+                    type: string
+                    description: 'When owner is empty: the new user''s name. Empty takes the database''s name.'
+                secret:
+                    type: string
+                    description: |-
+                        When owner is empty: the secret their password goes in. Empty takes the user's
+                         name in capitals followed by "_DATABASE_PASSWORD".
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+            description: |-
+                CreateLogicalDatabaseRequest names a database server and a new logical database
+                 to make in it, owned either by an existing user or by a new user Dockwell makes.
+        CreateLogicalDatabaseResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: CreateLogicalDatabaseResponse carries the planned change.
         CreatePanelSignInLinkRequest:
             type: object
             properties:
@@ -16879,6 +17000,14 @@ components:
             type: object
             properties: {}
             description: DeleteGitHookResponse says the hook is gone.
+        DeleteLogicalDatabaseResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: DeleteLogicalDatabaseResponse carries the planned change.
         DeleteProviderLinkRequest:
             type: object
             properties:
@@ -23157,13 +23286,27 @@ components:
                     description: Its name, such as "shop".
                 owner:
                     type: string
-                    description: The user that owns it, for PostgreSQL.
+                    description: The user that owns it, for PostgreSQL, or is granted full rights on it, for MySQL and MariaDB.
                 sizeBytes:
                     type: string
                     description: How much it takes on disk, in bytes.
                 system:
                     type: boolean
                     description: True for one the server made for itself, such as PostgreSQL's postgres.
+                connections:
+                    type: string
+                    description: How many client connections are open to this database now.
+                resourceId:
+                    type: string
+                    description: The resource's ID, for a database Dockwell made (kind "database.logical" or "database.user").
+                resourceKind:
+                    type: string
+                    description: The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
+                linkedBy:
+                    type: array
+                    items:
+                        type: string
+                    description: The apps linking to this database, where visible to the caller.
             description: |-
                 InnerDatabase is one database inside a database server, as PostgreSQL has
                  them, or a schema, as MySQL and MariaDB call one.
@@ -24980,6 +25123,26 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        LogicalDatabase:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service that runs the database server, by name, such as "db".
+                databaseName:
+                    type: string
+                    description: |-
+                        The database's name inside the server, such as "shop". Empty takes this
+                         resource's name. It can't change once made.
+                owner:
+                    type: string
+                    description: |-
+                        The existing user on the server that owns it (PostgreSQL) or is granted full
+                         rights on it (MySQL and MariaDB). Empty defaults to the server's first user.
+            description: |-
+                LogicalDatabase is a database inside a PostgreSQL, MySQL or MariaDB server
+                 a service runs, owned by an existing user of that server, kind "database.logical".
+                 Deleting one drops the database and its data while keeping its owner user.
         MakeFileRequest:
             type: object
             properties:
@@ -33212,6 +33375,12 @@ components:
                     description: |-
                         A database and the user who owns it, in a database server a service runs,
                          kind "database.user". Numbered apart, as open work adds to this message.
+                logicalDatabase:
+                    allOf:
+                        - $ref: '#/components/schemas/LogicalDatabase'
+                    description: |-
+                        A logical database inside a PostgreSQL, MySQL or MariaDB server a service
+                         runs, owned by an existing user there, kind "database.logical".
                 alertRule:
                     allOf:
                         - $ref: '#/components/schemas/AlertRule'

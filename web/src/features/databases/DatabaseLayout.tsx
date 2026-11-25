@@ -40,6 +40,7 @@ import {
   consoleTarget,
   engineAndVersion,
   firstReading,
+  makesUsers,
   readOf,
   speaksSQL,
   useDatabase,
@@ -204,6 +205,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const read = readOf(firstReading(db));
   const place = places.place(db.resource?.scope ?? "");
   const users = read?.users.filter((u) => !u.system).length ?? 0;
+  const logicals = read?.databases.filter((d) => !d.system).length ?? 0;
   const placeName = place?.label ?? "";
   const others = db.beside.map(label).join(", ");
   const ago = newest ? time.ago(newest, now) : "";
@@ -291,6 +293,15 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
         <RouterTabLink to="/databases/$serviceId" params={{ serviceId: db.id }} activeOptions={{ exact: true }}>
           <Trans>Overview</Trans>
         </RouterTabLink>
+        {makesUsers(db.engine) ? (
+          <RouterTabLink
+            to="/databases/$serviceId/databases"
+            params={{ serviceId: db.id }}
+            {...(read ? { count: logicals } : {})}
+          >
+            <Trans>Databases</Trans>
+          </RouterTabLink>
+        ) : null}
         {backedUp ? (
           <RouterTabLink to="/databases/$serviceId/backups" params={{ serviceId: db.id }}>
             <Trans>Backups</Trans>

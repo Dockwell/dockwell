@@ -95,6 +95,8 @@ func postgres(x dockertest.Exec) int {
 		switch sql := string(data); {
 		case askedRole.MatchString(sql):
 			return postgresUserThere(x, filepath.Dir(file), sql)
+		case askedLogical.MatchString(sql):
+			return postgresLogicalThere(x, filepath.Dir(file), sql)
 		case strings.Contains(sql, "pg_has_role("):
 			// What one user reaches: postgres past every database, and app its own,
 			// as postgresReading lists them.
@@ -108,7 +110,8 @@ func postgres(x dockertest.Exec) int {
 			_, _ = io.WriteString(x.Stdout, past+" "+own+"\n")
 		case strings.Contains(sql, "json_build_object"):
 			return postgresReading(x, file)
-		case strings.Contains(sql, "CREATE ROLE") || strings.Contains(sql, "ALTER ROLE") || strings.Contains(sql, "DROP ROLE"):
+		case strings.Contains(sql, "CREATE ROLE") || strings.Contains(sql, "ALTER ROLE") || strings.Contains(sql, "DROP ROLE") ||
+			strings.Contains(sql, "CREATE DATABASE") || strings.Contains(sql, "DROP DATABASE") || strings.Contains(sql, "ALTER DATABASE"):
 			return postgresUsers(x, filepath.Dir(file), sql)
 		}
 		if os.WriteFile(file, data, 0o600) != nil {
@@ -165,10 +168,13 @@ func postgresAnswer(x dockertest.Exec, file string) int {
 var (
 	dumpedDB    = regexp.MustCompile(`(?m)^(?:CREATE DATABASE |\\connect (?:-reuse-previous=on "dbname=)?)("?[^" ;]+"?|'[^']+')`)
 	dumpedTable = regexp.MustCompile(`(?m)^CREATE TABLE ("?[^". ]+"?)\.("?[^". (]+"?) \(`)
-	madeRole    = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
-	madeDB      = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
-	droppedRole = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
-	askedRole   = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	madeRole     = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
+	madeDB       = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)"(?: OWNER "([a-z0-9_]+)")?' WHERE NOT EXISTS`)
+	alteredDB    = regexp.MustCompile(`ALTER DATABASE "([a-z0-9_]+)" OWNER TO "([a-z0-9_]+)"`)
+	droppedDB    = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
+	droppedRole  = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askedRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	askedLogical = regexp.MustCompile(`'exists', EXISTS \(SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'\), 'owner_exists', (true|EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\))`)
 )
 
 // postgresSignsIn signs a user in from another host: a user this fake made with the
@@ -202,8 +208,18 @@ func postgresUsers(_ dockertest.Exec, dir, sql string) int {
 	}
 	for _, m := range madeDB.FindAllStringSubmatch(sql, -1) {
 		if _, has := r.Owns[m[1]]; !has {
-			r.Owns[m[1]] = m[2]
+			owner := m[2]
+			if owner == "" {
+				owner = "postgres"
+			}
+			r.Owns[m[1]] = owner
 		}
+	}
+	for _, m := range alteredDB.FindAllStringSubmatch(sql, -1) {
+		r.Owns[m[1]] = m[2]
+	}
+	for _, m := range droppedDB.FindAllStringSubmatch(sql, -1) {
+		delete(r.Owns, m[1])
 	}
 	for _, m := range droppedRole.FindAllStringSubmatch(sql, -1) {
 		delete(r.Passwords, m[1])
@@ -238,6 +254,28 @@ func postgresUserThere(x dockertest.Exec, dir, sql string) int {
 	return 0
 }
 
+// postgresLogicalThere answers whether a logical database and its requested owner exist.
+func postgresLogicalThere(x dockertest.Exec, dir, sql string) int {
+	m := askedLogical.FindStringSubmatch(sql)
+	if m == nil {
+		return 1
+	}
+	r := readRoles(dir)
+	db := m[1]
+	owner := r.Owns[db]
+	if db == "app" || db == "postgres" {
+		owner = db
+	}
+	exists := owner != ""
+	ownerExists := true
+	if m[3] != "" {
+		_, ok := r.Passwords[m[3]]
+		ownerExists = ok || m[3] == "app" || m[3] == "postgres"
+	}
+	_, _ = fmt.Fprintf(x.Stdout, "{\"exists\":%t,\"owner_exists\":%t,\"owner\":%q}\n", exists, ownerExists, owner)
+	return 0
+}
+
 // postgresReading says what PostgreSQL would of itself, as one line of JSON: the
 // file of its data is its one database of its own, beside what users it made own.
 func postgresReading(x dockertest.Exec, file string) int {
@@ -247,13 +285,13 @@ func postgresReading(x dockertest.Exec, file string) int {
 	}
 	const own = 7_512_000 // what an empty server's postgres database takes
 	r := readRoles(filepath.Dir(file))
-	databases := []string{fmt.Sprintf(`{"name":"app","owner":"app","size":%d}`, size+8_192), fmt.Sprintf(`{"name":"postgres","owner":"postgres","size":%d}`, own)}
+	databases := []string{fmt.Sprintf(`{"name":"app","owner":"app","size":%d,"connections":2}`, size+8_192), fmt.Sprintf(`{"name":"postgres","owner":"postgres","size":%d,"connections":1}`, own)}
 	users := []string{`{"name":"app","super":false,"login":true}`, `{"name":"postgres","super":true,"login":true}`}
 	for name := range r.Passwords {
 		users = append(users, fmt.Sprintf(`{"name":%q,"super":false,"login":true}`, name))
 	}
 	for db, owner := range r.Owns {
-		databases = append(databases, fmt.Sprintf(`{"name":%q,"owner":%q,"size":8192}`, db, owner))
+		databases = append(databases, fmt.Sprintf(`{"name":%q,"owner":%q,"size":8192,"connections":0}`, db, owner))
 	}
 	slices.Sort(databases)
 	slices.Sort(users)

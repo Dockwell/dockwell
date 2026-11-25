@@ -2168,4 +2168,127 @@ describe("how a database is backed up (#793)", () => {
     expect(await screen.findByText("Connection string wasn't copied")).toBeInTheDocument();
     expect(writeText).not.toHaveBeenCalled();
   });
+
+  it("shows the Databases tab with size, owner, connections, New database and Delete", async () => {
+    const user = userEvent.setup();
+    const created: { id: string; database: string; owner: string; user: string; secret: string }[] = [];
+    const deleted: { id: string; database: string }[] = [];
+    const db = aDatabase({
+      readings: [
+        {
+          serverId: SERVER,
+          serverName: "hz-1",
+          container: "default-db-1",
+          version: "17.2",
+          user: "postgres",
+          sizeBytes: 12_000_000n,
+          connections: 5n,
+          maxConnections: 100n,
+          databases: [
+            { name: "postgres", owner: "postgres", sizeBytes: 8_000_000n, system: true, connections: 1n },
+            {
+              name: "shop",
+              owner: "shop",
+              sizeBytes: 3_000_000n,
+              connections: 3n,
+              resourceId: "dbu_shop",
+              resourceKind: "database.user",
+              linkedBy: ["web"],
+            },
+            {
+              name: "analytics",
+              owner: "shop",
+              sizeBytes: 1_000_000n,
+              connections: 0n,
+              resourceId: "dbl_analytics",
+              resourceKind: "database.logical",
+            },
+            { name: "manual", owner: "postgres", sizeBytes: 512_000n, connections: 0n },
+          ],
+          users: [
+            { name: "postgres", superuser: true, canSignIn: true },
+            { name: "shop", canSignIn: true, resourceId: "dbu_shop", secret: "SHOP_DATABASE_PASSWORD" },
+          ],
+        },
+      ],
+    });
+
+    const base = api([db]);
+    const { router } = renderAt(
+      "/databases/svc_db/databases",
+      {
+        ...base,
+        databases: {
+          ...base.databases,
+          createLogicalDatabase: (req) => {
+            created.push({
+              id: req.id,
+              database: req.database,
+              owner: req.owner,
+              user: req.user,
+              secret: req.secret,
+            });
+            return { change: webPlanned() };
+          },
+          deleteLogicalDatabase: (req) => {
+            deleted.push({ id: req.id, database: req.database });
+            return { change: webPlanned() };
+          },
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      },
+    );
+
+    const table = await screen.findByRole("table", { name: "Databases in db" });
+    expect(within(table).getAllByText("shop").length).toBeGreaterThanOrEqual(2);
+    expect(within(table).getByText("analytics")).toBeVisible();
+    expect(within(table).getByText("web")).toBeVisible();
+
+    // Linked database cannot be deleted.
+    await user.click(within(table).getByRole("button", { name: "Actions for shop" }));
+    const shopDelete = await screen.findByRole("menuitem", { name: /^Delete/ });
+    expect(shopDelete).toHaveAttribute("aria-disabled", "true");
+    expect(shopDelete).toHaveTextContent("Linked by web. Disconnect first");
+    await user.keyboard("{Escape}");
+
+    // Unmanaged database cannot be deleted.
+    await user.click(within(table).getByRole("button", { name: "Actions for manual" }));
+    expect(await screen.findByRole("menuitem", { name: /^Delete/ })).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Escape}");
+
+    // Managed, unlinked database can be deleted through a plan.
+    await user.click(within(table).getByRole("button", { name: "Actions for analytics" }));
+    const analyticsDelete = await screen.findByRole("menuitem", { name: "Delete" });
+    expect(analyticsDelete).not.toHaveAttribute("aria-disabled", "true");
+    await user.click(analyticsDelete);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(deleted).toEqual([{ id: "svc_db", database: "analytics" }]);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Open console from a logical database row targets that specific database.
+    await user.click(within(table).getByRole("button", { name: "Actions for analytics" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Open console" }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/servers/${SERVER}/terminal`);
+      expect(router.state.location.search).toMatchObject({
+        container: "default-db-1",
+        console: true,
+        database: "analytics",
+      });
+    });
+
+    // Navigate back and create a new database picking an existing owner.
+    await router.navigate({ to: "/databases/$serviceId/databases", params: { serviceId: "svc_db" } });
+    await user.click(await screen.findByRole("button", { name: "New database" }));
+    const dialog = await screen.findByRole("dialog", { name: "New database in db" });
+    await user.type(within(dialog).getByLabelText("Database"), "billing");
+    await user.selectOptions(within(dialog).getByLabelText("Owner"), "shop");
+    await user.click(within(dialog).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(created).toEqual([{ id: "svc_db", database: "billing", owner: "shop", user: "", secret: "" }]),
+    );
+  });
 });

@@ -334,6 +334,53 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 	return nil
 }
 
+// checkDatabaseLinks refuses a change that deletes a logical database (or a
+// database user whose owned database is linked) while any app still links to
+// that database, unless its database server is being deleted in the same change
+// or the link itself is removed in the same change.
+func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.spec != nil || it.current == nil {
+		return nil
+	}
+	var svc, dbName string
+	switch cur := it.current.(type) {
+	case *resourcev1.LogicalDatabase:
+		svc = cur.GetService()
+		dbName = database.LogicalName(it.ref.Name, cur)
+	case *resourcev1.DatabaseUser:
+		if cur.GetTakenOn() {
+			return nil
+		}
+		svc = cur.GetService()
+		dbName = database.Owned(it.ref.Name, cur)
+	default:
+		return nil
+	}
+	if svc == "" || dbName == "" {
+		return nil
+	}
+	// If the database server service itself is deleted in the same change,
+	// sharedgoing/refuseLinkedGoing handles server-level link rules.
+	if svcAfter, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: it.ref.Scope, Name: svc}); err != nil {
+		return err
+	} else if svcAfter == nil {
+		return nil
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	for i := range links {
+		l := &links[i]
+		if l.meets() == it.ref.Scope && l.GetService() == svc && l.GetDatabaseName() == dbName {
+			where := whichScope(ctx, tx, l.ref.Scope)
+			return fault.New(ErrInvalid, "link %s in %s still uses the database %s on %s, which this change deletes. Disconnect that app first",
+				l.ref.Name, where, dbName, svc)
+		}
+	}
+	return nil
+}
+
 // destinationKind is the backup destination kind.
 const destinationKind resource.Kind = "backup.destination"
 

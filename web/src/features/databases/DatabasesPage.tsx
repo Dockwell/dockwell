@@ -96,6 +96,7 @@ import {
   engineName,
   externalConnectionURL,
   firstReading,
+  makesUsers,
   policiesOf,
   readOf,
   type Stranger,
@@ -504,8 +505,7 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
               id: "console",
               icon: "terminal" as const,
               label: t`Open console`,
-              disabled: !target,
-              ...(target ? {} : { title: t`The database container isn't running on a server yet` }),
+              off: target ? undefined : t`The database container isn't running on a server yet`,
               onSelect: () => {
                 if (!target) return;
                 void navigate({
@@ -543,6 +543,16 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
               icon: "copy" as const,
               label: t`Copy external connection string`,
               onSelect: () => void copyConnection(db, "external"),
+            },
+          ]
+        : []),
+      ...(makesUsers(db.engine)
+        ? [
+            {
+              id: "databases",
+              icon: "database" as const,
+              label: t`Databases`,
+              onSelect: () => void navigate({ to: "/databases/$serviceId/databases", params: { serviceId: db.id } }),
             },
           ]
         : []),

@@ -209,13 +209,16 @@ type pgState struct {
 var (
 	createRole = regexp.MustCompile(`SELECT 'CREATE ROLE "([a-z0-9_]+)" LOGIN' WHERE NOT EXISTS`)
 	alterRole  = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" (?:LOGIN )?PASSWORD '([^']*)'`)
-	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
-	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
-	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
-	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
-	askReach   = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
-	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
-	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	createDB     = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
+	createDBOnly = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)"' WHERE NOT EXISTS`)
+	alterDBOwner = regexp.MustCompile(`ALTER DATABASE "([a-z0-9_]+)" OWNER TO "([a-z0-9_]+)"`)
+	dropDB       = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
+	dropRole     = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askLockout   = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askReach     = regexp.MustCompile(`pg_has_role\('([a-z0-9_]+)', r\.oid, 'MEMBER'\).*FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	askOwner     = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askRole      = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
+	askLogical   = regexp.MustCompile(`'exists', EXISTS \(SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'\), 'owner_exists', (true|EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\))`)
 )
 
 // image is a postgres that keeps users and databases as psql would make them.
@@ -279,6 +282,15 @@ func (s *pgState) image() dockertest.Image {
 				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q}`+"\n", s.databases[m[1]])
 				return 0
 			}
+			if m := askLogical.FindStringSubmatch(sql); m != nil {
+				owner, exists := s.databases[m[1]]
+				ownerExists := true
+				if m[3] != "" {
+					_, ownerExists = s.roles[m[3]]
+				}
+				_, _ = fmt.Fprintf(x.Stdout, `{"exists":%t,"owner_exists":%t,"owner":%q}`+"\n", exists, ownerExists, owner)
+				return 0
+			}
 			if m := askRole.FindStringSubmatch(sql); m != nil {
 				_, has := s.roles[m[1]]
 				_, _ = fmt.Fprintf(x.Stdout, `{"user":%t,"owner":%q}`+"\n", has, s.databases[m[2]])
@@ -291,8 +303,14 @@ func (s *pgState) image() dockertest.Image {
 				}
 				slices.Sort(users)
 				var dbs []string
-				for name, size := range s.sizes {
-					dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":%d}`, name, s.databases[name], size))
+				if s.sizes != nil {
+					for name, size := range s.sizes {
+						dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":%d}`, name, s.databases[name], size))
+					}
+				} else {
+					for name, owner := range s.databases {
+						dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":1048576,"connections":1}`, name, owner))
+					}
 				}
 				slices.Sort(dbs)
 				_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.2","user":"postgres","databases":[%s],"users":[%s]}`+"\n", strings.Join(dbs, ","), strings.Join(users, ","))
@@ -312,6 +330,16 @@ func (s *pgState) image() dockertest.Image {
 			}
 			for _, m := range createDB.FindAllStringSubmatch(sql, -1) {
 				if _, has := s.databases[m[1]]; !has {
+					s.databases[m[1]] = m[2]
+				}
+			}
+			for _, m := range createDBOnly.FindAllStringSubmatch(sql, -1) {
+				if _, has := s.databases[m[1]]; !has {
+					s.databases[m[1]] = "postgres"
+				}
+			}
+			for _, m := range alterDBOwner.FindAllStringSubmatch(sql, -1) {
+				if _, has := s.databases[m[1]]; has {
 					s.databases[m[1]] = m[2]
 				}
 			}
@@ -755,5 +783,132 @@ func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.
 	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}))
 	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "unavailable" || !strings.Contains(err.Error(), "isn't connected") {
 		t.Errorf("a database on a server that's away: %v", err)
+	}
+}
+
+// One PostgreSQL engine hosts several logical databases: creating one with a new
+// owner user+secret or with an existing owner, deleting an unlinked logical
+// database without dropping its owner, refusing deletion while an app links to
+// it, and offering the engine as a candidate for another app's database need.
+func TestLogicalDatabasesInOneEngine(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testLogicalDatabasesInOneEngine)
+}
+
+func testLogicalDatabasesInOneEngine(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	var redis []string
+	e.Registry["redis:7"] = readableRedis(&redis)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	ch := changeClient(b, b.origin)
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "first-password"}, false))
+	dc := databaseClient(b, b.origin)
+
+	// 1. Create a database with default new owner user + secret.
+	madeDefault, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (default owner): %v", err)
+	}
+	if got := apply(t, ch, madeDefault.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying analytics ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	// 2. Create a second database owned by that existing user (database.logical, no new role/secret).
+	madeOwned, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "reports",
+		Owner:    "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (existing owner): %v", err)
+	}
+	if got := apply(t, ch, madeOwned.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying reports ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	// 3. Create a third unlinked logical database owned by analytics so we can test Delete.
+	madeTemp, err := dc.CreateLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.CreateLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "staging",
+		Owner:    "analytics",
+	}))
+	if err != nil {
+		t.Fatalf("CreateLogicalDatabase (staging): %v", err)
+	}
+	if got := apply(t, ch, madeTemp.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("applying staging ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	pg.mu.Lock()
+	if pg.databases["analytics"] != "analytics" || pg.databases["reports"] != "analytics" || pg.databases["staging"] != "analytics" {
+		t.Errorf("pg databases = %v, want analytics, reports, staging owned by analytics", pg.databases)
+	}
+	pg.mu.Unlock()
+
+	// 4. Link an app to reports; deletion of reports must be refused while linked.
+	envScope := madeDefault.Msg.GetChange().GetPlan().GetResources()[0].GetResource().GetScope()
+	apply(t, ch, propose(t, ch, "Link web to reports", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: envScope, Name: "web-reports"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label:        "Database",
+			Service:      "db",
+			Engine:       resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL,
+			Version:      "17",
+			Accepts:      []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}},
+			Sets:         []*resourcev1.LinkSet{{Name: "DB_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}},
+			DatabaseName: "reports",
+			User:         "analytics",
+		}}},
+	}))
+
+	_, err = dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "reports",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "reports") {
+		t.Fatalf("deleting linked database reports = %v, want refusal naming reports", err)
+	}
+
+	// Reading the engine shows the logical databases, their managed resource IDs, and linked_by.
+	read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*dockwellv1.InnerDatabase{}
+	for _, inner := range read.Msg.GetDatabase().GetReadings()[0].GetDatabases() {
+		byName[inner.GetName()] = inner
+	}
+	if byName["reports"].GetResourceKind() != "database.logical" || len(byName["reports"].GetLinkedBy()) == 0 {
+		t.Errorf("reports reading = %v, want database.logical with linked_by", byName["reports"])
+	}
+	if byName["analytics"].GetResourceKind() != "database.user" || byName["analytics"].GetResourceId() == "" {
+		t.Errorf("analytics reading = %v, want database.user with resource_id", byName["analytics"])
+	}
+
+	// 5. Deleting an unlinked logical database drops the database while keeping its owner role.
+	delStaging, err := dc.DeleteLogicalDatabase(t.Context(), connect.NewRequest(&dockwellv1.DeleteLogicalDatabaseRequest{
+		Id:       "db",
+		Database: "staging",
+	}))
+	if err != nil {
+		t.Fatalf("DeleteLogicalDatabase(staging): %v", err)
+	}
+	applyDestructive(t, ch, delStaging.Msg.GetChange())
+	pg.mu.Lock()
+	_, stagingStillThere := pg.databases["staging"]
+	_, ownerStillThere := pg.roles["analytics"]
+	pg.mu.Unlock()
+	if stagingStillThere {
+		t.Error("staging database was not dropped")
+	}
+	if !ownerStillThere {
+		t.Error("deleting logical database staging dropped its owner role analytics")
 	}
 }

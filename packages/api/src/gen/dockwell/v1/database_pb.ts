@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/database.proto.
  */
 export const file_dockwell_v1_database: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEi7QMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCRI8Cg9leHRlcm5hbF9hY2Nlc3MYESABKAsyIy5kb2Nrd2VsbC52MS5EYXRhYmFzZUV4dGVybmFsQWNjZXNzIjoKFkRhdGFiYXNlRXh0ZXJuYWxBY2Nlc3MSDAoEcG9ydBgBIAEoDRISCgphbGxvd19mcm9tGAIgAygJIvEDCg9EYXRhYmFzZVJlYWRpbmcSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEi0KCXJlYWRfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGdW5yZWFkGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoAxITCgtjb25uZWN0aW9ucxgHIAEoAxIXCg9tYXhfY29ubmVjdGlvbnMYCCABKAMSDAoEdXNlchgJIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgKIAEoAxIWCgljYWNoZV9oaXQYCyABKAFIAIgBARItCglkYXRhYmFzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Jbm5lckRhdGFiYXNlEisKBXVzZXJzGA0gAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VBY2NvdW50EgwKBGtleXMYDiABKAMSEAoIdW5saXN0ZWQYDyABKAUSHQoVZmVhdHVyZV9jb21wYXRpYmlsaXR5GBAgASgJEhMKC3JlcGxpY2Ffc2V0GBEgASgJEhUKDWNoZWNrc19ub19vbmUYEiABKAgSEQoJY29udGFpbmVyGBMgASgJQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIItoBCg9EYXRhYmFzZUFjY291bnQSDAoEbmFtZRgBIAEoCRIMCgRob3N0GAIgASgJEhEKCXN1cGVydXNlchgDIAEoCBITCgtjYW5fc2lnbl9pbhgEIAEoCBIRCglkYXRhYmFzZXMYBSADKAkSDgoGc3lzdGVtGAYgASgIEg4KBnNlY3JldBgHIAEoCRIPCgd1c2VkX2J5GAggAygJEhMKC3Jlc291cmNlX2lkGAkgASgJEhUKDWF1dGhfZGF0YWJhc2UYCiABKAkSEwoLbm9fcGFzc3dvcmQYUCABKAgiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIsgBChpDaGVja0RhdGFiYXNlU2lnbkluUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEgwKBHVzZXIYBCABKAkSIwoIZGF0YWJhc2UYBSABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEhMKC2FwcF9wcm9qZWN0GAYgASgJEhcKD2FwcF9lbnZpcm9ubWVudBgHIAEoCRIXCg9wYXNzd29yZF9zZWNyZXQYCCABKAkiZwobQ2hlY2tEYXRhYmFzZVNpZ25JblJlc3BvbnNlEhAKCHNpZ25zX2luGAEgASgIEgwKBHNhaWQYAiABKAkSFQoNYWRtaW5pc3RyYXRvchgDIAEoCBIRCglub19yaWdodHMYBCABKAgi6AMKFkNvbm5lY3REYXRhYmFzZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRILCgNhcHAYBCABKAkSEwoLYXBwX3Byb2plY3QYBSABKAkSFwoPYXBwX2Vudmlyb25tZW50GAYgASgJEgwKBGxpbmsYByABKAkSIwoIZGF0YWJhc2UYCCABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEgwKBHVzZXIYCSABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAogASgJEjsKBHNldHMYCyADKAsyLS5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0LlNldHNFbnRyeRJFCgl0ZW1wbGF0ZXMYDCADKAsyMi5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0LlRlbXBsYXRlc0VudHJ5GlEKCVNldHNFbnRyeRILCgNrZXkYASABKAkSMwoFdmFsdWUYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5MaW5rUGFydDoCOAEaMAoOVGVtcGxhdGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI+ChdDb25uZWN0RGF0YWJhc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UikAEKGUNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEdXNlchgCIAEoCRIjCghkYXRhYmFzZRgDIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSDgoGc2VjcmV0GAQgASgJEg8KB3Byb2plY3QYBSABKAkSEwoLZW52aXJvbm1lbnQYBiABKAkiQQoaQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIl8KHUNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSDwoHcHJvamVjdBgDIAEoCRITCgtlbnZpcm9ubWVudBgEIAEoCSJFCh5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlInUKIFNldERhdGFiYXNlRXh0ZXJuYWxBY2Nlc3NSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSEgoKYWxsb3dfZnJvbRgEIAMoCRILCgNvZmYYBSABKAgiSAohU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1Jlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI+ChNHZXREYXRhYmFzZVJlc3BvbnNlEicKCGRhdGFiYXNlGAEgASgLMhUuZG9ja3dlbGwudjEuRGF0YWJhc2UqqQIKDkRhdGFiYXNlRW5naW5lEh8KG0RBVEFCQVNFX0VOR0lORV9VTlNQRUNJRklFRBAAEi4KGkRBVEFCQVNFX0VOR0lORV9QT1NUR1JFU1FMEAEaDqK7GApQb3N0Z3JlU1FMEiQKFURBVEFCQVNFX0VOR0lORV9NWVNRTBACGgmiuxgFTXlTUUwSKAoXREFUQUJBU0VfRU5HSU5FX01BUklBREIQAxoLorsYB01hcmlhREISJAoVREFUQUJBU0VfRU5HSU5FX1JFRElTEAQaCaK7GAVSZWRpcxImChZEQVRBQkFTRV9FTkdJTkVfVkFMS0VZEAUaCqK7GAZWYWxrZXkSKAoXREFUQUJBU0VfRU5HSU5FX01PTkdPREIQBhoLorsYB01vbmdvREIyswkKD0RhdGFiYXNlU2VydmljZRKAAQoNTGlzdERhdGFiYXNlcxIhLmRvY2t3ZWxsLnYxLkxpc3REYXRhYmFzZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvZGF0YWJhc2VzEn8KC0dldERhdGFiYXNlEh8uZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXF1ZXN0GiAuZG9ja3dlbGwudjEuR2V0RGF0YWJhc2VSZXNwb25zZSItkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCFBISL3YxL2RhdGFiYXNlcy97aWR9EqgBChJDcmVhdGVEYXRhYmFzZVVzZXISJi5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2UiQaC7GAKquxgKEghhZGQtdXNlcsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL2RhdGFiYXNlcy97aWR9L3VzZXJzEsQBChZDaGFuZ2VEYXRhYmFzZVBhc3N3b3JkEiouZG9ja3dlbGwudjEuQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlcXVlc3QaKy5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVzcG9uc2UiUaC7GAKquxgREg9jaGFuZ2UtcGFzc3dvcmTAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpjaGFuZ2VQYXNzd29yZBLNAQoZU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2VzcxItLmRvY2t3ZWxsLnYxLlNldERhdGFiYXNlRXh0ZXJuYWxBY2Nlc3NSZXF1ZXN0Gi4uZG9ja3dlbGwudjEuU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1Jlc3BvbnNlIlGguxgCqrsYERIPZXh0ZXJuYWwtYWNjZXNzwLsYBMi7GATQuxgEgtPkkwImOgEqIiEvdjEvZGF0YWJhc2VzL3tpZH06ZXh0ZXJuYWxBY2Nlc3MStgEKE0NoZWNrRGF0YWJhc2VTaWduSW4SJy5kb2Nrd2VsbC52MS5DaGVja0RhdGFiYXNlU2lnbkluUmVxdWVzdBooLmRvY2t3ZWxsLnYxLkNoZWNrRGF0YWJhc2VTaWduSW5SZXNwb25zZSJMkAIBoLsYAaq7GA8SDWNoZWNrLXNpZ24taW7AuxgDyLsYBNC7GASC0+STAiASHi92MS9kYXRhYmFzZXMve2lkfTpjaGVja1NpZ25JbhKgAQoPQ29ubmVjdERhdGFiYXNlEiMuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlc3BvbnNlIkKguxgCqrsYCRIHY29ubmVjdMC7GAPIuxgD0LsYBILT5JMCHzoBKiIaL3YxL2RhdGFiYXNlcy97aWR9OmNvbm5lY3RCpgEKD2NvbS5kb2Nrd2VsbC52MUINRGF0YWJhc2VQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEi7QMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCRI8Cg9leHRlcm5hbF9hY2Nlc3MYESABKAsyIy5kb2Nrd2VsbC52MS5EYXRhYmFzZUV4dGVybmFsQWNjZXNzIjoKFkRhdGFiYXNlRXh0ZXJuYWxBY2Nlc3MSDAoEcG9ydBgBIAEoDRISCgphbGxvd19mcm9tGAIgAygJIvEDCg9EYXRhYmFzZVJlYWRpbmcSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEi0KCXJlYWRfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGdW5yZWFkGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoAxITCgtjb25uZWN0aW9ucxgHIAEoAxIXCg9tYXhfY29ubmVjdGlvbnMYCCABKAMSDAoEdXNlchgJIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgKIAEoAxIWCgljYWNoZV9oaXQYCyABKAFIAIgBARItCglkYXRhYmFzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Jbm5lckRhdGFiYXNlEisKBXVzZXJzGA0gAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VBY2NvdW50EgwKBGtleXMYDiABKAMSEAoIdW5saXN0ZWQYDyABKAUSHQoVZmVhdHVyZV9jb21wYXRpYmlsaXR5GBAgASgJEhMKC3JlcGxpY2Ffc2V0GBEgASgJEhUKDWNoZWNrc19ub19vbmUYEiABKAgSEQoJY29udGFpbmVyGBMgASgJQgwKCl9jYWNoZV9oaXQipAEKDUlubmVyRGF0YWJhc2USDAoEbmFtZRgBIAEoCRINCgVvd25lchgCIAEoCRISCgpzaXplX2J5dGVzGAMgASgDEg4KBnN5c3RlbRgEIAEoCBITCgtjb25uZWN0aW9ucxgFIAEoAxITCgtyZXNvdXJjZV9pZBgGIAEoCRIVCg1yZXNvdXJjZV9raW5kGAcgASgJEhEKCWxpbmtlZF9ieRgIIAMoCSLaAQoPRGF0YWJhc2VBY2NvdW50EgwKBG5hbWUYASABKAkSDAoEaG9zdBgCIAEoCRIRCglzdXBlcnVzZXIYAyABKAgSEwoLY2FuX3NpZ25faW4YBCABKAgSEQoJZGF0YWJhc2VzGAUgAygJEg4KBnN5c3RlbRgGIAEoCBIOCgZzZWNyZXQYByABKAkSDwoHdXNlZF9ieRgIIAMoCRITCgtyZXNvdXJjZV9pZBgJIAEoCRIVCg1hdXRoX2RhdGFiYXNlGAogASgJEhMKC25vX3Bhc3N3b3JkGFAgASgIIhYKFExpc3REYXRhYmFzZXNSZXF1ZXN0IkEKFUxpc3REYXRhYmFzZXNSZXNwb25zZRIoCglkYXRhYmFzZXMYASADKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSJGChJHZXREYXRhYmFzZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCSLIAQoaQ2hlY2tEYXRhYmFzZVNpZ25JblJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIMCgR1c2VyGAQgASgJEiMKCGRhdGFiYXNlGAUgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRITCgthcHBfcHJvamVjdBgGIAEoCRIXCg9hcHBfZW52aXJvbm1lbnQYByABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAggASgJImcKG0NoZWNrRGF0YWJhc2VTaWduSW5SZXNwb25zZRIQCghzaWduc19pbhgBIAEoCBIMCgRzYWlkGAIgASgJEhUKDWFkbWluaXN0cmF0b3IYAyABKAgSEQoJbm9fcmlnaHRzGAQgASgIIugDChZDb25uZWN0RGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSCwoDYXBwGAQgASgJEhMKC2FwcF9wcm9qZWN0GAUgASgJEhcKD2FwcF9lbnZpcm9ubWVudBgGIAEoCRIMCgRsaW5rGAcgASgJEiMKCGRhdGFiYXNlGAggASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIMCgR1c2VyGAkgASgJEhcKD3Bhc3N3b3JkX3NlY3JldBgKIAEoCRI7CgRzZXRzGAsgAygLMi0uZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdC5TZXRzRW50cnkSRQoJdGVtcGxhdGVzGAwgAygLMjIuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVxdWVzdC5UZW1wbGF0ZXNFbnRyeRpRCglTZXRzRW50cnkSCwoDa2V5GAEgASgJEjMKBXZhbHVlGAIgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua1BhcnQ6AjgBGjAKDlRlbXBsYXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPgoXQ29ubmVjdERhdGFiYXNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIpABChlDcmVhdGVEYXRhYmFzZVVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSIwoIZGF0YWJhc2UYAyABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEg4KBnNlY3JldBgEIAEoCRIPCgdwcm9qZWN0GAUgASgJEhMKC2Vudmlyb25tZW50GAYgASgJIkEKGkNyZWF0ZURhdGFiYXNlVXNlclJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJfCh1DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgR1c2VyGAIgASgJEg8KB3Byb2plY3QYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkiRQoeQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJ1CiBTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEhIKCmFsbG93X2Zyb20YBCADKAkSCwoDb2ZmGAUgASgIIkgKIVNldERhdGFiYXNlRXh0ZXJuYWxBY2Nlc3NSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiPgoTR2V0RGF0YWJhc2VSZXNwb25zZRInCghkYXRhYmFzZRgBIAEoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIqIBChxDcmVhdGVMb2dpY2FsRGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEiMKCGRhdGFiYXNlGAIgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRINCgVvd25lchgDIAEoCRIMCgR1c2VyGAQgASgJEg4KBnNlY3JldBgFIAEoCRIPCgdwcm9qZWN0GAYgASgJEhMKC2Vudmlyb25tZW50GAcgASgJIkQKHUNyZWF0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJ1ChxEZWxldGVMb2dpY2FsRGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEiMKCGRhdGFiYXNlGAIgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJIkQKHURlbGV0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSqpAgoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleRIoChdEQVRBQkFTRV9FTkdJTkVfTU9OR09EQhAGGguiuxgHTW9uZ29EQjK2DAoPRGF0YWJhc2VTZXJ2aWNlEoABCg1MaXN0RGF0YWJhc2VzEiEuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVzcG9uc2UiKJACAaC7GAHAuxgCyLsYAtC7GASC0+STAg8SDS92MS9kYXRhYmFzZXMSfwoLR2V0RGF0YWJhc2USHy5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlc3BvbnNlIi2QAgGguxgBwLsYAsi7GALQuxgEgtPkkwIUEhIvdjEvZGF0YWJhc2VzL3tpZH0SqAEKEkNyZWF0ZURhdGFiYXNlVXNlchImLmRvY2t3ZWxsLnYxLkNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QaJy5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZSJBoLsYAqq7GAoSCGFkZC11c2VywLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvZGF0YWJhc2VzL3tpZH0vdXNlcnMSxAEKFkNoYW5nZURhdGFiYXNlUGFzc3dvcmQSKi5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZSJRoLsYAqq7GBESD2NoYW5nZS1wYXNzd29yZMC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2RhdGFiYXNlcy97aWR9OmNoYW5nZVBhc3N3b3JkEs0BChlTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzEi0uZG9ja3dlbGwudjEuU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1JlcXVlc3QaLi5kb2Nrd2VsbC52MS5TZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVzcG9uc2UiUaC7GAKquxgREg9leHRlcm5hbC1hY2Nlc3PAuxgEyLsYBNC7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpleHRlcm5hbEFjY2VzcxK2AQoTQ2hlY2tEYXRhYmFzZVNpZ25JbhInLmRvY2t3ZWxsLnYxLkNoZWNrRGF0YWJhc2VTaWduSW5SZXF1ZXN0GiguZG9ja3dlbGwudjEuQ2hlY2tEYXRhYmFzZVNpZ25JblJlc3BvbnNlIkyQAgGguxgBqrsYDxINY2hlY2stc2lnbi1pbsC7GAPIuxgE0LsYBILT5JMCIBIeL3YxL2RhdGFiYXNlcy97aWR9OmNoZWNrU2lnbkluEqABCg9Db25uZWN0RGF0YWJhc2USIy5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0GiQuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVzcG9uc2UiQqC7GAKquxgJEgdjb25uZWN0wLsYA8i7GAPQuxgEgtPkkwIfOgEqIhovdjEvZGF0YWJhc2VzL3tpZH06Y29ubmVjdBK5AQoVQ3JlYXRlTG9naWNhbERhdGFiYXNlEikuZG9ja3dlbGwudjEuQ3JlYXRlTG9naWNhbERhdGFiYXNlUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLkNyZWF0ZUxvZ2ljYWxEYXRhYmFzZVJlc3BvbnNlIkmguxgCqrsYDhIMYWRkLWRhdGFiYXNlwLsYA8i7GAPQuxgEgtPkkwIhOgEqIhwvdjEvZGF0YWJhc2VzL3tpZH0vZGF0YWJhc2VzEsQBChVEZWxldGVMb2dpY2FsRGF0YWJhc2USKS5kb2Nrd2VsbC52MS5EZWxldGVMb2dpY2FsRGF0YWJhc2VSZXF1ZXN0GiouZG9ja3dlbGwudjEuRGVsZXRlTG9naWNhbERhdGFiYXNlUmVzcG9uc2UiVKC7GAKquxgREg9kZWxldGUtZGF0YWJhc2XAuxgDyLsYA9C7GASC0+STAikqJy92MS9kYXRhYmFzZXMve2lkfS9kYXRhYmFzZXMve2RhdGFiYXNlfUKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Database is a service that runs a database.
@@ -375,7 +375,7 @@ export type InnerDatabase = Message<"dockwell.v1.InnerDatabase"> & {
   name: string;
 
   /**
-   * The user that owns it, for PostgreSQL.
+   * The user that owns it, for PostgreSQL, or is granted full rights on it, for MySQL and MariaDB.
    *
    * @generated from field: string owner = 2;
    */
@@ -394,6 +394,34 @@ export type InnerDatabase = Message<"dockwell.v1.InnerDatabase"> & {
    * @generated from field: bool system = 4;
    */
   system: boolean;
+
+  /**
+   * How many client connections are open to this database now.
+   *
+   * @generated from field: int64 connections = 5;
+   */
+  connections: bigint;
+
+  /**
+   * The resource's ID, for a database Dockwell made (kind "database.logical" or "database.user").
+   *
+   * @generated from field: string resource_id = 6;
+   */
+  resourceId: string;
+
+  /**
+   * The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
+   *
+   * @generated from field: string resource_kind = 7;
+   */
+  resourceKind: string;
+
+  /**
+   * The apps linking to this database, where visible to the caller.
+   *
+   * @generated from field: repeated string linked_by = 8;
+   */
+  linkedBy: string[];
 };
 
 /**
@@ -1069,6 +1097,158 @@ export const GetDatabaseResponseSchema: GenMessage<GetDatabaseResponse> = /*@__P
   messageDesc(file_dockwell_v1_database, 18);
 
 /**
+ * CreateLogicalDatabaseRequest names a database server and a new logical database
+ * to make in it, owned either by an existing user or by a new user Dockwell makes.
+ *
+ * @generated from message dockwell.v1.CreateLogicalDatabaseRequest
+ */
+export type CreateLogicalDatabaseRequest = Message<"dockwell.v1.CreateLogicalDatabaseRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The database's name, such as "shop": lowercase letters, digits and underscores,
+   * starting with a letter, at most 32.
+   *
+   * @generated from field: string database = 2;
+   */
+  database: string;
+
+  /**
+   * An existing user on the server to own the database. Empty creates a new user
+   * with a generated password kept as a secret.
+   *
+   * @generated from field: string owner = 3;
+   */
+  owner: string;
+
+  /**
+   * When owner is empty: the new user's name. Empty takes the database's name.
+   *
+   * @generated from field: string user = 4;
+   */
+  user: string;
+
+  /**
+   * When owner is empty: the secret their password goes in. Empty takes the user's
+   * name in capitals followed by "_DATABASE_PASSWORD".
+   *
+   * @generated from field: string secret = 5;
+   */
+  secret: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 6;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 7;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateLogicalDatabaseRequest.
+ * Use `create(CreateLogicalDatabaseRequestSchema)` to create a new message.
+ */
+export const CreateLogicalDatabaseRequestSchema: GenMessage<CreateLogicalDatabaseRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 19);
+
+/**
+ * CreateLogicalDatabaseResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.CreateLogicalDatabaseResponse
+ */
+export type CreateLogicalDatabaseResponse = Message<"dockwell.v1.CreateLogicalDatabaseResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateLogicalDatabaseResponse.
+ * Use `create(CreateLogicalDatabaseResponseSchema)` to create a new message.
+ */
+export const CreateLogicalDatabaseResponseSchema: GenMessage<CreateLogicalDatabaseResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 20);
+
+/**
+ * DeleteLogicalDatabaseRequest names a database server and a logical database
+ * Dockwell manages in it to drop.
+ *
+ * @generated from message dockwell.v1.DeleteLogicalDatabaseRequest
+ */
+export type DeleteLogicalDatabaseRequest = Message<"dockwell.v1.DeleteLogicalDatabaseRequest"> & {
+  /**
+   * The service that runs the database server, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The database's name inside the server.
+   *
+   * @generated from field: string database = 2;
+   */
+  database: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 3;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 4;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteLogicalDatabaseRequest.
+ * Use `create(DeleteLogicalDatabaseRequestSchema)` to create a new message.
+ */
+export const DeleteLogicalDatabaseRequestSchema: GenMessage<DeleteLogicalDatabaseRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 21);
+
+/**
+ * DeleteLogicalDatabaseResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.DeleteLogicalDatabaseResponse
+ */
+export type DeleteLogicalDatabaseResponse = Message<"dockwell.v1.DeleteLogicalDatabaseResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteLogicalDatabaseResponse.
+ * Use `create(DeleteLogicalDatabaseResponseSchema)` to create a new message.
+ */
+export const DeleteLogicalDatabaseResponseSchema: GenMessage<DeleteLogicalDatabaseResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 22);
+
+/**
  * DatabaseEngine is which database a service runs.
  *
  * @generated from enum dockwell.v1.DatabaseEngine
@@ -1254,6 +1434,30 @@ export const DatabaseService: GenService<{
     methodKind: "unary";
     input: typeof ConnectDatabaseRequestSchema;
     output: typeof ConnectDatabaseResponseSchema;
+  },
+  /**
+   * CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
+   * or MariaDB server, owned either by an existing user picked on that server
+   * (kind "database.logical") or by a new owner user with a generated password
+   * kept as a secret (kind "database.user").
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.CreateLogicalDatabase
+   */
+  createLogicalDatabase: {
+    methodKind: "unary";
+    input: typeof CreateLogicalDatabaseRequestSchema;
+    output: typeof CreateLogicalDatabaseResponseSchema;
+  },
+  /**
+   * DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
+   * PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.DeleteLogicalDatabase
+   */
+  deleteLogicalDatabase: {
+    methodKind: "unary";
+    input: typeof DeleteLogicalDatabaseRequestSchema;
+    output: typeof DeleteLogicalDatabaseResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_database, 0);

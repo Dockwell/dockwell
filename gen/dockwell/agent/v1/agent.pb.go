@@ -2059,6 +2059,9 @@ type Hello struct {
 	// take a call for a container as one for the server, so the control plane sends it
 	// none.
 	ContainerTerminals bool `protobuf:"varint,52,opt,name=container_terminals,json=containerTerminals,proto3" json:"container_terminals,omitempty"`
+	// True when the agent opens a database's interactive client inside its container
+	// (OpenTerminalCall.database_console). Database tools use 470 to 479.
+	DatabaseConsole bool `protobuf:"varint,470,opt,name=database_console,json=databaseConsole,proto3" json:"database_console,omitempty"`
 	// True when the agent's proxy keeps out who a route's access doesn't let in,
 	// and asks each private route what a stranger gets (ADR 0087). The control
 	// plane plans no route with access on an agent that doesn't say so, which
@@ -2352,6 +2355,13 @@ func (x *Hello) GetOpenTerminals() []string {
 func (x *Hello) GetContainerTerminals() bool {
 	if x != nil {
 		return x.ContainerTerminals
+	}
+	return false
+}
+
+func (x *Hello) GetDatabaseConsole() bool {
+	if x != nil {
+		return x.DatabaseConsole
 	}
 	return false
 }
@@ -7311,7 +7321,11 @@ type OpenTerminalCall struct {
 	// The exact Engine ID, in place of the legacy container reference.
 	ContainerId string `protobuf:"bytes,400,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	// An explicit container executable and arguments. Empty selects a shell.
-	Argv          []string `protobuf:"bytes,401,rep,name=argv,proto3" json:"argv,omitempty"`
+	Argv []string `protobuf:"bytes,401,rep,name=argv,proto3" json:"argv,omitempty"`
+	// Open the container's database client as its admin user. Database tools use 470 to 479.
+	DatabaseConsole bool `protobuf:"varint,470,opt,name=database_console,json=databaseConsole,proto3" json:"database_console,omitempty"`
+	// The database inside the container to connect to when database_console is set.
+	Database      string `protobuf:"bytes,471,opt,name=database,proto3" json:"database,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7400,6 +7414,20 @@ func (x *OpenTerminalCall) GetArgv() []string {
 		return x.Argv
 	}
 	return nil
+}
+
+func (x *OpenTerminalCall) GetDatabaseConsole() bool {
+	if x != nil {
+		return x.DatabaseConsole
+	}
+	return false
+}
+
+func (x *OpenTerminalCall) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
 }
 
 // OpenTerminalResult is the terminal, running.
@@ -19748,7 +19776,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xb6\x12\n" +
+	"\bDraining\"\xe2\x12\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -19762,7 +19790,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\ffollows_pace\x18( \x01(\bR\vfollowsPace\x12\x1c\n" +
 	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +
 	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\x12/\n" +
-	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x120\n" +
+	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12*\n" +
+	"\x10database_console\x18\xd6\x03 \x01(\bR\x0fdatabaseConsole\x120\n" +
 	"\x14keeps_routes_private\x18n \x01(\bR\x12keepsRoutesPrivate\x12\x19\n" +
 	"\bsigns_in\x18o \x01(\bR\asignsIn\x12&\n" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
@@ -20090,7 +20119,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vRunTaskCall\x12,\n" +
 	"\x04task\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\x04task\"7\n" +
 	"\rRunTaskResult\x12&\n" +
-	"\x03run\x18\x01 \x01(\v2\x14.dockwell.v1.TaskRunR\x03run\"\xdd\x01\n" +
+	"\x03run\x18\x01 \x01(\v2\x14.dockwell.v1.TaskRunR\x03run\"\xa6\x02\n" +
 	"\x10OpenTerminalCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x12\n" +
@@ -20099,7 +20128,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\x1c\n" +
 	"\tconfirmed\x18\x06 \x01(\bR\tconfirmed\x12\"\n" +
 	"\fcontainer_id\x18\x90\x03 \x01(\tR\vcontainerId\x12\x13\n" +
-	"\x04argv\x18\x91\x03 \x03(\tR\x04argv\"\xcc\x01\n" +
+	"\x04argv\x18\x91\x03 \x03(\tR\x04argv\x12*\n" +
+	"\x10database_console\x18\xd6\x03 \x01(\bR\x0fdatabaseConsole\x12\x1b\n" +
+	"\bdatabase\x18\xd7\x03 \x01(\tR\bdatabase\"\xcc\x01\n" +
 	"\x12OpenTerminalResult\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x122\n" +
 	"\x06opened\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06opened\x12\"\n" +
