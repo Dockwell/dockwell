@@ -2425,7 +2425,8 @@ type Edit struct {
 	// first. Those apps stop working. Numbered in the block connectable apps hold in
 	// other messages, 80 to 89.
 	DeleteShared bool `protobuf:"varint,81,opt,name=delete_shared,json=deleteShared,proto3" json:"delete_shared,omitempty"`
-	// Require a new network or volume and an unoccupied Engine name.
+	// Require a new resource name for a firewall rule, network or volume.
+	// A network or volume also needs an unoccupied Docker Engine name.
 	MustCreate    bool `protobuf:"varint,400,opt,name=must_create,json=mustCreate,proto3" json:"must_create,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -9091,9 +9092,12 @@ type AccessStays struct {
 	// The ports the panel and the control plane listen on, on the control
 	// server, when the change turns deny everything else on there: they stay
 	// open by their pin, and the test to run is the panel in a new tab too.
-	PanelPorts    []uint32 `protobuf:"varint,5,rep,packed,name=panel_ports,json=panelPorts,proto3" json:"panel_ports,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	PanelPorts []uint32 `protobuf:"varint,5,rep,packed,name=panel_ports,json=panelPorts,proto3" json:"panel_ports,omitempty"`
+	// Addresses with a live SSH session covered by the proposed deny. Its
+	// session stays open, but reconnecting can depend on the pin.
+	SshSessionsCovered []string `protobuf:"bytes,6,rep,name=ssh_sessions_covered,json=sshSessionsCovered,proto3" json:"ssh_sessions_covered,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *AccessStays) Reset() {
@@ -9157,6 +9161,13 @@ func (x *AccessStays) GetTunnels() []string {
 func (x *AccessStays) GetPanelPorts() []uint32 {
 	if x != nil {
 		return x.PanelPorts
+	}
+	return nil
+}
+
+func (x *AccessStays) GetSshSessionsCovered() []string {
+	if x != nil {
+		return x.SshSessionsCovered
 	}
 	return nil
 }
@@ -13568,14 +13579,15 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"never_bans\x18\x01 \x03(\tR\tneverBans\x121\n" +
 	"\x15signed_in_not_ignored\x18\x02 \x03(\tR\x12signedInNotIgnored\x12-\n" +
-	"\x12ignores_everything\x18\x03 \x01(\bR\x11ignoresEverything\"\x97\x01\n" +
+	"\x12ignores_everything\x18\x03 \x01(\bR\x11ignoresEverything\"\xc9\x01\n" +
 	"\vAccessStays\x12\x1b\n" +
 	"\tssh_ports\x18\x01 \x03(\rR\bsshPorts\x12\x16\n" +
 	"\x06pinned\x18\x02 \x03(\tR\x06pinned\x12\x18\n" +
 	"\aallowed\x18\x03 \x03(\tR\aallowed\x12\x18\n" +
 	"\atunnels\x18\x04 \x03(\tR\atunnels\x12\x1f\n" +
 	"\vpanel_ports\x18\x05 \x03(\rR\n" +
-	"panelPorts\"\xaa\x02\n" +
+	"panelPorts\x120\n" +
+	"\x14ssh_sessions_covered\x18\x06 \x03(\tR\x12sshSessionsCovered\"\xaa\x02\n" +
 	"\vBackupFirst\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x121\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +

@@ -3058,14 +3058,14 @@ func (x *PortMapping) GetExternal() bool {
 	return false
 }
 
-// FirewallRule allows or blocks inbound traffic to a port on a server.
+// FirewallRule allows or blocks inbound traffic on a server.
 type FirewallRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Allow or block.
 	Action FirewallAction `protobuf:"varint,1,opt,name=action,proto3,enum=dockwell.resource.v1alpha1.FirewallAction" json:"action,omitempty"`
-	// TCP unless set.
+	// TCP by default for a port rule, or all protocols for an address rule.
 	Protocol Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=dockwell.resource.v1alpha1.Protocol" json:"protocol,omitempty"`
-	// The port the rule covers. Omit on an existing rule to keep its port.
+	// The port the rule covers. Omit to cover every port from the named sources.
 	Port uint32 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
 	// Source addresses in CIDR form, such as "203.0.113.0/24". Empty means
 	// anywhere.
@@ -3151,8 +3151,13 @@ type FirewallPolicy struct {
 	// still let in: connections already open, SSH from where people come in now,
 	// and on the control server its own ports.
 	DenyEverythingElse bool `protobuf:"varint,1,opt,name=deny_everything_else,json=denyEverythingElse,proto3" json:"deny_everything_else,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Require an explicit firewall allow for new connections Docker forwards,
+	// except UDP unless guard_docker_udp is set too.
+	GuardDockerPorts bool `protobuf:"varint,2,opt,name=guard_docker_ports,json=guardDockerPorts,proto3" json:"guard_docker_ports,omitempty"`
+	// Include published UDP ports in the Docker guard.
+	GuardDockerUdp bool `protobuf:"varint,3,opt,name=guard_docker_udp,json=guardDockerUdp,proto3" json:"guard_docker_udp,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *FirewallPolicy) Reset() {
@@ -3192,6 +3197,20 @@ func (x *FirewallPolicy) GetDenyEverythingElse() bool {
 	return false
 }
 
+func (x *FirewallPolicy) GetGuardDockerPorts() bool {
+	if x != nil {
+		return x.GuardDockerPorts
+	}
+	return false
+}
+
+func (x *FirewallPolicy) GetGuardDockerUdp() bool {
+	if x != nil {
+		return x.GuardDockerUdp
+	}
+	return false
+}
+
 // Jail is one of fail2ban's jails on a server, as Dockwell writes it in
 // its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
 // as sshd (ADR 0052). fail2ban keeps the last value it reads, so a person's
@@ -3224,7 +3243,9 @@ type Jail struct {
 	// Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
 	// server's own loopback and the control server's addresses, which it never
 	// bans either.
-	Ignore        []string `protobuf:"bytes,9,rep,name=ignore,proto3" json:"ignore,omitempty"`
+	Ignore []string `protobuf:"bytes,9,rep,name=ignore,proto3" json:"ignore,omitempty"`
+	// Keep the jail's settings while stopping its protection.
+	Disabled      bool `protobuf:"varint,10,opt,name=disabled,proto3" json:"disabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3320,6 +3341,13 @@ func (x *Jail) GetIgnore() []string {
 		return x.Ignore
 	}
 	return nil
+}
+
+func (x *Jail) GetDisabled() bool {
+	if x != nil {
+		return x.Disabled
+	}
+	return false
 }
 
 // Project is a product or client in the organization. It holds
@@ -11931,9 +11959,11 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bprotocol\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.ProtocolR\bprotocol\x12\x12\n" +
 	"\x04port\x18\x03 \x01(\rR\x04port\x12\x18\n" +
 	"\asources\x18\x04 \x03(\tR\asources\x12\x18\n" +
-	"\acomment\x18\x05 \x01(\tR\acomment\"B\n" +
+	"\acomment\x18\x05 \x01(\tR\acomment\"\x9a\x01\n" +
 	"\x0eFirewallPolicy\x120\n" +
-	"\x14deny_everything_else\x18\x01 \x01(\bR\x12denyEverythingElse\"\xfa\x01\n" +
+	"\x14deny_everything_else\x18\x01 \x01(\bR\x12denyEverythingElse\x12,\n" +
+	"\x12guard_docker_ports\x18\x02 \x01(\bR\x10guardDockerPorts\x12(\n" +
+	"\x10guard_docker_udp\x18\x03 \x01(\bR\x0eguardDockerUdp\"\x96\x02\n" +
 	"\x04Jail\x12\x16\n" +
 	"\x06filter\x18\x01 \x01(\tR\x06filter\x12\x14\n" +
 	"\x05ports\x18\x02 \x03(\rR\x05ports\x12\x1b\n" +
@@ -11944,7 +11974,9 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"banForGood\x12\x18\n" +
 	"\abackend\x18\a \x01(\tR\abackend\x12\x1b\n" +
 	"\tlog_paths\x18\b \x03(\tR\blogPaths\x12\x16\n" +
-	"\x06ignore\x18\t \x03(\tR\x06ignore\"\xad\x01\n" +
+	"\x06ignore\x18\t \x03(\tR\x06ignore\x12\x1a\n" +
+	"\bdisabled\x18\n" +
+	" \x01(\bR\bdisabled\"\xad\x01\n" +
 	"\aProject\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12@\n" +
 	"\acatalog\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.CatalogPinR\acatalog\x12=\n" +

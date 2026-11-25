@@ -520,6 +520,20 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`SSH operation unconfirmed on ${server}`, icon: "lock" };
         case "ssh.ban":
           return { title: t`Banned an SSH address on ${server}`, icon: "lock" };
+        case "jail.ban":
+          return { title: t`Banned a Fail2ban address on ${server}`, icon: "lock" };
+        case "jail.unban":
+          return { title: t`Unbanned a Fail2ban address on ${server}`, icon: "lock" };
+        case "jail.unconfirmed": {
+          const ban = event.fail2ban;
+          const title =
+            ban?.operation === "ban"
+              ? t`Fail2ban ban of ${ban.address} in ${ban.jail} unconfirmed on ${server}`
+              : ban?.operation === "unban"
+                ? t`Fail2ban unban of ${ban.address} in ${ban.jail} unconfirmed on ${server}`
+                : t`Fail2ban operation unconfirmed on ${server}`;
+          return { title, icon: "lock" };
+        }
         case "process.end": {
           const what = event.process?.name ?? "";
           const pid = event.process?.pid ?? 0;

@@ -337,7 +337,6 @@ func WithDesired(ctx context.Context, desired []Desired) context.Context {
 // that the control plane didn't, can't make a plan that applying then
 // fails to match.
 func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
-	ctx = WithDesired(ctx, desired)
 	if deadline, ok := ctx.Deadline(); ok {
 		ctx = context.WithValue(ctx, waitKey{}, time.Now().Add(time.Until(deadline)/2))
 	}
@@ -354,8 +353,10 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, ExactRestart: want.ExactRestart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, MoveVolumeFrom: want.MoveVolumeFrom, Prepare: want.Prepare}, d
+		normal[i], drivers[i] = *want, d
+		normal[i].Spec = spec
 	}
+	ctx = WithDesired(ctx, normal)
 	for i := range normal {
 		want := &normal[i]
 		d, spec := drivers[i], want.Spec

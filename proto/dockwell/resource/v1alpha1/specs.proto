@@ -441,13 +441,13 @@ enum Protocol {
   PROTOCOL_UDP = 2;
 }
 
-// FirewallRule allows or blocks inbound traffic to a port on a server.
+// FirewallRule allows or blocks inbound traffic on a server.
 message FirewallRule {
   // Allow or block.
   FirewallAction action = 1;
-  // TCP unless set.
+  // TCP by default for a port rule, or all protocols for an address rule.
   Protocol protocol = 2;
-  // The port the rule covers. Omit on an existing rule to keep its port.
+  // The port the rule covers. Omit to cover every port from the named sources.
   uint32 port = 3;
   // Source addresses in CIDR form, such as "203.0.113.0/24". Empty means
   // anywhere.
@@ -465,6 +465,11 @@ message FirewallPolicy {
   // still let in: connections already open, SSH from where people come in now,
   // and on the control server its own ports.
   bool deny_everything_else = 1;
+  // Require an explicit firewall allow for new connections Docker forwards,
+  // except UDP unless guard_docker_udp is set too.
+  bool guard_docker_ports = 2;
+  // Include published UDP ports in the Docker guard.
+  bool guard_docker_udp = 3;
 }
 
 // Jail is one of fail2ban's jails on a server, as Dockwell writes it in
@@ -499,6 +504,8 @@ message Jail {
   // server's own loopback and the control server's addresses, which it never
   // bans either.
   repeated string ignore = 9;
+  // Keep the jail's settings while stopping its protection.
+  bool disabled = 10;
 }
 
 // FirewallAction is what a rule does with matching traffic.

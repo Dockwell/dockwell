@@ -5,6 +5,7 @@ package firewall_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -118,5 +119,20 @@ func TestOnlyARuleThatCanCutAccessWarns(t *testing.T) {
 		if got := slices.Contains(dec.Warnings, resource.WarningMayLockOut); got != tt.warns {
 			t.Errorf("%s: may cut off access is %v, want %v", tt.name, got, tt.warns)
 		}
+	}
+}
+
+func TestAddressRuleValidation(t *testing.T) {
+	d := &firewall.Driver{}
+	for _, source := range []string{"0.0.0.0/0", "::/0", "::ffff:0.0.0.0/96"} {
+		if err := d.Validate(&resourcev1.FirewallRule{Sources: []string{source}}); err == nil || !strings.Contains(err.Error(), "every address") {
+			t.Errorf("all-port allow of %s = %v", source, err)
+		}
+		if err := d.Validate(&resourcev1.FirewallRule{Port: 22, Sources: []string{source}}); err != nil {
+			t.Errorf("port allow of %s = %v", source, err)
+		}
+	}
+	if err := d.Validate(&resourcev1.FirewallRule{}); err == nil || !strings.Contains(err.Error(), "needs a port or addresses") {
+		t.Errorf("empty rule = %v", err)
 	}
 }

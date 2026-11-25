@@ -30,9 +30,9 @@ type Rule struct {
 	// Name is what the rule is, kept in its comment, such as "rule office-ssh"
 	// or "pin ssh". It names the rule on the server, as nft lists it.
 	Name string
-	// Protocol is "tcp" or "udp".
+	// Protocol is "tcp" or "udp", or empty for any protocol on an address rule.
 	Protocol string
-	// Ports are the ports on the server it covers, one at least.
+	// Ports are the ports on the server it covers, empty for an address rule.
 	Ports []uint16
 	// Sources are where it covers traffic from. Empty is anywhere.
 	Sources []netip.Prefix
@@ -51,6 +51,12 @@ type Table struct {
 	// DenyRest drops what nothing above let in: the policy, deny everything
 	// else, which a person turns on.
 	DenyRest bool
+	// GuardDockerPorts requires an allow for forwarded Docker connections.
+	GuardDockerPorts bool
+	// GuardDockerUDP includes UDP in the Docker guard.
+	GuardDockerUDP bool
+	// DockerPins protect externally mapped panel and agent ports.
+	DockerPins []Rule
 	// DockerInterfaces are Docker's networks' interfaces, from Docker's network
 	// list. Traffic arriving on them, from containers, isn't filtered.
 	DockerInterfaces []string
@@ -129,19 +135,18 @@ const maxRuleName = 100
 // isRuleName reports a name a rule's comment can hold.
 func isRuleName(name string) bool { return len(name) <= maxRuleName && ruleName().MatchString(name) }
 
-// Validate refuses a table nft would misread: a rule with no ports, a port of
-// 0, a protocol other than TCP and UDP, or a name or interface that would need
-// quoting.
+// Validate refuses a table nft would misread, including a rule without a port
+// or source and an invalid protocol or name.
 func (t Table) Validate() error {
-	for _, list := range [][]Rule{t.Pins, t.Allows, t.Denies} {
+	for _, list := range [][]Rule{t.Pins, t.DockerPins, t.Allows, t.Denies} {
 		for _, r := range list {
 			if !isRuleName(r.Name) {
 				return fmt.Errorf("a rule's name %q has what the table can't keep in a comment: use letters, digits, spaces and - _ . : / @", r.Name)
 			}
-			if r.Protocol != "tcp" && r.Protocol != "udp" {
+			if r.Protocol != "tcp" && r.Protocol != "udp" && (r.Protocol != "" || len(r.Ports) != 0) {
 				return fmt.Errorf("rule %s is for %q, and a rule is for tcp or udp", r.Name, r.Protocol)
 			}
-			if len(r.Ports) == 0 || slices.Contains(r.Ports, 0) {
+			if (len(r.Ports) == 0 && len(r.Sources) == 0) || slices.Contains(r.Ports, 0) {
 				return fmt.Errorf("rule %s covers no port, or port 0: give it ports from 1 to 65535", r.Name)
 			}
 			for _, p := range r.Sources {
@@ -176,7 +181,7 @@ func (t Table) Script() (string, error) {
 	if ifs := t.dockerSet(); ifs != "" {
 		fmt.Fprintf(&b, "\t\tiifname %s accept\n", ifs)
 	}
-	t.rules(&b, inputMatch)
+	t.rules(&b, inputMatch, t.DenyRest)
 	b.WriteString("\t}\n")
 
 	// Ports Docker publishes: traffic Docker translated, arriving from outside
@@ -190,13 +195,24 @@ func (t Table) Script() (string, error) {
 	case t.NoDocker:
 	case ifs != "":
 		fmt.Fprintf(&b, "\t\tct status dnat iifname != %s oifname %s jump published\n", ifs, ifs)
-	default:
+	case !t.GuardDockerPorts:
 		b.WriteString("\t\tct status dnat jump published\n")
 	}
 	b.WriteString("\t}\n")
 	b.WriteString("\tchain published {\n")
 	b.WriteString("\t\tct state established,related accept\n")
-	t.rules(&b, publishedMatch)
+	for _, pin := range t.DockerPins {
+		writeRule(&b, pin, publishedMatch, "accept")
+	}
+	t.rules(&b, publishedMatch, t.DenyRest)
+	if t.GuardDockerPorts && !t.DenyRest {
+		if !t.GuardDockerUDP {
+			b.WriteString("\t\tmeta l4proto != udp ")
+		} else {
+			b.WriteString("\t\t")
+		}
+		b.WriteString("drop comment \"policy guard Docker ports\"\n")
+	}
 	b.WriteString("\t}\n")
 	b.WriteString("}\n")
 	return b.String(), nil
@@ -209,7 +225,7 @@ func DeleteScript() string {
 
 // rules writes the pins, allows, denies and policy, in that order, each line
 // matching ports as match says.
-func (t Table) rules(b *strings.Builder, match func(Rule) string) {
+func (t Table) rules(b *strings.Builder, match func(Rule) string, denyRest bool) {
 	for _, r := range t.Pins {
 		writeRule(b, r, match, "accept")
 	}
@@ -219,7 +235,7 @@ func (t Table) rules(b *strings.Builder, match func(Rule) string) {
 	for _, r := range t.Denies {
 		writeRule(b, r, match, "drop")
 	}
-	if t.DenyRest {
+	if denyRest {
 		b.WriteString("\t\tdrop comment \"policy deny everything else\"\n")
 	}
 }
@@ -229,7 +245,7 @@ func (t Table) rules(b *strings.Builder, match func(Rule) string) {
 func writeRule(b *strings.Builder, r Rule, match func(Rule) string, verdict string) {
 	comment := fmt.Sprintf(" comment %q", r.Name)
 	if len(r.Sources) == 0 {
-		fmt.Fprintf(b, "\t\t%s %s%s\n", match(r), verdict, comment)
+		fmt.Fprintf(b, "\t\t%s%s%s\n", match(r), verdict, comment)
 		return
 	}
 	var all []netip.Prefix
@@ -260,22 +276,35 @@ func writeRule(b *strings.Builder, r Rule, match func(Rule) string, verdict stri
 		}
 	}
 	if len(v4) > 0 {
-		fmt.Fprintf(b, "\t\tip saddr %s %s %s%s\n", set(v4), match(r), verdict, comment)
+		fmt.Fprintf(b, "\t\tip saddr %s %s%s%s\n", set(v4), match(r), verdict, comment)
 	}
 	if len(v6) > 0 {
-		fmt.Fprintf(b, "\t\tip6 saddr %s %s %s%s\n", set(v6), match(r), verdict, comment)
+		fmt.Fprintf(b, "\t\tip6 saddr %s %s%s%s\n", set(v6), match(r), verdict, comment)
 	}
 }
 
 // inputMatch matches a rule's ports as the host receives them.
 func inputMatch(r Rule) string {
-	return fmt.Sprintf("%s dport %s", r.Protocol, set(ports(r.Ports)))
+	if len(r.Ports) == 0 {
+		return protocolMatch(r)
+	}
+	return fmt.Sprintf("%s dport %s ", r.Protocol, set(ports(r.Ports)))
 }
 
 // publishedMatch matches a rule's ports as the port traffic arrived on, before
 // Docker translated it to its container's.
 func publishedMatch(r Rule) string {
-	return fmt.Sprintf("meta l4proto %s ct original proto-dst %s", r.Protocol, set(ports(r.Ports)))
+	if len(r.Ports) == 0 {
+		return protocolMatch(r)
+	}
+	return fmt.Sprintf("meta l4proto %s ct original proto-dst %s ", r.Protocol, set(ports(r.Ports)))
+}
+
+func protocolMatch(r Rule) string {
+	if r.Protocol == "" {
+		return ""
+	}
+	return "meta l4proto " + r.Protocol + " "
 }
 
 func ports(list []uint16) []string {

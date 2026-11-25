@@ -99,6 +99,7 @@ const (
 	StepUpEditSSHKey           StepUpAction = "ssh.edit_key"
 	StepUpDisconnectSSHSession StepUpAction = "ssh.disconnect"
 	StepUpBanSSHAddress        StepUpAction = "ssh.ban"
+	StepUpBanFail2banAddress   StepUpAction = "fail2ban.ban"
 	// StepUpOpenTerminal opens a root shell on a server. Its target is the
 	// server's ID. A proof opens one terminal (ADR 0037).
 	StepUpOpenTerminal StepUpAction = "terminal.open"
@@ -208,6 +209,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpEditSSHKey:           {"changing SSH keys for", true},
 	StepUpDisconnectSSHSession: {"disconnecting SSH session", true},
 	StepUpBanSSHAddress:        {"banning SSH address", true},
+	StepUpBanFail2banAddress:   {"banning a fail2ban address", true},
 	StepUpEndProcess:           {"ending process", true},
 	StepUpOpenTerminal:         {"opening a terminal on", true},
 	StepUpApproveChange:        {"approving", true},
@@ -254,6 +256,10 @@ func doing(action StepUpAction, target string) string {
 				case "remove":
 					return "removing SSH key " + key + " for " + account + " on " + server
 				}
+			}
+		case StepUpBanFail2banAddress:
+			if jail, address, ok := strings.Cut(subject, ":"); ok {
+				return "banning " + address + " in " + jail + " on " + server
 			}
 		case StepUpDisconnectSSHSession, StepUpBanSSHAddress:
 			return a.doing + " " + subject + " on " + server

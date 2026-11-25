@@ -8,6 +8,7 @@ package firewall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -35,10 +36,9 @@ type Backend interface {
 // Checker is a backend that refuses, when a change is planned, a rule or a
 // policy that leaves the server unsafe to reach: one that narrows SSH with
 // nobody's address to keep, or denies the control plane's own ports (ADR
-// 0052). It judges the state the edit leaves: actual is what's there now, nil
-// for nothing, and desired what it becomes, nil to delete it.
+// 0052). Each check sees the other edits in the plan.
 type Checker interface {
-	CheckRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) error
+	CheckRule(ctx context.Context, ref resource.Ref, actual, desired *resourcev1.FirewallRule) error
 	CheckPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) error
 }
 
@@ -103,37 +103,67 @@ func (*Driver) Level() resource.Level { return resource.LevelServer }
 // New returns an empty FirewallRule.
 func (*Driver) New() proto.Message { return &resourcev1.FirewallRule{} }
 
-// Validate requires a port and valid sources, and puts sources in a
-// canonical order.
+// Validate requires a port or a source and puts sources in a canonical order.
 func (*Driver) Validate(spec proto.Message) error {
 	r := spec.(*resourcev1.FirewallRule)
-	if r.GetPort() == 0 || r.GetPort() > 65535 {
+	if r.GetPort() > 65535 {
 		return fmt.Errorf("a rule's port runs from 1 to 65535, not %d", r.GetPort())
+	}
+	if r.GetPort() == 0 && len(r.GetSources()) == 0 {
+		return errors.New("a rule needs a port or addresses to cover on every port. Add one")
 	}
 	if r.Action == resourcev1.FirewallAction_FIREWALL_ACTION_UNSPECIFIED {
 		r.Action = resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW
 	}
-	if r.Protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
+	if r.Protocol == resourcev1.Protocol_PROTOCOL_UNSPECIFIED && r.GetPort() != 0 {
 		r.Protocol = resourcev1.Protocol_PROTOCOL_TCP
+	}
+	if r.Action != resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW && r.Action != resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
+		return errors.New("choose allow or deny for the firewall rule")
+	}
+	switch r.Protocol {
+	case resourcev1.Protocol_PROTOCOL_UNSPECIFIED, resourcev1.Protocol_PROTOCOL_TCP, resourcev1.Protocol_PROTOCOL_UDP:
+	default:
+		return errors.New("choose TCP, UDP or all protocols for the firewall rule")
 	}
 	sources := make([]string, 0, len(r.GetSources()))
 	for _, s := range r.GetSources() {
-		p, err := netip.ParsePrefix(s)
+		p, err := sourcePrefix(s)
 		if err != nil {
-			addr, aerr := netip.ParseAddr(s)
-			if aerr != nil {
-				return fmt.Errorf("%q isn't an address or a CIDR range, such as 203.0.113.0/24", s)
-			}
-			if addr.Zone() != "" {
-				return fmt.Errorf("%q names a network interface, which a rule can't match; drop the %%%s", s, addr.Zone())
-			}
-			p = netip.PrefixFrom(addr, addr.BitLen())
+			return err
 		}
-		sources = append(sources, p.Masked().String())
+		if r.GetPort() == 0 && r.Action == resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW && p.Bits() == 0 {
+			return errors.New("this range allows every address on every matching port. Narrow the range or turn off deny everything else")
+		}
+		sources = append(sources, p.String())
 	}
 	slices.Sort(sources)
 	r.Sources = slices.Compact(sources)
 	return nil
+}
+
+// SourceContains reports whether one firewall source covers an address.
+func SourceContains(source string, addr netip.Addr) bool {
+	p, err := sourcePrefix(source)
+	return err == nil && p.Contains(addr.Unmap())
+}
+
+func sourcePrefix(source string) (netip.Prefix, error) {
+	p, err := netip.ParsePrefix(source)
+	if err != nil {
+		addr, err := netip.ParseAddr(source)
+		if err != nil {
+			return netip.Prefix{}, fmt.Errorf("%q isn't an address or a CIDR range, such as 203.0.113.0/24", source)
+		}
+		if addr.Zone() != "" {
+			return netip.Prefix{}, fmt.Errorf("%q names a network interface, which a rule can't match; drop the %%%s", source, addr.Zone())
+		}
+		p = netip.PrefixFrom(addr, addr.BitLen())
+	}
+	if p.Addr().Is4In6() {
+		p = netip.PrefixFrom(p.Addr().Unmap(), max(0, p.Bits()-96))
+	}
+	return p.Masked(), nil
 }
 
 // Observe asks the firewall.
@@ -151,33 +181,36 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 // one, or where it can't say, every deny and narrowing is flagged. It lets the
 // backend refuse what leaves the server unsafe to reach.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	return d.Judge(context.Background(), resource.Ref{}, actual, desired, changes)
+	return d.Judge(context.Background(), resource.Ref{Kind: Kind}, actual, desired, changes)
 }
 
 // Judge is Plan within a plan's context, whose checks share one read of the
 // server (#850's re-check, N4).
-func (d *Driver) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
+	was, _ := actual.(*resourcev1.FirewallRule)
+	r, _ := desired.(*resourcev1.FirewallRule)
 	switch {
-	case actual == nil:
+	case was == nil:
 		dec.Action = resource.ActionCreate
-	case desired == nil:
+	case r == nil:
 		dec.Action = resource.ActionDelete
 	default:
 		dec.Action = resource.ActionUpdate
 	}
-	was, _ := actual.(*resourcev1.FirewallRule)
-	r, _ := desired.(*resourcev1.FirewallRule)
 	if mayCutOff(ctx, d.Backend, was, r) {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
 	}
 	if c, ok := d.Backend.(Checker); ok {
-		if err := c.CheckRule(ctx, was, r); err != nil {
+		if err := c.CheckRule(ctx, ref, was, r); err != nil {
 			return dec, err
 		}
 	}
 	if s, ok := d.Backend.(Stayer); ok {
-		dec.Stays = s.StaysAfterRule(ctx, was, r)
+		dec.Stays = s.StaysAfterRule(ctx, ref, was, r)
+	}
+	if len(dec.Warnings) == 0 && dec.Stays != nil && len(dec.Stays.SSHSessionsCovered) > 0 {
+		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
 	}
 	return dec, nil
 }
@@ -189,7 +222,8 @@ func narrows(was, r *resourcev1.FirewallRule) bool {
 		return false
 	}
 	if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY ||
-		r.GetPort() != was.GetPort() || r.GetProtocol() != was.GetProtocol() {
+		r.GetPort() != 0 && r.GetPort() != was.GetPort() ||
+		(r.GetPort() != 0 || r.GetProtocol() != resourcev1.Protocol_PROTOCOL_UNSPECIFIED) && r.GetProtocol() != was.GetProtocol() {
 		return true
 	}
 	return !covers(r.GetSources(), was.GetSources())
@@ -241,6 +275,16 @@ func mayCutOff(ctx context.Context, backend Backend, was, r *resourcev1.Firewall
 // reaches says whether a rule's port may be a way in, over its protocol: one
 // of the ways' ports, or any where they aren't known.
 func reaches(r *resourcev1.FirewallRule, ways Ways) bool {
+	if r.GetPort() == 0 {
+		switch r.GetProtocol() {
+		case resourcev1.Protocol_PROTOCOL_TCP:
+			return !ways.TCPKnown || len(ways.TCP) > 0
+		case resourcev1.Protocol_PROTOCOL_UDP:
+			return !ways.UDPKnown || len(ways.UDP) > 0
+		default:
+			return !ways.TCPKnown || !ways.UDPKnown || len(ways.TCP)+len(ways.UDP) > 0
+		}
+	}
 	ports, known := ways.TCP, ways.TCPKnown
 	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
 		ports, known = ways.UDP, ways.UDPKnown

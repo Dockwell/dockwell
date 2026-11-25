@@ -12,6 +12,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -127,6 +128,29 @@ func testADatabasesExternalAccessIsThreeEditsThatGoTogether(t *testing.T, backen
 		t.Errorf("db's external access reads %v", got)
 	}
 
+	var firewallRef *dockwellv1.ResourceRef
+	for _, r := range on.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "firewall.rule" {
+			firewallRef = r.GetResource()
+			break
+		}
+	}
+	for _, name := range []string{"external-zzz-allow", firewallRef.GetName()} {
+		_, err := ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Import an address rule",
+			Edits: []*dockwellv1.Edit{{
+				Resource:   &dockwellv1.ResourceRef{Kind: "firewall.rule", Scope: firewallRef.GetScope(), Name: name},
+				MustCreate: name == "external-zzz-allow",
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallRule{
+					FirewallRule: &resourcev1.FirewallRule{Sources: []string{"0.0.0.0/0", "::/0"}},
+				}},
+			}},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "reserved for database external access") {
+			t.Errorf("proposing reserved rule %q = %v", name, err)
+		}
+	}
+
 	off, err := set(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true})
 	if err != nil {
 		t.Fatal(err)
@@ -225,9 +249,9 @@ func TestExternalAccessTakesOnThePortThereAndTurnsOffFromAnyState(t *testing.T) 
 			t.Fatalf("turning it on ended %v: %v", done.GetState(), done.GetError())
 		}
 
-		// The port with its rules and no tag, as an earlier build could leave things,
-		// made here as Off and then the port and both rules written by hand: it reads as
-		// on, and Off takes the port and both rules.
+		// Recreate the port and rules an earlier build could leave untagged.
+		// Use the internal proposal path because those names are now reserved.
+		// The database still reads as open and Off removes the port and both rules.
 		off, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true}))
 		if err != nil {
 			t.Fatal(err)
@@ -246,9 +270,18 @@ func TestExternalAccessTakesOnThePortThereAndTurnsOffFromAnyState(t *testing.T) 
 				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallRule{FirewallRule: &resourcev1.FirewallRule{Action: action, Port: 5432, Sources: sources}}},
 			}
 		}
-		applyWithPasskey(t, ch, propose(t, ch, "The port and its rules, untagged", untag,
+		h := changes.New(f.engine, f.auth, f.store, nil)
+		legacy, err := h.Propose(changes.AsDockwell(t.Context()), "The port and its rules, untagged", []*dockwellv1.Edit{
+			untag,
 			rule(revision.ExternalAllow, resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW, "203.0.113.0/24"),
-			rule(revision.ExternalDeny, resourcev1.FirewallAction_FIREWALL_ACTION_DENY)))
+			rule(revision.ExternalDeny, resourcev1.FirewallAction_FIREWALL_ACTION_DENY),
+		}, nil, changes.Also{ExternalAccess: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done := applyWithPasskey(t, ch, legacy); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("creating the legacy state ended %v: %v", done.GetState(), done.GetError())
+		}
 		read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
 		if err != nil {
 			t.Fatal(err)

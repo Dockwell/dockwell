@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -91,6 +92,26 @@ type request struct {
 func ClientFrom(ctx context.Context) (auth.Client, bool) {
 	r, ok := ctx.Value(requestKey{}).(request)
 	return r.client, ok
+}
+
+// ClientAddress returns the request's IP address, or an invalid address for
+// loopback requests such as an SSH tunnel to the panel.
+func ClientAddress(ctx context.Context) netip.Addr {
+	client, _ := ClientFrom(ctx)
+	return RemoteAddress(client.Addr)
+}
+
+// RemoteAddress extracts a non-loopback address from a connection's peer.
+func RemoteAddress(remote string) netip.Addr {
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil {
+		host = remote
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil || addr.Zone() != "" || addr.Unmap().IsLoopback() {
+		return netip.Addr{}
+	}
+	return addr.Unmap()
 }
 
 // PrincipalFrom returns the signed-in user behind a request, if any.

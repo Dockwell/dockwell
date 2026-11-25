@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageInitShape } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import type { GetServerFirewallResponseSchema } from "@dockwell/api";
 import {
   Connection,
+  DockwellFirewallRuleSchema,
   FirewallAction,
   FirewallToolKind,
   FirewallVerdict,
@@ -26,6 +27,7 @@ import { expectAccessible } from "../../test/a11y";
 import { authError } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { readRuleFile, writeRuleFile } from "./FirewallRules";
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1" });
 
@@ -465,15 +467,15 @@ describe("a server's Firewall tab", () => {
       hz1,
       {
         changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
-        auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
       },
+      { yourAddress: "198.51.100.23" },
     );
     const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
     // Used by: what Docker publishes the port for, what listens there, or nothing.
     expect(rowsOf(panel)).toEqual([
-      "Allow443/tcpAnywhereThe server itselfwebRemove",
-      "Allow8080/tcpAnywhereshop-web-1Remove",
-      "Deny5432/tcp198.51.100.0/24Nothing listensRemove",
+      "Allow443/tcpAnywhereThe server itselfwebEditRemove",
+      "Allow8080/tcpAnywhereshop-web-1EditRemove",
+      "Deny5432/tcp198.51.100.0/24Nothing listensEditRemove",
     ]);
     expect(within(panel).getByRole("switch", { name: "Deny everything else" })).not.toBeChecked();
     // Until the boot unit ships, a reboot leaves them off for a few seconds, and the tab says so (ADR 0052).
@@ -525,14 +527,48 @@ describe("a server's Firewall tab", () => {
 
   it("lets in the /64 of your IPv6 address, as the database page does, not the address that changes (#800's review, M3)", async () => {
     const user = userEvent.setup();
-    await renderFirewall({ tools: [ufw] }, hz1, {
-      changes: { proposeChange: vi.fn(() => ({})), watchChange: feed<WatchChangeResponse>().stream },
-      auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "2001:db8:5:6:a:b:c:d", current: true }] }) },
-    });
+    await renderFirewall(
+      { tools: [ufw] },
+      hz1,
+      { changes: { proposeChange: vi.fn(() => ({})), watchChange: feed<WatchChangeResponse>().stream } },
+      { yourAddress: "2001:db8:5:6:a:b:c:d" },
+    );
     await user.click(await screen.findByRole("button", { name: "Add a rule" }));
     const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
     await user.click(await within(add).findByRole("button", { name: "Use my address" }));
     expect(within(add).getByLabelText("From")).toHaveValue("2001:db8:5:6::/64");
+  });
+
+  it("refuses a deny range covering your own IPv6 address before planning", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
+    await renderFirewall({}, hz1, { changes: { proposeChange: proposed } }, { yourAddress: "2001:db8:5:6::2" });
+    await user.click(await screen.findByRole("button", { name: "Add a rule" }));
+    const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    await user.selectOptions(within(add).getByLabelText("Action"), "deny");
+    await user.type(within(add).getByLabelText("From"), "2001:db8:5:6::/64");
+    await user.click(within(add).getByRole("button", { name: "Review plan" }));
+    expect(within(add).getByText(/This range covers your current address/)).toBeVisible();
+    expect(within(add).queryByRole("button", { name: "Use my address" })).toBeNull();
+    expect(proposed).not.toHaveBeenCalled();
+  });
+
+  it("refuses internal names and denies covering the viewer in imports, and exports only hand rules", () => {
+    const rule = { sources: ["203.0.113.0/24"] };
+    expect(() => readRuleFile(JSON.stringify({ version: 1, rules: [{ name: "external-zzz-allow", rule }] }))).toThrow(
+      "reserved: external-zzz-allow",
+    );
+    expect(() =>
+      readRuleFile(
+        JSON.stringify({ version: 1, rules: [{ name: "blocked", rule: { ...rule, action: FirewallAction.DENY } }] }),
+        "203.0.113.7",
+      ),
+    ).toThrow("own_address: blocked");
+    const saved = writeRuleFile([
+      create(DockwellFirewallRuleSchema, { name: "external-zzz-allow", rule }),
+      create(DockwellFirewallRuleSchema, { name: "office", rule }),
+    ]);
+    expect(readRuleFile(saved).map(({ name }) => name)).toEqual(["office"]);
   });
 
   it("refuses a port that isn't one, before planning anything", async () => {
@@ -622,6 +658,51 @@ describe("a server's Firewall tab", () => {
     expect(within(panel).queryByRole("switch")).toBeNull();
   });
 
+  it("offers to guard public Docker ports without changing the inbound default", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_request: ProposeChangeRequest) => ({}));
+    await renderFirewall({ tools: [ufw], published, dockwell: { canGuardDockerPorts: true } }, hz1, {
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const panel = await screen.findByRole("region", { name: "Ports Docker publishes" });
+    const guard = within(panel).getByRole("switch", { name: "Guard Docker ports" });
+    expect(guard).not.toBeChecked();
+    await user.click(guard);
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    expect(proposed.mock.calls[0]?.[0]).toMatchObject({
+      edits: [
+        {
+          resource: { kind: "firewall.policy", scope: "srv_1", name: "default" },
+          spec: {
+            kind: {
+              case: "firewallPolicy",
+              value: { denyEverythingElse: false, guardDockerPorts: true, guardDockerUdp: false },
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("includes forwarded UDP only when you turn it on", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_request: ProposeChangeRequest) => ({}));
+    await renderFirewall(
+      { published, dockwell: { canGuardDockerPorts: true, policy: { guardDockerPorts: true } } },
+      hz1,
+      { changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const guard = await screen.findByRole("switch", { name: "Guard Docker UDP ports" });
+    expect(guard).not.toBeChecked();
+    await user.click(guard);
+    await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({
+      denyEverythingElse: false,
+      guardDockerPorts: true,
+      guardDockerUdp: true,
+    });
+  });
+
   it("keeps Dockwell's rules on a phone's screen, a rule to a row", async () => {
     onPhone();
     await renderFirewall({
@@ -640,6 +721,6 @@ describe("a server's Firewall tab", () => {
       },
     });
     const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
-    expect(rowsOf(panel)).toEqual(["Allow 443/tcp203.0.113.0/24, 198.51.100.0/24, 2001:db8::/32Remove"]);
+    expect(rowsOf(panel)).toEqual(["Allow 443/tcp203.0.113.0/24, 198.51.100.0/24, 2001:db8::/32EditRemove"]);
   });
 });

@@ -124,6 +124,8 @@ type Config struct {
 	// Access keeps a change to the firewall that waits for its confirmation,
 	// when the control plane confirms it. Nil keeps none.
 	Access AccessConfirmer
+	// Fail2banProtected resolves the control server addresses that manual bans must leave alone.
+	Fail2banProtected func(context.Context) ([]string, error)
 	// Jails says the fail2ban jails Dockwell holds, by name, for the read to
 	// carry each beside the jail as it runs. Nil says none.
 	Jails func() map[string]*resourcev1.Jail
@@ -743,7 +745,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Tunnels != nil {
 		inventory.Tunnels = cfg.Tunnels.Find(ctx)
 	}
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: inventory, ReadsTunnels: cfg.Tunnels != nil, DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, ArchivesFiles: true, ManagesSsh: cfg.ssh != nil, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil, MakesAppOwners: cfg.Docker != nil, ReadsAppPorts: cfg.Docker != nil, ReadsSockets: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: inventory, ReadsTunnels: cfg.Tunnels != nil, DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, ArchivesFiles: true, ManagesSsh: cfg.ssh != nil, ManagesFirewall: true, GuardsDockerUdp: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil, MakesAppOwners: cfg.Docker != nil, ReadsAppPorts: cfg.Docker != nil, ReadsSockets: true}
 	if cfg.Updates != nil {
 		// A server whose host reboots says which boot it's on, so a reboot passes once
 		// it connects from another (ADR 0064).

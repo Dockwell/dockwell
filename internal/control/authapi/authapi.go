@@ -424,6 +424,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_GITHUB_APP:                     auth.StepUpRemoveGitHubApp,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_EDIT_SSH_KEY:                          auth.StepUpEditSSHKey,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_DISCONNECT_SSH_SESSION:                auth.StepUpDisconnectSSHSession,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS:                  auth.StepUpBanFail2banAddress,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_BAN_SSH_ADDRESS:                       auth.StepUpBanSSHAddress,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_END_PROCESS:                           auth.StepUpEndProcess,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL:                         auth.StepUpOpenTerminal,

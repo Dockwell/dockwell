@@ -22,7 +22,10 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	"github.com/dockwell/dockwell/internal/agent/nftables"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -53,7 +56,7 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 	defer release()
 	stream := client.Connect(t.Context())
 	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
-	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{ManagesSsh: true}}}); err != nil {
+	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Hello{Hello: &agentv1.Hello{ManagesSsh: true, ManagesFirewall: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	if msg, err := stream.Receive(); err != nil || msg.GetWelcome() == nil {
@@ -103,6 +106,14 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 				request := call.GetBanSshAddress()
 				calls <- request.GetAddress() + ":" + request.GetProof()
 				result.Result = &agentv1.CallResult_BanSshAddress{BanSshAddress: &dockwellv1.BanServerSshAddressResponse{}}
+			case call.GetSetFail2BanAddressBan() != nil:
+				request := call.GetSetFail2BanAddressBan()
+				action := "unban"
+				if request.GetBanned() {
+					action = "ban"
+				}
+				calls <- action + ":" + request.GetJail() + ":" + request.GetAddress() + ":" + request.GetProof()
+				result.Result = &agentv1.CallResult_SetFail2BanAddressBan{SetFail2BanAddressBan: &dockwellv1.SetFail2BanAddressBanResponse{}}
 			default:
 				result.Result = &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "unexpected agent call"}}
 			}
@@ -131,6 +142,12 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 		_, err := firewalls.BanServerSshAddress(t.Context(), connect.NewRequest(&dockwellv1.BanServerSshAddressRequest{ServerId: server, Address: "203.0.113.9", Proof: proof}))
 		return err
 	}
+	fail2ban := func(banned bool, proof string) error {
+		_, err := firewalls.SetFail2BanAddressBan(t.Context(), connect.NewRequest(&dockwellv1.SetFail2BanAddressBanRequest{
+			ServerId: server, Jail: "sshd", Address: "::ffff:192.0.2.17", Banned: banned, Proof: proof,
+		}))
+		return err
+	}
 	for _, tc := range []struct {
 		call   func(string) error
 		want   string
@@ -141,6 +158,7 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 		{func(proof string) error { return edit("deploy", proof, false) }, "remove:deploy:", server + ":deploy:remove:" + fp, 0},
 		{func(proof string) error { return disconnect("session-1", proof) }, "session-1:", server + ":session-1", 0},
 		{ban, "203.0.113.9:", server + ":203.0.113.9", 0},
+		{func(proof string) error { return fail2ban(true, proof) }, "ban:sshd:192.0.2.17:", server + ":sshd:192.0.2.17", 0},
 		{func(proof string) error { return disconnect("protected", proof) }, "protected:", server + ":protected", connect.CodeFailedPrecondition},
 		{func(proof string) error { return disconnect("uncertain", proof) }, "uncertain:", server + ":uncertain", connect.CodeUnavailable},
 	} {
@@ -164,6 +182,18 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 		}
 	}
 
+	if err := fail2ban(false, ""); err != nil {
+		t.Fatalf("unban without a passkey: %v", err)
+	}
+	select {
+	case got := <-calls:
+		if got != "unban:sshd:192.0.2.17:" {
+			t.Fatalf("agent received %q from unban", got)
+		}
+	default:
+		t.Fatal("unban never reached the agent")
+	}
+
 	events := map[string][]store.Event{}
 	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
 		rows, err := tx.ListEvents(t.Context(), 100)
@@ -174,7 +204,7 @@ func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, action := range []string{firewall.EventSSHKeyAdded, firewall.EventSSHKeyRemoved, firewall.EventSSHDisconnected, firewall.EventSSHAddressBanned, firewall.EventSSHUnconfirmed} {
+	for _, action := range []string{firewall.EventSSHKeyAdded, firewall.EventSSHKeyRemoved, firewall.EventSSHDisconnected, firewall.EventSSHAddressBanned, firewall.EventSSHUnconfirmed, firewall.EventFail2banBanned, firewall.EventFail2banUnbanned} {
 		if len(events[action]) != 1 {
 			t.Errorf("Activity has %d %s rows, want 1", len(events[action]), action)
 		}
@@ -284,6 +314,8 @@ func TestSSHMoveKeepsThePortWhenEditingTheStoredFirewallRule(t *testing.T) {
 			}
 		}
 		rule := ruleOn(server, "allow-ssh", 22)
+		rule.Spec.GetFirewallRule().Comment = "SSH before the move"
+		rule.MustCreate = true
 		policy := &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(rulekind.PolicyKind), Scope: server, Name: "default"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallPolicy{FirewallPolicy: &resourcev1.FirewallPolicy{
@@ -291,6 +323,13 @@ func TestSSHMoveKeepsThePortWhenEditingTheStoredFirewallRule(t *testing.T) {
 			}}},
 		}
 		keep(propose(t, c, "Open SSH and deny other ports", rule, policy))
+		_, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Import an already named rule", Edits: []*dockwellv1.Edit{rule},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "already a firewall.rule named allow-ssh") {
+			t.Fatalf("create-only did not refuse the existing rule: %v", err)
+		}
+		rule.MustCreate = false
 		move := propose(t, c, "Move SSH to port 2222", &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(sshconfig.Kind), Scope: server, Name: "default"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_SshConfig{SshConfig: &resourcev1.SshConfig{
@@ -326,24 +365,55 @@ func TestSSHMoveKeepsThePortWhenEditingTheStoredFirewallRule(t *testing.T) {
 		keep(propose(t, c, "Limit SSH to the office", rule))
 		partial := ruleOn(server, "allow-ssh", 0)
 		partial.Spec.GetFirewallRule().Sources = []string{"198.51.100.128/25"}
-		keep(propose(t, c, "Narrow the office range without specifying a port", partial))
+		addressEdit := propose(t, c, "Allow the office address on every port", partial)
+		if !slices.ContainsFunc(addressEdit.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return n.GetReason() == "firewall_all_ports" && strings.Contains(n.GetMessage(), "allow-ssh now covers every port")
+		}) {
+			t.Fatalf("plan did not call out the rule now covering every port: %v", addressEdit.GetPlan().GetNotes())
+		}
+		fields := addressEdit.GetPlan().GetServers()[0].GetSteps()[0].GetChanges()
+		if !slices.ContainsFunc(fields, func(field *dockwellv1.FieldChange) bool {
+			return field.GetPath() == "comment" && field.GetFrom() == "SSH before the move" && field.GetTo() == ""
+		}) {
+			t.Fatalf("plan did not show the comment being cleared: %v", fields)
+		}
+		keep(addressEdit)
+		tbl.mu.Lock()
+		live := slices.Clone(tbl.loaded.Allows)
+		tbl.mu.Unlock()
+		if !slices.ContainsFunc(live, func(r nftables.Rule) bool {
+			return r.Name == "rule allow-ssh" && len(r.Ports) == 0 &&
+				slices.Equal(r.Sources, []netip.Prefix{netip.MustParsePrefix("198.51.100.128/25")})
+		}) {
+			t.Fatalf("address edit did not cover every port: %v", live)
+		}
 		partial.Spec.GetFirewallRule().Port = 22
 		portEdit := propose(t, c, "Explicitly change the firewall rule to port 22", partial)
-		changes := portEdit.GetPlan().GetServers()[0].GetSteps()[0].GetChanges()
-		if !slices.ContainsFunc(changes, func(field *dockwellv1.FieldChange) bool {
-			return field.GetPath() == "port" && field.GetFrom() == "2222" && field.GetTo() == "22"
+		fields = portEdit.GetPlan().GetServers()[0].GetSteps()[0].GetChanges()
+		if !slices.ContainsFunc(fields, func(field *dockwellv1.FieldChange) bool {
+			return field.GetPath() == "port" && field.GetTo() == "22"
 		}) {
-			t.Fatalf("plan did not show the explicit port change: %v", changes)
+			t.Fatalf("plan did not show the explicit port change: %v", fields)
 		}
+	})
+}
 
-		tbl.mu.Lock()
-		defer tbl.mu.Unlock()
-		for _, live := range tbl.loaded.Allows {
-			if live.Name == "rule allow-ssh" && slices.Equal(live.Ports, []uint16{2222}) &&
-				slices.Equal(live.Sources, []netip.Prefix{netip.MustParsePrefix("198.51.100.128/25")}) {
-				return
-			}
+func TestFirewallProposeRejectsDenyOfCurrentAddress(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		f.addServerWith(t, func() []resource.Type {
+			return []resource.Type{&rulekind.Driver{Backend: rulekind.NewFake()}}
+		})
+		h := changes.New(f.engine, f.auth, f.store, nil)
+		ctx := authapi.As(t.Context(), auth.Client{Addr: "[::ffff:203.0.113.7]:1234"}, auth.Principal{})
+		edit := ruleOn(f.lastDocker.id.ServerID, "deny-address", 0)
+		edit.Spec.GetFirewallRule().Action = resourcev1.FirewallAction_FIREWALL_ACTION_DENY
+		edit.Spec.GetFirewallRule().Sources = []string{"::ffff:203.0.113.0/120"}
+		_, err := h.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Block an address range", Edits: []*dockwellv1.Edit{edit},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "includes your current address") {
+			t.Fatalf("proposing a deny of the caller's range: %v", err)
 		}
-		t.Fatalf("source edit did not keep SSH on 2222: %v", tbl.loaded.Allows)
 	})
 }

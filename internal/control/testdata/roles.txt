@@ -189,6 +189,7 @@ FirewallService.GetServerSsh                   read         admin      admin    
 FirewallService.ListServerSshKeys              read         admin      admin      install  session
 FirewallService.ListServerSshLogins            read         admin      admin      install  session
 FirewallService.ListServerSshSessions          read         admin      admin      install  session
+FirewallService.SetFail2banAddressBan          destructive  admin      admin      install  session
 GitHookService.CreateGitHook                   apply        developer  admin      project  session
 GitHookService.DeleteGitHook                   apply        developer  developer  project
 GitHookService.GetGitHook                      read         viewer     viewer     project

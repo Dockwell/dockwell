@@ -638,6 +638,10 @@ message Hello {
   // True when the agent compresses and extracts archives on disk, and
   // downloads several paths as one zip. Files handy uses 420 to 429.
   bool manages_ssh = 446;
+  // True when this agent understands address rules and reviewed firewall changes.
+  bool manages_firewall = 451;
+  // True when the Docker guard leaves UDP open unless requested.
+  bool guards_docker_udp = 452;
   bool archives_files = 420;
   // True when the agent reads live sockets and process details (430 to 439).
   bool reads_sockets = 430;
@@ -970,6 +974,7 @@ message Call {
     dockwell.v1.DisconnectServerSshSessionRequest disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsRequest list_ssh_logins = 444;
     dockwell.v1.BanServerSshAddressRequest ban_ssh_address = 445;
+    dockwell.v1.SetFail2banAddressBanRequest set_fail2ban_address_ban = 450;
     ListArchiveJobsCall list_archive_jobs = 423;
     // Live sockets and process details take 430 to 439.
     ListSocketsCall list_sockets = 430;
@@ -2838,6 +2843,7 @@ message CallResult {
     dockwell.v1.DisconnectServerSshSessionResponse disconnect_ssh_session = 443;
     dockwell.v1.ListServerSshLoginsResponse list_ssh_logins = 444;
     dockwell.v1.BanServerSshAddressResponse ban_ssh_address = 445;
+    dockwell.v1.SetFail2banAddressBanResponse set_fail2ban_address_ban = 450;
     ListArchiveJobsResult list_archive_jobs = 423;
     // What list_sockets and process_detail read (430 to 439).
     ListSocketsResult list_sockets = 430;

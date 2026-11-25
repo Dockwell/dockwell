@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package firewall serves dockwell.v1.FirewallService: what filters a server's
-// inbound traffic, as its agent reads it, changing nothing. See
+// inbound traffic and actions that manage access. See
 // docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
 package firewall
 
@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
-	"net/netip"
 
 	"connectrpc.com/connect"
 
@@ -57,7 +55,7 @@ func (h *Handler) GetServerFirewall(ctx context.Context, req *connect.Request[do
 	if err != nil {
 		return nil, readError(srv, "the firewall", "what filters its traffic", err)
 	}
-	return connect.NewResponse(&dockwellv1.GetServerFirewallResponse{Firewall: read}), nil
+	return connect.NewResponse(&dockwellv1.GetServerFirewallResponse{Firewall: read, YourAddress: callersAddress(ctx)}), nil
 }
 
 // GetServerSsh asks a server's agent how SSH lets people in.
@@ -133,23 +131,16 @@ func readError(srv *dockwellv1.Server, thing, what string, err error) error {
 // callersAddress is the address a request came from, as the control plane sees
 // it, or "" when that's the server itself, as over ssh -L, or can't be read.
 func callersAddress(ctx context.Context) string {
-	client, ok := authapi.ClientFrom(ctx)
-	if !ok {
-		return ""
+	if addr := authapi.ClientAddress(ctx); addr.IsValid() {
+		return addr.String()
 	}
-	return CallersAddress(client.Addr)
+	return ""
 }
 
-// CallersAddress reads a connection's remote address, "address:port", as the
-// address alone, or "" for the server's own loopback and what isn't one.
+// CallersAddress returns the non-loopback IP of a connection peer.
 func CallersAddress(remote string) string {
-	host := remote
-	if h, _, err := net.SplitHostPort(remote); err == nil {
-		host = h
+	if addr := authapi.RemoteAddress(remote); addr.IsValid() {
+		return addr.String()
 	}
-	addr, err := netip.ParseAddr(host)
-	if err != nil || addr.IsLoopback() || addr.Zone() != "" {
-		return ""
-	}
-	return addr.Unmap().String()
+	return ""
 }

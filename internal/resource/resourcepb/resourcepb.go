@@ -156,7 +156,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Jail = &dockwellv1.JailPlan{NeverBans: j.NeverBans, SignedInNotIgnored: j.SignedInNotIgnored, IgnoresEverything: j.IgnoresEverything}
 	}
 	if a := s.Stays; a != nil {
-		p.Stays = &dockwellv1.AccessStays{SshPorts: a.SSHPorts, Pinned: a.Pinned, Allowed: a.Allowed, Tunnels: a.Tunnels, PanelPorts: a.PanelPorts}
+		p.Stays = &dockwellv1.AccessStays{SshPorts: a.SSHPorts, Pinned: a.Pinned, Allowed: a.Allowed, Tunnels: a.Tunnels, PanelPorts: a.PanelPorts, SshSessionsCovered: a.SSHSessionsCovered}
 	}
 	if c := s.ServerPort; c != nil {
 		p.ServerPort = &dockwellv1.ServerPortCheck{Port: c.Port, Listening: c.Listening, NothingListening: c.Nothing}
@@ -553,7 +553,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Jail = &resource.JailPlan{NeverBans: j.GetNeverBans(), SignedInNotIgnored: j.GetSignedInNotIgnored(), IgnoresEverything: j.GetIgnoresEverything()}
 	}
 	if a := p.GetStays(); a != nil {
-		s.Stays = &resource.AccessStays{SSHPorts: a.GetSshPorts(), Pinned: a.GetPinned(), Allowed: a.GetAllowed(), Tunnels: a.GetTunnels(), PanelPorts: a.GetPanelPorts()}
+		s.Stays = &resource.AccessStays{SSHPorts: a.GetSshPorts(), Pinned: a.GetPinned(), Allowed: a.GetAllowed(), Tunnels: a.GetTunnels(), PanelPorts: a.GetPanelPorts(), SSHSessionsCovered: a.GetSshSessionsCovered()}
 	}
 	if c := p.GetServerPort(); c != nil {
 		s.ServerPort = &resource.ServerPortCheck{Port: c.GetPort(), Listening: c.GetListening(), Nothing: c.GetNothingListening()}

@@ -229,6 +229,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FirewallService.disconnectServerSshSession": "may",
   "FirewallService.listServerSshLogins": "may",
   "FirewallService.banServerSshAddress": "may",
+  "FirewallService.setFail2banAddressBan": "may",
 
   "GitHookService.createGitHook": "may",
   "GitHookService.deleteGitHook": "may",

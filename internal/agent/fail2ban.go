@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -46,8 +47,9 @@ type fail2banReader struct {
 
 	// specs are the jails Dockwell holds, and sessions the addresses signed in
 	// over SSH now, when the agent can say.
-	specs    func() map[string]*resourcev1.Jail
-	sessions func(ctx context.Context) []string
+	specs     func() map[string]*resourcev1.Jail
+	sessions  func(ctx context.Context) []string
+	protected func(context.Context) ([]string, error)
 
 	reads shared[*dockwellv1.ServerFail2Ban]
 }
@@ -59,7 +61,7 @@ func newFail2banReader(cfg Config) *fail2banReader {
 	if tools == nil {
 		tools = &hosttool.Runner{Off: true}
 	}
-	return &fail2banReader{tools: tools, loc: time.Local, specs: cfg.Jails, sessions: cfg.SSHSessions}
+	return &fail2banReader{tools: tools, loc: time.Local, specs: cfg.Jails, sessions: cfg.SSHSessions, protected: cfg.Fail2banProtected}
 }
 
 // read reads fail2ban as it is now. Two tabs asking at once share one read.
@@ -96,7 +98,7 @@ func (f *fail2banReader) readNow(ctx context.Context) *dockwellv1.ServerFail2Ban
 	if f.now != nil {
 		now = f.now
 	}
-	out := &dockwellv1.ServerFail2Ban{Time: timestamppb.New(now())}
+	out := &dockwellv1.ServerFail2Ban{Time: timestamppb.New(now()), ManagesJailsAndBans: true}
 	if _, ok := f.tools.Find(fail2banClient); !ok {
 		out.State = dockwellv1.Fail2BanState_FAIL2BAN_STATE_NOT_INSTALLED
 		return out
@@ -128,7 +130,8 @@ func (f *fail2banReader) readNow(ctx context.Context) *dockwellv1.ServerFail2Ban
 	if f.specs != nil {
 		specs = f.specs()
 	}
-	for _, name := range jailList(status) {
+	active := jailList(status)
+	for _, name := range active {
 		if !isJailArg(name) {
 			// Never an argument: a name that starts with a dash would read as one of
 			// fail2ban-client's options.
@@ -136,10 +139,16 @@ func (f *fail2banReader) readNow(ctx context.Context) *dockwellv1.ServerFail2Ban
 			continue
 		}
 		j := f.jail(ctx, name)
+		j.Running = true
 		if j.Dockwell = ours[name]; j.Dockwell {
 			j.Spec = specs[name]
 		}
 		out.Jails = append(out.Jails, j)
+	}
+	for _, name := range slices.Sorted(maps.Keys(specs)) {
+		if specs[name].GetDisabled() && !slices.Contains(active, name) {
+			out.Jails = append(out.Jails, &dockwellv1.Fail2BanJail{Name: name, Dockwell: true, Spec: specs[name]})
+		}
 	}
 	return out
 }
@@ -186,9 +195,15 @@ func (f *fail2banReader) jail(ctx context.Context, name string) *dockwellv1.Fail
 	if v, err := f.client(ctx, "get", name, "banip", "--with-time"); err == nil {
 		j.Bans = f.timedBans(v)
 	}
-	if len(j.Bans) == 0 {
-		for _, ip := range strings.Fields(fields["Banned IP list"]) {
+	// A timed listing can omit a ban whose dates it couldn't format.
+	seen := make(map[string]bool, len(j.Bans))
+	for _, ban := range j.Bans {
+		seen[ban.GetAddress()] = true
+	}
+	for _, ip := range strings.Fields(fields["Banned IP list"]) {
+		if !seen[ip] {
 			j.Bans = append(j.Bans, &dockwellv1.Fail2BanBan{Address: ip})
+			seen[ip] = true
 		}
 	}
 	if len(j.Bans) > maxBans {

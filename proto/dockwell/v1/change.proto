@@ -466,7 +466,8 @@ message Edit {
   // first. Those apps stop working. Numbered in the block connectable apps hold in
   // other messages, 80 to 89.
   bool delete_shared = 81;
-  // Require a new network or volume and an unoccupied Engine name.
+  // Require a new resource name for a firewall rule, network or volume.
+  // A network or volume also needs an unoccupied Docker Engine name.
   bool must_create = 400;
 }
 
@@ -2269,6 +2270,9 @@ message AccessStays {
   // server, when the change turns deny everything else on there: they stay
   // open by their pin, and the test to run is the panel in a new tab too.
   repeated uint32 panel_ports = 5;
+  // Addresses with a live SSH session covered by the proposed deny. Its
+  // session stays open, but reconnecting can depend on the pin.
+  repeated string ssh_sessions_covered = 6;
 }
 
 // BackupFirst is a backup a change takes before anything else it does, as a catalog

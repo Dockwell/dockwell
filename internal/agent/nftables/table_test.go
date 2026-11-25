@@ -171,3 +171,34 @@ func TestIsRuleNameTakesWhatItsExpressionTook(t *testing.T) {
 		t.Errorf("the expression took %d of %d cases, which tells nothing", took, len(cases))
 	}
 }
+
+func TestAddressRulesAndDockerGuard(t *testing.T) {
+	table := Table{
+		GuardDockerPorts: true,
+		DockerInterfaces: []string{"docker0"},
+		Denies: []Rule{{Name: "rule blocked", Sources: []netip.Prefix{
+			netip.MustParsePrefix("192.0.2.5/32"), netip.MustParsePrefix("2001:db8::5/128"),
+		}}},
+	}
+	script, err := table.Script()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rule := range []string{
+		`ip saddr 192.0.2.5/32 drop comment "rule blocked"`,
+		`ip6 saddr 2001:db8::5/128 drop comment "rule blocked"`,
+	} {
+		if strings.Count(script, rule) != 2 {
+			t.Fatalf("want %s in input and published:\n%s", rule, script)
+		}
+	}
+	if strings.Count(script, `meta l4proto != udp drop comment "policy guard Docker ports"`) != 1 ||
+		!strings.Contains(script, `ct status dnat iifname != { "docker0" } oifname { "docker0" } jump published`) {
+		t.Fatalf("guard must cover only Docker's forward path:\n%s", script)
+	}
+	table.GuardDockerUDP = true
+	script, err = table.Script()
+	if err != nil || !strings.Contains(script, "\t\tdrop comment \"policy guard Docker ports\"") {
+		t.Fatalf("guard with UDP included: %v\n%s", err, script)
+	}
+}

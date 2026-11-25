@@ -2,6 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   Connection,
   type FirewallSeenRule,
   FirewallService,
@@ -23,6 +24,7 @@ import {
   PHONE_QUERY,
   SkeletonCard,
   SkeletonRows,
+  Switch,
   type TableColumn,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -31,10 +33,13 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { useReadAgainOnceOver } from "../changes/follow";
 import { type ListRouteProps, ListSectionTable, ListToolbar, useListPlace } from "../shell/ListTools";
 import { ReadFailed } from "../shell/ReadFailed";
 import { Fail2banPanel, SshPanel } from "./FirewallAccess";
-import { DockwellRules, usePortUser } from "./FirewallRules";
+import { DockwellRules, policyEdit, usePortUser } from "./FirewallRules";
 import { ServerFrame } from "./ServerFrame";
 import "./FirewallPage.css";
 
@@ -168,11 +173,18 @@ function FirewallRead({
   const dockwellFilters =
     (dockwell?.rules.length ?? 0) > 0 ||
     (dockwell?.policy?.denyEverythingElse ?? false) ||
+    (dockwell?.policy?.guardDockerPorts ?? false) ||
     (dockwell?.waitingChange ?? "") !== "";
   return (
     <>
       <ListToolbar place={place} label={t`Filter firewall rules and ports`} />
-      <DockwellRules server={server} fw={fw} place={place} onChanged={() => void read.refetch()} />
+      <DockwellRules
+        server={server}
+        fw={fw}
+        yourAddress={read.data?.yourAddress ?? ""}
+        place={place}
+        onChanged={() => void read.refetch()}
+      />
       {there.length === 0 ? (
         <Panel title={t`Inbound traffic`}>
           <p className="firewall-note">
@@ -197,6 +209,8 @@ function FirewallRead({
       {ssh}
       <ListeningPanel server={server} listening={fw.listening} query={place.query} />
       <PublishedPanel
+        server={server}
+        onChanged={() => void read.refetch()}
         fw={fw}
         filtered={filtered}
         dockwellDenies={dockwell?.policy?.denyEverythingElse ?? false}
@@ -559,11 +573,15 @@ interface PortRow {
  * rules in DOCKER-USER, which filter them.
  */
 function PublishedPanel({
+  server,
+  onChanged,
   fw,
   filtered,
   dockwellDenies,
   query,
 }: {
+  server: Server;
+  onChanged: () => void;
   fw: ServerFirewall;
   filtered: boolean;
   /** Dockwell denies everything else, which covers what Docker publishes too. */
@@ -572,6 +590,32 @@ function PublishedPanel({
 }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const changes = useChangeSheet();
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
+  const readAgain = useReadAgainOnceOver(onChanged);
+  const dockwell = fw.dockwell;
+  const waiting = !!dockwell?.waitingChange;
+  const guards = !!dockwell?.policy?.guardDockerPorts;
+  const waitingGuard = waiting && !!dockwell?.waitingPolicy?.guardDockerPorts !== guards;
+  const guardOn = waitingGuard ? !guards : guards;
+  const guardsUdp = !!dockwell?.policy?.guardDockerUdp;
+  const udpOn = waiting ? !!dockwell?.waitingPolicy?.guardDockerUdp : guardsUdp;
+  const waitingUdp = waiting && udpOn !== guardsUdp;
+  const name = server.name;
+  const setGuard = (on: boolean) =>
+    changes.open({
+      kind: "propose",
+      summary: on ? t`Guard Docker ports on ${name}` : t`Stop guarding Docker ports on ${name}`,
+      edits: [policyEdit(server, dockwellDenies, on, on && guardsUdp)],
+      onClose: readAgain,
+    });
+  const setGuardUdp = (on: boolean) =>
+    changes.open({
+      kind: "propose",
+      summary: on ? t`Guard Docker UDP ports on ${name}` : t`Leave Docker UDP ports open on ${name}`,
+      edits: [policyEdit(server, dockwellDenies, true, on)],
+      onClose: readAgain,
+    });
   const ports = fw.published;
   if (fw.publishedUnreadable) {
     return (
@@ -580,10 +624,11 @@ function PublishedPanel({
       </Panel>
     );
   }
-  if (ports.length === 0) return null;
+  if (ports.length === 0 && !guards && !waitingGuard) return null;
   const rows: PortRow[] = ports.map((port) => ({ id: `${port.hostIp}-${port.hostPort}-${port.protocol}`, port }));
   // What the input rules don't see: a port on more than loopback that Docker's proxy doesn't take.
   const past = ports.filter((p) => !p.proxied && !p.hostIp.startsWith("127.") && p.hostIp !== "::1");
+  const publicPort = past.some((p) => p.hostIp === "0.0.0.0" || p.hostIp === "::" || p.hostIp === "");
   const ipv4 = boundOnIPv4(ports.map((p) => ({ address: p.hostIp, port: p.hostPort, protocol: p.protocol })));
   // Each on a line of its own: the address, then what Docker's proxy means for it.
   const where = (p: PublishedPort) => (
@@ -644,6 +689,26 @@ function PublishedPanel({
       actions={<span className="firewall-meta">{plural(ports.length, { one: "# port", other: "# ports" })}</span>}
       flush
     >
+      {dockwell?.canGuardDockerPorts && (guards || waitingGuard || (publicPort && !dockwellDenies)) ? (
+        <div className="firewall-policy">
+          <Switch
+            checked={guardOn}
+            onChange={setGuard}
+            disabled={waiting || !mayPlan.allowed}
+            label={waitingGuard ? t`Guard Docker ports, waiting for Keep` : t`Guard Docker ports`}
+            description={t`Forwarded connections need an allow rule. UDP keeps its existing access unless you include it.`}
+          />
+          {guardOn && !dockwellDenies ? (
+            <Switch
+              checked={udpOn}
+              onChange={setGuardUdp}
+              disabled={waiting || !mayPlan.allowed}
+              label={waitingUdp ? t`Guard Docker UDP ports, waiting for Keep` : t`Guard Docker UDP ports`}
+              description={t`Published UDP ports need an allow rule, including ports used by VPN containers.`}
+            />
+          ) : null}
+        </div>
+      ) : null}
       {/* Said only where it matters: a port that answers beyond loopback, past Docker's proxy (#800). */}
       {filtered && past.length > 0 ? (
         <p className="firewall-note">

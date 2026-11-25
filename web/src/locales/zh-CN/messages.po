@@ -823,6 +823,9 @@ msgstr "请求运行 {task}"
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
+msgid "Banned a Fail2ban address on {server}"
+msgstr "已在 {server} 上通过 Fail2ban 封禁地址"
+
 msgid "Banned an SSH address on {server}"
 msgstr "已在 {server} 上封禁 SSH 地址"
 
@@ -1010,6 +1013,19 @@ msgstr "已将 {server} 上的 {path} 解压到 {to}"
 
 msgid "Extracted {path} into {to} on {server}, which can let someone back in"
 msgstr "已将 {server} 上的 {path} 解压到 {to}，该路径可用于重新进入服务器"
+
+#. placeholder {0}: ban.address
+#. placeholder {1}: ban.jail
+msgid "Fail2ban ban of {0} in {1} unconfirmed on {server}"
+msgstr "{server} 上的 Fail2ban 封禁尚未确认：在 {1} 中封禁 {0}"
+
+msgid "Fail2ban operation unconfirmed on {server}"
+msgstr "{server} 上的 Fail2ban 操作尚未确认"
+
+#. placeholder {0}: ban.address
+#. placeholder {1}: ban.jail
+msgid "Fail2ban unban of {0} in {1} unconfirmed on {server}"
+msgstr "{server} 上的 Fail2ban 解封尚未确认：在 {1} 中解封 {0}"
 
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
@@ -1458,6 +1474,9 @@ msgstr "开启了推送时部署"
 
 msgid "Turned on deploy on push for {name}"
 msgstr "开启了 {name} 的推送时部署"
+
+msgid "Unbanned a Fail2ban address on {server}"
+msgstr "已在 {server} 上通过 Fail2ban 解除地址封禁"
 
 msgid "Undo: {reverted}"
 msgstr "撤销：{reverted}"
@@ -11385,11 +11404,20 @@ msgstr "登录持续时间（小时）"
 msgid "action"
 msgstr "动作"
 
+msgid "all ports"
+msgstr "所有端口"
+
+msgid "all {transport} ports"
+msgstr "所有 {transport} 端口"
+
 msgid "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "允许 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
 
 msgid "allow <0>{port}</0>, {proto}, from anywhere"
 msgstr "允许 <0>{port}</0>，{proto}，来源不限"
+
+msgid "allow {match} from <0>{from}</0>"
+msgstr "允许 <0>{from}</0> 访问{match}"
 
 msgid "as the provider has them now"
 msgstr "与提供方当前的设置一致"
@@ -11399,6 +11427,9 @@ msgstr "阻止 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
 
 msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "阻止 <0>{port}</0>，{proto}，来源不限"
+
+msgid "block {match} from <0>{from}</0>"
+msgstr "阻止 <0>{from}</0> 访问{match}"
 
 msgid "branch"
 msgstr "分支"
@@ -11733,6 +11764,9 @@ msgstr "文件中的同名服务会替换它，文件未提到的服务会被删
 msgid "A service of the same name in the file replaces it."
 msgstr "文件中的同名服务会替换它。"
 
+msgid "Add a rule for any of these ports you want to keep open: {closes}."
+msgstr "如需保持以下端口开放，请添加允许规则：{closes}。"
+
 msgid "Add it to what the jail never bans first, or apply this knowing it."
 msgstr "请先把它加入这个 jail 永不封禁的地址，或在知情的情况下应用。"
 
@@ -11865,10 +11899,6 @@ msgstr "每分钟检查一次 {domain}"
 msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 msgstr "{domains} 的 DNS 记录会保留。若要编辑仍通过此提供方发布的路由，请让管理员恢复访问权限。由此提供方验证的证书可能无法续期。"
 
-#. placeholder {0}: server.serverName
-msgid "Deny everything else closes what no rule lets in on {0}"
-msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
-
 msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。"
 
@@ -11989,9 +12019,6 @@ msgstr "它可以写入 {holder}，其中有 {held}，而 {holdsFor} 挂载了 {
 
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "在此期间无法读取；服务器恢复连接且满 7 天后，这些日志会被删除。"
-
-msgid "It closes {closes}: add a rule for any you mean to keep open."
-msgstr "它会关闭 {closes}：要保持开放的，请为其添加规则。"
 
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
@@ -12145,6 +12172,10 @@ msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "从此目录安装的应用不会升级到它们。"
 
+#. placeholder {0}: server.serverName
+msgid "Ports this plan would close on {0}"
+msgstr "此计划将关闭 {0} 上的以下端口"
+
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "将重新拉取 {image}，只有镜像更新时才会替换 {name}。"
 
@@ -12282,9 +12313,6 @@ msgstr "服务器的安全取决于它能访问的内容，所以这相当于拥
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 运行的 {image}（{digest}）已不在服务器上，其镜像仓库也不提供，因此 {name} 将运行 {image} 当前指向的镜像"
 
-msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
-msgstr "这些端口正在监听，或由 Docker 发布，且没有规则允许任意来源访问。SSH 按此计划所述保持开放，控制服务器自身的端口也保持开放。"
-
 msgid "They are {list}."
 msgstr "它们是 {list}。"
 
@@ -12302,6 +12330,10 @@ msgstr "此目录优先，因此应用目录显示它的应用。"
 
 msgid "This copy was taken with the app running"
 msgstr "此副本是在应用运行时复制的"
+
+#. placeholder {0}: server.serverName
+msgid "This deny covers addresses with open SSH sessions on {0}"
+msgstr "此拒绝规则涵盖 {0} 上有活动 SSH 会话的地址"
 
 #. placeholder {0}: server.serverName
 msgid "This jail can ban your own address on {0}"
@@ -12603,6 +12635,9 @@ msgstr "{name} 不再服务于所有项目"
 msgid "{name} no longer serves {project}"
 msgstr "{name} 不再服务于 {project}"
 
+msgid "{name} now covers every port for its selected protocols and addresses"
+msgstr "{name} 现在涵盖所选协议和地址的所有端口"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
@@ -12709,6 +12744,9 @@ msgstr "{on} 无需任何操作，因此没有步骤。"
 
 msgid "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
 msgstr "{path} 的 {detail}（在 Cloudflare 中创建）将交由 Dockwell 管理"
+
+msgid "{peers} stay connected. Check that you can reconnect before you keep the change."
+msgstr "{peers} 的连接会保持。保留更改前，请确认可以重新连接。"
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} 可以再次从各自的来源目录升级。"
@@ -20012,6 +20050,15 @@ msgstr "永不封禁的地址或范围"
 msgid "As it is: {s}"
 msgstr "保持现值：{s}"
 
+msgid "Ban address"
+msgstr "封禁地址"
+
+msgid "Ban an address"
+msgstr "封禁一个地址"
+
+msgid "Ban {target} in the {jail} jail on {name}."
+msgstr "在 {name} 的 {jail} jail中封禁 {target}。"
+
 msgid "Banned for"
 msgstr "封禁时长"
 
@@ -20048,6 +20095,12 @@ msgstr "永久"
 
 msgid "Forced commands only"
 msgstr "仅限强制命令"
+
+msgid "IP address"
+msgstr "IP 地址"
+
+msgid "Jail"
+msgstr "jail"
 
 msgid "Jails"
 msgstr "Jail"
@@ -20106,6 +20159,24 @@ msgstr "SSH"
 msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
 msgstr "无法读取 SSH 的端口：这会关闭 fail2ban 自带 sshd jail 的端口，除非另有设置，否则是 22。"
 
+msgid "Show all bans"
+msgstr "显示所有封禁"
+
+msgid "Show fewer bans"
+msgstr "收起封禁列表"
+
+msgid "Start jail"
+msgstr "启动jail"
+
+msgid "Start the {jailName} jail on {name}"
+msgstr "在 {name} 上启动 {jailName} jail"
+
+msgid "Stop jail"
+msgstr "停止jail"
+
+msgid "Stop the {jailName} jail on {name}"
+msgstr "在 {name} 上停止 {jailName} jail"
+
 #. placeholder {0}: j.name
 msgid "Stop writing the {0} jail"
 msgstr "停止写入 {0} jail"
@@ -20136,6 +20207,18 @@ msgstr "以上是 sshd 配置文件的内容；sshd 使用的是它上次启动�
 
 msgid "This can ban {takenOutList} as it applies"
 msgstr "应用时可能封禁 {takenOutList}"
+
+msgid "This is your current address. Choose another address to ban."
+msgstr "这是你当前的地址。请选择其他要封禁的地址。"
+
+msgid "Unban"
+msgstr "解除封禁"
+
+msgid "Unban an address"
+msgstr "解除地址封禁"
+
+msgid "Unban {target} in the {jail} jail on {name}."
+msgstr "在 {name} 的 {jail} jail中解除对 {target} 的封禁。"
 
 msgid "Until it reloads, it may still accept what this says is off."
 msgstr "重新加载之前，它可能仍接受此处显示为关闭的登录方式。"
@@ -20291,6 +20374,27 @@ msgstr "所有地址"
 msgid "Filter firewall rules and ports"
 msgstr "筛选防火墙规则和端口"
 
+msgid "Forwarded connections need an allow rule. UDP keeps its existing access unless you include it."
+msgstr "转发连接需要允许规则。UDP 保持现有访问权限，除非你将它纳入保护。"
+
+msgid "Guard Docker UDP ports"
+msgstr "保护 Docker UDP 端口"
+
+msgid "Guard Docker UDP ports on {name}"
+msgstr "保护 {name} 上的 Docker UDP 端口"
+
+msgid "Guard Docker UDP ports, waiting for Keep"
+msgstr "保护 Docker UDP 端口，等待保留"
+
+msgid "Guard Docker ports"
+msgstr "保护 Docker 端口"
+
+msgid "Guard Docker ports on {name}"
+msgstr "保护 {name} 上的 Docker 端口"
+
+msgid "Guard Docker ports, waiting for Keep"
+msgstr "保护 Docker 端口，等待保留"
+
 msgid "Inbound traffic"
 msgstr "入站流量"
 
@@ -20317,6 +20421,9 @@ msgstr "它会拒收没有规则放行的流量。"
 
 msgid "Its port"
 msgstr "容器端口"
+
+msgid "Leave Docker UDP ports open on {name}"
+msgstr "保持 {name} 上的 Docker UDP 端口开放"
 
 msgid "Limit"
 msgstr "限速"
@@ -20353,6 +20460,9 @@ msgstr "开放：这里没有规则关闭它"
 msgid "Ports Docker publishes"
 msgstr "Docker 发布的端口"
 
+msgid "Published UDP ports need an allow rule, including ports used by VPN containers."
+msgstr "已发布的 UDP 端口需要允许规则，包括 VPN 容器使用的端口。"
+
 msgid "Reach"
 msgstr "可达性"
 
@@ -20375,6 +20485,9 @@ msgstr "{title} 的规则"
 
 msgid "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
 msgstr "不是由 ufw、firewalld 或 Docker 创建的规则。其中任何一处丢弃都会生效，而 Dockwell 不会逐条计入，因此在它们可能丢弃上方监听流量的地方，会显示无法判断。"
+
+msgid "Stop guarding Docker ports on {name}"
+msgstr "停止保护 {name} 上的 Docker 端口"
 
 #. placeholder {0}: server.name
 #. placeholder {1}: server.name
@@ -20473,11 +20586,23 @@ msgstr "添加规则"
 msgid "Add a rule to {0}"
 msgstr "为 {0} 添加规则"
 
+msgid "Addresses or ranges, separated by commas."
+msgstr "用逗号分隔地址或地址范围。"
+
 msgid "Addresses or ranges, separated by commas. Empty lets anyone in."
 msgstr "地址或网段，用逗号分隔。留空则允许任何人。"
 
-msgid "Allow {n}/{protocol} on {serverName}"
-msgstr "在 {serverName} 上允许 {n}/{protocol}"
+msgid "All ports"
+msgstr "所有端口"
+
+msgid "All {protocol} ports"
+msgstr "所有 {protocol} 端口"
+
+msgid "Allow addresses on {serverName}"
+msgstr "在 {serverName} 上允许这些地址"
+
+msgid "Allow {n}/{portProtocol} on {serverName}"
+msgstr "在 {serverName} 上允许 {n}/{portProtocol}"
 
 msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
 msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理启动并重新加载它们：在这几秒里，它们本会丢弃的一切流量都能进入。不会丢失任何内容，也不会有人被锁在外面。"
@@ -20488,6 +20613,9 @@ msgstr "{name} 启动时，这些规则会关闭，直到几秒后它的代理�
 msgid "Change waiting for Keep"
 msgstr "更改等待保留"
 
+msgid "Deny addresses on {serverName}"
+msgstr "在 {serverName} 上拒绝这些地址"
+
 msgid "Deny everything else"
 msgstr "拒绝其他一切流量"
 
@@ -20497,8 +20625,8 @@ msgstr "在 {name} 上拒绝其他一切流量"
 msgid "Deny everything else, waiting for Keep"
 msgstr "拒绝其他一切流量，等待保留"
 
-msgid "Deny {n}/{protocol} on {serverName}"
-msgstr "在 {serverName} 上拒绝 {n}/{protocol}"
+msgid "Deny {n}/{portProtocol} on {serverName}"
+msgstr "在 {serverName} 上拒绝 {n}/{portProtocol}"
 
 msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
 msgstr "Dockwell 还没有为 {name} 设置规则。入站流量取决于服务器自己的防火墙。"
@@ -20512,8 +20640,25 @@ msgstr "Dockwell 的规则"
 msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
 msgstr "丢弃没有规则放行的流量。已建立的连接、来自当前登录来源的 SSH，以及控制服务器上它自己的端口，仍然放行。"
 
+#. placeholder {0}: existing.name
+#. placeholder {0}: row.id
+msgid "Edit the rule {0}"
+msgstr "编辑规则 {0}"
+
+msgid "Edit the rule {name} on {serverName}"
+msgstr "编辑 {serverName} 上的规则 {name}"
+
+msgid "Enter an address or range, or choose a port."
+msgstr "输入地址或地址范围，或选择一个端口。"
+
+msgid "Import {count} firewall rules on {name}"
+msgstr "在 {name} 上导入 {count} 条防火墙规则"
+
 msgid "It stays only once you confirm you can still reach the server"
 msgstr "只有在你确认仍能访问服务器后才会保留"
+
+msgid "Leave empty to cover every port from the addresses below."
+msgstr "留空时，规则覆盖下方地址访问的所有端口。"
 
 msgid "Let in what no rule drops on {name}"
 msgstr "在 {name} 上放行没有规则丢弃的流量"
@@ -20533,6 +20678,10 @@ msgstr "办公室 VPN"
 msgid "Removal waiting for Keep"
 msgstr "移除等待保留"
 
+#. placeholder {0}: picked.length
+msgid "Remove selected ({0})"
+msgstr "移除所选规则（{0}）"
+
 #. placeholder {0}: row.id
 msgid "Remove the rule {0}"
 msgstr "移除规则 {0}"
@@ -20541,8 +20690,29 @@ msgstr "移除规则 {0}"
 msgid "Remove the rule {0} from {name}"
 msgstr "从 {name} 移除规则 {0}"
 
+msgid "Remove {count} firewall rules from {name}"
+msgstr "从 {name} 移除 {count} 条防火墙规则"
+
+msgid "Select rules"
+msgstr "选择规则"
+
+msgid "Select the rule {id}"
+msgstr "选择规则 {id}"
+
+msgid "The deny rule {rule} covers your current address. Leave your address out of its sources and import again."
+msgstr "拒绝规则 {rule} 涵盖你的当前地址。将你的地址排除在来源范围之外，然后重新导入。"
+
+msgid "The name {rule} is reserved for database external access. Rename the rule, or set access on the database page."
+msgstr "名称 {rule} 保留给数据库外部访问。请重命名规则，或在数据库页面上配置访问。"
+
 msgid "The server itself"
 msgstr "服务器本身"
+
+msgid "This file isn't a Dockwell firewall export. Choose a JSON export under 256 KB with up to 200 rules."
+msgstr "此文件不是 Dockwell 防火墙导出文件。请选择不超过 256 KB 且最多包含 200 条规则的 JSON 导出文件。"
+
+msgid "This range covers your current address. Choose a source that leaves yours out."
+msgstr "此范围涵盖你的当前地址。请选择不含你的地址的来源。"
 
 msgid "Use my address"
 msgstr "使用我的地址"

@@ -370,9 +370,23 @@ export function useFieldRows(): FieldRows {
       whole("rule", [...fields.values()], t`rule`, (at) => {
         const side = (name: string) => fields.get(name)?.[at] ?? "";
         const port = side("port");
-        const proto = protocol(side("protocol") || "tcp");
         const from = side("sources");
-        return side("action") === "deny" || side("action") === "block" ? (
+        const deny = side("action") === "deny" || side("action") === "block";
+        if (!port) {
+          const transport = protocol(side("protocol"));
+          const match = transport ? t`all ${transport} ports` : t`all ports`;
+          return deny ? (
+            <Trans>
+              block {match} from <code>{from}</code>
+            </Trans>
+          ) : (
+            <Trans>
+              allow {match} from <code>{from}</code>
+            </Trans>
+          );
+        }
+        const proto = protocol(side("protocol") || "tcp");
+        return deny ? (
           from === "" ? (
             <Trans>
               block <code>{port}</code>, {proto}, from anywhere

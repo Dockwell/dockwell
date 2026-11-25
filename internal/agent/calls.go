@@ -1012,6 +1012,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Ssh{Ssh: c.cfg.ssh.editDetails(ctx, read)}}
+	case call.GetSetFail2BanAddressBan() != nil:
+		if err := c.cfg.fail2ban.setBan(ctx, call.GetSetFail2BanAddressBan()); err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SetFail2BanAddressBan{SetFail2BanAddressBan: &dockwellv1.SetFail2BanAddressBanResponse{}}}
 	case call.GetFail2Ban() != nil:
 		read, err := c.cfg.fail2ban.read(ctx)
 		if err != nil {

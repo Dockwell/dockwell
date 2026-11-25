@@ -108,13 +108,14 @@ const fileDownload = "file.download"
 // and refused tokens, a token's first use from an address, signing out,
 // and the install's own setup.
 var (
+	jailActions   = []string{firewall.EventFail2banBanned, firewall.EventFail2banUnbanned, firewall.EventFail2banUnconfirmed}
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
 		firewall.EventSSHKeyAdded, firewall.EventSSHKeyRemoved, firewall.EventSSHDisconnected, firewall.EventSSHAddressBanned, firewall.EventSSHUnconfirmed, processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
 		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionWaiting, reconciled.ActionDropped,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
-		terminals.Actions, fileWrites)
+		terminals.Actions, fileWrites, jailActions)
 	healthActions = []string{health.Action, publish.ActionGone, publish.ActionReplaced, publish.ActionKept}
 	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104).
 	changeActions = []string{publish.ActionWrite}
@@ -746,8 +747,13 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
 	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
-		slices.Contains(terminals.Actions, a.Action) || slices.Contains(fileWrites, a.Action) {
+		slices.Contains(terminals.Actions, a.Action) || slices.Contains(fileWrites, a.Action) || slices.Contains(jailActions, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
+	}
+	if a.Action == firewall.EventFail2banUnconfirmed {
+		if op, jail, ok := strings.Cut(a.Detail, " "); ok && (op == "ban" || op == "unban") {
+			e.Fail2Ban = &dockwellv1.EventFail2Ban{Operation: op, Jail: jail, Address: a.Subject}
+		}
 	}
 	if slices.Contains(terminals.Actions, a.Action) {
 		// As for backups: only internal/control/terminals writes these, and what it

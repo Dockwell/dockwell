@@ -189,6 +189,7 @@ func (f *firewallReader) readNow(ctx context.Context) *dockwellv1.ServerFirewall
 	if f.dockwell != nil {
 		applied := f.dockwell.Applied()
 		out.Dockwell = dockwellTable(applied)
+		out.Dockwell.CanGuardDockerPorts = f.docker != nil && applied.Unusable == ""
 		opts.dockwell = applied.Live
 	}
 	for _, l := range found {
@@ -316,7 +317,7 @@ func ExposedPorts(client *docker.Client) func(ctx context.Context) ([]access.Exp
 				if ip, err := netip.ParseAddr(p.GetHostIp()); err == nil && ip.IsLoopback() {
 					continue
 				}
-				out = append(out, access.Exposed{Port: uint16(p.GetHostPort()), Protocol: p.GetProtocol(), What: p.GetContainer()}) //nolint:gosec // a port
+				out = append(out, access.Exposed{Port: uint16(p.GetHostPort()), Protocol: p.GetProtocol(), What: p.GetContainer(), Proxied: p.GetProxied()}) //nolint:gosec // a port
 			}
 		}
 		for _, l := range listeners(os.DirFS("/proc")) {

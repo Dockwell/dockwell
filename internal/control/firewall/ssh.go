@@ -64,7 +64,7 @@ func (h *Handler) sshRecord(ctx context.Context, p auth.Principal, server, actio
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: time.Now(), Actor: p.Actor(), Target: server, Action: action, Subject: subject, Detail: detail, Surface: client.Surface(p)})
 	})
 	if err != nil && h.logger != nil {
-		h.logger.ErrorContext(ctx, "can't record an SSH access operation", slog.String("action", action), slog.String("server", server), slog.String("error", err.Error()))
+		h.logger.ErrorContext(ctx, "can't record a server access operation", slog.String("action", action), slog.String("server", server), slog.String("error", err.Error()))
 	}
 }
 

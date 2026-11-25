@@ -250,6 +250,18 @@ message Event {
   // What became of making a catalog app's owner, for an event with an action that
   // starts "app_owner." (ADR 0105). Its subject is the app.owner resource.
   EventAppOwner app_owner = 150;
+  // The attempted operation for an unconfirmed manual Fail2ban change.
+  EventFail2ban fail2ban = 160;
+}
+
+// EventFail2ban identifies a manual ban or unban whose outcome is unknown.
+message EventFail2ban {
+  // The operation, "ban" or "unban".
+  string operation = 1;
+  // The running jail targeted by the operation.
+  string jail = 2;
+  // The IP address targeted by the operation.
+  string address = 3;
 }
 
 // EventAppOwner says what became of making a catalog app's owner: made, failed with

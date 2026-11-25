@@ -62,6 +62,9 @@ const (
 	// FirewallServiceGetServerFail2BanProcedure is the fully-qualified name of the FirewallService's
 	// GetServerFail2ban RPC.
 	FirewallServiceGetServerFail2BanProcedure = "/dockwell.v1.FirewallService/GetServerFail2ban"
+	// FirewallServiceSetFail2BanAddressBanProcedure is the fully-qualified name of the
+	// FirewallService's SetFail2banAddressBan RPC.
+	FirewallServiceSetFail2BanAddressBanProcedure = "/dockwell.v1.FirewallService/SetFail2banAddressBan"
 )
 
 // FirewallServiceClient is a client for the dockwell.v1.FirewallService service.
@@ -102,6 +105,8 @@ type FirewallServiceClient interface {
 	// addresses of people who tried to sign in, so reading it is an admin's (ADR
 	// 0049).
 	GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error)
+	// SetFail2banAddressBan bans or unbans an address in one active jail.
+	SetFail2BanAddressBan(context.Context, *connect.Request[v1.SetFail2BanAddressBanRequest]) (*connect.Response[v1.SetFail2BanAddressBanResponse], error)
 }
 
 // NewFirewallServiceClient constructs a client for the dockwell.v1.FirewallService service. By
@@ -175,6 +180,12 @@ func NewFirewallServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		setFail2BanAddressBan: connect.NewClient[v1.SetFail2BanAddressBanRequest, v1.SetFail2BanAddressBanResponse](
+			httpClient,
+			baseURL+FirewallServiceSetFail2BanAddressBanProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("SetFail2banAddressBan")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -189,6 +200,7 @@ type firewallServiceClient struct {
 	listServerSshLogins        *connect.Client[v1.ListServerSshLoginsRequest, v1.ListServerSshLoginsResponse]
 	banServerSshAddress        *connect.Client[v1.BanServerSshAddressRequest, v1.BanServerSshAddressResponse]
 	getServerFail2Ban          *connect.Client[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse]
+	setFail2BanAddressBan      *connect.Client[v1.SetFail2BanAddressBanRequest, v1.SetFail2BanAddressBanResponse]
 }
 
 // GetServerFirewall calls dockwell.v1.FirewallService.GetServerFirewall.
@@ -236,6 +248,11 @@ func (c *firewallServiceClient) GetServerFail2Ban(ctx context.Context, req *conn
 	return c.getServerFail2Ban.CallUnary(ctx, req)
 }
 
+// SetFail2BanAddressBan calls dockwell.v1.FirewallService.SetFail2banAddressBan.
+func (c *firewallServiceClient) SetFail2BanAddressBan(ctx context.Context, req *connect.Request[v1.SetFail2BanAddressBanRequest]) (*connect.Response[v1.SetFail2BanAddressBanResponse], error) {
+	return c.setFail2BanAddressBan.CallUnary(ctx, req)
+}
+
 // FirewallServiceHandler is an implementation of the dockwell.v1.FirewallService service.
 type FirewallServiceHandler interface {
 	// GetServerFirewall reads, through the server's agent, the firewalls already
@@ -274,6 +291,8 @@ type FirewallServiceHandler interface {
 	// addresses of people who tried to sign in, so reading it is an admin's (ADR
 	// 0049).
 	GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error)
+	// SetFail2banAddressBan bans or unbans an address in one active jail.
+	SetFail2BanAddressBan(context.Context, *connect.Request[v1.SetFail2BanAddressBanRequest]) (*connect.Response[v1.SetFail2BanAddressBanResponse], error)
 }
 
 // NewFirewallServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -343,6 +362,12 @@ func NewFirewallServiceHandler(svc FirewallServiceHandler, opts ...connect.Handl
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	firewallServiceSetFail2BanAddressBanHandler := connect.NewUnaryHandler(
+		FirewallServiceSetFail2BanAddressBanProcedure,
+		svc.SetFail2BanAddressBan,
+		connect.WithSchema(firewallServiceMethods.ByName("SetFail2banAddressBan")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FirewallService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FirewallServiceGetServerFirewallProcedure:
@@ -363,6 +388,8 @@ func NewFirewallServiceHandler(svc FirewallServiceHandler, opts ...connect.Handl
 			firewallServiceBanServerSshAddressHandler.ServeHTTP(w, r)
 		case FirewallServiceGetServerFail2BanProcedure:
 			firewallServiceGetServerFail2BanHandler.ServeHTTP(w, r)
+		case FirewallServiceSetFail2BanAddressBanProcedure:
+			firewallServiceSetFail2BanAddressBanHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -406,4 +433,8 @@ func (UnimplementedFirewallServiceHandler) BanServerSshAddress(context.Context, 
 
 func (UnimplementedFirewallServiceHandler) GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.GetServerFail2ban is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) SetFail2BanAddressBan(context.Context, *connect.Request[v1.SetFail2BanAddressBanRequest]) (*connect.Response[v1.SetFail2BanAddressBanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.SetFail2banAddressBan is not implemented"))
 }
