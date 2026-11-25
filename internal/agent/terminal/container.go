@@ -65,6 +65,10 @@ func (s *execShell) close() error {
 	return s.t.Close()
 }
 
+// cwd returns empty for container shells because container paths belong to the
+// container's mount namespace rather than the server's Files view.
+func (s *execShell) cwd() (string, string) { return "", "" }
+
 // wait waits for what the shell printed to end, as it does when the shell exits,
 // then asks Docker how it exited.
 func (s *execShell) wait(read <-chan struct{}) (int, error) {

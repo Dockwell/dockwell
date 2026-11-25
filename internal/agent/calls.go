@@ -1151,6 +1151,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CloseTerminal{CloseTerminal: &agentv1.CloseTerminalResult{End: end}}}
 	}
+	if cwd := call.GetTerminalCwd(); cwd != nil {
+		if c.cfg.Terminals == nil {
+			return fail(errNoTerminals)
+		}
+		res, err := c.cfg.Terminals.WorkingDirectory(cwd.GetId())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_TerminalCwd{TerminalCwd: res}}
+	}
 	if confirm := call.GetConfirmAccess(); confirm != nil {
 		if c.cfg.Access == nil {
 			return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING}}}

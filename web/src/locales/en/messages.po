@@ -978,6 +978,9 @@ msgstr "Created the API token {name}"
 msgid "Deleted a backup of {volume}"
 msgstr "Deleted a backup of {volume}"
 
+msgid "Deleted shared terminal command {name}"
+msgstr "Deleted shared terminal command {name}"
+
 msgid "Deleted {path} on {server}"
 msgstr "Deleted {path} on {server}"
 
@@ -1292,6 +1295,9 @@ msgstr "Rotated the key that wraps every secret"
 msgid "SSH operation unconfirmed on {server}"
 msgstr "SSH operation unconfirmed on {server}"
 
+msgid "Saved shared terminal command {name}"
+msgstr "Saved shared terminal command {name}"
+
 msgid "Saved {path} on {server}"
 msgstr "Saved {path} on {server}"
 
@@ -1492,6 +1498,12 @@ msgstr "Unlocked codes for {name}"
 
 msgid "Unlocked codes from an authenticator app"
 msgstr "Unlocked codes from an authenticator app"
+
+msgid "Updated shared terminal command {name}"
+msgstr "Updated shared terminal command {name}"
+
+msgid "Updated shared terminal command {name}, which was {previous}"
+msgstr "Updated shared terminal command {name}, which was {previous}"
 
 msgid "Uploaded {path} to {server}, which can let someone back in"
 msgstr "Uploaded {path} to {server}, which can let someone back in"
@@ -24593,6 +24605,344 @@ msgstr "Tilde"
 msgid "Up arrow"
 msgstr "Up arrow"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't reachable on {0}."
+msgstr "Docker isn't reachable on {0}."
+
+msgid "Filter by name or image"
+msgstr "Filter by name or image"
+
+msgid "Host shell"
+msgstr "Host shell"
+
+msgid "Loading running containers…"
+msgstr "Loading running containers…"
+
+msgid "New session"
+msgstr "New session"
+
+msgid "No running container matches \"{trimmedSearch}\"."
+msgstr "No running container matches \"{trimmedSearch}\"."
+
+#. placeholder {0}: server.name
+msgid "No running containers on {0}."
+msgstr "No running containers on {0}."
+
+msgid "Running containers"
+msgstr "Running containers"
+
+msgid "Add command"
+msgstr "Add command"
+
+msgid "Add saved command"
+msgstr "Add saved command"
+
+msgid "All personal"
+msgstr "All personal"
+
+msgid "All shared"
+msgstr "All shared"
+
+msgid "Close saved commands"
+msgstr "Close saved commands"
+
+msgid "Command scope"
+msgstr "Command scope"
+
+msgid "Control characters aren't allowed"
+msgstr "Control characters aren't allowed"
+
+msgid "Couldn't import commands"
+msgstr "Couldn't import commands"
+
+msgid "Couldn't read that file."
+msgstr "Couldn't read that file."
+
+msgid "Couldn't save command"
+msgstr "Couldn't save command"
+
+#. placeholder {0}: cmd.createdBy
+#. placeholder {1}: cmd.updatedBy
+msgid "Created by {0}, updated by {1}"
+msgstr "Created by {0}, updated by {1}"
+
+msgid "Delete command"
+msgstr "Delete command"
+
+msgid "Delete shared command?"
+msgstr "Delete shared command?"
+
+#. placeholder {0}: undoDeleted.name
+msgid "Deleted \"{0}\""
+msgstr "Deleted \"{0}\""
+
+#. placeholder {0}: confirmDelete.name
+msgid "Deleting <0>{0}</0> removes it for every admin on this install and is recorded on Activity."
+msgstr "Deleting <0>{0}</0> removes it for every admin on this install and is recorded on Activity."
+
+msgid "Diagnostics"
+msgstr "Diagnostics"
+
+msgid "Edit saved command"
+msgstr "Edit saved command"
+
+msgid "Export to file"
+msgstr "Export to file"
+
+msgid "Filter commands"
+msgstr "Filter commands"
+
+msgid "Filter saved commands"
+msgstr "Filter saved commands"
+
+msgid "Group"
+msgstr "Group"
+
+msgid "Import at most 200 commands per file."
+msgstr "Import at most 200 commands per file."
+
+msgid "Import from file"
+msgstr "Import from file"
+
+msgid "Import into"
+msgstr "Import into"
+
+msgid "Import or export commands"
+msgstr "Import or export commands"
+
+msgid "Import saved commands"
+msgstr "Import saved commands"
+
+msgid "Import saved commands file"
+msgstr "Import saved commands file"
+
+msgid "Import these commands in plain text anyway"
+msgstr "Import these commands in plain text anyway"
+
+#. placeholder {0}: items.length
+msgid "Import {0} commands"
+msgstr "Import {0} commands"
+
+msgid "Insert"
+msgstr "Insert"
+
+msgid "Insert types this text without Enter; Run types it and presses Enter."
+msgstr "Insert types this text without Enter; Run types it and presses Enter."
+
+#. placeholder {0}: cmd.name
+msgid "Insert {0}"
+msgstr "Insert {0}"
+
+msgid "Keep file scope"
+msgstr "Keep file scope"
+
+msgid "Kept in plain text in Dockwell's database."
+msgstr "Kept in plain text in Dockwell's database."
+
+#. placeholder {0}: secretItems.map((i) => i.name).join(", ")
+msgid "Kept in plain text in Dockwell's database: {0}."
+msgstr "Kept in plain text in Dockwell's database: {0}."
+
+msgid "Loading saved commands…"
+msgstr "Loading saved commands…"
+
+#. placeholder {0}: filter.trim()
+msgid "No saved command matches \"{0}\"."
+msgstr "No saved command matches \"{0}\"."
+
+msgid "No saved commands yet. Save commands you run often to insert or run them in one click."
+msgstr "No saved commands yet. Save commands you run often to insert or run them in one click."
+
+msgid "Open a terminal first"
+msgstr "Open a terminal first"
+
+msgid "Open a terminal session to insert or run saved commands."
+msgstr "Open a terminal session to insert or run saved commands."
+
+msgid "Optional. Commands with the same group appear together."
+msgstr "Optional. Commands with the same group appear together."
+
+#. placeholder {0}: cmd.name
+msgid "Options for {0}"
+msgstr "Options for {0}"
+
+msgid "Personal"
+msgstr "Personal"
+
+msgid "Personal (only you)"
+msgstr "Personal (only you)"
+
+msgid "Remove control characters (only printable text, newlines and tabs are allowed)."
+msgstr "Remove control characters (only printable text, newlines and tabs are allowed)."
+
+msgid "Run"
+msgstr "Run"
+
+#. placeholder {0}: cmd.name
+msgid "Run {0}"
+msgstr "Run {0}"
+
+#. placeholder {0}: confirmRun.lines
+msgid "Run {0} lines"
+msgstr "Run {0} lines"
+
+#. placeholder {0}: confirmRun.lines
+msgid "Run {0} lines?"
+msgstr "Run {0} lines?"
+
+msgid "Save changes"
+msgstr "Save changes"
+
+msgid "Save command"
+msgstr "Save command"
+
+msgid "Saved commands"
+msgstr "Saved commands"
+
+msgid "Select at least one tab to insert or run saved commands."
+msgstr "Select at least one tab to insert or run saved commands."
+
+msgid "Shared"
+msgstr "Shared"
+
+msgid "Shared (all admins)"
+msgstr "Shared (all admins)"
+
+msgid "Shared commands apply to every admin"
+msgstr "Shared commands apply to every admin"
+
+msgid "Shared in file"
+msgstr "Shared in file"
+
+msgid "Some imported commands look like secrets"
+msgstr "Some imported commands look like secrets"
+
+msgid "Store this command in plain text anyway"
+msgstr "Store this command in plain text anyway"
+
+msgid "Tail API logs"
+msgstr "Tail API logs"
+
+msgid "Target: <0>{targetLabel}</0>. Insert types without Enter; Run executes immediately."
+msgstr "Target: <0>{targetLabel}</0>. Insert types without Enter; Run executes immediately."
+
+msgid "That file contains disallowed control characters. Remove them and try importing again."
+msgstr "That file contains disallowed control characters. Remove them and try importing again."
+
+msgid "That file doesn't match the saved commands format. Each item needs a name and a command."
+msgstr "That file doesn't match the saved commands format. Each item needs a name and a command."
+
+msgid "That file has no commands to import."
+msgstr "That file has no commands to import."
+
+msgid "That file isn't valid JSON. Choose a JSON file exported from Dockwell."
+msgstr "That file isn't valid JSON. Choose a JSON file exported from Dockwell."
+
+msgid "This looks like a secret"
+msgstr "This looks like a secret"
+
+#. placeholder {0}: confirmRun.lines
+#. placeholder {1}: confirmRun.command.name
+msgid "This runs all {0} lines of <0>{1}</0> in <1>{targetLabel}</1> right away."
+msgstr "This runs all {0} lines of <0>{1}</0> in <1>{targetLabel}</1> right away."
+
+#. placeholder {0}: confirmRun.lines
+#. placeholder {1}: confirmRun.command.name
+msgid "This runs all {0} lines of <0>{1}</0> right away."
+msgstr "This runs all {0} lines of <0>{1}</0> right away."
+
+msgid "Type into terminal and press Enter"
+msgstr "Type into terminal and press Enter"
+
+msgid "Type into terminal without pressing Enter"
+msgstr "Type into terminal without pressing Enter"
+
+msgid "Who can use it"
+msgstr "Who can use it"
+
+msgid "by {author}"
+msgstr "by {author}"
+
+#. placeholder {0}: items.length
+msgid "{0} commands from {filename}"
+msgstr "{0} commands from {filename}"
+
+msgid "{willShareCount, plural, one {# command will be added to the shared list and recorded on Activity.} other {# commands will be added to the shared list and recorded on Activity.}}"
+msgstr "{willShareCount, plural, one {# command will be added to the shared list and recorded on Activity.} other {# commands will be added to the shared list and recorded on Activity.}}"
+
+msgid "{willShareCount, plural, one {Share # command with all admins on this install} other {Share # commands with all admins on this install}}"
+msgstr "{willShareCount, plural, one {Share # command with all admins on this install} other {Share # commands with all admins on this install}}"
+
+msgid "Applied live"
+msgstr "Applied live"
+
+msgid "Bar"
+msgstr "Bar"
+
+msgid "Blink cursor"
+msgstr "Blink cursor"
+
+msgid "Block"
+msgstr "Block"
+
+msgid "Close settings"
+msgstr "Close settings"
+
+msgid "Cursor style"
+msgstr "Cursor style"
+
+msgid "Default ({defaultFontPx} px)"
+msgstr "Default ({defaultFontPx} px)"
+
+msgid "Display settings"
+msgstr "Display settings"
+
+msgid "Fira Code"
+msgstr "Fira Code"
+
+msgid "Font family"
+msgstr "Font family"
+
+msgid "Font size"
+msgstr "Font size"
+
+msgid "IBM Plex Mono"
+msgstr "IBM Plex Mono"
+
+msgid "JetBrains Mono (panel mono)"
+msgstr "JetBrains Mono (panel mono)"
+
+msgid "Line height"
+msgstr "Line height"
+
+msgid "Reset to defaults"
+msgstr "Reset to defaults"
+
+msgid "Saving…"
+msgstr "Saving…"
+
+msgid "Scrollback lines"
+msgstr "Scrollback lines"
+
+msgid "Source Code Pro"
+msgstr "Source Code Pro"
+
+msgid "System monospace"
+msgstr "System monospace"
+
+msgid "Terminal settings"
+msgstr "Terminal settings"
+
+msgid "Underline"
+msgstr "Underline"
+
+#. placeholder {0}: n.toLocaleString()
+msgid "{0} (default)"
+msgstr "{0} (default)"
+
+msgid "{sz} px"
+msgstr "{sz} px"
+
 #. placeholder {0}: asking.container
 #. placeholder {1}: server.name
 msgid "<0>{0}</0> reaches as far as root on <1>{1}</1>: it's privileged, holds Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too. A shell in it is as good as root there, so it takes your passkey."
@@ -24628,6 +24978,12 @@ msgstr "Can't reach the terminal"
 msgid "Can't reach this terminal"
 msgstr "Can't reach this terminal"
 
+msgid "Can't safely insert this {lines}-line command because bracketed paste isn't enabled in {names}. Use Run to confirm and run all {lines} lines."
+msgstr "Can't safely insert this {lines}-line command because bracketed paste isn't enabled in {names}. Use Run to confirm and run all {lines} lines."
+
+msgid "Can't safely insert this {lines}-line command because this shell doesn't have bracketed paste enabled. Use Run to confirm and run all {lines} lines."
+msgstr "Can't safely insert this {lines}-line command because this shell doesn't have bracketed paste enabled. Use Run to confirm and run all {lines} lines."
+
 msgid "Clear scrollback"
 msgstr "Clear scrollback"
 
@@ -24636,6 +24992,12 @@ msgstr "Close terminal"
 
 msgid "Close this tab"
 msgstr "Close this tab"
+
+msgid "Close {full}"
+msgstr "Close {full}"
+
+msgid "Commands"
+msgstr "Commands"
 
 msgid "Connected through the agent"
 msgstr "Connected through the agent"
@@ -24652,6 +25014,17 @@ msgstr "Ended"
 msgid "Executable"
 msgstr "Executable"
 
+msgid "Exit fullscreen"
+msgstr "Exit fullscreen"
+
+msgid "Exit fullscreen (Shift+Esc)"
+msgstr "Exit fullscreen (Shift+Esc)"
+
+#. placeholder {0}: server.name
+#. placeholder {1}: current.container
+msgid "Files shows {0}, not files inside {1}"
+msgstr "Files shows {0}, not files inside {1}"
+
 msgid "Find in scrollback"
 msgstr "Find in scrollback"
 
@@ -24661,8 +25034,8 @@ msgstr "Find the one after"
 msgid "Find the one before"
 msgstr "Find the one before"
 
-msgid "New session"
-msgstr "New session"
+msgid "Fullscreen"
+msgstr "Fullscreen"
 
 msgid "No shell open in <0>{wanted}</0>"
 msgstr "No shell open in <0>{wanted}</0>"
@@ -24676,11 +25049,20 @@ msgstr "No terminal opened"
 msgid "Not in what it keeps"
 msgstr "Not in what it keeps"
 
+msgid "Open Files at this shell's folder"
+msgstr "Open Files at this shell's folder"
+
+msgid "Open Files here"
+msgstr "Open Files here"
+
 msgid "Open a new terminal"
 msgstr "Open a new terminal"
 
 msgid "Open a terminal"
 msgstr "Open a terminal"
+
+msgid "Open a terminal session first."
+msgstr "Open a terminal session first."
 
 msgid "Open somewhere else"
 msgstr "Open somewhere else"
@@ -24695,8 +25077,20 @@ msgstr "Run a command"
 msgid "Run command"
 msgstr "Run command"
 
+msgid "Select at least one tab to send this command to."
+msgstr "Select at least one tab to send this command to."
+
+msgid "Select tabs to type into at once"
+msgstr "Select tabs to type into at once"
+
 msgid "Select text in the terminal to copy it"
 msgstr "Select text in the terminal to copy it"
+
+msgid "Selected to type into"
+msgstr "Selected to type into"
+
+msgid "Send what you type to selected tabs"
+msgstr "Send what you type to selected tabs"
 
 msgid "Session options"
 msgstr "Session options"
@@ -24707,11 +25101,17 @@ msgstr "Show it here"
 msgid "Stop finding"
 msgstr "Stop finding"
 
+msgid "Switch terminal session"
+msgstr "Switch terminal session"
+
 msgid "Terminal sessions"
 msgstr "Terminal sessions"
 
 msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
 msgstr "The passkey prompt closed, so no terminal opened. Open one when you're ready."
+
+msgid "This command contains disallowed control characters and wasn't sent."
+msgstr "This command contains disallowed control characters and wasn't sent."
 
 msgid "This shell takes your passkey"
 msgstr "This shell takes your passkey"
@@ -24722,12 +25122,30 @@ msgstr "This terminal is open somewhere else"
 msgid "Through the agent"
 msgstr "Through the agent"
 
+msgid "Type into several"
+msgstr "Type into several"
+
+#. placeholder {0}: broadcastTargets.length
+msgid "Type into several ({0})"
+msgstr "Type into several ({0})"
+
+msgid "Type into several tabs"
+msgstr "Type into several tabs"
+
+#. placeholder {0}: broadcastTargets.length
+msgid "Typing into {0} tabs"
+msgstr "Typing into {0} tabs"
+
 msgid "what you type waits"
 msgstr "what you type waits"
 
-#. placeholder {0}: names.get(tab.id) ?? tab.title
+#. placeholder {0}: info?.full ?? tab.title
 msgid "{0} output"
 msgstr "{0} output"
+
+#. placeholder {0}: commandTargets.length
+msgid "{0} tabs: {names}"
+msgstr "{0} tabs: {names}"
 
 msgid "{title} · through the agent"
 msgstr "{title} · through the agent"
@@ -25313,9 +25731,6 @@ msgstr "Set on apps"
 
 msgid "Set on the app"
 msgstr "Set on the app"
-
-msgid "Shared"
-msgstr "Shared"
 
 msgctxt "values the environment shares"
 msgid "Shared"

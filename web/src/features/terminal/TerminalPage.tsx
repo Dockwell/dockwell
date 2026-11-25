@@ -1,8 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type ListTerminalsResponse, type Server, StepUpAction, type Terminal, TerminalService } from "@dockwell/api";
+import {
+  FileService,
+  GetTerminalPreferencesResponseSchema,
+  type ListTerminalsResponse,
+  type Server,
+  StepUpAction,
+  type Terminal,
+  type TerminalPreferences,
+  TerminalPreferencesSchema,
+  TerminalService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -15,7 +26,7 @@ import {
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -32,33 +43,24 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { PasskeyError } from "../../lib/webauthn";
 import { AddPasskeyHere } from "../auth/AddPasskeyHere";
+import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
 import { KeyBar } from "./KeyBar";
+import { NewSessionMenu } from "./NewSessionMenu";
+import { PHONE_FONT, PHONE_SIZES, resolveDisplaySettings } from "./preferences";
+import { SavedCommandsPanel } from "./SavedCommandsPanel";
+import { TerminalSettingsControl } from "./SettingsPopover";
+import { commandLineCount, hasDisallowedControlChars, normalizeCommandBody } from "./secrets";
 import type { TerminalStatus } from "./session";
-import { type ScreenHandle, TerminalScreen } from "./TerminalScreen";
+import { type MirroredInput, type ScreenHandle, TerminalScreen } from "./TerminalScreen";
 import { useEndWords } from "./words";
 import "./TerminalPage.css";
 
-/** The type's size, as the mocks set it. */
-const DESKTOP_FONT = 12.5;
-const PHONE_FONT = 13;
-
-/** The sizes the phone's Aa goes through, from the mock's. */
-const PHONE_SIZES = [13, 15, 17, 11];
 const TEXT_SIZE_KEY = "dockwell.terminal.textSize";
-
-/** The phone's text size this browser was left at: a convenience of this device alone. */
-function readTextSize(): number {
-  try {
-    const kept = Number(localStorage.getItem(TEXT_SIZE_KEY));
-    return PHONE_SIZES.includes(kept) ? kept : PHONE_FONT;
-  } catch {
-    return PHONE_FONT;
-  }
-}
+const NARROW_ASIDE_QUERY = "(max-width: 1099.98px)";
 
 /**
  * How tall the screen a page has is, less a phone's keyboard where it shows: what the
@@ -88,6 +90,18 @@ interface ExactTerminal {
   id: string;
   name: string;
   argv?: string[];
+}
+
+interface TabDisplay {
+  /** What the tab is: "Host" (or "Host (2)") or the container name (with count if duplicate). */
+  what: string;
+  /** The server name. */
+  server: string;
+  /** Full accessible label combining what and server. */
+  full: string;
+  /** Tooltip with prompt title and server. */
+  hint: string;
+  isContainer: boolean;
 }
 
 /** A server's terminal, as its own tab of the server's page, and the shells in its containers. */
@@ -135,16 +149,21 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
   );
 }
 
-/** Each tab's name: its title, and a number where two share one. */
-function tabNames(tabs: readonly Terminal[]): Map<string, string> {
+/** Builds each tab's display labels: host or container name, numbered if duplicate, plus its server. */
+function buildTabDisplays(tabs: readonly Terminal[], serverName: string, hostWord: string): Map<string, TabDisplay> {
   const seen = new Map<string, number>();
-  const names = new Map<string, string>();
+  const out = new Map<string, TabDisplay>();
   for (const tab of tabs) {
-    const n = (seen.get(tab.title) ?? 0) + 1;
-    seen.set(tab.title, n);
-    names.set(tab.id, n === 1 ? tab.title : `${tab.title} (${n})`);
+    const isContainer = Boolean(tab.container);
+    const base = isContainer ? tab.container : hostWord;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    const what = n === 1 ? base : `${base} (${n})`;
+    const full = `${what} · ${serverName}`;
+    const hint = tab.title ? `${tab.title} · ${serverName}` : full;
+    out.set(tab.id, { what, server: serverName, full, hint, isContainer });
   }
-  return names;
+  return out;
 }
 
 interface TerminalsProps {
@@ -160,10 +179,15 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const theme = useResolvedTheme();
+  const may = useMay();
   const explain = useAuthError();
+  const narrowAside = useMediaQuery(NARROW_ASIDE_QUERY);
   const client = useMemo(() => createClient(TerminalService, transport), [transport]);
   const serverId = server.id;
+  const canOpenFiles = may(FileService.method.listFiles).allowed;
+
   // What's open is this page's to know once it has looked: it opens and closes them itself, so
   // nothing reads it again while the page is up. Each time the page comes back it asks again,
   // as what it kept may have ended while it was away (#652).
@@ -172,12 +196,21 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     { serverId },
     { staleTime: Number.POSITIVE_INFINITY, refetchOnWindowFocus: false, refetchOnMount: "always" },
   );
+  const prefsQuery = useQuery(TerminalService.method.getTerminalPreferences, {});
+  const [optimisticPrefs, setOptimisticPrefs] = useState<TerminalPreferences>();
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [prefsError, setPrefsError] = useState<string>();
+  const prefsSaveSeq = useRef(0);
+  const prefsSaveChain = useRef<Promise<void>>(Promise.resolve());
+  const activePrefs = optimisticPrefs ?? prefsQuery.data?.preferences;
+
   const [tabs, setTabs] = useState<Terminal[]>([]);
   const [active, setActive] = useState<string>();
   const [statuses, setStatuses] = useState<Record<string, TerminalStatus>>({});
   const [size, setSize] = useState<{ columns: number; rows: number }>();
   const [selection, setSelection] = useState(false);
   const [opening, setOpening] = useState(false);
+  const [openingFiles, setOpeningFiles] = useState(false);
   const [problem, setProblem] = useState<string>();
   // A terminal took a passkey and there's none for this address: for which shell.
   const [noPasskey, setNoPasskey] = useState<{ container?: string; exact?: ExactTerminal }>();
@@ -187,9 +220,16 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   const [lost, setLost] = useState<bigint>();
   const [finding, setFinding] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [newMenu, setNewMenu] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [broadcast, setBroadcast] = useState(false);
+  const [broadcastIds, setBroadcastIds] = useState<Set<string>>(() => new Set());
+
   const handles = useRef(new Map<string, ScreenHandle>());
+  const oscCwds = useRef(new Map<string, string>());
   const [ctrl, setCtrl] = useState(false);
-  const [phoneFont, setPhoneFont] = useState(readTextSize);
   const visible = useVisibleHeight();
   // On a phone the server's tabs stay above it, so the way to its other pages is a tap
   // away (#795): it fills what's below where it starts.
@@ -201,7 +241,7 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   }, []);
   // After each render, as a note above it may come or go; the same number renders nothing again.
   useLayoutEffect(() => {
-    if (phone) measure();
+    if (phone && !fullscreen) measure();
   });
   useEffect(() => {
     if (!phone) return;
@@ -209,7 +249,10 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     return () => window.removeEventListener("resize", measure);
   }, [phone, measure]);
   const merged = useRef(false);
-  const exactTabs = useRef(new Set<string>());
+  // Each container tab's own exact target so reopening an ended container shell opens that container.
+  const tabTargets = useRef(new Map<string, ExactTerminal>());
+  // Tabs opened specifically for the URL's exact container (not other containers opened from +).
+  const urlExactTabs = useRef(new Set<string>());
 
   // The tabs come back from what the control plane lists once it has answered since the page
   // came back, not from what was kept before: a terminal that ended since isn't listed (#652).
@@ -225,6 +268,49 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
         now ?? (exact ? undefined : container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id),
     );
   }, [listed.data, listed.isFetchedAfterMount, container, exact]);
+
+  // Lock page scrolling while fullscreen is active. Shift+Esc leaves fullscreen from anywhere;
+  // bare Esc leaves only when focus is outside the terminal so Esc always reaches the shell.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (finding || menu || newMenu || settingsOpen || commandsOpen) return;
+      const isShiftEsc = e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+      if (isShiftEsc) {
+        e.preventDefault();
+        setFullscreen(false);
+        return;
+      }
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest(".terminal-screen")) return;
+      e.preventDefault();
+      setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullscreen, finding, menu, newMenu, settingsOpen, commandsOpen]);
+
+  const liveTabs = useMemo(
+    () => tabs.filter((tab) => statuses[tab.id]?.kind !== "ended" && statuses[tab.id]?.kind !== "moved"),
+    [tabs, statuses],
+  );
+  const liveSignature = useMemo(() => liveTabs.map((tab) => tab.id).join(","), [liveTabs]);
+  const prevLiveSignature = useRef(liveSignature);
+
+  // Safety invariant: turn broadcast off whenever the set of live tabs changes (opened, closed, ended or moved).
+  useEffect(() => {
+    if (prevLiveSignature.current === liveSignature) return;
+    prevLiveSignature.current = liveSignature;
+    setBroadcast(false);
+    setBroadcastIds(new Set());
+  }, [liveSignature]);
 
   /**
    * Takes a terminal out of the list kept for this server, so the page doesn't bring it back
@@ -245,20 +331,67 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     [queryClient, serverId],
   );
 
-  const names = tabNames(tabs);
+  const displays = useMemo(() => buildTabDisplays(tabs, server.name, t`Host`), [tabs, server.name, t]);
   // A container in the page's address with no shell open in it yet.
   const wanted = exact
-    ? tabs.some((tab) => exactTabs.current.has(tab.id))
+    ? tabs.some((tab) => urlExactTabs.current.has(tab.id))
       ? undefined
       : exact.name
     : container && !tabs.some((tab) => tab.container === container)
       ? container
       : undefined;
   const current = tabs.find((tab) => tab.id === active);
+  const currentDisplay = current ? displays.get(current.id) : undefined;
   const status = current ? statuses[current.id] : undefined;
-  useEffect(() => onTitle(current?.title), [current?.title, onTitle]);
+  useEffect(() => onTitle(currentDisplay?.full ?? current?.title), [currentDisplay?.full, current?.title, onTitle]);
 
   const handle = () => (active ? handles.current.get(active) : undefined);
+
+  // Serialize and coalesce rapid preference changes so responses never arrive out of order.
+  const savePreferences = useCallback(
+    (next: TerminalPreferences) => {
+      const seq = ++prefsSaveSeq.current;
+      setOptimisticPrefs(next);
+      setSavingPrefs(true);
+      setPrefsError(undefined);
+      try {
+        localStorage.removeItem(TEXT_SIZE_KEY);
+      } catch {
+        // Ignore storage errors.
+      }
+      prefsSaveChain.current = prefsSaveChain.current.then(async () => {
+        if (seq !== prefsSaveSeq.current) return;
+        try {
+          const res = await client.updateTerminalPreferences({ preferences: next });
+          if (seq !== prefsSaveSeq.current) return;
+          const prefsKey = createConnectQueryKey({
+            schema: TerminalService.method.getTerminalPreferences,
+            input: {},
+            cardinality: "finite",
+          });
+          queryClient.setQueryData(
+            prefsKey,
+            create(GetTerminalPreferencesResponseSchema, { preferences: res.preferences }),
+          );
+          setOptimisticPrefs(res.preferences);
+        } catch (err) {
+          if (seq === prefsSaveSeq.current) {
+            setPrefsError(sentence(err));
+          }
+        } finally {
+          if (seq === prefsSaveSeq.current) {
+            setSavingPrefs(false);
+          }
+        }
+      });
+      return prefsSaveChain.current;
+    },
+    [client, queryClient],
+  );
+
+  const resetPreferences = useCallback(() => {
+    void savePreferences(create(TerminalPreferencesSchema, {}));
+  }, [savePreferences]);
 
   /** Opens the server's own terminal, or a shell in a container on it. */
   const open = useCallback(
@@ -302,7 +435,12 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
         );
         const opened = res.terminal;
         if (opened) {
-          if (targetContainer) exactTabs.current.add(opened.id);
+          if (targetContainer) {
+            tabTargets.current.set(opened.id, targetContainer);
+            if (exact && targetContainer.id === exact.id) {
+              urlExactTabs.current.add(opened.id);
+            }
+          }
           setTabs((now) => [...now, opened]);
           setActive(opened.id);
         }
@@ -327,11 +465,14 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
         setOpening(false);
       }
     },
-    [client, explain, queryClient, serverId, size, t, transport],
+    [client, exact, explain, queryClient, serverId, size, t, transport],
   );
 
   const forget = (id: string) => {
     handles.current.delete(id);
+    oscCwds.current.delete(id);
+    tabTargets.current.delete(id);
+    urlExactTabs.current.delete(id);
     setTabs((now) => {
       const at = now.findIndex((tab) => tab.id === id);
       const rest = now.filter((tab) => tab.id !== id);
@@ -368,47 +509,202 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     [unlist],
   );
 
-  const fontSize = phone ? phoneFont : DESKTOP_FONT;
+  const display = useMemo(() => resolveDisplaySettings(activePrefs, phone), [activePrefs, phone]);
+
+  // Phone Aa cycles sizes through the same user preference as Settings so both always agree.
   const nextTextSize = () => {
-    const next = PHONE_SIZES[(PHONE_SIZES.indexOf(phoneFont) + 1) % PHONE_SIZES.length] ?? PHONE_FONT;
-    setPhoneFont(next);
-    try {
-      localStorage.setItem(TEXT_SIZE_KEY, String(next));
-    } catch {
-      // Kept for this page alone, then.
-    }
+    const idx = (PHONE_SIZES as readonly number[]).indexOf(display.fontSize);
+    const next = PHONE_SIZES[(idx + 1) % PHONE_SIZES.length] ?? PHONE_FONT;
+    const updated = create(TerminalPreferencesSchema, {
+      fontSize: next === PHONE_FONT ? 0 : next,
+      fontFamily: activePrefs?.fontFamily ?? "",
+      lineHeight: activePrefs?.lineHeight ?? 0,
+      cursorStyle: activePrefs?.cursorStyle ?? display.cursorStyleEnum,
+      cursorBlink: activePrefs?.cursorBlink ?? display.cursorBlink,
+      scrollback: activePrefs?.scrollback ?? 0,
+    });
+    void savePreferences(updated);
     handle()?.focus();
   };
-  const screens = tabs.map((tab) => (
-    <TerminalScreen
-      key={tab.id}
-      ref={(h) => {
-        if (h) handles.current.set(tab.id, h);
-      }}
-      terminal={tab}
-      transport={transport}
-      active={tab.id === active}
-      theme={theme}
-      fontSize={fontSize}
-      label={t`${names.get(tab.id) ?? tab.title} output`}
-      onStatus={(s) => onStatus(tab.id, s)}
-      onSize={(columns, rows) => tab.id === active && setSize({ columns, rows })}
-      onSelection={(has) => tab.id === active && setSelection(has)}
-      onLost={(bytes) => tab.id === active && setLost(bytes)}
-      onCtrlUsed={() => setCtrl(false)}
-    />
-  ));
+
+  const selectTab = (tabId: string) => {
+    // Switching to a tab that isn't opted into broadcast turns broadcast off so input never goes somewhere unexpected.
+    if (broadcast && !broadcastIds.has(tabId)) {
+      setBroadcast(false);
+      setBroadcastIds(new Set());
+    }
+    setActive(tabId);
+  };
+
+  const toggleBroadcast = () => {
+    if (broadcast) {
+      setBroadcast(false);
+      setBroadcastIds(new Set());
+      return;
+    }
+    if (liveTabs.length < 2) return;
+    setBroadcast(true);
+    // Opt in only the active tab at first; every additional tab must be opted in explicitly.
+    setBroadcastIds(new Set(active && liveTabs.some((tab) => tab.id === active) ? [active] : []));
+  };
+
+  const toggleBroadcastTab = (tabId: string) => {
+    setBroadcastIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tabId)) {
+        next.delete(tabId);
+      } else {
+        next.add(tabId);
+      }
+      return next;
+    });
+  };
+
+  const canTypeCurrent = Boolean(current && (status?.kind === "attached" || status?.kind === "reconnecting"));
+  const broadcastTargets = useMemo(() => liveTabs.filter((tab) => broadcastIds.has(tab.id)), [liveTabs, broadcastIds]);
+  // One source of truth for both the Saved Commands target label and where Run/Insert sends.
+  const commandTargets = useMemo(() => {
+    if (broadcast) return broadcastTargets;
+    return current && canTypeCurrent ? [current] : [];
+  }, [broadcast, broadcastTargets, current, canTypeCurrent]);
+
+  const commandTargetLabel = useMemo(() => {
+    if (commandTargets.length === 0) return undefined;
+    if (commandTargets.length === 1) {
+      const only = commandTargets[0];
+      return only ? (displays.get(only.id)?.full ?? only.title) : undefined;
+    }
+    const names = commandTargets.map((tab) => displays.get(tab.id)?.what ?? tab.title).join(", ");
+    return t`${commandTargets.length} tabs: ${names}`;
+  }, [commandTargets, displays, t]);
+
+  /** Mirrors input from the active terminal to all other opted-in broadcast targets using each target's own modes. */
+  const mirrorInput = useCallback(
+    (sourceId: string, input: MirroredInput) => {
+      if (!broadcast || !broadcastIds.has(sourceId) || broadcastTargets.length < 2) return;
+      for (const target of broadcastTargets) {
+        if (target.id === sourceId) continue;
+        handles.current.get(target.id)?.receiveMirrored(input);
+      }
+    },
+    [broadcast, broadcastIds, broadcastTargets],
+  );
+
+  /** Types a saved command into the exact target tabs named in the panel, with Enter only when run=true. */
+  const sendCommand = useCallback(
+    (rawCommand: string, run: boolean): string | undefined => {
+      const cleaned = normalizeCommandBody(rawCommand);
+      if (!cleaned) return undefined;
+      if (hasDisallowedControlChars(cleaned, true)) {
+        return t`This command contains disallowed control characters and wasn't sent.`;
+      }
+      if (commandTargets.length === 0) {
+        return broadcast ? t`Select at least one tab to send this command to.` : t`Open a terminal session first.`;
+      }
+      const multiline = cleaned.includes("\n");
+      if (!run && multiline) {
+        const unsupported = commandTargets.filter((tab) => !handles.current.get(tab.id)?.hasBracketedPaste());
+        if (unsupported.length > 0) {
+          const lines = commandLineCount(cleaned);
+          if (unsupported.length === 1 && commandTargets.length === 1) {
+            return t`Can't safely insert this ${lines}-line command because this shell doesn't have bracketed paste enabled. Use Run to confirm and run all ${lines} lines.`;
+          }
+          const names = unsupported.map((tab) => displays.get(tab.id)?.what ?? tab.title).join(", ");
+          return t`Can't safely insert this ${lines}-line command because bracketed paste isn't enabled in ${names}. Use Run to confirm and run all ${lines} lines.`;
+        }
+      }
+      for (const tab of commandTargets) {
+        const targetHandle = handles.current.get(tab.id);
+        targetHandle?.pasteDirect(cleaned);
+        if (run) targetHandle?.sendRaw("\r");
+      }
+      if (active && commandTargets.some((tab) => tab.id === active)) {
+        handles.current.get(active)?.focus();
+      }
+      return undefined;
+    },
+    [active, broadcast, commandTargets, displays, t],
+  );
+
+  /** Opens Files at a host shell's working directory (from /proc, then OSC 7, then home, else Files' default). */
+  const openFilesHere = useCallback(async () => {
+    if (!current || current.container || openingFiles) return;
+    setOpeningFiles(true);
+    let target: string | undefined;
+    try {
+      const res = await client.getTerminalWorkingDirectory({ terminalId: current.id });
+      if (res.known && res.path.startsWith("/")) {
+        target = res.path;
+      } else if (oscCwds.current.get(current.id)?.startsWith("/")) {
+        target = oscCwds.current.get(current.id);
+      } else if (res.home.startsWith("/")) {
+        target = res.home;
+      }
+    } catch {
+      const osc = oscCwds.current.get(current.id);
+      if (osc?.startsWith("/")) target = osc;
+    } finally {
+      setOpeningFiles(false);
+    }
+    setFullscreen(false);
+    void navigate({
+      to: "/servers/$serverId/files",
+      params: { serverId },
+      search: target ? { path: target } : {},
+    });
+  }, [client, current, navigate, openingFiles, serverId]);
+
+  const filesDisabledForContainer = Boolean(current?.container);
+  const filesTitle = current?.container
+    ? t`Files shows ${server.name}, not files inside ${current.container}`
+    : t`Open Files at this shell's folder`;
+
+  const screens = tabs.map((tab) => {
+    const info = displays.get(tab.id);
+    const isActive = tab.id === active;
+    const isBroadcastTarget = broadcast && broadcastIds.has(tab.id);
+    return (
+      <TerminalScreen
+        key={tab.id}
+        ref={(h) => {
+          if (h) handles.current.set(tab.id, h);
+        }}
+        terminal={tab}
+        transport={transport}
+        active={isActive}
+        attached={isActive || isBroadcastTarget}
+        theme={theme}
+        fontSize={display.fontSize}
+        fontFamily={display.fontFamily}
+        lineHeight={display.lineHeightSetting}
+        cursorStyle={display.cursorStyle}
+        cursorBlink={display.cursorBlink}
+        scrollback={display.scrollback}
+        fullscreen={fullscreen}
+        onExitFullscreen={() => setFullscreen(false)}
+        onInput={(input) => mirrorInput(tab.id, input)}
+        onOscCwd={(path) => {
+          if (!tab.container) oscCwds.current.set(tab.id, path);
+        }}
+        label={t`${info?.full ?? tab.title} output`}
+        onStatus={(s) => onStatus(tab.id, s)}
+        onSize={(columns, rows) => isActive && setSize({ columns, rows })}
+        onSelection={(has) => isActive && setSelection(has)}
+        onLost={(bytes) => isActive && setLost(bytes)}
+        onCtrlUsed={() => setCtrl(false)}
+      />
+    );
+  });
 
   const notice = current ? (
     <Notice
       status={status}
       root={!current.container || current.title.startsWith("root@")}
       onBringBack={() => handle()?.bringBack()}
-      onOpen={() =>
-        void (exact && exactTabs.current.has(current.id)
-          ? open(undefined, exact)
-          : open(current.container || undefined))
-      }
+      onOpen={() => {
+        const savedTarget = tabTargets.current.get(current.id);
+        void (savedTarget ? open(undefined, savedTarget) : open(current.container || undefined));
+      }}
       onClose={() => void close(current.id)}
       opening={opening}
     />
@@ -507,14 +803,62 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   ) : null;
 
   const find = (text: string, backwards = false) => handle()?.find(text, backwards);
+  const commandsAsSheet = phone || narrowAside || fullscreen;
+  const activeInBroadcast = Boolean(active && broadcastIds.has(active));
+
+  const broadcastBar = broadcast ? (
+    <section className="terminal-broadcast-bar" aria-label={t`Type into several tabs`}>
+      <div className="terminal-broadcast-head">
+        <span
+          className={
+            broadcastTargets.length > 1 && activeInBroadcast
+              ? "terminal-broadcast-state is-live"
+              : "terminal-broadcast-state"
+          }
+        >
+          {broadcastTargets.length > 1 && activeInBroadcast ? (
+            <Trans>Typing into {broadcastTargets.length} tabs</Trans>
+          ) : (
+            <Trans>Select tabs to type into at once</Trans>
+          )}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setBroadcast(false);
+            setBroadcastIds(new Set());
+          }}
+        >
+          <Trans>Turn off</Trans>
+        </Button>
+      </div>
+      <div className="terminal-broadcast-choices">
+        {liveTabs.map((tab) => {
+          const info = displays.get(tab.id);
+          const checked = broadcastIds.has(tab.id);
+          return (
+            <label key={tab.id} className={checked ? "terminal-broadcast-chip is-selected" : "terminal-broadcast-chip"}>
+              <input type="checkbox" checked={checked} onChange={() => toggleBroadcastTab(tab.id)} />
+              <Icon name={info?.isContainer ? "service" : "server"} size={12} />
+              <span>{info?.what ?? tab.title}</span>
+            </label>
+          );
+        })}
+      </div>
+    </section>
+  ) : null;
+
   // One tree for both layouts, so turning a phone or narrowing a window keeps each
   // terminal where it is, with its scrollback and what's typed that hasn't gone.
   return (
     <div
       ref={layout}
-      className={phone ? "terminal-layout terminal-phone" : "terminal-layout"}
+      className={["terminal-layout", phone ? "terminal-phone" : "", fullscreen ? "terminal-fullscreen" : ""]
+        .filter(Boolean)
+        .join(" ")}
       style={
-        phone
+        phone && !fullscreen
           ? ({
               ...(visible ? { "--visible-height": `${visible}px` } : {}),
               ...(top !== undefined ? { "--terminal-top": `${top}px` } : {}),
@@ -524,142 +868,315 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     >
       {askingCallout}
       {problemCallout}
-      <section className={phone ? "terminal-panel" : "dw-panel terminal-panel"} aria-label={t`Terminal sessions`}>
-        {phone ? null : (
-          <div className="terminal-head">
-            {tabs.length > 0 ? (
-              <div role="tablist" aria-label={t`Sessions`} className="terminal-tabs">
-                {tabs.map((tab) => (
-                  <TerminalTab
-                    key={tab.id}
-                    name={names.get(tab.id) ?? tab.title}
-                    selected={tab.id === active}
-                    ended={statuses[tab.id]?.kind === "ended"}
-                    onSelect={() => setActive(tab.id)}
-                    onClose={() => void close(tab.id)}
-                  />
-                ))}
-              </div>
-            ) : null}
-            <span className="terminal-head-tool">
+      <div className="terminal-workspace">
+        <section className={phone ? "terminal-panel" : "dw-panel terminal-panel"} aria-label={t`Terminal sessions`}>
+          {phone ? (
+            <div className="terminal-phone-bar">
+              <NewSessionMenu
+                server={server}
+                open={newMenu}
+                opening={opening}
+                align="start"
+                onOpenChange={setNewMenu}
+                onOpenHost={() => void open()}
+                onOpenContainer={(target) => void open(undefined, target)}
+              />
+              {tabs.length > 1 ? (
+                <select
+                  className="terminal-phone-select"
+                  aria-label={t`Switch terminal session`}
+                  value={active ?? ""}
+                  onChange={(e) => selectTab(e.target.value)}
+                >
+                  {tabs.map((tab) => {
+                    const info = displays.get(tab.id);
+                    return (
+                      <option key={tab.id} value={tab.id}>
+                        {info?.full ?? tab.title}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <span className="terminal-phone-current">{currentDisplay?.what ?? ""}</span>
+              )}
+              <span className="terminal-head-space" />
+              {liveTabs.length >= 2 ? (
+                <Button
+                  variant={broadcast ? "secondary" : "ghost"}
+                  size="sm"
+                  icon="layers"
+                  aria-label={t`Type into several tabs`}
+                  aria-pressed={broadcast}
+                  onClick={toggleBroadcast}
+                />
+              ) : null}
               <Button
                 variant="ghost"
                 size="sm"
-                icon="plus"
-                aria-label={t`New session`}
-                loading={opening}
-                onClick={() => void open()}
+                icon="terminal"
+                aria-label={t`Saved commands`}
+                aria-pressed={commandsOpen}
+                onClick={() => setCommandsOpen((was) => !was)}
               />
-            </span>
-            <span className="terminal-head-space" />
-            {current ? (
+              {current && canOpenFiles ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="folder"
+                  aria-label={t`Open Files here`}
+                  title={filesTitle}
+                  disabled={filesDisabledForContainer}
+                  loading={openingFiles}
+                  onClick={() => void openFilesHere()}
+                />
+              ) : null}
+              <TerminalSettingsControl
+                open={settingsOpen}
+                phone
+                resolved={display}
+                raw={activePrefs}
+                saving={savingPrefs}
+                error={prefsError}
+                onOpenChange={setSettingsOpen}
+                onChange={(next) => void savePreferences(next)}
+                onReset={resetPreferences}
+              />
+            </div>
+          ) : (
+            <div className="terminal-head">
+              {tabs.length > 0 ? (
+                <div role="tablist" aria-label={t`Sessions`} className="terminal-tabs">
+                  {tabs.map((tab) => {
+                    const info = displays.get(tab.id);
+                    return (
+                      <TerminalTab
+                        key={tab.id}
+                        what={info?.what ?? tab.title}
+                        serverName={info?.server ?? server.name}
+                        full={info?.full ?? tab.title}
+                        hint={info?.hint ?? tab.title}
+                        isContainer={info?.isContainer ?? Boolean(tab.container)}
+                        selected={tab.id === active}
+                        broadcasting={broadcast && broadcastIds.has(tab.id)}
+                        ended={statuses[tab.id]?.kind === "ended"}
+                        onSelect={() => selectTab(tab.id)}
+                        onClose={() => void close(tab.id)}
+                      />
+                    );
+                  })}
+                </div>
+              ) : null}
+              <span className="terminal-head-tool">
+                <NewSessionMenu
+                  server={server}
+                  open={newMenu}
+                  opening={opening}
+                  align="start"
+                  onOpenChange={setNewMenu}
+                  onOpenHost={() => void open()}
+                  onOpenContainer={(target) => void open(undefined, target)}
+                />
+              </span>
+              <span className="terminal-head-space" />
               <span className="terminal-head-tool terminal-tools">
+                {liveTabs.length >= 2 ? (
+                  <Button
+                    variant={broadcast ? "secondary" : "ghost"}
+                    size="sm"
+                    icon="layers"
+                    aria-label={t`Type into several tabs`}
+                    aria-pressed={broadcast}
+                    title={t`Send what you type to selected tabs`}
+                    onClick={toggleBroadcast}
+                  >
+                    {broadcast && broadcastTargets.length > 0 ? (
+                      <Trans>Type into several ({broadcastTargets.length})</Trans>
+                    ) : (
+                      <Trans>Type into several</Trans>
+                    )}
+                  </Button>
+                ) : null}
+                <Button
+                  variant={commandsOpen ? "secondary" : "ghost"}
+                  size="sm"
+                  aria-pressed={commandsOpen}
+                  onClick={() => setCommandsOpen((was) => !was)}
+                >
+                  <Trans>Commands</Trans>
+                </Button>
+                {current && canOpenFiles ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="folder"
+                    aria-label={t`Open Files here`}
+                    title={filesTitle}
+                    disabled={filesDisabledForContainer}
+                    loading={openingFiles}
+                    onClick={() => void openFilesHere()}
+                  />
+                ) : null}
+                {current ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="search"
+                      aria-label={t`Find in scrollback`}
+                      aria-pressed={finding}
+                      onClick={() => {
+                        setFinding((was) => {
+                          if (was) handle()?.clearFind();
+                          return !was;
+                        });
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="copy"
+                      aria-label={t`Copy selection`}
+                      disabled={!selection}
+                      title={selection ? undefined : t`Select text in the terminal to copy it`}
+                      onClick={() => void handle()?.copy()}
+                    />
+                  </>
+                ) : null}
+                <TerminalSettingsControl
+                  open={settingsOpen}
+                  phone={false}
+                  resolved={display}
+                  raw={activePrefs}
+                  saving={savingPrefs}
+                  error={prefsError}
+                  onOpenChange={setSettingsOpen}
+                  onChange={(next) => void savePreferences(next)}
+                  onReset={resetPreferences}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
-                  icon="search"
-                  aria-label={t`Find in scrollback`}
-                  aria-pressed={finding}
-                  onClick={() => {
-                    setFinding((was) => {
-                      if (was) handle()?.clearFind();
-                      return !was;
-                    });
-                  }}
+                  icon={fullscreen ? "minimize" : "maximize"}
+                  aria-label={fullscreen ? t`Exit fullscreen` : t`Fullscreen`}
+                  aria-pressed={fullscreen}
+                  title={fullscreen ? t`Exit fullscreen (Shift+Esc)` : t`Fullscreen`}
+                  onClick={() => setFullscreen((was) => !was)}
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="copy"
-                  aria-label={t`Copy selection`}
-                  disabled={!selection}
-                  title={selection ? undefined : t`Select text in the terminal to copy it`}
-                  onClick={() => void handle()?.copy()}
-                />
-                <SessionMenu
-                  open={menu}
-                  onOpenChange={setMenu}
-                  onPaste={() => {
-                    setMenu(false);
-                    void handle()?.paste();
-                  }}
-                  onClear={() => {
-                    setMenu(false);
-                    handle()?.clear();
-                    handle()?.focus();
-                  }}
-                  onClose={() => void close(current.id)}
-                />
+                {current ? (
+                  <SessionMenu
+                    open={menu}
+                    onOpenChange={setMenu}
+                    onPaste={() => {
+                      setMenu(false);
+                      void handle()?.paste();
+                    }}
+                    onClear={() => {
+                      setMenu(false);
+                      handle()?.clear();
+                      handle()?.focus();
+                    }}
+                    onClose={() => void close(current.id)}
+                  />
+                ) : null}
+              </span>
+            </div>
+          )}
+          {broadcastBar}
+          <div className="terminal-body">
+            {finding && current && !phone ? (
+              <FindBar
+                onFind={find}
+                onDone={() => {
+                  setFinding(false);
+                  handle()?.clearFind();
+                  handle()?.focus();
+                }}
+              />
+            ) : null}
+            {screens}
+            {!current && (listed.isFetched || listed.isError)
+              ? (containerEmpty ?? (tabs.length === 0 ? empty : null))
+              : null}
+            {notice}
+          </div>
+          <div className="terminal-foot">
+            <div className="terminal-foot-copy">
+              <Connection status={status} none={!current} />
+              <span className="terminal-foot-note">
+                <Trans>
+                  · no SSH port needed · <Link to="/activity">Activity</Link> records that you opened it, not what you
+                  type
+                </Trans>
+              </span>
+              {lost !== undefined ? (
+                <span className="terminal-foot-note">
+                  <Trans>· {formatBytes(lost, i18n.locale)} it printed while you were away is gone</Trans>
+                </span>
+              ) : null}
+            </div>
+            {current && size ? (
+              <span className="terminal-size">
+                {size.columns} × {size.rows}
               </span>
             ) : null}
           </div>
-        )}
-        <div className="terminal-body">
-          {finding && current && !phone ? (
-            <FindBar
-              onFind={find}
-              onDone={() => {
-                setFinding(false);
-                handle()?.clearFind();
-                handle()?.focus();
+          {phone && current && (status?.kind === "attached" || status?.kind === "reconnecting") ? (
+            <KeyBar
+              ctrl={ctrl}
+              onCtrl={(on) => {
+                setCtrl(on);
+                handle()?.holdCtrl(on);
               }}
+              onPress={(key) => handle()?.press(key)}
+              onType={(text) => handle()?.type(text)}
+              onTextSize={nextTextSize}
+              onPaste={() => void handle()?.paste()}
             />
           ) : null}
-          {screens}
-          {!current && (listed.isFetched || listed.isError)
-            ? (containerEmpty ?? (tabs.length === 0 ? empty : null))
-            : null}
-          {notice}
-        </div>
-        <div className="terminal-foot">
-          <div className="terminal-foot-copy">
-            <Connection status={status} none={!current} />
-            <span className="terminal-foot-note">
-              <Trans>
-                · no SSH port needed · <Link to="/activity">Activity</Link> records that you opened it, not what you
-                type
-              </Trans>
-            </span>
-            {lost !== undefined ? (
-              <span className="terminal-foot-note">
-                <Trans>· {formatBytes(lost, i18n.locale)} it printed while you were away is gone</Trans>
-              </span>
-            ) : null}
-          </div>
-          {current && size ? (
-            <span className="terminal-size">
-              {size.columns} × {size.rows}
-            </span>
-          ) : null}
-        </div>
-        {phone && current && (status?.kind === "attached" || status?.kind === "reconnecting") ? (
-          <KeyBar
-            ctrl={ctrl}
-            onCtrl={(on) => {
-              setCtrl(on);
-              handle()?.holdCtrl(on);
-            }}
-            onPress={(key) => handle()?.press(key)}
-            onType={(text) => handle()?.type(text)}
-            onTextSize={nextTextSize}
-            onPaste={() => void handle()?.paste()}
-          />
-        ) : null}
-      </section>
+        </section>
+
+        <SavedCommandsPanel
+          asSheet={commandsAsSheet}
+          open={commandsOpen}
+          onClose={() => setCommandsOpen(false)}
+          canType={commandTargets.length > 0}
+          broadcasting={broadcast}
+          targetLabel={commandTargetLabel}
+          onInsert={(cmd) => sendCommand(cmd, false)}
+          onRun={(cmd) => sendCommand(cmd, true)}
+        />
+      </div>
     </div>
   );
 }
 
 interface TabProps {
-  name: string;
+  what: string;
+  serverName: string;
+  full: string;
+  hint: string;
+  isContainer: boolean;
   selected: boolean;
+  broadcasting: boolean;
   ended: boolean;
   onSelect: () => void;
   onClose: () => void;
 }
 
-/** One session's tab: its name, and a way to close it, as the mock has it. */
-function TerminalTab({ name, selected, ended, onSelect, onClose }: TabProps) {
+/** One session's tab: host or container name, its server, broadcast mark, and close button. */
+function TerminalTab({
+  what,
+  serverName,
+  full,
+  hint,
+  isContainer,
+  selected,
+  broadcasting,
+  ended,
+  onSelect,
+  onClose,
+}: TabProps) {
   const { t } = useLingui();
   const keys = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "Delete") {
@@ -672,20 +1189,25 @@ function TerminalTab({ name, selected, ended, onSelect, onClose }: TabProps) {
       type="button"
       role="tab"
       aria-selected={selected}
-      className="terminal-tab"
+      aria-label={full}
+      className={broadcasting ? "terminal-tab terminal-tab-broadcast" : "terminal-tab"}
+      title={hint}
       onClick={onSelect}
       onKeyDown={keys}
       aria-keyshortcuts="Delete"
-      aria-description={ended ? t`Ended` : undefined}
+      aria-description={ended ? t`Ended` : broadcasting ? t`Selected to type into` : undefined}
     >
-      <span className="terminal-tab-icon">
-        <Icon name="terminal" size={14} />
+      <span className="terminal-tab-icon" aria-hidden="true">
+        <Icon name={isContainer ? "service" : "server"} size={14} />
       </span>
-      <span className="terminal-tab-name">{name}</span>
+      <span className="terminal-tab-name">{what}</span>
+      <span className="terminal-tab-sep">{" · "}</span>
+      <span className="terminal-tab-server">{serverName}</span>
+      {broadcasting ? <span className="terminal-tab-broadcast-dot" aria-hidden="true" /> : null}
       <span
         className="terminal-tab-close"
         aria-hidden="true"
-        title={t`Close ${name}`}
+        title={t`Close ${full}`}
         onClick={(e) => {
           e.stopPropagation();
           onClose();

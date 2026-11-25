@@ -50,6 +50,27 @@ const (
 	// TerminalServiceCloseTerminalProcedure is the fully-qualified name of the TerminalService's
 	// CloseTerminal RPC.
 	TerminalServiceCloseTerminalProcedure = "/dockwell.v1.TerminalService/CloseTerminal"
+	// TerminalServiceGetTerminalWorkingDirectoryProcedure is the fully-qualified name of the
+	// TerminalService's GetTerminalWorkingDirectory RPC.
+	TerminalServiceGetTerminalWorkingDirectoryProcedure = "/dockwell.v1.TerminalService/GetTerminalWorkingDirectory"
+	// TerminalServiceGetTerminalPreferencesProcedure is the fully-qualified name of the
+	// TerminalService's GetTerminalPreferences RPC.
+	TerminalServiceGetTerminalPreferencesProcedure = "/dockwell.v1.TerminalService/GetTerminalPreferences"
+	// TerminalServiceUpdateTerminalPreferencesProcedure is the fully-qualified name of the
+	// TerminalService's UpdateTerminalPreferences RPC.
+	TerminalServiceUpdateTerminalPreferencesProcedure = "/dockwell.v1.TerminalService/UpdateTerminalPreferences"
+	// TerminalServiceListSavedCommandsProcedure is the fully-qualified name of the TerminalService's
+	// ListSavedCommands RPC.
+	TerminalServiceListSavedCommandsProcedure = "/dockwell.v1.TerminalService/ListSavedCommands"
+	// TerminalServiceSaveCommandProcedure is the fully-qualified name of the TerminalService's
+	// SaveCommand RPC.
+	TerminalServiceSaveCommandProcedure = "/dockwell.v1.TerminalService/SaveCommand"
+	// TerminalServiceDeleteSavedCommandProcedure is the fully-qualified name of the TerminalService's
+	// DeleteSavedCommand RPC.
+	TerminalServiceDeleteSavedCommandProcedure = "/dockwell.v1.TerminalService/DeleteSavedCommand"
+	// TerminalServiceImportSavedCommandsProcedure is the fully-qualified name of the TerminalService's
+	// ImportSavedCommands RPC.
+	TerminalServiceImportSavedCommandsProcedure = "/dockwell.v1.TerminalService/ImportSavedCommands"
 )
 
 // TerminalServiceClient is a client for the dockwell.v1.TerminalService service.
@@ -79,6 +100,34 @@ type TerminalServiceClient interface {
 	// CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
 	// and ends it. No API token can call it.
 	CloseTerminal(context.Context, *connect.Request[v1.CloseTerminalRequest]) (*connect.Response[v1.CloseTerminalResponse], error)
+	// GetTerminalWorkingDirectory returns a host terminal's current working
+	// directory on the server when the agent can read it from /proc, and its home
+	// folder as a fallback. For a container shell or an older agent, known is
+	// false and home is empty so the panel falls back to Files' own default. No
+	// API token can call it.
+	GetTerminalWorkingDirectory(context.Context, *connect.Request[v1.GetTerminalWorkingDirectoryRequest]) (*connect.Response[v1.GetTerminalWorkingDirectoryResponse], error)
+	// GetTerminalPreferences returns your saved terminal display settings. No API
+	// token can call it.
+	GetTerminalPreferences(context.Context, *connect.Request[v1.GetTerminalPreferencesRequest]) (*connect.Response[v1.GetTerminalPreferencesResponse], error)
+	// UpdateTerminalPreferences saves your terminal display settings. No API
+	// token can call it.
+	UpdateTerminalPreferences(context.Context, *connect.Request[v1.UpdateTerminalPreferencesRequest]) (*connect.Response[v1.UpdateTerminalPreferencesResponse], error)
+	// ListSavedCommands returns your personal saved terminal commands and the
+	// install's shared commands. No API token can call it.
+	ListSavedCommands(context.Context, *connect.Request[v1.ListSavedCommandsRequest]) (*connect.Response[v1.ListSavedCommandsResponse], error)
+	// SaveCommand creates or updates a saved terminal command, either personal to
+	// you or shared across admins on the install. A command that looks like it
+	// contains a secret is refused with the reason looks_like_secret unless
+	// allow_plain_text_secret is set. No API token can call it.
+	SaveCommand(context.Context, *connect.Request[v1.SaveCommandRequest]) (*connect.Response[v1.SaveCommandResponse], error)
+	// DeleteSavedCommand removes a personal or shared saved terminal command. No
+	// API token can call it.
+	DeleteSavedCommand(context.Context, *connect.Request[v1.DeleteSavedCommandRequest]) (*connect.Response[v1.DeleteSavedCommandResponse], error)
+	// ImportSavedCommands adds a batch of saved terminal commands from a file. If
+	// any command looks like it contains a secret, the import is refused with the
+	// reason looks_like_secret unless allow_plain_text_secret is set. No API
+	// token can call it.
+	ImportSavedCommands(context.Context, *connect.Request[v1.ImportSavedCommandsRequest]) (*connect.Response[v1.ImportSavedCommandsResponse], error)
 }
 
 // NewTerminalServiceClient constructs a client for the dockwell.v1.TerminalService service. By
@@ -123,16 +172,68 @@ func NewTerminalServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(terminalServiceMethods.ByName("CloseTerminal")),
 			connect.WithClientOptions(opts...),
 		),
+		getTerminalWorkingDirectory: connect.NewClient[v1.GetTerminalWorkingDirectoryRequest, v1.GetTerminalWorkingDirectoryResponse](
+			httpClient,
+			baseURL+TerminalServiceGetTerminalWorkingDirectoryProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("GetTerminalWorkingDirectory")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getTerminalPreferences: connect.NewClient[v1.GetTerminalPreferencesRequest, v1.GetTerminalPreferencesResponse](
+			httpClient,
+			baseURL+TerminalServiceGetTerminalPreferencesProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("GetTerminalPreferences")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		updateTerminalPreferences: connect.NewClient[v1.UpdateTerminalPreferencesRequest, v1.UpdateTerminalPreferencesResponse](
+			httpClient,
+			baseURL+TerminalServiceUpdateTerminalPreferencesProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("UpdateTerminalPreferences")),
+			connect.WithClientOptions(opts...),
+		),
+		listSavedCommands: connect.NewClient[v1.ListSavedCommandsRequest, v1.ListSavedCommandsResponse](
+			httpClient,
+			baseURL+TerminalServiceListSavedCommandsProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("ListSavedCommands")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		saveCommand: connect.NewClient[v1.SaveCommandRequest, v1.SaveCommandResponse](
+			httpClient,
+			baseURL+TerminalServiceSaveCommandProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("SaveCommand")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteSavedCommand: connect.NewClient[v1.DeleteSavedCommandRequest, v1.DeleteSavedCommandResponse](
+			httpClient,
+			baseURL+TerminalServiceDeleteSavedCommandProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("DeleteSavedCommand")),
+			connect.WithClientOptions(opts...),
+		),
+		importSavedCommands: connect.NewClient[v1.ImportSavedCommandsRequest, v1.ImportSavedCommandsResponse](
+			httpClient,
+			baseURL+TerminalServiceImportSavedCommandsProcedure,
+			connect.WithSchema(terminalServiceMethods.ByName("ImportSavedCommands")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // terminalServiceClient implements TerminalServiceClient.
 type terminalServiceClient struct {
-	openTerminal   *connect.Client[v1.OpenTerminalRequest, v1.OpenTerminalResponse]
-	listTerminals  *connect.Client[v1.ListTerminalsRequest, v1.ListTerminalsResponse]
-	attachTerminal *connect.Client[v1.AttachTerminalRequest, v1.AttachTerminalResponse]
-	writeTerminal  *connect.Client[v1.WriteTerminalRequest, v1.WriteTerminalResponse]
-	closeTerminal  *connect.Client[v1.CloseTerminalRequest, v1.CloseTerminalResponse]
+	openTerminal                *connect.Client[v1.OpenTerminalRequest, v1.OpenTerminalResponse]
+	listTerminals               *connect.Client[v1.ListTerminalsRequest, v1.ListTerminalsResponse]
+	attachTerminal              *connect.Client[v1.AttachTerminalRequest, v1.AttachTerminalResponse]
+	writeTerminal               *connect.Client[v1.WriteTerminalRequest, v1.WriteTerminalResponse]
+	closeTerminal               *connect.Client[v1.CloseTerminalRequest, v1.CloseTerminalResponse]
+	getTerminalWorkingDirectory *connect.Client[v1.GetTerminalWorkingDirectoryRequest, v1.GetTerminalWorkingDirectoryResponse]
+	getTerminalPreferences      *connect.Client[v1.GetTerminalPreferencesRequest, v1.GetTerminalPreferencesResponse]
+	updateTerminalPreferences   *connect.Client[v1.UpdateTerminalPreferencesRequest, v1.UpdateTerminalPreferencesResponse]
+	listSavedCommands           *connect.Client[v1.ListSavedCommandsRequest, v1.ListSavedCommandsResponse]
+	saveCommand                 *connect.Client[v1.SaveCommandRequest, v1.SaveCommandResponse]
+	deleteSavedCommand          *connect.Client[v1.DeleteSavedCommandRequest, v1.DeleteSavedCommandResponse]
+	importSavedCommands         *connect.Client[v1.ImportSavedCommandsRequest, v1.ImportSavedCommandsResponse]
 }
 
 // OpenTerminal calls dockwell.v1.TerminalService.OpenTerminal.
@@ -158,6 +259,41 @@ func (c *terminalServiceClient) WriteTerminal(ctx context.Context, req *connect.
 // CloseTerminal calls dockwell.v1.TerminalService.CloseTerminal.
 func (c *terminalServiceClient) CloseTerminal(ctx context.Context, req *connect.Request[v1.CloseTerminalRequest]) (*connect.Response[v1.CloseTerminalResponse], error) {
 	return c.closeTerminal.CallUnary(ctx, req)
+}
+
+// GetTerminalWorkingDirectory calls dockwell.v1.TerminalService.GetTerminalWorkingDirectory.
+func (c *terminalServiceClient) GetTerminalWorkingDirectory(ctx context.Context, req *connect.Request[v1.GetTerminalWorkingDirectoryRequest]) (*connect.Response[v1.GetTerminalWorkingDirectoryResponse], error) {
+	return c.getTerminalWorkingDirectory.CallUnary(ctx, req)
+}
+
+// GetTerminalPreferences calls dockwell.v1.TerminalService.GetTerminalPreferences.
+func (c *terminalServiceClient) GetTerminalPreferences(ctx context.Context, req *connect.Request[v1.GetTerminalPreferencesRequest]) (*connect.Response[v1.GetTerminalPreferencesResponse], error) {
+	return c.getTerminalPreferences.CallUnary(ctx, req)
+}
+
+// UpdateTerminalPreferences calls dockwell.v1.TerminalService.UpdateTerminalPreferences.
+func (c *terminalServiceClient) UpdateTerminalPreferences(ctx context.Context, req *connect.Request[v1.UpdateTerminalPreferencesRequest]) (*connect.Response[v1.UpdateTerminalPreferencesResponse], error) {
+	return c.updateTerminalPreferences.CallUnary(ctx, req)
+}
+
+// ListSavedCommands calls dockwell.v1.TerminalService.ListSavedCommands.
+func (c *terminalServiceClient) ListSavedCommands(ctx context.Context, req *connect.Request[v1.ListSavedCommandsRequest]) (*connect.Response[v1.ListSavedCommandsResponse], error) {
+	return c.listSavedCommands.CallUnary(ctx, req)
+}
+
+// SaveCommand calls dockwell.v1.TerminalService.SaveCommand.
+func (c *terminalServiceClient) SaveCommand(ctx context.Context, req *connect.Request[v1.SaveCommandRequest]) (*connect.Response[v1.SaveCommandResponse], error) {
+	return c.saveCommand.CallUnary(ctx, req)
+}
+
+// DeleteSavedCommand calls dockwell.v1.TerminalService.DeleteSavedCommand.
+func (c *terminalServiceClient) DeleteSavedCommand(ctx context.Context, req *connect.Request[v1.DeleteSavedCommandRequest]) (*connect.Response[v1.DeleteSavedCommandResponse], error) {
+	return c.deleteSavedCommand.CallUnary(ctx, req)
+}
+
+// ImportSavedCommands calls dockwell.v1.TerminalService.ImportSavedCommands.
+func (c *terminalServiceClient) ImportSavedCommands(ctx context.Context, req *connect.Request[v1.ImportSavedCommandsRequest]) (*connect.Response[v1.ImportSavedCommandsResponse], error) {
+	return c.importSavedCommands.CallUnary(ctx, req)
 }
 
 // TerminalServiceHandler is an implementation of the dockwell.v1.TerminalService service.
@@ -187,6 +323,34 @@ type TerminalServiceHandler interface {
 	// CloseTerminal hangs up a terminal's shell, as closing an SSH session does,
 	// and ends it. No API token can call it.
 	CloseTerminal(context.Context, *connect.Request[v1.CloseTerminalRequest]) (*connect.Response[v1.CloseTerminalResponse], error)
+	// GetTerminalWorkingDirectory returns a host terminal's current working
+	// directory on the server when the agent can read it from /proc, and its home
+	// folder as a fallback. For a container shell or an older agent, known is
+	// false and home is empty so the panel falls back to Files' own default. No
+	// API token can call it.
+	GetTerminalWorkingDirectory(context.Context, *connect.Request[v1.GetTerminalWorkingDirectoryRequest]) (*connect.Response[v1.GetTerminalWorkingDirectoryResponse], error)
+	// GetTerminalPreferences returns your saved terminal display settings. No API
+	// token can call it.
+	GetTerminalPreferences(context.Context, *connect.Request[v1.GetTerminalPreferencesRequest]) (*connect.Response[v1.GetTerminalPreferencesResponse], error)
+	// UpdateTerminalPreferences saves your terminal display settings. No API
+	// token can call it.
+	UpdateTerminalPreferences(context.Context, *connect.Request[v1.UpdateTerminalPreferencesRequest]) (*connect.Response[v1.UpdateTerminalPreferencesResponse], error)
+	// ListSavedCommands returns your personal saved terminal commands and the
+	// install's shared commands. No API token can call it.
+	ListSavedCommands(context.Context, *connect.Request[v1.ListSavedCommandsRequest]) (*connect.Response[v1.ListSavedCommandsResponse], error)
+	// SaveCommand creates or updates a saved terminal command, either personal to
+	// you or shared across admins on the install. A command that looks like it
+	// contains a secret is refused with the reason looks_like_secret unless
+	// allow_plain_text_secret is set. No API token can call it.
+	SaveCommand(context.Context, *connect.Request[v1.SaveCommandRequest]) (*connect.Response[v1.SaveCommandResponse], error)
+	// DeleteSavedCommand removes a personal or shared saved terminal command. No
+	// API token can call it.
+	DeleteSavedCommand(context.Context, *connect.Request[v1.DeleteSavedCommandRequest]) (*connect.Response[v1.DeleteSavedCommandResponse], error)
+	// ImportSavedCommands adds a batch of saved terminal commands from a file. If
+	// any command looks like it contains a secret, the import is refused with the
+	// reason looks_like_secret unless allow_plain_text_secret is set. No API
+	// token can call it.
+	ImportSavedCommands(context.Context, *connect.Request[v1.ImportSavedCommandsRequest]) (*connect.Response[v1.ImportSavedCommandsResponse], error)
 }
 
 // NewTerminalServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -227,6 +391,51 @@ func NewTerminalServiceHandler(svc TerminalServiceHandler, opts ...connect.Handl
 		connect.WithSchema(terminalServiceMethods.ByName("CloseTerminal")),
 		connect.WithHandlerOptions(opts...),
 	)
+	terminalServiceGetTerminalWorkingDirectoryHandler := connect.NewUnaryHandler(
+		TerminalServiceGetTerminalWorkingDirectoryProcedure,
+		svc.GetTerminalWorkingDirectory,
+		connect.WithSchema(terminalServiceMethods.ByName("GetTerminalWorkingDirectory")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceGetTerminalPreferencesHandler := connect.NewUnaryHandler(
+		TerminalServiceGetTerminalPreferencesProcedure,
+		svc.GetTerminalPreferences,
+		connect.WithSchema(terminalServiceMethods.ByName("GetTerminalPreferences")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceUpdateTerminalPreferencesHandler := connect.NewUnaryHandler(
+		TerminalServiceUpdateTerminalPreferencesProcedure,
+		svc.UpdateTerminalPreferences,
+		connect.WithSchema(terminalServiceMethods.ByName("UpdateTerminalPreferences")),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceListSavedCommandsHandler := connect.NewUnaryHandler(
+		TerminalServiceListSavedCommandsProcedure,
+		svc.ListSavedCommands,
+		connect.WithSchema(terminalServiceMethods.ByName("ListSavedCommands")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceSaveCommandHandler := connect.NewUnaryHandler(
+		TerminalServiceSaveCommandProcedure,
+		svc.SaveCommand,
+		connect.WithSchema(terminalServiceMethods.ByName("SaveCommand")),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceDeleteSavedCommandHandler := connect.NewUnaryHandler(
+		TerminalServiceDeleteSavedCommandProcedure,
+		svc.DeleteSavedCommand,
+		connect.WithSchema(terminalServiceMethods.ByName("DeleteSavedCommand")),
+		connect.WithHandlerOptions(opts...),
+	)
+	terminalServiceImportSavedCommandsHandler := connect.NewUnaryHandler(
+		TerminalServiceImportSavedCommandsProcedure,
+		svc.ImportSavedCommands,
+		connect.WithSchema(terminalServiceMethods.ByName("ImportSavedCommands")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.TerminalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TerminalServiceOpenTerminalProcedure:
@@ -239,6 +448,20 @@ func NewTerminalServiceHandler(svc TerminalServiceHandler, opts ...connect.Handl
 			terminalServiceWriteTerminalHandler.ServeHTTP(w, r)
 		case TerminalServiceCloseTerminalProcedure:
 			terminalServiceCloseTerminalHandler.ServeHTTP(w, r)
+		case TerminalServiceGetTerminalWorkingDirectoryProcedure:
+			terminalServiceGetTerminalWorkingDirectoryHandler.ServeHTTP(w, r)
+		case TerminalServiceGetTerminalPreferencesProcedure:
+			terminalServiceGetTerminalPreferencesHandler.ServeHTTP(w, r)
+		case TerminalServiceUpdateTerminalPreferencesProcedure:
+			terminalServiceUpdateTerminalPreferencesHandler.ServeHTTP(w, r)
+		case TerminalServiceListSavedCommandsProcedure:
+			terminalServiceListSavedCommandsHandler.ServeHTTP(w, r)
+		case TerminalServiceSaveCommandProcedure:
+			terminalServiceSaveCommandHandler.ServeHTTP(w, r)
+		case TerminalServiceDeleteSavedCommandProcedure:
+			terminalServiceDeleteSavedCommandHandler.ServeHTTP(w, r)
+		case TerminalServiceImportSavedCommandsProcedure:
+			terminalServiceImportSavedCommandsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -266,4 +489,32 @@ func (UnimplementedTerminalServiceHandler) WriteTerminal(context.Context, *conne
 
 func (UnimplementedTerminalServiceHandler) CloseTerminal(context.Context, *connect.Request[v1.CloseTerminalRequest]) (*connect.Response[v1.CloseTerminalResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.CloseTerminal is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) GetTerminalWorkingDirectory(context.Context, *connect.Request[v1.GetTerminalWorkingDirectoryRequest]) (*connect.Response[v1.GetTerminalWorkingDirectoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.GetTerminalWorkingDirectory is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) GetTerminalPreferences(context.Context, *connect.Request[v1.GetTerminalPreferencesRequest]) (*connect.Response[v1.GetTerminalPreferencesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.GetTerminalPreferences is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) UpdateTerminalPreferences(context.Context, *connect.Request[v1.UpdateTerminalPreferencesRequest]) (*connect.Response[v1.UpdateTerminalPreferencesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.UpdateTerminalPreferences is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) ListSavedCommands(context.Context, *connect.Request[v1.ListSavedCommandsRequest]) (*connect.Response[v1.ListSavedCommandsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.ListSavedCommands is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) SaveCommand(context.Context, *connect.Request[v1.SaveCommandRequest]) (*connect.Response[v1.SaveCommandResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.SaveCommand is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) DeleteSavedCommand(context.Context, *connect.Request[v1.DeleteSavedCommandRequest]) (*connect.Response[v1.DeleteSavedCommandResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.DeleteSavedCommand is not implemented"))
+}
+
+func (UnimplementedTerminalServiceHandler) ImportSavedCommands(context.Context, *connect.Request[v1.ImportSavedCommandsRequest]) (*connect.Response[v1.ImportSavedCommandsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TerminalService.ImportSavedCommands is not implemented"))
 }

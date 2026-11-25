@@ -120,7 +120,8 @@ var (
 	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104).
 	changeActions = []string{publish.ActionWrite}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
-	settingsActions = settings.Actions
+	// Shared terminal commands live in settings too and are audited there (ADR 0108).
+	settingsActions = slices.Concat(settings.Actions, terminals.CommandActions)
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
@@ -884,6 +885,13 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {
 		e.Kind, e.Setting = dockwellv1.EventKind_EVENT_KIND_SETTINGS, setting
+	}
+	if slices.Contains(terminals.CommandActions, a.Action) {
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_SETTINGS
+		if cmd, ok := terminals.ReadCommandTold(a.Detail); ok {
+			e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: cmd.Name}
+			e.Setting = &dockwellv1.EventSetting{Setting: a.Action, Value: cmd.Name, Previous: cmd.PreviousName}
+		}
 	}
 	if a.Action == fleet.ActionPublicAddress || a.Action == fleet.ActionPublicAddressClear {
 		// Its detail leaves the store too: it's what the address was, to put it back.

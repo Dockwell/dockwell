@@ -33,6 +33,9 @@ func (s *Session) Terminals() bool { return s.terminals }
 // ContainerTerminals reports an agent that opens shells in containers.
 func (s *Session) ContainerTerminals() bool { return s.containerTerminals }
 
+// ReadsTerminalCwd reports an agent that reads a host terminal's working directory.
+func (s *Session) ReadsTerminalCwd() bool { return s.readsTerminalCwd }
+
 // OpenTerminals is what the agent said in its hello of the terminals it has.
 func (s *Session) OpenTerminals() []string { return slices.Clone(s.openTerminals) }
 
@@ -85,6 +88,19 @@ func (s *Session) CloseTerminal(ctx context.Context, id string, reason dockwellv
 		return nil, err
 	}
 	return r.GetCloseTerminal().GetEnd(), nil
+}
+
+// TerminalCwd asks the agent for a host terminal's working directory and home fallback.
+func (s *Session) TerminalCwd(ctx context.Context, id string) (*agentv1.TerminalCwdResult, error) {
+	call := &agentv1.TerminalCwdCall{Id: id}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_TerminalCwd{TerminalCwd: call}}, TerminalTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetTerminalCwd(); out != nil {
+		return out, nil
+	}
+	return &agentv1.TerminalCwdResult{}, nil
 }
 
 // TerminalLink is one attachment of a terminal, between the agent's Terminal

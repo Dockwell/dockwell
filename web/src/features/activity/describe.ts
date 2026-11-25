@@ -510,6 +510,21 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             default:
               return { title: t`Let everyone choose how often their passkey is asked for`, icon: "settings" };
           }
+        case "terminal_command.save": {
+          const name = event.setting?.value ?? event.subject?.name ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (previous && previous !== name) {
+            return { title: t`Updated shared terminal command ${name}, which was ${previous}`, icon: "terminal" };
+          }
+          if (previous) {
+            return { title: t`Updated shared terminal command ${name}`, icon: "terminal" };
+          }
+          return { title: t`Saved shared terminal command ${name}`, icon: "terminal" };
+        }
+        case "terminal_command.delete": {
+          const name = event.setting?.value ?? event.subject?.name ?? "";
+          return { title: t`Deleted shared terminal command ${name}`, icon: "terminal" };
+        }
         case "ssh.key_add":
           return { title: t`Added an SSH key on ${server}`, icon: "lock" };
         case "ssh.key_remove":

@@ -105,6 +105,63 @@ func (TerminalEndReason) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{0}
 }
 
+// TerminalCursorStyle chooses the terminal cursor shape.
+type TerminalCursorStyle int32
+
+const (
+	// Default cursor style (block).
+	TerminalCursorStyle_TERMINAL_CURSOR_STYLE_UNSPECIFIED TerminalCursorStyle = 0
+	// A filled block cursor.
+	TerminalCursorStyle_TERMINAL_CURSOR_STYLE_BLOCK TerminalCursorStyle = 1
+	// An underline cursor.
+	TerminalCursorStyle_TERMINAL_CURSOR_STYLE_UNDERLINE TerminalCursorStyle = 2
+	// A vertical bar cursor.
+	TerminalCursorStyle_TERMINAL_CURSOR_STYLE_BAR TerminalCursorStyle = 3
+)
+
+// Enum value maps for TerminalCursorStyle.
+var (
+	TerminalCursorStyle_name = map[int32]string{
+		0: "TERMINAL_CURSOR_STYLE_UNSPECIFIED",
+		1: "TERMINAL_CURSOR_STYLE_BLOCK",
+		2: "TERMINAL_CURSOR_STYLE_UNDERLINE",
+		3: "TERMINAL_CURSOR_STYLE_BAR",
+	}
+	TerminalCursorStyle_value = map[string]int32{
+		"TERMINAL_CURSOR_STYLE_UNSPECIFIED": 0,
+		"TERMINAL_CURSOR_STYLE_BLOCK":       1,
+		"TERMINAL_CURSOR_STYLE_UNDERLINE":   2,
+		"TERMINAL_CURSOR_STYLE_BAR":         3,
+	}
+)
+
+func (x TerminalCursorStyle) Enum() *TerminalCursorStyle {
+	p := new(TerminalCursorStyle)
+	*p = x
+	return p
+}
+
+func (x TerminalCursorStyle) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TerminalCursorStyle) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_terminal_proto_enumTypes[1].Descriptor()
+}
+
+func (TerminalCursorStyle) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_terminal_proto_enumTypes[1]
+}
+
+func (x TerminalCursorStyle) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TerminalCursorStyle.Descriptor instead.
+func (TerminalCursorStyle) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{1}
+}
+
 // Terminal is a shell on a server.
 type Terminal struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -918,6 +975,1005 @@ func (x *CloseTerminalResponse) GetEnd() *TerminalEnd {
 	return nil
 }
 
+// GetTerminalWorkingDirectoryRequest names a terminal.
+type GetTerminalWorkingDirectoryRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The terminal's ID.
+	TerminalId    string `protobuf:"bytes,1,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTerminalWorkingDirectoryRequest) Reset() {
+	*x = GetTerminalWorkingDirectoryRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTerminalWorkingDirectoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTerminalWorkingDirectoryRequest) ProtoMessage() {}
+
+func (x *GetTerminalWorkingDirectoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTerminalWorkingDirectoryRequest.ProtoReflect.Descriptor instead.
+func (*GetTerminalWorkingDirectoryRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetTerminalWorkingDirectoryRequest) GetTerminalId() string {
+	if x != nil {
+		return x.TerminalId
+	}
+	return ""
+}
+
+// GetTerminalWorkingDirectoryResponse reports where the terminal's shell is
+// working on the server, or its fallback home directory.
+type GetTerminalWorkingDirectoryResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The shell's current working directory on the server, when known.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// The fallback home directory on the server, such as "/root".
+	Home string `protobuf:"bytes,2,opt,name=home,proto3" json:"home,omitempty"`
+	// True when path is the shell's live working directory rather than a fallback.
+	Known         bool `protobuf:"varint,3,opt,name=known,proto3" json:"known,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTerminalWorkingDirectoryResponse) Reset() {
+	*x = GetTerminalWorkingDirectoryResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTerminalWorkingDirectoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTerminalWorkingDirectoryResponse) ProtoMessage() {}
+
+func (x *GetTerminalWorkingDirectoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTerminalWorkingDirectoryResponse.ProtoReflect.Descriptor instead.
+func (*GetTerminalWorkingDirectoryResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetTerminalWorkingDirectoryResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *GetTerminalWorkingDirectoryResponse) GetHome() string {
+	if x != nil {
+		return x.Home
+	}
+	return ""
+}
+
+func (x *GetTerminalWorkingDirectoryResponse) GetKnown() bool {
+	if x != nil {
+		return x.Known
+	}
+	return false
+}
+
+// TerminalPreferences holds a person's terminal display settings. Zero or unset
+// fields use Dockwell's defaults.
+type TerminalPreferences struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Font size in pixels, from 10 to 24. Zero uses Dockwell's default (12.5 on
+	// desktop, 13 on a phone).
+	FontSize float64 `protobuf:"fixed64,1,opt,name=font_size,json=fontSize,proto3" json:"font_size,omitempty"`
+	// Named font preset: empty or "default" for JetBrains Mono (panel mono), or
+	// "system-mono", "fira-code", "ibm-plex-mono", "source-code-pro".
+	FontFamily string `protobuf:"bytes,2,opt,name=font_family,json=fontFamily,proto3" json:"font_family,omitempty"`
+	// Line height multiplier, from 1.0 to 2.0. Zero matches Dockwell's default
+	// row spacing.
+	LineHeight float64 `protobuf:"fixed64,3,opt,name=line_height,json=lineHeight,proto3" json:"line_height,omitempty"`
+	// Cursor shape. Unspecified uses block.
+	CursorStyle TerminalCursorStyle `protobuf:"varint,4,opt,name=cursor_style,json=cursorStyle,proto3,enum=dockwell.v1.TerminalCursorStyle" json:"cursor_style,omitempty"`
+	// Whether the cursor blinks. Unset defaults to true.
+	CursorBlink *bool `protobuf:"varint,5,opt,name=cursor_blink,json=cursorBlink,proto3,oneof" json:"cursor_blink,omitempty"`
+	// Number of scrollback lines kept in the browser, from 500 to 50000. Zero
+	// uses the default (5000).
+	Scrollback    uint32 `protobuf:"varint,6,opt,name=scrollback,proto3" json:"scrollback,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TerminalPreferences) Reset() {
+	*x = TerminalPreferences{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TerminalPreferences) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TerminalPreferences) ProtoMessage() {}
+
+func (x *TerminalPreferences) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TerminalPreferences.ProtoReflect.Descriptor instead.
+func (*TerminalPreferences) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *TerminalPreferences) GetFontSize() float64 {
+	if x != nil {
+		return x.FontSize
+	}
+	return 0
+}
+
+func (x *TerminalPreferences) GetFontFamily() string {
+	if x != nil {
+		return x.FontFamily
+	}
+	return ""
+}
+
+func (x *TerminalPreferences) GetLineHeight() float64 {
+	if x != nil {
+		return x.LineHeight
+	}
+	return 0
+}
+
+func (x *TerminalPreferences) GetCursorStyle() TerminalCursorStyle {
+	if x != nil {
+		return x.CursorStyle
+	}
+	return TerminalCursorStyle_TERMINAL_CURSOR_STYLE_UNSPECIFIED
+}
+
+func (x *TerminalPreferences) GetCursorBlink() bool {
+	if x != nil && x.CursorBlink != nil {
+		return *x.CursorBlink
+	}
+	return false
+}
+
+func (x *TerminalPreferences) GetScrollback() uint32 {
+	if x != nil {
+		return x.Scrollback
+	}
+	return 0
+}
+
+// GetTerminalPreferencesRequest asks for the caller's terminal settings.
+type GetTerminalPreferencesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTerminalPreferencesRequest) Reset() {
+	*x = GetTerminalPreferencesRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTerminalPreferencesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTerminalPreferencesRequest) ProtoMessage() {}
+
+func (x *GetTerminalPreferencesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTerminalPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*GetTerminalPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{15}
+}
+
+// GetTerminalPreferencesResponse carries the caller's terminal settings.
+type GetTerminalPreferencesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The saved preferences.
+	Preferences   *TerminalPreferences `protobuf:"bytes,1,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTerminalPreferencesResponse) Reset() {
+	*x = GetTerminalPreferencesResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTerminalPreferencesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTerminalPreferencesResponse) ProtoMessage() {}
+
+func (x *GetTerminalPreferencesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTerminalPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*GetTerminalPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetTerminalPreferencesResponse) GetPreferences() *TerminalPreferences {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
+// UpdateTerminalPreferencesRequest updates the caller's terminal settings.
+type UpdateTerminalPreferencesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The settings to store.
+	Preferences   *TerminalPreferences `protobuf:"bytes,1,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTerminalPreferencesRequest) Reset() {
+	*x = UpdateTerminalPreferencesRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTerminalPreferencesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTerminalPreferencesRequest) ProtoMessage() {}
+
+func (x *UpdateTerminalPreferencesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTerminalPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTerminalPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *UpdateTerminalPreferencesRequest) GetPreferences() *TerminalPreferences {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
+// UpdateTerminalPreferencesResponse carries the saved terminal settings.
+type UpdateTerminalPreferencesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The stored preferences.
+	Preferences   *TerminalPreferences `protobuf:"bytes,1,opt,name=preferences,proto3" json:"preferences,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTerminalPreferencesResponse) Reset() {
+	*x = UpdateTerminalPreferencesResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTerminalPreferencesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTerminalPreferencesResponse) ProtoMessage() {}
+
+func (x *UpdateTerminalPreferencesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTerminalPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTerminalPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *UpdateTerminalPreferencesResponse) GetPreferences() *TerminalPreferences {
+	if x != nil {
+		return x.Preferences
+	}
+	return nil
+}
+
+// SavedCommand is a reusable terminal command stored in plain text for one
+// person or shared across admins on the install.
+type SavedCommand struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID, such as "tcm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Short label shown in the saved commands list, at most 80 characters.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Command text typed into the terminal, at most 4096 characters.
+	Command string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	// Optional group name for organizing commands, at most 64 characters.
+	Group string `protobuf:"bytes,4,opt,name=group,proto3" json:"group,omitempty"`
+	// True when shared across admins on the install; false when personal.
+	Shared bool `protobuf:"varint,5,opt,name=shared,proto3" json:"shared,omitempty"`
+	// When it was created.
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// When it was last edited.
+	UpdateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=update_time,json=updateTime,proto3" json:"update_time,omitempty"`
+	// Who created this command, for shared commands.
+	CreatedBy string `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// Who last edited this command, for shared commands.
+	UpdatedBy     string `protobuf:"bytes,9,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SavedCommand) Reset() {
+	*x = SavedCommand{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SavedCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SavedCommand) ProtoMessage() {}
+
+func (x *SavedCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SavedCommand.ProtoReflect.Descriptor instead.
+func (*SavedCommand) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SavedCommand) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SavedCommand) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SavedCommand) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *SavedCommand) GetGroup() string {
+	if x != nil {
+		return x.Group
+	}
+	return ""
+}
+
+func (x *SavedCommand) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+func (x *SavedCommand) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreateTime
+	}
+	return nil
+}
+
+func (x *SavedCommand) GetUpdateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdateTime
+	}
+	return nil
+}
+
+func (x *SavedCommand) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+func (x *SavedCommand) GetUpdatedBy() string {
+	if x != nil {
+		return x.UpdatedBy
+	}
+	return ""
+}
+
+// SavedCommandInput describes one command to create during import.
+type SavedCommandInput struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Short label shown in the saved commands list.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Command text typed into the terminal.
+	Command string `protobuf:"bytes,2,opt,name=command,proto3" json:"command,omitempty"`
+	// Optional group name.
+	Group string `protobuf:"bytes,3,opt,name=group,proto3" json:"group,omitempty"`
+	// True to store as a shared install command; false for personal.
+	Shared        bool `protobuf:"varint,4,opt,name=shared,proto3" json:"shared,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SavedCommandInput) Reset() {
+	*x = SavedCommandInput{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SavedCommandInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SavedCommandInput) ProtoMessage() {}
+
+func (x *SavedCommandInput) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SavedCommandInput.ProtoReflect.Descriptor instead.
+func (*SavedCommandInput) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SavedCommandInput) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SavedCommandInput) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *SavedCommandInput) GetGroup() string {
+	if x != nil {
+		return x.Group
+	}
+	return ""
+}
+
+func (x *SavedCommandInput) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+// ListSavedCommandsRequest lists the caller's personal and shared commands.
+type ListSavedCommandsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSavedCommandsRequest) Reset() {
+	*x = ListSavedCommandsRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSavedCommandsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSavedCommandsRequest) ProtoMessage() {}
+
+func (x *ListSavedCommandsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSavedCommandsRequest.ProtoReflect.Descriptor instead.
+func (*ListSavedCommandsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{21}
+}
+
+// ListSavedCommandsResponse carries personal and shared saved commands.
+type ListSavedCommandsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Personal commands and shared install commands.
+	Commands      []*SavedCommand `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSavedCommandsResponse) Reset() {
+	*x = ListSavedCommandsResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSavedCommandsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSavedCommandsResponse) ProtoMessage() {}
+
+func (x *ListSavedCommandsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSavedCommandsResponse.ProtoReflect.Descriptor instead.
+func (*ListSavedCommandsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListSavedCommandsResponse) GetCommands() []*SavedCommand {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+// SaveCommandRequest creates or updates a saved terminal command.
+type SaveCommandRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Existing command ID to edit, or empty to create a new command.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Short label, 1 to 80 characters.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Command text, 1 to 4096 characters.
+	Command string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	// Optional group name, at most 64 characters.
+	Group string `protobuf:"bytes,4,opt,name=group,proto3" json:"group,omitempty"`
+	// True to store as a shared install command; false for personal.
+	Shared bool `protobuf:"varint,5,opt,name=shared,proto3" json:"shared,omitempty"`
+	// Set true to acknowledge plain-text storage when the command looks like a
+	// secret.
+	AllowPlainTextSecret bool `protobuf:"varint,6,opt,name=allow_plain_text_secret,json=allowPlainTextSecret,proto3" json:"allow_plain_text_secret,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SaveCommandRequest) Reset() {
+	*x = SaveCommandRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveCommandRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveCommandRequest) ProtoMessage() {}
+
+func (x *SaveCommandRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveCommandRequest.ProtoReflect.Descriptor instead.
+func (*SaveCommandRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *SaveCommandRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SaveCommandRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SaveCommandRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *SaveCommandRequest) GetGroup() string {
+	if x != nil {
+		return x.Group
+	}
+	return ""
+}
+
+func (x *SaveCommandRequest) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+func (x *SaveCommandRequest) GetAllowPlainTextSecret() bool {
+	if x != nil {
+		return x.AllowPlainTextSecret
+	}
+	return false
+}
+
+// SaveCommandResponse carries the saved command.
+type SaveCommandResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The created or updated command.
+	Command       *SavedCommand `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveCommandResponse) Reset() {
+	*x = SaveCommandResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveCommandResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveCommandResponse) ProtoMessage() {}
+
+func (x *SaveCommandResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveCommandResponse.ProtoReflect.Descriptor instead.
+func (*SaveCommandResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *SaveCommandResponse) GetCommand() *SavedCommand {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+// DeleteSavedCommandRequest names a saved command to remove.
+type DeleteSavedCommandRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The command's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// True when deleting a shared install command; false for a personal command.
+	Shared        bool `protobuf:"varint,2,opt,name=shared,proto3" json:"shared,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSavedCommandRequest) Reset() {
+	*x = DeleteSavedCommandRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSavedCommandRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSavedCommandRequest) ProtoMessage() {}
+
+func (x *DeleteSavedCommandRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSavedCommandRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSavedCommandRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *DeleteSavedCommandRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *DeleteSavedCommandRequest) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+// DeleteSavedCommandResponse is empty.
+type DeleteSavedCommandResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSavedCommandResponse) Reset() {
+	*x = DeleteSavedCommandResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSavedCommandResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSavedCommandResponse) ProtoMessage() {}
+
+func (x *DeleteSavedCommandResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSavedCommandResponse.ProtoReflect.Descriptor instead.
+func (*DeleteSavedCommandResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{26}
+}
+
+// ImportSavedCommandsRequest adds a batch of commands from an exported file.
+type ImportSavedCommandsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Commands to import, at most 200 per call.
+	Commands []*SavedCommandInput `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	// Set true to acknowledge plain-text storage when any imported command looks
+	// like a secret.
+	AllowPlainTextSecret bool `protobuf:"varint,2,opt,name=allow_plain_text_secret,json=allowPlainTextSecret,proto3" json:"allow_plain_text_secret,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ImportSavedCommandsRequest) Reset() {
+	*x = ImportSavedCommandsRequest{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportSavedCommandsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportSavedCommandsRequest) ProtoMessage() {}
+
+func (x *ImportSavedCommandsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportSavedCommandsRequest.ProtoReflect.Descriptor instead.
+func (*ImportSavedCommandsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ImportSavedCommandsRequest) GetCommands() []*SavedCommandInput {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+func (x *ImportSavedCommandsRequest) GetAllowPlainTextSecret() bool {
+	if x != nil {
+		return x.AllowPlainTextSecret
+	}
+	return false
+}
+
+// ImportSavedCommandsResponse reports how many commands were imported and
+// returns the full list.
+type ImportSavedCommandsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// All saved commands now available to the caller.
+	Commands []*SavedCommand `protobuf:"bytes,1,rep,name=commands,proto3" json:"commands,omitempty"`
+	// How many commands were added by this import.
+	Imported      uint32 `protobuf:"varint,2,opt,name=imported,proto3" json:"imported,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportSavedCommandsResponse) Reset() {
+	*x = ImportSavedCommandsResponse{}
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportSavedCommandsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportSavedCommandsResponse) ProtoMessage() {}
+
+func (x *ImportSavedCommandsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_terminal_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportSavedCommandsResponse.ProtoReflect.Descriptor instead.
+func (*ImportSavedCommandsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_terminal_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ImportSavedCommandsResponse) GetCommands() []*SavedCommand {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+func (x *ImportSavedCommandsResponse) GetImported() uint32 {
+	if x != nil {
+		return x.Imported
+	}
+	return 0
+}
+
 var File_dockwell_v1_terminal_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_terminal_proto_rawDesc = "" +
@@ -977,7 +2033,74 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\vterminal_id\x18\x01 \x01(\tR\n" +
 	"terminalId\"C\n" +
 	"\x15CloseTerminalResponse\x12*\n" +
-	"\x03end\x18\x01 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end*\xfe\x02\n" +
+	"\x03end\x18\x01 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end\"E\n" +
+	"\"GetTerminalWorkingDirectoryRequest\x12\x1f\n" +
+	"\vterminal_id\x18\x01 \x01(\tR\n" +
+	"terminalId\"c\n" +
+	"#GetTerminalWorkingDirectoryResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04home\x18\x02 \x01(\tR\x04home\x12\x14\n" +
+	"\x05known\x18\x03 \x01(\bR\x05known\"\x92\x02\n" +
+	"\x13TerminalPreferences\x12\x1b\n" +
+	"\tfont_size\x18\x01 \x01(\x01R\bfontSize\x12\x1f\n" +
+	"\vfont_family\x18\x02 \x01(\tR\n" +
+	"fontFamily\x12\x1f\n" +
+	"\vline_height\x18\x03 \x01(\x01R\n" +
+	"lineHeight\x12C\n" +
+	"\fcursor_style\x18\x04 \x01(\x0e2 .dockwell.v1.TerminalCursorStyleR\vcursorStyle\x12&\n" +
+	"\fcursor_blink\x18\x05 \x01(\bH\x00R\vcursorBlink\x88\x01\x01\x12\x1e\n" +
+	"\n" +
+	"scrollback\x18\x06 \x01(\rR\n" +
+	"scrollbackB\x0f\n" +
+	"\r_cursor_blink\"\x1f\n" +
+	"\x1dGetTerminalPreferencesRequest\"d\n" +
+	"\x1eGetTerminalPreferencesResponse\x12B\n" +
+	"\vpreferences\x18\x01 \x01(\v2 .dockwell.v1.TerminalPreferencesR\vpreferences\"f\n" +
+	" UpdateTerminalPreferencesRequest\x12B\n" +
+	"\vpreferences\x18\x01 \x01(\v2 .dockwell.v1.TerminalPreferencesR\vpreferences\"g\n" +
+	"!UpdateTerminalPreferencesResponse\x12B\n" +
+	"\vpreferences\x18\x01 \x01(\v2 .dockwell.v1.TerminalPreferencesR\vpreferences\"\xb2\x02\n" +
+	"\fSavedCommand\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\x12\x14\n" +
+	"\x05group\x18\x04 \x01(\tR\x05group\x12\x16\n" +
+	"\x06shared\x18\x05 \x01(\bR\x06shared\x12;\n" +
+	"\vcreate_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime\x12;\n" +
+	"\vupdate_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"updateTime\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\b \x01(\tR\tcreatedBy\x12\x1d\n" +
+	"\n" +
+	"updated_by\x18\t \x01(\tR\tupdatedBy\"o\n" +
+	"\x11SavedCommandInput\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\acommand\x18\x02 \x01(\tR\acommand\x12\x14\n" +
+	"\x05group\x18\x03 \x01(\tR\x05group\x12\x16\n" +
+	"\x06shared\x18\x04 \x01(\bR\x06shared\"\x1a\n" +
+	"\x18ListSavedCommandsRequest\"R\n" +
+	"\x19ListSavedCommandsResponse\x125\n" +
+	"\bcommands\x18\x01 \x03(\v2\x19.dockwell.v1.SavedCommandR\bcommands\"\xb7\x01\n" +
+	"\x12SaveCommandRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\x12\x14\n" +
+	"\x05group\x18\x04 \x01(\tR\x05group\x12\x16\n" +
+	"\x06shared\x18\x05 \x01(\bR\x06shared\x125\n" +
+	"\x17allow_plain_text_secret\x18\x06 \x01(\bR\x14allowPlainTextSecret\"J\n" +
+	"\x13SaveCommandResponse\x123\n" +
+	"\acommand\x18\x01 \x01(\v2\x19.dockwell.v1.SavedCommandR\acommand\"C\n" +
+	"\x19DeleteSavedCommandRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
+	"\x06shared\x18\x02 \x01(\bR\x06shared\"\x1c\n" +
+	"\x1aDeleteSavedCommandResponse\"\x8f\x01\n" +
+	"\x1aImportSavedCommandsRequest\x12:\n" +
+	"\bcommands\x18\x01 \x03(\v2\x1e.dockwell.v1.SavedCommandInputR\bcommands\x125\n" +
+	"\x17allow_plain_text_secret\x18\x02 \x01(\bR\x14allowPlainTextSecret\"p\n" +
+	"\x1bImportSavedCommandsResponse\x125\n" +
+	"\bcommands\x18\x01 \x03(\v2\x19.dockwell.v1.SavedCommandR\bcommands\x12\x1a\n" +
+	"\bimported\x18\x02 \x01(\rR\bimported*\xfe\x02\n" +
 	"\x11TerminalEndReason\x12#\n" +
 	"\x1fTERMINAL_END_REASON_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aTERMINAL_END_REASON_EXITED\x10\x01\x12\x1e\n" +
@@ -988,7 +2111,12 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"#TERMINAL_END_REASON_AGENT_RESTARTED\x10\x06\x12/\n" +
 	"+TERMINAL_END_REASON_CONTROL_PLANE_RESTARTED\x10\a\x12&\n" +
 	"\"TERMINAL_END_REASON_SERVER_REMOVED\x10\b\x12\x1e\n" +
-	"\x1aTERMINAL_END_REASON_FAILED\x10\t2\xdb\x06\n" +
+	"\x1aTERMINAL_END_REASON_FAILED\x10\t*\xa1\x01\n" +
+	"\x13TerminalCursorStyle\x12%\n" +
+	"!TERMINAL_CURSOR_STYLE_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bTERMINAL_CURSOR_STYLE_BLOCK\x10\x01\x12#\n" +
+	"\x1fTERMINAL_CURSOR_STYLE_UNDERLINE\x10\x02\x12\x1d\n" +
+	"\x19TERMINAL_CURSOR_STYLE_BAR\x10\x032\xd2\x11\n" +
 	"\x0fTerminalService\x12\xaa\x01\n" +
 	"\fOpenTerminal\x12 .dockwell.v1.OpenTerminalRequest\x1a!.dockwell.v1.OpenTerminalResponse\"U\xa0\xbb\x18\x04\xaa\xbb\x18\x11\n" +
 	"\tterminals\x12\x04open\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/servers/{server_id}/terminals\x12\xad\x01\n" +
@@ -999,7 +2127,21 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\rWriteTerminal\x12!.dockwell.v1.WriteTerminalRequest\x1a\".dockwell.v1.WriteTerminalResponse\"V\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
 	"\tterminals\x12\x05write\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:write\x12\xae\x01\n" +
 	"\rCloseTerminal\x12!.dockwell.v1.CloseTerminalRequest\x1a\".dockwell.v1.CloseTerminalResponse\"V\xa0\xbb\x18\x04\xaa\xbb\x18\x12\n" +
-	"\tterminals\x12\x05close\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:closeB\xa6\x01\n" +
+	"\tterminals\x12\x05close\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminals/{terminal_id}:close\x12\xe1\x01\n" +
+	"\x1bGetTerminalWorkingDirectory\x12/.dockwell.v1.GetTerminalWorkingDirectoryRequest\x1a0.dockwell.v1.GetTerminalWorkingDirectoryResponse\"_\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
+	"\tterminals\x12\x03cwd\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02.\x12,/v1/terminals/{terminal_id}/workingDirectory\x90\x02\x01\x12\xca\x01\n" +
+	"\x16GetTerminalPreferences\x12*.dockwell.v1.GetTerminalPreferencesRequest\x1a+.dockwell.v1.GetTerminalPreferencesResponse\"W\xa0\xbb\x18\x01\xaa\xbb\x18\x1c\n" +
+	"\tterminals\x12\x0fget-preferences\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/terminal/preferences\x90\x02\x01\x12\xd3\x01\n" +
+	"\x19UpdateTerminalPreferences\x12-.dockwell.v1.UpdateTerminalPreferencesRequest\x1a..dockwell.v1.UpdateTerminalPreferencesResponse\"W\xa0\xbb\x18\x03\xaa\xbb\x18\x1c\n" +
+	"\tterminals\x12\x0fset-preferences\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/terminal/preferences\x12\xb6\x01\n" +
+	"\x11ListSavedCommands\x12%.dockwell.v1.ListSavedCommandsRequest\x1a&.dockwell.v1.ListSavedCommandsResponse\"R\xa0\xbb\x18\x01\xaa\xbb\x18\x1a\n" +
+	"\tterminals\x12\rlist-commands\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x17\x12\x15/v1/terminal/commands\x90\x02\x01\x12\xa3\x01\n" +
+	"\vSaveCommand\x12\x1f.dockwell.v1.SaveCommandRequest\x1a .dockwell.v1.SaveCommandResponse\"Q\xa0\xbb\x18\x03\xaa\xbb\x18\x19\n" +
+	"\tterminals\x12\fsave-command\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/terminal/commands\x12\xc6\x01\n" +
+	"\x12DeleteSavedCommand\x12&.dockwell.v1.DeleteSavedCommandRequest\x1a'.dockwell.v1.DeleteSavedCommandResponse\"_\xa0\xbb\x18\x04\xaa\xbb\x18\x1b\n" +
+	"\tterminals\x12\x0edelete-command\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/terminal/commands/{id}:delete\x12\xc5\x01\n" +
+	"\x13ImportSavedCommands\x12'.dockwell.v1.ImportSavedCommandsRequest\x1a(.dockwell.v1.ImportSavedCommandsResponse\"[\xa0\xbb\x18\x03\xaa\xbb\x18\x1c\n" +
+	"\tterminals\x12\x0fimport-commands\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/terminal/commands:importB\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rTerminalProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1014,47 +2156,89 @@ func file_dockwell_v1_terminal_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_terminal_proto_rawDescData
 }
 
-var file_dockwell_v1_terminal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_dockwell_v1_terminal_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_dockwell_v1_terminal_proto_goTypes = []any{
-	(TerminalEndReason)(0),         // 0: dockwell.v1.TerminalEndReason
-	(*Terminal)(nil),               // 1: dockwell.v1.Terminal
-	(*OpenTerminalRequest)(nil),    // 2: dockwell.v1.OpenTerminalRequest
-	(*OpenTerminalResponse)(nil),   // 3: dockwell.v1.OpenTerminalResponse
-	(*ListTerminalsRequest)(nil),   // 4: dockwell.v1.ListTerminalsRequest
-	(*ListTerminalsResponse)(nil),  // 5: dockwell.v1.ListTerminalsResponse
-	(*AttachTerminalRequest)(nil),  // 6: dockwell.v1.AttachTerminalRequest
-	(*AttachTerminalResponse)(nil), // 7: dockwell.v1.AttachTerminalResponse
-	(*TerminalEnd)(nil),            // 8: dockwell.v1.TerminalEnd
-	(*WriteTerminalRequest)(nil),   // 9: dockwell.v1.WriteTerminalRequest
-	(*WriteTerminalResponse)(nil),  // 10: dockwell.v1.WriteTerminalResponse
-	(*CloseTerminalRequest)(nil),   // 11: dockwell.v1.CloseTerminalRequest
-	(*CloseTerminalResponse)(nil),  // 12: dockwell.v1.CloseTerminalResponse
-	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
+	(TerminalEndReason)(0),                      // 0: dockwell.v1.TerminalEndReason
+	(TerminalCursorStyle)(0),                    // 1: dockwell.v1.TerminalCursorStyle
+	(*Terminal)(nil),                            // 2: dockwell.v1.Terminal
+	(*OpenTerminalRequest)(nil),                 // 3: dockwell.v1.OpenTerminalRequest
+	(*OpenTerminalResponse)(nil),                // 4: dockwell.v1.OpenTerminalResponse
+	(*ListTerminalsRequest)(nil),                // 5: dockwell.v1.ListTerminalsRequest
+	(*ListTerminalsResponse)(nil),               // 6: dockwell.v1.ListTerminalsResponse
+	(*AttachTerminalRequest)(nil),               // 7: dockwell.v1.AttachTerminalRequest
+	(*AttachTerminalResponse)(nil),              // 8: dockwell.v1.AttachTerminalResponse
+	(*TerminalEnd)(nil),                         // 9: dockwell.v1.TerminalEnd
+	(*WriteTerminalRequest)(nil),                // 10: dockwell.v1.WriteTerminalRequest
+	(*WriteTerminalResponse)(nil),               // 11: dockwell.v1.WriteTerminalResponse
+	(*CloseTerminalRequest)(nil),                // 12: dockwell.v1.CloseTerminalRequest
+	(*CloseTerminalResponse)(nil),               // 13: dockwell.v1.CloseTerminalResponse
+	(*GetTerminalWorkingDirectoryRequest)(nil),  // 14: dockwell.v1.GetTerminalWorkingDirectoryRequest
+	(*GetTerminalWorkingDirectoryResponse)(nil), // 15: dockwell.v1.GetTerminalWorkingDirectoryResponse
+	(*TerminalPreferences)(nil),                 // 16: dockwell.v1.TerminalPreferences
+	(*GetTerminalPreferencesRequest)(nil),       // 17: dockwell.v1.GetTerminalPreferencesRequest
+	(*GetTerminalPreferencesResponse)(nil),      // 18: dockwell.v1.GetTerminalPreferencesResponse
+	(*UpdateTerminalPreferencesRequest)(nil),    // 19: dockwell.v1.UpdateTerminalPreferencesRequest
+	(*UpdateTerminalPreferencesResponse)(nil),   // 20: dockwell.v1.UpdateTerminalPreferencesResponse
+	(*SavedCommand)(nil),                        // 21: dockwell.v1.SavedCommand
+	(*SavedCommandInput)(nil),                   // 22: dockwell.v1.SavedCommandInput
+	(*ListSavedCommandsRequest)(nil),            // 23: dockwell.v1.ListSavedCommandsRequest
+	(*ListSavedCommandsResponse)(nil),           // 24: dockwell.v1.ListSavedCommandsResponse
+	(*SaveCommandRequest)(nil),                  // 25: dockwell.v1.SaveCommandRequest
+	(*SaveCommandResponse)(nil),                 // 26: dockwell.v1.SaveCommandResponse
+	(*DeleteSavedCommandRequest)(nil),           // 27: dockwell.v1.DeleteSavedCommandRequest
+	(*DeleteSavedCommandResponse)(nil),          // 28: dockwell.v1.DeleteSavedCommandResponse
+	(*ImportSavedCommandsRequest)(nil),          // 29: dockwell.v1.ImportSavedCommandsRequest
+	(*ImportSavedCommandsResponse)(nil),         // 30: dockwell.v1.ImportSavedCommandsResponse
+	(*timestamppb.Timestamp)(nil),               // 31: google.protobuf.Timestamp
 }
 var file_dockwell_v1_terminal_proto_depIdxs = []int32{
-	13, // 0: dockwell.v1.Terminal.open_time:type_name -> google.protobuf.Timestamp
-	1,  // 1: dockwell.v1.OpenTerminalResponse.terminal:type_name -> dockwell.v1.Terminal
-	1,  // 2: dockwell.v1.ListTerminalsResponse.terminals:type_name -> dockwell.v1.Terminal
-	8,  // 3: dockwell.v1.AttachTerminalResponse.end:type_name -> dockwell.v1.TerminalEnd
+	31, // 0: dockwell.v1.Terminal.open_time:type_name -> google.protobuf.Timestamp
+	2,  // 1: dockwell.v1.OpenTerminalResponse.terminal:type_name -> dockwell.v1.Terminal
+	2,  // 2: dockwell.v1.ListTerminalsResponse.terminals:type_name -> dockwell.v1.Terminal
+	9,  // 3: dockwell.v1.AttachTerminalResponse.end:type_name -> dockwell.v1.TerminalEnd
 	0,  // 4: dockwell.v1.TerminalEnd.reason:type_name -> dockwell.v1.TerminalEndReason
-	13, // 5: dockwell.v1.TerminalEnd.time:type_name -> google.protobuf.Timestamp
-	8,  // 6: dockwell.v1.CloseTerminalResponse.end:type_name -> dockwell.v1.TerminalEnd
-	2,  // 7: dockwell.v1.TerminalService.OpenTerminal:input_type -> dockwell.v1.OpenTerminalRequest
-	4,  // 8: dockwell.v1.TerminalService.ListTerminals:input_type -> dockwell.v1.ListTerminalsRequest
-	6,  // 9: dockwell.v1.TerminalService.AttachTerminal:input_type -> dockwell.v1.AttachTerminalRequest
-	9,  // 10: dockwell.v1.TerminalService.WriteTerminal:input_type -> dockwell.v1.WriteTerminalRequest
-	11, // 11: dockwell.v1.TerminalService.CloseTerminal:input_type -> dockwell.v1.CloseTerminalRequest
-	3,  // 12: dockwell.v1.TerminalService.OpenTerminal:output_type -> dockwell.v1.OpenTerminalResponse
-	5,  // 13: dockwell.v1.TerminalService.ListTerminals:output_type -> dockwell.v1.ListTerminalsResponse
-	7,  // 14: dockwell.v1.TerminalService.AttachTerminal:output_type -> dockwell.v1.AttachTerminalResponse
-	10, // 15: dockwell.v1.TerminalService.WriteTerminal:output_type -> dockwell.v1.WriteTerminalResponse
-	12, // 16: dockwell.v1.TerminalService.CloseTerminal:output_type -> dockwell.v1.CloseTerminalResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	31, // 5: dockwell.v1.TerminalEnd.time:type_name -> google.protobuf.Timestamp
+	9,  // 6: dockwell.v1.CloseTerminalResponse.end:type_name -> dockwell.v1.TerminalEnd
+	1,  // 7: dockwell.v1.TerminalPreferences.cursor_style:type_name -> dockwell.v1.TerminalCursorStyle
+	16, // 8: dockwell.v1.GetTerminalPreferencesResponse.preferences:type_name -> dockwell.v1.TerminalPreferences
+	16, // 9: dockwell.v1.UpdateTerminalPreferencesRequest.preferences:type_name -> dockwell.v1.TerminalPreferences
+	16, // 10: dockwell.v1.UpdateTerminalPreferencesResponse.preferences:type_name -> dockwell.v1.TerminalPreferences
+	31, // 11: dockwell.v1.SavedCommand.create_time:type_name -> google.protobuf.Timestamp
+	31, // 12: dockwell.v1.SavedCommand.update_time:type_name -> google.protobuf.Timestamp
+	21, // 13: dockwell.v1.ListSavedCommandsResponse.commands:type_name -> dockwell.v1.SavedCommand
+	21, // 14: dockwell.v1.SaveCommandResponse.command:type_name -> dockwell.v1.SavedCommand
+	22, // 15: dockwell.v1.ImportSavedCommandsRequest.commands:type_name -> dockwell.v1.SavedCommandInput
+	21, // 16: dockwell.v1.ImportSavedCommandsResponse.commands:type_name -> dockwell.v1.SavedCommand
+	3,  // 17: dockwell.v1.TerminalService.OpenTerminal:input_type -> dockwell.v1.OpenTerminalRequest
+	5,  // 18: dockwell.v1.TerminalService.ListTerminals:input_type -> dockwell.v1.ListTerminalsRequest
+	7,  // 19: dockwell.v1.TerminalService.AttachTerminal:input_type -> dockwell.v1.AttachTerminalRequest
+	10, // 20: dockwell.v1.TerminalService.WriteTerminal:input_type -> dockwell.v1.WriteTerminalRequest
+	12, // 21: dockwell.v1.TerminalService.CloseTerminal:input_type -> dockwell.v1.CloseTerminalRequest
+	14, // 22: dockwell.v1.TerminalService.GetTerminalWorkingDirectory:input_type -> dockwell.v1.GetTerminalWorkingDirectoryRequest
+	17, // 23: dockwell.v1.TerminalService.GetTerminalPreferences:input_type -> dockwell.v1.GetTerminalPreferencesRequest
+	19, // 24: dockwell.v1.TerminalService.UpdateTerminalPreferences:input_type -> dockwell.v1.UpdateTerminalPreferencesRequest
+	23, // 25: dockwell.v1.TerminalService.ListSavedCommands:input_type -> dockwell.v1.ListSavedCommandsRequest
+	25, // 26: dockwell.v1.TerminalService.SaveCommand:input_type -> dockwell.v1.SaveCommandRequest
+	27, // 27: dockwell.v1.TerminalService.DeleteSavedCommand:input_type -> dockwell.v1.DeleteSavedCommandRequest
+	29, // 28: dockwell.v1.TerminalService.ImportSavedCommands:input_type -> dockwell.v1.ImportSavedCommandsRequest
+	4,  // 29: dockwell.v1.TerminalService.OpenTerminal:output_type -> dockwell.v1.OpenTerminalResponse
+	6,  // 30: dockwell.v1.TerminalService.ListTerminals:output_type -> dockwell.v1.ListTerminalsResponse
+	8,  // 31: dockwell.v1.TerminalService.AttachTerminal:output_type -> dockwell.v1.AttachTerminalResponse
+	11, // 32: dockwell.v1.TerminalService.WriteTerminal:output_type -> dockwell.v1.WriteTerminalResponse
+	13, // 33: dockwell.v1.TerminalService.CloseTerminal:output_type -> dockwell.v1.CloseTerminalResponse
+	15, // 34: dockwell.v1.TerminalService.GetTerminalWorkingDirectory:output_type -> dockwell.v1.GetTerminalWorkingDirectoryResponse
+	18, // 35: dockwell.v1.TerminalService.GetTerminalPreferences:output_type -> dockwell.v1.GetTerminalPreferencesResponse
+	20, // 36: dockwell.v1.TerminalService.UpdateTerminalPreferences:output_type -> dockwell.v1.UpdateTerminalPreferencesResponse
+	24, // 37: dockwell.v1.TerminalService.ListSavedCommands:output_type -> dockwell.v1.ListSavedCommandsResponse
+	26, // 38: dockwell.v1.TerminalService.SaveCommand:output_type -> dockwell.v1.SaveCommandResponse
+	28, // 39: dockwell.v1.TerminalService.DeleteSavedCommand:output_type -> dockwell.v1.DeleteSavedCommandResponse
+	30, // 40: dockwell.v1.TerminalService.ImportSavedCommands:output_type -> dockwell.v1.ImportSavedCommandsResponse
+	29, // [29:41] is the sub-list for method output_type
+	17, // [17:29] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_terminal_proto_init() }
@@ -1063,13 +2247,14 @@ func file_dockwell_v1_terminal_proto_init() {
 		return
 	}
 	file_dockwell_v1_options_proto_init()
+	file_dockwell_v1_terminal_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_terminal_proto_rawDesc), len(file_dockwell_v1_terminal_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   12,
+			NumEnums:      2,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

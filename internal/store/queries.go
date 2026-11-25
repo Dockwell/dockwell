@@ -45,7 +45,22 @@ const (
 	// SettingStepUpFloor is the least anyone may choose for how often they're
 	// asked for their passkey again (ADR 0075). Unset allows all three.
 	SettingStepUpFloor = "auth.step_up_floor"
+	// SettingSharedTerminalCommands holds install-wide shared saved terminal
+	// commands (ADR 0108), as JSON.
+	SettingSharedTerminalCommands = "install.terminal_commands"
 )
+
+// SettingUserTerminalPreferences is the key of a user's saved terminal display
+// preferences (ADR 0108).
+func SettingUserTerminalPreferences(userID string) string {
+	return "user.terminal_preferences." + userID
+}
+
+// SettingUserTerminalCommands is the key of a user's personal saved terminal
+// commands (ADR 0108).
+func SettingUserTerminalCommands(userID string) string {
+	return "user.terminal_commands." + userID
+}
 
 // SettingPublicAddress is the key of what a person set of a server's public address.
 func SettingPublicAddress(server string) string { return "server.public_address." + server }

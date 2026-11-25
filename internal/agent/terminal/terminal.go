@@ -321,6 +321,35 @@ func (m *Manager) Close(id string, reason dockwellv1.TerminalEndReason) (*dockwe
 	return t.hangUp(reason, message), nil
 }
 
+// WorkingDirectory returns a host terminal's live working directory when it can
+// be read from /proc, together with the shell account's home directory as a
+// fallback. For a container shell, both are empty because the server's Files
+// view shows the host filesystem rather than the container's.
+func (m *Manager) WorkingDirectory(id string) (*agentv1.TerminalCwdResult, error) {
+	t, err := m.get(id)
+	if err != nil {
+		return nil, err
+	}
+	cwd, home := t.proc.cwd()
+	if home == "" {
+		if _, isHost := t.proc.(*ptyShell); isHost {
+			home = m.defaultHome()
+		}
+	}
+	return &agentv1.TerminalCwdResult{Cwd: cwd, Home: home}, nil
+}
+
+func (m *Manager) defaultHome() string {
+	if m.opts.Home != "" && strings.HasPrefix(m.opts.Home, "/") {
+		return filepath.Clean(m.opts.Home)
+	}
+	acct := accountOf(cmpOr(m.opts.Passwd, "/etc/passwd"), os.Getuid())
+	if strings.HasPrefix(acct.home, "/") {
+		return filepath.Clean(acct.home)
+	}
+	return "/"
+}
+
 // Conn is one attachment's stream: what the terminal prints goes up it, and
 // what's typed comes down.
 type Conn interface {
@@ -439,7 +468,7 @@ func (m *Manager) startOnServer(cols, rows uint16) (process, string, error) {
 	}
 	host, _ := os.Hostname()
 	host, _, _ = strings.Cut(host, ".")
-	return &ptyShell{pty: p, cmd: cmd}, acct.name + "@" + cmpOr(host, "server"), nil
+	return &ptyShell{pty: p, cmd: cmd, home: cmd.Dir}, acct.name + "@" + cmpOr(host, "server"), nil
 }
 
 // begin carries proc's terminal from now on.
