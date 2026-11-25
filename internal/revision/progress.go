@@ -684,6 +684,17 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 // stepMessage is message for a step, in its own words where it restarts a
 // resource, rather than replacing it for a new spec.
 func stepMessage(state StepState, st *resource.Step, server string) string {
+	if st.Toolbox != nil {
+		switch state {
+		case StepQueued:
+			return "Waiting to change host settings on " + server
+		case StepRunning:
+			return "Applying the host toolbox plan on " + server
+		case StepDone:
+			return "Applied the host toolbox plan on " + server
+		case StepFailed, StepSkipped, StepWaiting:
+		}
+	}
 	if image := st.DockerMaintenance.GetImageAction(); image != nil {
 		verb := "Pull image"
 		if image.GetTag() != nil {

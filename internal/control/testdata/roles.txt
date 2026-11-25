@@ -98,6 +98,7 @@ ChangeService.GetChange                        read         viewer     viewer   
 ChangeService.ListChanges                      read         viewer     viewer     project
 ChangeService.ListDrift                        read         viewer     viewer     project
 ChangeService.PlanAgentUpgrade                 plan         admin      admin      install  session
+ChangeService.PlanHostToolbox                  plan         admin      admin      install  session
 ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
 ChangeService.PlanReboot                       plan         admin      admin      install  session
 ChangeService.PlanRemoveServer                 plan         admin      admin      install  session
@@ -254,6 +255,7 @@ ResourceService.ListResources                  read         viewer     viewer   
 ServerService.CheckServerPorts                 read         admin      admin      install
 ServerService.CreateJoinTicket                 apply        admin      admin      install  session
 ServerService.GetContainerHistory              read         admin      admin      install
+ServerService.GetHostToolbox                   read         admin      admin      install  session
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install

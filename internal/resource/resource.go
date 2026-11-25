@@ -178,6 +178,7 @@ type JailPlan struct {
 
 // Decision is a driver's judgement of one step.
 type Decision struct {
+	Toolbox           *ToolboxPlan          `json:",omitempty"`
 	SSHPortMove       *v1.SshPortMove       `json:",omitempty"`
 	DockerDaemon      *v1.DockerDaemonPlan  `json:",omitempty"`
 	DockerMaintenance *v1.DockerMaintenance `json:",omitempty"`

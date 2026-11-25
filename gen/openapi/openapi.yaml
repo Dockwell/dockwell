@@ -8056,6 +8056,31 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/toolbox:
+        get:
+            tags:
+                - ServerService
+            description: GetHostToolbox reads the host settings on one server.
+            operationId: ServerService_GetHostToolbox
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetHostToolboxResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/uploads:
         post:
             tags:
@@ -8221,6 +8246,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}:planToolbox:
+        post:
+            tags:
+                - ChangeService
+            description: PlanHostToolbox reviews one host operation before it changes anything.
+            operationId: ChangeService_PlanHostToolbox
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanHostToolboxRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanHostToolboxResponse'
                 default:
                     description: Default error response
                     content:
@@ -13144,6 +13200,7 @@ components:
                         - STEP_UP_ACTION_BAN_SSH_ADDRESS
                         - STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS
                         - STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY
+                        - STEP_UP_ACTION_APPLY_HOST_TOOLBOX
                         - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
@@ -22554,6 +22611,12 @@ components:
                         - $ref: '#/components/schemas/GitHook'
                     description: The hook, unset when the service has none.
             description: GetGitHookResponse is the service's hook, or none.
+        GetHostToolboxResponse:
+            type: object
+            properties:
+                status:
+                    $ref: '#/components/schemas/HostToolboxStatus'
+            description: GetHostToolboxResponse carries the settings reported by the agent.
         GetImageResponse:
             type: object
             properties:
@@ -23560,6 +23623,108 @@ components:
             description: |-
                 HostReboot is what rebooting a server does (ADR 0064): everything on it goes
                  offline until it's back, and Docker starts again what its restart policies say.
+        HostToolboxOperation:
+            type: object
+            properties:
+                swap:
+                    $ref: '#/components/schemas/ToolboxSwap'
+                swappiness:
+                    type: integer
+                    format: uint32
+                hostname:
+                    type: string
+                timeZone:
+                    type: string
+                ntp:
+                    type: boolean
+                dns:
+                    $ref: '#/components/schemas/ToolboxDNS'
+                hosts:
+                    $ref: '#/components/schemas/ToolboxHosts'
+                cleanup:
+                    $ref: '#/components/schemas/ToolboxCleanup'
+                service:
+                    $ref: '#/components/schemas/ToolboxService'
+            description: HostToolboxOperation selects one change to the server itself.
+        HostToolboxPlan:
+            type: object
+            properties:
+                operation:
+                    $ref: '#/components/schemas/HostToolboxOperation'
+                differences:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ToolboxDifference'
+                files:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ToolboxFile'
+                unitFile:
+                    type: string
+                evidence:
+                    type: string
+                keep:
+                    type: boolean
+                changeId:
+                    type: string
+            description: HostToolboxPlan records the exact operation and the state reviewed before apply.
+        HostToolboxStatus:
+            type: object
+            properties:
+                hostname:
+                    type: string
+                timeZone:
+                    type: string
+                ntpAvailable:
+                    type: boolean
+                ntpEnabled:
+                    type: boolean
+                ntpSynced:
+                    type: boolean
+                swappiness:
+                    type: integer
+                    format: uint32
+                recommendedSwapMib:
+                    type: string
+                swapFreeMib:
+                    type: string
+                activeSwap:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ToolboxActiveSwap'
+                managedSwapMib:
+                    type: string
+                swapUnavailable:
+                    type: string
+                dnsOwner:
+                    type: string
+                dnsServers:
+                    type: array
+                    items:
+                        type: string
+                hosts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ToolboxHosts'
+                services:
+                    type: array
+                    items:
+                        type: string
+                systemd:
+                    type: boolean
+                timeZones:
+                    type: array
+                    items:
+                        type: string
+                canEditDns:
+                    type: boolean
+                linkDnsServers:
+                    type: array
+                    items:
+                        type: string
+                recoveryError:
+                    type: string
+            description: HostToolboxStatus reports the current settings and capabilities of the host.
         HostUnit:
             type: object
             properties:
@@ -28450,6 +28615,20 @@ components:
                 refusal:
                     $ref: '#/components/schemas/ComposeRefusal'
             description: PlanFromComposeTemplateResponse has the usual review or a safe refusal.
+        PlanHostToolboxRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                operation:
+                    $ref: '#/components/schemas/HostToolboxOperation'
+            description: PlanHostToolboxRequest describes one operation on a server.
+        PlanHostToolboxResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: PlanHostToolboxResponse carries the change to review and apply.
         PlanInstallUpdatesRequest:
             type: object
             properties:
@@ -28823,6 +29002,8 @@ components:
         PlanStep:
             type: object
             properties:
+                toolbox:
+                    $ref: '#/components/schemas/HostToolboxPlan'
                 dockerDaemon:
                     $ref: '#/components/schemas/DockerDaemonPlan'
                 dockerStorageGuard:
@@ -29268,6 +29449,8 @@ components:
         PlannedResource:
             type: object
             properties:
+                toolbox:
+                    $ref: '#/components/schemas/HostToolboxPlan'
                 dockerDaemon:
                     $ref: '#/components/schemas/DockerDaemonPlan'
                 dockerMaintenance:
@@ -35740,6 +35923,135 @@ components:
                         Its name as it is now, such as "shop". Empty once it has been deleted:
                          the token keeps its ID, and reaches nothing there.
             description: TokenProject is a project a token acts in.
+        ToolboxActiveSwap:
+            type: object
+            properties:
+                path:
+                    type: string
+                sizeMib:
+                    type: string
+                usedMib:
+                    type: string
+            description: ToolboxActiveSwap reports one active swap area and its usage.
+        ToolboxBinding:
+            type: object
+            properties:
+                name:
+                    type: string
+                environmentId:
+                    type: string
+                source:
+                    type: string
+                secret:
+                    type: boolean
+                revision:
+                    type: string
+                    description: The control plane pins this value's revision while planning.
+                literalValue:
+                    type: string
+                    description: Request only. The control plane replaces this with a sealed literal.
+                environmentName:
+                    type: string
+                    description: The control plane fills the environment name and the reviewed plain value.
+                reviewedValue:
+                    type: string
+                valueDigest:
+                    type: string
+                    description: Keyed verification of the immutable revision's resolved value.
+                    format: bytes
+                environmentProtected:
+                    type: boolean
+                sealedLiteral:
+                    type: string
+                    description: A directly entered value, sealed by the control plane before planning.
+                    format: bytes
+            description: ToolboxBinding sets an environment name from a Dockwell variable or secret.
+        ToolboxCleanup:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - TOOLBOX_CLEANUP_KIND_UNSPECIFIED
+                        - TOOLBOX_CLEANUP_KIND_APT
+                        - TOOLBOX_CLEANUP_KIND_JOURNAL
+                        - TOOLBOX_CLEANUP_KIND_ROTATED_LOGS
+                        - TOOLBOX_CLEANUP_KIND_TEMPORARY
+                    type: string
+                    format: enum
+                days:
+                    type: integer
+                    format: uint32
+                keepMib:
+                    type: string
+                    description: For journal cleanup, a size limit takes the place of an age limit.
+            description: ToolboxCleanup supplies the limits for a scan and its cleanup plan.
+        ToolboxDNS:
+            type: object
+            properties:
+                servers:
+                    type: array
+                    items:
+                        type: string
+            description: ToolboxDNS sets name servers through the owner of the resolver configuration.
+        ToolboxDifference:
+            type: object
+            properties:
+                subject:
+                    type: string
+                before:
+                    type: string
+                after:
+                    type: string
+            description: ToolboxDifference shows the current and proposed form of a host setting.
+        ToolboxFile:
+            type: object
+            properties:
+                path:
+                    type: string
+                bytes:
+                    type: string
+            description: ToolboxFile is a file eligible for cleanup, with its allocated disk size.
+        ToolboxHosts:
+            type: object
+            properties:
+                hostname:
+                    type: string
+                address:
+                    type: string
+                    description: Empty removes the entry Dockwell owns for this name.
+            description: ToolboxHosts adds, changes or removes one Dockwell-owned hosts entry.
+        ToolboxService:
+            type: object
+            properties:
+                name:
+                    type: string
+                user:
+                    type: string
+                workingDirectory:
+                    type: string
+                argv:
+                    type: array
+                    items:
+                        type: string
+                    description: Absolute executable followed by its literal arguments.
+                restart:
+                    type: string
+                startOnBoot:
+                    type: boolean
+                remove:
+                    type: boolean
+                environment:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ToolboxBinding'
+            description: ToolboxService creates or removes a Dockwell-owned systemd service.
+        ToolboxSwap:
+            type: object
+            properties:
+                sizeMib:
+                    type: string
+                    description: Zero removes Dockwell's swap file. Other values are its desired size.
+            description: ToolboxSwap sets the size of Dockwell's swap file.
         Totp:
             type: object
             properties:

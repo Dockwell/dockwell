@@ -623,6 +623,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
+		ch.SetToolboxValues(cfg.Secrets)
 		if firewallHandler != nil {
 			firewallHandler.SetSSHTrialAccess(ch.AppliedFrom)
 		}

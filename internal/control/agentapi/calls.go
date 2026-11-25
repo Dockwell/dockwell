@@ -532,7 +532,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), filesRest: hello.GetFilesRest(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), websiteHandy: hello.GetWebsiteHandy(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
+		loadsCertificates: hello.GetLoadsCertificates(), websiteHandy: hello.GetWebsiteHandy(), hostToolbox: hello.GetHostToolbox(), hostToolboxRecovery: hello.GetHostToolboxRecoveryError(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -702,7 +702,9 @@ type Session struct {
 	bootID string
 	// actsOnUnits says the agent acts on the server's system services and reads its
 	// system log (ADR 0082).
-	actsOnUnits bool
+	actsOnUnits         bool
+	hostToolbox         bool
+	hostToolboxRecovery string
 	// upgradesItself says the agent runs the install script a change carries to
 	// upgrade itself (ADR 0094).
 	upgradesItself bool
@@ -1452,6 +1454,13 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				return nil, err
 			}
 		}
+		if d.Toolbox != nil {
+			if err := s.checkHostToolbox(); err != nil {
+				return nil, err
+			}
+			call.Desired = append(call.Desired, &agentv1.DesiredResource{Resource: resourcepb.Ref(d.Ref), HostToolbox: d.Toolbox})
+			continue
+		}
 		if d.DockerMaintenance != nil {
 			if err := s.checkDockerMaintenanceSupport(d.DockerMaintenance); err != nil {
 				return nil, err
@@ -1535,8 +1544,14 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	})
 	logging := slices.ContainsFunc(desired, func(d resource.Desired) bool { return resource.Workload(d.Spec).GetLogging() != nil })
 	maintenance := slices.ContainsFunc(desired, func(d resource.Desired) bool { return d.DockerMaintenance != nil })
-	if workload || logging || maintenance || len(logins) > 0 {
+	toolbox := slices.ContainsFunc(desired, func(d resource.Desired) bool { return d.Toolbox != nil })
+	if workload || logging || maintenance || toolbox || len(logins) > 0 {
 		seal = func(on *Session) error {
+			if toolbox {
+				if err := on.checkHostToolbox(); err != nil {
+					return err
+				}
+			}
 			for i := range desired {
 				if desired[i].NeedsPauseControl && !on.managedContainerPause {
 					return on.managedPauseError()
@@ -1599,6 +1614,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				return nil, err
 			}
 		}
+		if err := checkToolboxPlan(desired[i], steps[i]); err != nil {
+			return nil, err
+		}
 		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
 		steps[i].RegistryLogin, steps[i].RegistryLoginVersion = logins[i].Name, logins[i].Version
 		// A step that builds names the logins its base images may pull with; the
@@ -1644,6 +1662,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if spec, _ := desired.(*resourcev1.Network); !s.DockerStorage() && (step.DockerStorageGuard != nil || spec.GetIpam() != nil) {
 		return fault.New(ErrOlderAgent, "update the agent to apply this Docker storage plan")
+	}
+	if step.Toolbox != nil {
+		return s.applyHostToolbox(ctx, step)
 	}
 	if step.DockerMaintenance != nil {
 		if step.DockerMaintenance.GetImageAction() != nil {

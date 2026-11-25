@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -473,4 +474,102 @@ func testOpenAllReadsEachKeyOnce(t *testing.T, backend store.Backend) {
 	} else if !strings.Contains(err.Error(), "sec_0") || !strings.Contains(err.Error(), "Restore the database from a backup") {
 		t.Errorf("a list's spec that should be sealed and isn't = %v, want it to name the row and say what to do", err)
 	}
+}
+
+func TestToolboxValuesStayAtTheReviewedRevisions(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		logger := slog.New(slog.DiscardHandler)
+		if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+			t.Fatal(err)
+		}
+		k := secretstest.Keeper(db, kinds())
+		e := revision.New(db, kinds(), nil, k, logger)
+		var env string
+		if err := db.View(t.Context(), func(tx *store.Tx) error {
+			tree, err := scope.Load(t.Context(), tx)
+			if err != nil {
+				return err
+			}
+			_, environment, err := tree.Resolve("", "")
+			env = environment.ID
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		set := func(plain, secret string) {
+			t.Helper()
+			plan, err := e.Propose(t.Context(), revision.Proposal{Summary: "Change values", Actor: "usr_test", Edits: []revision.Edit{
+				{Ref: resource.Ref{Kind: variable.VariableKind, Scope: env, Name: "VERSION"}, Spec: &resourcev1.Variable{Value: plain}},
+				{Ref: resource.Ref{Kind: variable.SecretKind, Scope: env, Name: "TOKEN"}, Spec: &resourcev1.Secret{Value: secret}},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := e.Apply(t.Context(), plan.Change); err != nil {
+				t.Fatal(err)
+			}
+		}
+		set("reviewed", "secret-that-was-reviewed")
+		bindings := []*v1.ToolboxBinding{
+			{Name: "VERSION", EnvironmentId: env, Source: "VERSION"},
+			{Name: "TOKEN", EnvironmentId: env, Source: "TOKEN", Secret: true},
+		}
+		if err := db.View(t.Context(), func(tx *store.Tx) error {
+			for _, binding := range bindings {
+				if err := k.PinHostToolboxValue(t.Context(), tx, binding); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if bindings[0].GetReviewedValue() != "reviewed" || bindings[0].GetEnvironmentName() == "" ||
+			bindings[1].GetReviewedValue() != "" || strings.Contains(bindings[1].String(), "secret-that-was-reviewed") {
+			t.Fatalf("binding display = %v", bindings)
+		}
+		set("later", "later-secret")
+		got, err := k.HostToolboxValues(t.Context(), bindings)
+		if err != nil || got["VERSION"] != "reviewed" || got["TOKEN"] != "secret-that-was-reviewed" {
+			t.Fatal("the environment didn't keep the reviewed values", err)
+		}
+		bindings[1].ValueDigest[0] ^= 1
+		if values, err := k.HostToolboxValues(t.Context(), bindings); err == nil || values != nil {
+			t.Fatal("accepted a changed secret pin")
+		}
+	})
+}
+
+func TestToolboxDirectValueStaysSealedInTheStoredPlan(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		k := secretstest.Keeper(db, kinds())
+		const secret = "database-password-entered-in-the-plan"
+		binding := &v1.ToolboxBinding{Name: "DATABASE_PASSWORD", LiteralValue: new(secret)}
+		if err := k.SealHostToolboxLiteral(binding); err != nil {
+			t.Fatal(err)
+		}
+		plan := (*resource.ToolboxPlan)(&v1.HostToolboxPlan{Operation: &v1.HostToolboxOperation{
+			Operation: &v1.HostToolboxOperation_Service{Service: &v1.ToolboxService{Environment: []*v1.ToolboxBinding{binding}}},
+		}})
+		stored, err := plan.MarshalJSON()
+		if err != nil || bytes.Contains(stored, []byte(secret)) || binding.LiteralValue != nil || !binding.GetSecret() {
+			t.Fatalf("direct value wasn't sealed before storage: %v", err)
+		}
+		var read resource.ToolboxPlan
+		if err := read.UnmarshalJSON(stored); err != nil {
+			t.Fatal(err)
+		}
+		bindings := read.Proto().GetOperation().GetService().GetEnvironment()
+		values, err := k.HostToolboxValues(t.Context(), bindings)
+		if err != nil || values[binding.GetName()] != secret ||
+			!bytes.Equal(binding.GetValueDigest(), resource.ToolboxLiteralDigest(values[resource.ToolboxLiteralKey(binding.GetName())], secret)) {
+			t.Fatalf("couldn't open the reviewed value: %v", err)
+		}
+		bindings[0].SealedLiteral[0] ^= 1
+		if values, err := k.HostToolboxValues(t.Context(), bindings); err == nil || values != nil {
+			t.Fatal("accepted modified ciphertext")
+		}
+	})
 }

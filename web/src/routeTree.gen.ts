@@ -80,6 +80,7 @@ import { Route as ShellServersServerIdLogRouteImport } from './routes/_shell/ser
 import { Route as ShellServersServerIdProcessesRouteImport } from './routes/_shell/servers.$serverId.processes'
 import { Route as ShellServersServerIdServicesRouteImport } from './routes/_shell/servers.$serverId.services'
 import { Route as ShellServersServerIdTerminalRouteImport } from './routes/_shell/servers.$serverId.terminal'
+import { Route as ShellServersServerIdToolboxRouteImport } from './routes/_shell/servers.$serverId.toolbox'
 import { Route as ShellServersServerIdUpdatesRouteImport } from './routes/_shell/servers.$serverId.updates'
 import { Route as ShellWebsitesWebsiteIdIndexRouteImport } from './routes/_shell/websites.$websiteId.index'
 import { Route as ShellWebsitesWebsiteIdCertificateRouteImport } from './routes/_shell/websites.$websiteId.certificate'
@@ -476,6 +477,12 @@ const ShellServersServerIdTerminalRoute =
     path: '/servers/$serverId/terminal',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdToolboxRoute =
+  ShellServersServerIdToolboxRouteImport.update({
+    id: '/servers/$serverId/toolbox',
+    path: '/servers/$serverId/toolbox',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellServersServerIdUpdatesRoute =
   ShellServersServerIdUpdatesRouteImport.update({
     id: '/servers/$serverId/updates',
@@ -707,6 +714,7 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
+  '/servers/$serverId/toolbox': typeof ShellServersServerIdToolboxRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -796,6 +804,7 @@ export interface FileRoutesByTo {
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
+  '/servers/$serverId/toolbox': typeof ShellServersServerIdToolboxRoute
   '/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -891,6 +900,7 @@ export interface FileRoutesById {
   '/_shell/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/_shell/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/_shell/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
+  '/_shell/servers/$serverId/toolbox': typeof ShellServersServerIdToolboxRoute
   '/_shell/servers/$serverId/updates': typeof ShellServersServerIdUpdatesRoute
   '/_shell/websites/$websiteId/certificate': typeof ShellWebsitesWebsiteIdCertificateRoute
   '/_shell/websites/$websiteId/configuration': typeof ShellWebsitesWebsiteIdConfigurationRoute
@@ -985,6 +995,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/processes'
     | '/servers/$serverId/services'
     | '/servers/$serverId/terminal'
+    | '/servers/$serverId/toolbox'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -1074,6 +1085,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/processes'
     | '/servers/$serverId/services'
     | '/servers/$serverId/terminal'
+    | '/servers/$serverId/toolbox'
     | '/servers/$serverId/updates'
     | '/websites/$websiteId/certificate'
     | '/websites/$websiteId/configuration'
@@ -1168,6 +1180,7 @@ export interface FileRouteTypes {
     | '/_shell/servers/$serverId/processes'
     | '/_shell/servers/$serverId/services'
     | '/_shell/servers/$serverId/terminal'
+    | '/_shell/servers/$serverId/toolbox'
     | '/_shell/servers/$serverId/updates'
     | '/_shell/websites/$websiteId/certificate'
     | '/_shell/websites/$websiteId/configuration'
@@ -1691,6 +1704,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdTerminalRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/toolbox': {
+      id: '/_shell/servers/$serverId/toolbox'
+      path: '/servers/$serverId/toolbox'
+      fullPath: '/servers/$serverId/toolbox'
+      preLoaderRoute: typeof ShellServersServerIdToolboxRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/updates': {
       id: '/_shell/servers/$serverId/updates'
       path: '/servers/$serverId/updates'
@@ -2011,6 +2031,7 @@ interface ShellRouteChildren {
   ShellServersServerIdProcessesRoute: typeof ShellServersServerIdProcessesRoute
   ShellServersServerIdServicesRoute: typeof ShellServersServerIdServicesRoute
   ShellServersServerIdTerminalRoute: typeof ShellServersServerIdTerminalRoute
+  ShellServersServerIdToolboxRoute: typeof ShellServersServerIdToolboxRoute
   ShellServersServerIdUpdatesRoute: typeof ShellServersServerIdUpdatesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
@@ -2074,6 +2095,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersServerIdProcessesRoute: ShellServersServerIdProcessesRoute,
   ShellServersServerIdServicesRoute: ShellServersServerIdServicesRoute,
   ShellServersServerIdTerminalRoute: ShellServersServerIdTerminalRoute,
+  ShellServersServerIdToolboxRoute: ShellServersServerIdToolboxRoute,
   ShellServersServerIdUpdatesRoute: ShellServersServerIdUpdatesRoute,
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:

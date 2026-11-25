@@ -10,10 +10,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import type { Page } from "playwright-core";
-
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
 import { atWidth, onTop } from "./sheets.ts";
+import { toolboxTools } from "./toolbox-flow.ts";
 
 /** ufw status verbose as ufw prints it, its rows "%-26s %-12s%-26s", app profiles named after their ports. */
 const ufwStatus = [
@@ -134,6 +134,12 @@ export function hostTools(dir: string, sshPort = 22): string {
       `"list-unit-files --type=service") cat '${fix}/list-unit-files.txt' ;;`,
       `"show --property=Id,"*) if [ -e '${state}/nginx.running' ]; then sed '/^Id=nginx.service$/,/^$/{s/^ActiveState=.*/ActiveState=active/;s/^SubState=.*/SubState=running/;s/^Result=.*/Result=success/}' '${fix}/show.txt'; else cat '${fix}/show.txt'; fi ;;`,
       `"restart --no-pager"|"start --no-pager") touch '${state}/nginx.running' ;;`,
+      '"--version ") echo "systemd 259" ;;',
+      `"show --property=FragmentPath") case "$5" in dockwell-toolbox-*.service) if [ -f '${dir}/etc/systemd/system/'"$5" ]; then echo "/etc/systemd/system/$5"; fi ;; *) exit 127 ;; esac ;;`,
+      '"show --property=UnitPath") echo "/etc/systemd/system /run/systemd/system /usr/lib/systemd/system" ;;',
+      `"show --property=DropInPaths") case "$5" in dockwell-toolbox-*.service) if [ -f '${dir}/etc/systemd/system/'"$5" ]; then echo "/usr/lib/systemd/system/service.d/10-restart.conf"; fi ;; *) exit 127 ;; esac ;;`,
+      '"daemon-reload ") exit 0 ;;',
+      '"enable --"|"start --"|"disable --"|"stop --") case "$3" in dockwell-toolbox-*.service) exit 0 ;; *) exit 127 ;; esac ;;',
       '*) echo "systemctl: not found" >&2; exit 127 ;;',
       "esac",
       "",
@@ -157,6 +163,7 @@ export function hostTools(dir: string, sshPort = 22): string {
     `#!/bin/sh\ncase " $* " in\n*" --follow "*) exec tail -n 0 -F '${state}/follow' ;;\n*" --after-cursor="*) exit 0 ;;\nesac\ncat '${state}/journal'\n`,
     { mode: 0o755 },
   );
+  toolboxTools(dir);
   return dir;
 }
 

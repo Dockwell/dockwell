@@ -1101,3 +1101,37 @@ code.plan-server-chip .middle-name-head {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.toolbox-plan > :is(h3, h4) {
+  margin: 0 0 var(--space-2);
+}
+
+.toolbox-plan .facts {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+
+.toolbox-plan .facts div,
+.toolbox-plan-files li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.toolbox-plan-files {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+
+.toolbox-unit {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}

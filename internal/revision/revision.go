@@ -291,6 +291,7 @@ type RestartTarget struct {
 
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
+	Toolbox             *dockwellv1.HostToolboxOperation
 	DockerStorageGuard  *dockwellv1.DockerStorageGuard
 	DockerStorageCreate bool
 	DockerMaintenance   *dockwellv1.DockerMaintenance
@@ -629,6 +630,7 @@ const (
 
 // ResourcePlan is what a plan does to one resource as a whole.
 type ResourcePlan struct {
+	Toolbox             *resource.ToolboxPlan         `json:",omitempty"`
 	DockerStorageGuard  *resource.DockerStorageGuard  `json:",omitempty"`
 	DockerDaemon        *dockwellv1.DockerDaemonPlan  `json:",omitempty"`
 	DockerMaintenance   *dockwellv1.DockerMaintenance `json:",omitempty"`
@@ -825,7 +827,7 @@ func (p *Plan) HasDockerImageAction() bool {
 func (p *Plan) HostAccess() bool {
 	// An install of updates reaches the whole server, as root, which a person approves.
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil || r.AgentUpgrade != nil || r.DockerMaintenance != nil
+		return r.Toolbox != nil || len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil || r.AgentUpgrade != nil || r.DockerMaintenance != nil
 	})
 }
 
@@ -839,7 +841,7 @@ func (p *Plan) AsGoodAsRoot() bool {
 		// install script as root (ADR 0094).
 		// An action on a system service is when its guard says so, as restarting SSH
 		// or Docker is (ADR 0082).
-		return r.Install != nil || r.Reboot != nil || r.AgentUpgrade != nil || r.Unit != nil && r.Unit.Passkey() || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		return r.Toolbox != nil || r.Install != nil || r.Reboot != nil || r.AgentUpgrade != nil || r.Unit != nil && r.Unit.Passkey() || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
 	})
 }
 
@@ -899,6 +901,7 @@ func (p *Plan) Destructive() bool {
 
 // item is one edit with what it starts from.
 type item struct {
+	toolbox            *dockwellv1.HostToolboxPlan
 	dockerStorageGuard *resource.DockerStorageGuard
 	dockerMaintenance  *dockwellv1.DockerMaintenance
 	// reverses says this item undoes a change, so it takes what that change made
@@ -1029,7 +1032,7 @@ func reviewsDaemonFile(spec proto.Message) bool {
 // to roll back, and what goes wrong leaves its revision as it was. A restore into a
 // new database isn't one: it makes its service (ADR 0106).
 func (it item) noRevision() bool {
-	return it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) || it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.toolbox != nil || it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) || it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -1067,7 +1070,7 @@ func (it item) restoreOn(server string) *resource.RestoreSource {
 // changes reports whether the item makes a new revision: its spec, or
 // where it runs, differs from the latest revision.
 func (it item) changes() bool {
-	if it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) {
+	if it.toolbox != nil || it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) {
 		return false
 	}
 	if it.rotates {
@@ -1307,6 +1310,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return ed.Ref == items[i].ref && (ed.DockerStorageGuard != nil || ed.DockerStorageCreate)
 		}); j >= 0 {
 			items[i].dockerStorageGuard = storageGuardOf(&p.Edits[j], changeID)
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Toolbox != nil && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].toolbox = &dockwellv1.HostToolboxPlan{Operation: p.Edits[j].Toolbox, ChangeId: changeID}
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.DockerMaintenance != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].dockerMaintenance = proto.CloneOf(p.Edits[j].DockerMaintenance)
@@ -3397,6 +3403,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if d := s.DockerDaemon; d != nil {
 				fmt.Fprintf(fp, "docker-daemon %s|%s|%s\n", server, ref(s.Ref), d.GetEvidence())
 			}
+			if m := s.Toolbox; m != nil {
+				fmt.Fprintf(fp, "host-toolbox %s|%s|%s\n", server, ref(s.Ref), m.Proto().GetEvidence())
+			}
 			if m := s.DockerMaintenance; m != nil {
 				data, err := (proto.MarshalOptions{Deterministic: true}).Marshal(m)
 				if err != nil {
@@ -3631,6 +3640,23 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		if reviewsDaemonFile(items[i].spec) {
 			rp.Changes = nil
 			rp.NoUndo = "Activating the local file does not change Dockwell's desired settings."
+		}
+		if items[i].toolbox != nil {
+			for _, server := range plan.Servers {
+				for i := range server.Steps {
+					step := &server.Steps[i]
+					if step.Ref == rp.Ref && step.Toolbox != nil {
+						rp.Toolbox = step.Toolbox
+					}
+				}
+			}
+			if rp.Toolbox == nil {
+				return nil, fault.New(ErrInvalid, "the host toolbox needs a connected agent that supports it")
+			}
+			rp.NoUndo = "This host operation makes no revision. Review a new plan to change the settings again."
+			if rp.Toolbox.Proto().GetOperation().GetCleanup() != nil {
+				rp.NoUndo = "Host cleanup permanently removes the files listed in the plan."
+			}
 		}
 		rp.DockerStorageGuard = items[i].dockerStorageGuard
 		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
@@ -3870,7 +3896,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 // planOn asks a server's agent what the items would take there.
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item, reverts string) ([]resource.Step, error) {
 	if len(its) == 1 {
-		if approved := its[0].unfinished[server]; approved != nil && approved.DockerDaemon != nil {
+		if approved := its[0].unfinished[server]; approved != nil && (approved.DockerDaemon != nil || approved.Toolbox != nil) {
 			// The daemon can be down during recovery. Resume the frozen step;
 			// its worker checks the transaction without repeating the write.
 			return []resource.Step{*approved}, nil
@@ -3889,7 +3915,7 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 		if it.reverses || it.rollback {
 			undoes = reverts
 		}
-		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Undoes: undoes, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
+		desired[i] = resource.Desired{Ref: it.ref, Toolbox: it.toolbox, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Undoes: undoes, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
 		desired[i].NeedsPauseControl = resource.RunIntent(it.currentOn(server)) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 		desired[i].DockerStorageGuard = guards[it.ref]
@@ -5249,7 +5275,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		mu.Lock()
 		called()
-		if q.step.Unit != nil && e.onUnit != nil {
+		if (q.step.Unit != nil || q.step.Toolbox.Proto().GetOperation().GetService() != nil) && e.onUnit != nil {
 			// However it went, the unit stands somewhere new: whoever watches its
 			// server's system services reads them again now (ADR 0082).
 			e.onUnit(q.server)
@@ -5869,7 +5895,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 				}
 				it.encoded, it.id = asked, cmp.Or(it.id, ci.ResourceID)
 			}
-			if dockerMaintenanceIn(planned, ref) == nil && !reviewsDaemonFile(it.spec) && (!bytes.Equal(it.encoded, asked) || it.base == 0) {
+			if toolboxIn(planned, ref) == nil && dockerMaintenanceIn(planned, ref) == nil && !reviewsDaemonFile(it.spec) && (!bytes.Equal(it.encoded, asked) || it.base == 0) {
 				continue // a later change moved it on
 			}
 			it.run, it.adopt, it.adoptName, it.public = ci.Run, ci.Adopts, ci.AdoptsName, ci.Public
@@ -5906,8 +5932,12 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.deleteShared = deletesSharedIn(planned, ref)
 			it.removal, it.forget = removalIn(planned), forgetIn(planned, ref)
 			it.panel = panelIn(planned, ref)
+			it.toolbox = toolboxIn(planned, ref)
 			it.dockerMaintenance = dockerMaintenanceIn(planned, ref)
-			if it.dockerMaintenance != nil && it.id == "" {
+			if it.toolbox != nil {
+				it.servers = ci.Servers
+			}
+			if (it.toolbox != nil || it.dockerMaintenance != nil) && it.id == "" {
 				it.id = ci.ResourceID
 			}
 			if err := markGone(ctx, tx, &it); err != nil {
@@ -6145,6 +6175,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 		it.deleteShared = deletesSharedIn(asked, ref)
 		it.removal, it.forget = removalIn(asked), forgetIn(asked, ref)
 		it.panel = panelIn(asked, ref)
+		it.toolbox = toolboxIn(asked, ref)
 		it.dockerMaintenance = dockerMaintenanceIn(asked, ref)
 		it.dockerStorageGuard = dockerStorageGuardIn(asked, ref)
 		items = append(items, it)
@@ -6852,7 +6883,7 @@ func (e *Engine) holdsToo(ctx context.Context, tx *store.Tx, items []item) ([]it
 	claimed := map[string]bool{}
 	for i := range items {
 		server := items[i].ref.Scope
-		if !e.guardsAccess(items[i].ref.Kind) || claimed[server] {
+		if (!e.guardsAccess(items[i].ref.Kind) && !resource.ToolboxNeedsKeep(items[i].toolbox.GetOperation())) || claimed[server] {
 			continue
 		}
 		claimed[server] = true
@@ -6909,7 +6940,9 @@ func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q)
 // decides who gets in, as a fail2ban jail does, so it takes a person and a
 // passkey to apply (ADR 0052).
 func (e *Engine) TouchesAccess(p *Plan) bool {
-	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.TakesAPerson(string(r.Ref.Kind)) })
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		return e.TakesAPerson(string(r.Ref.Kind)) || resource.ToolboxNeedsKeep(r.Toolbox.Proto().GetOperation())
+	})
 }
 
 // TakesAPerson says whether a step of kind changes who reaches a server, or who
@@ -6937,7 +6970,7 @@ func (e *Engine) ConfirmAccess(ctx context.Context, changeID, server string, dea
 	}
 	agent, online := e.agents.Agent(server)
 	if !online {
-		return 0, fault.New(ErrOffline, "the server's agent isn't connected, so nothing can confirm the change there. Its timer puts back the firewall as it was")
+		return 0, fault.New(ErrOffline, "the server's agent isn't connected, so nothing can confirm the change there. Its timer puts back the previous settings")
 	}
 	confirmer, ok := agent.(AccessConfirmer)
 	if !ok {

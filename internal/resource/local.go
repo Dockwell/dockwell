@@ -19,6 +19,7 @@ import (
 
 // Desired is one resource as a change wants it; a nil Spec deletes it.
 type Desired struct {
+	Toolbox            *v1.HostToolboxPlan
 	DockerStorageGuard *DockerStorageGuard `json:"-"`
 	DockerMaintenance  *v1.DockerMaintenance
 	Ref                Ref

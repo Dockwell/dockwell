@@ -245,6 +245,11 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
               <Trans>Processes</Trans>
             </RouterTabLink>
           ) : null}
+          {may(ServerService.method.getHostToolbox).allowed ? (
+            <RouterTabLink to="/servers/$serverId/toolbox" params={{ serverId: server.id }}>
+              <Trans>Toolbox</Trans>
+            </RouterTabLink>
+          ) : null}
           {may(ServerService.method.watchSystemServices).allowed ? (
             <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
               <Trans>System services</Trans>

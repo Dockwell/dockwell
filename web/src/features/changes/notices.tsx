@@ -94,6 +94,9 @@ export function needsConfirming(plan: Plan | undefined): boolean {
   // the plan says it's for good, and a second code to type says nothing more.
   if (plan.removes && !access.some(asGoodAsRoot) && !removalDestroysMore(plan)) return false;
   if (plan.destructive) return true;
+  if (plan.resources.length > 0 && plan.resources.every((r) => r.toolbox !== undefined)) {
+    return plan.resources.some((r) => r.toolbox?.operation?.operation.case === "service");
+  }
   if (access.some(asGoodAsRoot)) return true;
   if (quietInstall(plan)) return false;
   // An action on a system service says what it reaches: the typed code only for what stops everything, may cut
@@ -158,7 +161,7 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       plan.resources.some(
         (r) => r.resource?.kind === "registry.login" && r.changes.some((c) => c.path === "allow_push"),
       ) ||
-      plan.resources.some((r) => r.unit?.passkey === true) ||
+      plan.resources.some((r) => r.unit?.passkey === true || r.toolbox !== undefined) ||
       // An Open whose owner isn't made: who reaches it first takes it, or anyone signs
       // in with a password everyone knows (ADR 0105).
       plan.notes.some((n) => n.reason === "opens_to_everyone" || n.reason === "known_password"))

@@ -534,7 +534,15 @@ func callFailed(err error) *agentv1.CallResult {
 func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult {
 	fail := callFailed
 	switch {
+	case call.GetHostToolboxRead() != nil:
+		if c.cfg.toolbox == nil {
+			return fail(errors.New("the host toolbox is unavailable"))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_HostToolboxRead{HostToolboxRead: c.cfg.toolbox.status(ctx)}}
 	case call.GetPlan() != nil:
+		if result, checked := c.planHostToolbox(ctx, call.GetPlan()); checked {
+			return result
+		}
 		if result, checked := c.planDockerMaintenance(ctx, call.GetPlan()); checked {
 			return result
 		}
@@ -637,6 +645,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if err != nil {
 			return fail(fmt.Errorf("this agent can't read the step it was sent: %w. "+
 				"The control plane is newer than the agent, so update the agent to the control plane's version", err))
+		}
+		if call.GetApply().GetDesired().GetHostToolbox() != nil || step.Toolbox != nil {
+			return c.applyHostToolbox(ctx, call.GetId(), call.GetApply(), step)
 		}
 		if want := call.GetApply().GetDesired(); want.GetDockerMaintenance() != nil || step.DockerMaintenance != nil {
 			if step.DockerMaintenance == nil || !proto.Equal(want.GetDockerMaintenance(), step.DockerMaintenance) ||
@@ -1193,6 +1204,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		return &agentv1.CallResult{Result: &agentv1.CallResult_TerminalCwd{TerminalCwd: res}}
 	}
 	if confirm := call.GetConfirmAccess(); confirm != nil {
+		if c.cfg.toolbox != nil {
+			v, failure := c.cfg.toolbox.keep(ctx, confirm.GetChangeId())
+			if v != resource.AccessNotWaiting {
+				return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: accessVerdicts[v], SshFailure: failure}}}
+			}
+		}
 		if c.cfg.Access == nil {
 			return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING}}}
 		}
