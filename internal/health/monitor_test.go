@@ -188,7 +188,12 @@ func TestAStartPeriodForgivesFailures(t *testing.T) {
 		calls.Add(1)
 		return health.Result{Output: "refused", At: time.Now()}, nil
 	})
-	got := eventually(t, "it has failed a few checks", m, func(map[string]*dockwellv1.InstanceHealth) bool { return calls.Load() > 5 })
+	// Until a read says when it started, a failure reads as unknown (the next
+	// test): wait for that read as well as a few failed checks (main's CI on
+	// 20126fc13 read it as unknown).
+	got := eventually(t, "it has failed a few checks once its start is known", m, func(h map[string]*dockwellv1.InstanceHealth) bool {
+		return calls.Load() > 5 && h[name].GetState() != dockwellv1.HealthState_HEALTH_STATE_UNKNOWN
+	})
 	if got[name].GetState() != dockwellv1.HealthState_HEALTH_STATE_STARTING {
 		t.Errorf("in its start period, it reads as %v", got[name].GetState())
 	}
