@@ -29,13 +29,16 @@ import (
 // leaves out what a read would refuse in it, and doesn't follow a link or cross into
 // another filesystem. It sends a part at a time, so the agent holds a part.
 
-// keyStarts is where a private key starts, with what follows its first line, so a
-// program that only names one doesn't stop a download.
-var keyStarts = lazyre.Regexp(`-{5}BEGIN [A-Z0-9 ]*PRIVATE KEY-{5}\r?\n[A-Za-z0-9+/=]{16}`)
+// keyStarts is where a private key starts, with what follows its first line
+// (base64 body or RFC 1421 encryption headers), so a program that only names
+// one doesn't stop a download.
+var keyStarts = lazyre.Regexp(`-{5}BEGIN [A-Z0-9 -]*PRIVATE KEY-{5}[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*(?:[A-Za-z0-9+/=]{16}|(?i:Proc-Type|DEK-Info):[ \t]*\S)`)
+
+var beginKeyMark = []byte("-----BEGIN ")
 
 // keyTail is how much of what went before a part is kept, to find a key that
 // starts across two.
-const keyTail = 128
+const keyTail = 256
 
 // Download sends what's at p: a file as it is, or a folder as a zip archive. send
 // takes each part, the first saying what it is.
@@ -76,6 +79,7 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	resolved := make([]string, 0, len(paths))
 	var knownBytes uint64
 	hasDir := false
+	var preflightBuf []byte
 	for i, p := range paths {
 		var o *opened
 		refusal, err := attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
@@ -94,17 +98,25 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 			hasDir = true
 		} else {
 			knownBytes += uint64(max(o.w.st.Size, 0))
-			head := make([]byte, MaxFileBytes)
-			n, rerr := io.ReadFull(o.f, head)
-			if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			if preflightBuf == nil {
+				preflightBuf = make([]byte, FrameBytes)
+			}
+			firstLen, why, seeked, _, rerr := scanFileHead(o.f, preflightBuf)
+			if rerr != nil {
 				where := o.where
 				o.close()
 				return &agentv1.DownloadFileResult{Refusal: denied(where, rerr)}, nil
 			}
-			if why := heldBack(head[:n]); why != "" {
+			if why != "" {
 				where := o.where
 				o.close()
 				return &agentv1.DownloadFileResult{Refusal: refused(where, why)}, nil
+			}
+			if !seeked && firstLen > 0 {
+				if r := (&keyScan{}).check(o.where, preflightBuf[:firstLen]); r != nil {
+					o.close()
+					return &agentv1.DownloadFileResult{Refusal: r}, nil
+				}
 			}
 		}
 		o.close()
@@ -226,21 +238,237 @@ func sameAs(fd int, was *unix.Stat_t, kind uint32) bool {
 		(kind != unix.S_IFREG || st.Nlink == 1)
 }
 
-// readHead reads as much of a file's beginning as heldBack needs to tell what it
-// holds: the first MiB, as a read shows it, unless its first part already shows
-// a binary file, which heldBack lets go whatever the rest holds. Downloads are
-// mostly binary, and four at once each held a MiB here (ADR 0109); the parts
-// after the first go by keyScan, as the rest of a file does.
-func readHead(f io.Reader) ([]byte, error) {
-	head := make([]byte, FrameBytes)
-	n, err := io.ReadFull(f, head)
-	if err != nil || showsBinary(head) {
-		return head[:n], err
+// dockerTailLen is the overlap kept between headScan chunks so Docker state
+// tokens split across a chunk boundary still match.
+const dockerTailLen = 15 // len(`"ResolvConfPath"`) - 1
+
+var (
+	dockerMountOpts  = []byte(`"MountOpts"`)
+	dockerResolvConf = []byte(`"ResolvConfPath"`)
+	dockerEnv        = []byte(`"Env"`)
+)
+
+// headScan checks a file's first MaxFileBytes a part at a time with heldBack's
+// rules (binary files pass; text files are refused for a private key, a password
+// hash line, or Docker state), so downloads and folder zips agree on the first
+// MiB without allocating per-file MiB buffers (ADR 0109).
+type headScan struct {
+	binary        bool
+	utf8Carry     [utf8.UTFMax]byte
+	utf8CarryLen  int
+	line          [lineHead]byte
+	lineLen       int
+	lineOverflow  bool
+	afterNul      nulLine
+	dockerTail    [dockerTailLen]byte
+	dockerTailLen int
+	sawKey        bool
+	sawHash       bool
+	sawMountOpts  bool
+	sawResolvConf bool
+	sawEnv        bool
+}
+
+func (h *headScan) feedDocker(part []byte) {
+	if h.binary || len(part) == 0 {
+		return
 	}
-	full := make([]byte, MaxFileBytes)
-	copy(full, head)
-	m, err := io.ReadFull(f, full[n:])
-	return full[:n+m], err
+	if !h.checkUTF8(part) {
+		h.binary = true
+		return
+	}
+	h.checkDocker(part)
+}
+
+func (h *headScan) feed(part []byte) {
+	if h.binary || len(part) == 0 {
+		return
+	}
+	if !h.checkUTF8(part) {
+		h.binary = true
+		return
+	}
+	h.checkDocker(part)
+	h.checkLines(part)
+}
+
+func (h *headScan) checkUTF8(part []byte) bool {
+	if bytes.IndexByte(part, 0) >= 0 {
+		return false
+	}
+	p := part
+	if h.utf8CarryLen > 0 {
+		take := min(len(p), utf8.UTFMax-h.utf8CarryLen)
+		copy(h.utf8Carry[h.utf8CarryLen:], p[:take])
+		combined := h.utf8Carry[:h.utf8CarryLen+take]
+		if !utf8.FullRune(combined) {
+			h.utf8CarryLen += take
+			return true
+		}
+		r, size := utf8.DecodeRune(combined)
+		if r == utf8.RuneError && size == 1 {
+			return false
+		}
+		p = p[size-h.utf8CarryLen:]
+		h.utf8CarryLen = 0
+	}
+	for cut := range min(utf8.UTFMax, len(p)+1) {
+		whole, split := p[:len(p)-cut], p[len(p)-cut:]
+		if utf8.Valid(whole) && (cut == 0 || !utf8.FullRune(split)) {
+			h.utf8CarryLen = copy(h.utf8Carry[:], split)
+			return true
+		}
+	}
+	return false
+}
+
+func (h *headScan) checkDocker(part []byte) {
+	if h.sawMountOpts || h.sawResolvConf && h.sawEnv {
+		return
+	}
+	var joinBuf [dockerTailLen * 2]byte
+	jn := copy(joinBuf[:], h.dockerTail[:h.dockerTailLen])
+	jn += copy(joinBuf[jn:], part[:min(len(part), dockerTailLen)])
+	join := joinBuf[:jn]
+	if !h.sawMountOpts && (bytes.Contains(join, dockerMountOpts) || bytes.Contains(part, dockerMountOpts)) {
+		h.sawMountOpts = true
+	}
+	if !h.sawResolvConf && (bytes.Contains(join, dockerResolvConf) || bytes.Contains(part, dockerResolvConf)) {
+		h.sawResolvConf = true
+	}
+	if !h.sawEnv && (bytes.Contains(join, dockerEnv) || bytes.Contains(part, dockerEnv)) {
+		h.sawEnv = true
+	}
+	if len(part) >= dockerTailLen {
+		h.dockerTailLen = copy(h.dockerTail[:], part[len(part)-dockerTailLen:])
+	} else {
+		keep := min(h.dockerTailLen, dockerTailLen-len(part))
+		if keep < h.dockerTailLen {
+			copy(h.dockerTail[:], h.dockerTail[h.dockerTailLen-keep:h.dockerTailLen])
+		}
+		copy(h.dockerTail[keep:], part)
+		h.dockerTailLen = keep + len(part)
+	}
+}
+
+func (h *headScan) checkLines(part []byte) {
+	if h.sawKey && h.sawHash {
+		return
+	}
+	for rest := part; len(rest) > 0; {
+		seg, more, ended := bytes.Cut(rest, []byte{'\n'})
+		rest = more
+		if h.afterNul.feed(seg, ended) {
+			h.sawHash = true
+		}
+		if room := lineHead - h.lineLen; room > 0 {
+			take := min(len(seg), room)
+			copy(h.line[h.lineLen:], seg[:take])
+			h.lineLen += take
+			seg = seg[take:]
+		}
+		if len(seg) > 0 && !h.lineOverflow {
+			if len(bytes.TrimRight(seg, " \t\r")) > 0 {
+				h.lineOverflow = true
+			}
+		}
+		if ended {
+			h.finishLine()
+			if h.sawKey && h.sawHash {
+				return
+			}
+		}
+	}
+}
+
+func (h *headScan) finishLine() {
+	if h.lineLen == 0 {
+		return
+	}
+	line := h.line[:h.lineLen]
+	if !h.sawKey && !h.lineOverflow && bytes.Contains(line, beginKeyMark) && holdsPrivateKey(line) {
+		h.sawKey = true
+	}
+	if !h.sawHash && bytes.IndexByte(line, '$') >= 0 && hashLine().Match(line) {
+		h.sawHash = true
+	}
+	h.lineLen = 0
+	h.lineOverflow = false
+}
+
+func (h *headScan) sawDocker() bool {
+	return !h.binary && (h.sawMountOpts || h.sawResolvConf && h.sawEnv)
+}
+
+func (h *headScan) why(truncated bool) string {
+	if h.binary || (!truncated && h.utf8CarryLen > 0) {
+		return ""
+	}
+	h.finishLine()
+	switch {
+	case h.sawKey:
+		return whyPrivateKey
+	case h.sawHash:
+		return whyHashes
+	case h.sawMountOpts || h.sawResolvConf && h.sawEnv:
+		return whyDockerCopy
+	}
+	return ""
+}
+
+// scanFileHead checks a file's first MaxFileBytes with heldBack's rules using
+// only buf (FrameBytes), so no per-file MiB buffer is allocated (ADR 0109).
+// When the file fits in buf or its first part already shows a binary file, it
+// returns with buf[:firstLen] ready to stream and seeked == false. Otherwise it
+// reads up to MaxFileBytes into buf and returns seeked == true so the caller
+// can rewind f to 0 before streaming.
+func scanFileHead(f io.Reader, buf []byte) (firstLen int, why string, seeked, isBin bool, err error) {
+	n, err := io.ReadFull(f, buf)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return 0, "", false, false, err
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || len(buf) >= MaxFileBytes {
+		if isBinary(buf[:n]) {
+			return n, "", false, true, nil
+		}
+		return n, whatItHolds(buf[:n]), false, false, nil
+	}
+	if showsBinary(buf[:n]) {
+		return n, "", false, true, nil
+	}
+	var hs headScan
+	hs.feed(buf[:n])
+	total := n
+	for total < MaxFileBytes && !hs.binary {
+		want := min(len(buf), MaxFileBytes-total)
+		m, rerr := io.ReadFull(f, buf[:want])
+		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			return 0, "", true, false, rerr
+		}
+		if m > 0 {
+			seeked = true
+			hs.feed(buf[:m])
+			total += m
+		}
+		if errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF) {
+			return n, hs.why(false), seeked, hs.binary || hs.utf8CarryLen > 0, nil
+		}
+	}
+	if hs.binary {
+		return n, "", seeked, true, nil
+	}
+	// At MaxFileBytes with a trailing incomplete UTF-8 rune, peek one byte to
+	// tell whether the file continues (valid rune split by the cap) or ended.
+	truncated := true
+	if hs.utf8CarryLen > 0 {
+		var one [1]byte
+		m, rerr := f.Read(one[:])
+		if rerr != nil && !errors.Is(rerr, io.EOF) {
+			return 0, "", seeked, false, rerr
+		}
+		truncated = m > 0
+	}
+	return n, hs.why(truncated), seeked, !truncated && hs.utf8CarryLen > 0, nil
 }
 
 // showsBinary says whether the start of a file is enough to tell that isBinary
@@ -268,27 +496,50 @@ func heldBack(head []byte) string {
 }
 
 func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1.DownloadFileResult, error) {
-	head, err := readHead(o.f)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	buf := out.spare()
+	firstLen, why, seeked, isBin, err := scanFileHead(o.f, buf)
+	if err != nil {
 		return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
 	}
-	if why := heldBack(head); why != "" {
+	if why != "" {
 		return &agentv1.DownloadFileResult{Refusal: refused(o.where, why)}, nil
+	}
+	if seeked {
+		if _, err := o.f.Seek(0, io.SeekStart); err != nil {
+			return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
+		}
+		n, rerr := io.ReadFull(o.f, buf)
+		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			return &agentv1.DownloadFileResult{Refusal: denied(o.where, rerr)}, nil
+		}
+		firstLen = n
+	}
+	scan := &keyScan{}
+	var dockerTOCTOU headScan
+	checkDocker := seeked && !isBin
+	headSeen := 0
+	if firstLen > 0 {
+		if refusal := scan.check(o.where, buf[:firstLen]); refusal != nil {
+			return &agentv1.DownloadFileResult{Refusal: refusal}, nil
+		}
+		if checkDocker {
+			dockerTOCTOU.feedDocker(buf[:firstLen])
+			headSeen += firstLen
+			if dockerTOCTOU.sawDocker() {
+				return &agentv1.DownloadFileResult{Refusal: refused(o.where, whyDockerCopy)}, nil
+			}
+		}
 	}
 	if err := out.send(&agentv1.SendFileRequest{Name: o.w.last().name, SizeBytes: uint64(max(o.w.st.Size, 0)), Path: o.where}); err != nil {
 		return nil, err
 	}
-	scan := &keyScan{}
-	if refusal := scan.check(o.where, head); refusal != nil {
-		return &agentv1.DownloadFileResult{Refusal: refusal}, nil
-	}
-	if _, err := out.Write(head); err != nil {
-		return nil, err
+	if firstLen > 0 {
+		if err := out.took(firstLen); err != nil {
+			return nil, err
+		}
 	}
 	// The rest a part at a time, each looked at before it goes, read straight into
-	// the part on its way. The head's buffer isn't read into again, so it
-	// goes: kept for the whole file, three downloads at once held 3 MiB more than
-	// they need (#883).
+	// the part on its way.
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -298,6 +549,14 @@ func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1
 		if n > 0 {
 			if refusal := scan.check(o.where, part[:n]); refusal != nil {
 				return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
+			}
+			if checkDocker && headSeen < MaxFileBytes {
+				take := min(n, MaxFileBytes-headSeen)
+				dockerTOCTOU.feedDocker(part[:take])
+				headSeen += take
+				if dockerTOCTOU.sawDocker() {
+					return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refused(o.where, whyDockerCopy)}, nil
+				}
 			}
 			if err := out.took(n); err != nil {
 				return nil, err
@@ -318,12 +577,13 @@ func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1
 
 // keyScan finds where a private key or a password hash starts in what's sent,
 // across parts, by the rules a read goes by in a file's first MiB: a PEM key's
-// first line on a line of its own, encrypted or not, and a line of a password
-// file. It keeps the start of the line a part ends in, as the next part goes on
-// with it.
+// first line on a line of its own, encrypted or not, or anywhere in binary data
+// followed by its body or encryption headers, and a line of a password file. It
+// keeps the start of the line a part ends in, as the next part goes on with it.
 type keyScan struct {
-	tail []byte
-	line []byte
+	tail     []byte
+	line     []byte
+	afterNul nulLine
 }
 
 // lineHead is how much of a line's start keyScan keeps, which is all the line
@@ -331,21 +591,41 @@ type keyScan struct {
 const lineHead = 512
 
 func (k *keyScan) check(where string, part []byte) *agentv1.FileRefusal {
-	look := append(k.tail, part[:min(len(part), keyTail*4)]...) //nolint:gocritic // a short window across the join
 	why := ""
-	if keyStarts().Match(look) || keyStarts().Match(part) {
+	if len(k.tail) > 0 && len(part) > 0 {
+		var lookBuf [keyTail + keyTail*2]byte
+		n := copy(lookBuf[:], k.tail)
+		n += copy(lookBuf[n:], part[:min(len(part), keyTail*2)])
+		look := lookBuf[:n]
+		if bytes.Contains(look, beginKeyMark) && keyStarts().Match(look) {
+			why = whyPrivateKey
+		}
+	}
+	if why == "" && bytes.Contains(part, beginKeyMark) && keyStarts().Match(part) {
 		why = whyPrivateKey
 	}
-	k.tail = append(k.tail[:0], part[max(0, len(part)-keyTail):]...)
+	if len(part) >= keyTail {
+		k.tail = append(k.tail[:0], part[len(part)-keyTail:]...)
+	} else if len(part) > 0 {
+		keep := min(len(k.tail), keyTail-len(part))
+		if keep < len(k.tail) {
+			copy(k.tail, k.tail[len(k.tail)-keep:])
+			k.tail = k.tail[:keep]
+		}
+		k.tail = append(k.tail, part...)
+	}
 	for rest := part; why == "" && len(rest) > 0; {
 		seg, more, ended := bytes.Cut(rest, []byte{'\n'})
 		rest = more
+		if k.afterNul.feed(seg, ended) {
+			why = whyHashes
+		}
 		if room := lineHead - len(k.line); room > 0 {
 			k.line = append(k.line, seg[:min(len(seg), room)]...)
 		}
 		// Most lines have neither's marks, and a large file has many lines.
 		switch {
-		case bytes.Contains(k.line, []byte("-----BEGIN ")) && holdsPrivateKey(k.line):
+		case bytes.Contains(k.line, beginKeyMark) && holdsPrivateKey(k.line):
 			why = whyPrivateKey
 		case bytes.IndexByte(k.line, '$') >= 0 && textLine(k.line) && hashLine().Match(k.line):
 			why = whyHashes
@@ -515,16 +795,41 @@ func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint
 			a.progress()
 			return nil, nil
 		}
-		n, err := io.ReadFull(f, a.buf[:min(len(a.buf), MaxFileBytes)])
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		firstLen, why, seeked, isBin, err := scanFileHead(f, a.buf)
+		if err != nil || why != "" {
 			a.leftOut++
 			a.progress()
 			return nil, nil
 		}
-		if heldBack(a.buf[:n]) != "" {
-			a.leftOut++
-			a.progress()
-			return nil, nil
+		if seeked {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				a.leftOut++
+				a.progress()
+				return nil, nil
+			}
+			n, rerr := io.ReadFull(f, a.buf)
+			if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+				a.leftOut++
+				a.progress()
+				return nil, nil
+			}
+			firstLen = n
+		}
+		scan := &keyScan{}
+		var dockerTOCTOU headScan
+		checkDocker := seeked && !isBin
+		headSeen := 0
+		if firstLen > 0 {
+			if refusal := scan.check(where, a.buf[:firstLen]); refusal != nil {
+				return refusal, nil
+			}
+			if checkDocker {
+				dockerTOCTOU.feedDocker(a.buf[:firstLen])
+				headSeen += firstLen
+				if dockerTOCTOU.sawDocker() {
+					return refused(where, whyDockerCopy), nil
+				}
+			}
 		}
 		a.count++
 		if a.count > maxArchived {
@@ -537,19 +842,32 @@ func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint
 		if err != nil {
 			return nil, err
 		}
-		scan := &keyScan{}
-		for part := a.buf[:n]; ; {
-			if refusal := scan.check(where, part); refusal != nil {
-				return refusal, nil
-			}
-			if _, err := w.Write(part); err != nil {
+		if firstLen > 0 {
+			if _, err := w.Write(a.buf[:firstLen]); err != nil {
 				return nil, err
 			}
-			m, err := f.Read(a.buf)
-			if m == 0 && err != nil {
+		}
+		for {
+			m, rerr := f.Read(a.buf)
+			if m > 0 {
+				if refusal := scan.check(where, a.buf[:m]); refusal != nil {
+					return refusal, nil
+				}
+				if checkDocker && headSeen < MaxFileBytes {
+					take := min(m, MaxFileBytes-headSeen)
+					dockerTOCTOU.feedDocker(a.buf[:take])
+					headSeen += take
+					if dockerTOCTOU.sawDocker() {
+						return refused(where, whyDockerCopy), nil
+					}
+				}
+				if _, werr := w.Write(a.buf[:m]); werr != nil {
+					return nil, werr
+				}
+			}
+			if m == 0 && rerr != nil {
 				break
 			}
-			part = a.buf[:m]
 		}
 		a.progress()
 		return nil, nil
@@ -633,4 +951,37 @@ func textLine(line []byte) bool {
 		}
 	}
 	return false
+}
+
+// nulLine keeps the text of a line after its last NUL: a password file's first
+// line, inside a tar, starts right after its member header's NUL padding, which
+// the line before it never ends with a newline (the key-scan review's M1). It's
+// read as a password file's line only when it reads as text, so binary data
+// that holds a NUL isn't mistaken for one.
+type nulLine struct {
+	buf   [lineHead]byte
+	n     int
+	after bool
+}
+
+// feed takes a newline-free segment of a line, and whether the line ends with
+// it, and says whether the text after the line's last NUL is a hash line.
+func (l *nulLine) feed(seg []byte, ended bool) bool {
+	if i := bytes.LastIndexByte(seg, 0); i >= 0 {
+		l.n, l.after, seg = 0, true, seg[i+1:]
+	}
+	if l.after {
+		l.n += copy(l.buf[l.n:], seg)
+	}
+	if !ended {
+		return false
+	}
+	found := l.after && holdsHashLine(l.buf[:l.n])
+	l.n, l.after = 0, false
+	return found
+}
+
+// holdsHashLine says whether a line reads as text and is a password file's line.
+func holdsHashLine(line []byte) bool {
+	return bytes.IndexByte(line, '$') >= 0 && textLine(line) && hashLine().Match(line)
 }

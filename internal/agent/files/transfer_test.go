@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -811,5 +812,338 @@ func TestTheStartOfABinaryFileShowsIt(t *testing.T) {
 		if showsBinary([]byte(s)) != isBinary([]byte(s)) && !strings.HasSuffix(s, "\xe6\x97") && !strings.HasSuffix(s, "\xf0\x9f\x98") {
 			t.Errorf("%q whole: showsBinary %v, isBinary %v", s, showsBinary([]byte(s)), isBinary([]byte(s)))
 		}
+	}
+}
+
+// tarOf packs regular files into an uncompressed tar archive, where each file's
+// bytes follow its 512-byte NUL-padded header with no newline in between.
+// A password file whose only hash is on its first line, inside a tar, starts
+// right after the tar header's NUL padding: that line is still one to refuse
+// (the key-scan review's M1).
+func TestDownloadRefusesAPasswordFileInATar(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, entries := range map[string][]struct{ name, body string }{
+		"alone": {{name: "shadow", body: "root:$6$saltsalt$c2VjcmV0c2VjcmV0c2VjcmV0:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\n"}},
+		"after another file": {
+			{name: "notes.txt", body: "nothing here\n"},
+			{name: "shadow", body: "root:$6$saltsalt$c2VjcmV0c2VjcmV0c2VjcmV0:19000:0:99999:7:::\n"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := filepath.Join(site, strings.ReplaceAll(name, " ", "-")+".tar")
+			if err := os.WriteFile(p, tarOf(t, entries), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, data, out := d.download(t, p)
+			if out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+				t.Fatalf("refusal = %v, want KIND_REFUSED", out.GetRefusal())
+			}
+			if bytes.Contains(data, []byte("c2VjcmV0")) {
+				t.Error("the hash went out")
+			}
+		})
+	}
+}
+
+func tarOf(t *testing.T, entries []struct{ name, body string }) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, e := range entries {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: e.name, Mode: 0o600, Size: int64(len(e.body)), Typeflag: tar.TypeReg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(e.body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// Every PEM private key form inside an uncompressed tar archive (where the BEGIN
+// line immediately follows the tar header's NUL padding) is refused before any
+// part holding the key goes out (#928 P1).
+func TestATarHoldingAPrivateKeyIsRefused(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+
+	keys := []struct {
+		name   string
+		body   string
+		secret string
+	}{
+		{
+			name:   "pkcs1-encrypted",
+			body:   "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0123456789ABCDEF0123456789ABCDEF\n\nc2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0\n-----END RSA PRIVATE KEY-----\n",
+			secret: "c2VjcmV0c2VjcmV0",
+		},
+		{
+			name:   "pkcs1-plain",
+			body:   "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAwJh2SecretPayload\n-----END RSA PRIVATE KEY-----\n",
+			secret: "SecretPayload",
+		},
+		{
+			name:   "pkcs8-plain",
+			body:   "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBK\n-----END PRIVATE KEY-----\n",
+			secret: "MIIEvgIBADANBgkq",
+		},
+		{
+			name:   "pkcs8-encrypted",
+			body:   "-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIFHDBOBgkqhkiG9w0BBQ0wQTApBgkqhkiG9w0\n-----END ENCRYPTED PRIVATE KEY-----\n",
+			secret: "MIIFHDBOBgkqhkiG",
+		},
+		{
+			name:   "openssh",
+			body:   "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmU=\n-----END OPENSSH PRIVATE KEY-----\n",
+			secret: "b3BlbnNzaC1rZXktdjEA",
+		},
+		{
+			name:   "ec-plain",
+			body:   "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIPSecretEcKeyPayloadHere\n-----END EC PRIVATE KEY-----\n",
+			secret: "SecretEcKeyPayload",
+		},
+		{
+			name:   "ec-encrypted",
+			body:   "-----BEGIN EC PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0123456789ABCDEF0123456789ABCDEF\n\nRWNLZXlTZWNyZXRFY0tleVNlY3JldA==\n-----END EC PRIVATE KEY-----\n",
+			secret: "RWNLZXlTZWNyZXQ",
+		},
+	}
+
+	for _, tc := range keys {
+		t.Run(tc.name, func(t *testing.T) {
+			archive := tarOf(t, []struct{ name, body string }{
+				{name: "key.pem", body: tc.body},
+			})
+			p := filepath.Join(site, tc.name+".tar")
+			if err := os.MkdirAll(site, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, archive, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			sent, data, out := d.download(t, p)
+			if out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+				t.Fatalf("download %s: refusal = %v, want KIND_REFUSED", tc.name, out.GetRefusal())
+			}
+			if len(sent) != 0 || len(data) != 0 {
+				t.Errorf("download %s sent %d frames (%d bytes) before refusing a key in the first part", tc.name, len(sent), len(data))
+			}
+			if bytes.Contains(data, []byte(tc.secret)) {
+				t.Errorf("download %s leaked key bytes", tc.name)
+			}
+		})
+	}
+}
+
+// A PEM private key split across two FrameBytes parts (in a tar or mid-line in
+// binary data, including old-style encrypted PEM) stops before the part holding
+// the key goes out, and a binary file holding a key at 200 KiB stops the same way.
+func TestAKeyInBinaryOrSplitAcrossPartsIsRefused(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	encKey := "-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0123456789ABCDEF0123456789ABCDEF\n\nc2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0\n-----END RSA PRIVATE KEY-----\n"
+	plainKey := "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIPSecretEcKeyPayloadHere\n-----END EC PRIVATE KEY-----\n"
+
+	// Key split across the FrameBytes part boundary at several offsets (inside
+	// BEGIN, right after BEGIN, right after newline, inside Proc-Type).
+	for _, splitAt := range []int{10, 20, 31, 32, 42} {
+		prefixLen := FrameBytes - splitAt
+		blob := make([]byte, prefixLen)
+		for i := range blob {
+			blob[i] = byte(i%251 + 1)
+		}
+		blob[0] = 0 // binary file, no newline before the key
+		blob = append(blob, encKey...)
+		p := filepath.Join(site, "split.bin")
+		if err := os.WriteFile(p, blob, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, data, out := d.download(t, p)
+		if out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Fatalf("splitAt=%d: refusal = %v, want KIND_REFUSED", splitAt, out.GetRefusal())
+		}
+		if bytes.Contains(data, []byte("c2VjcmV0")) || bytes.Contains(data, []byte("DEK-Info:")) {
+			t.Errorf("splitAt=%d: key material went out", splitAt)
+		}
+	}
+
+	// Small chunks (< keyTail) splitting a key across three parts still match.
+	scan := &keyScan{}
+	for _, chunk := range []string{"\x00\x01-----BEGIN RSA ", "PRIVATE KEY-----", "\nProc-Type: 4,ENCRYPTED\n"} {
+		r := scan.check("/x", []byte(chunk))
+		if strings.Contains(chunk, "Proc-Type") {
+			if r == nil || r.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+				t.Fatalf("small chunks across three parts: got %v, want KIND_REFUSED", r)
+			}
+		} else if r != nil {
+			t.Fatalf("early refusal on %q: %v", chunk, r)
+		}
+	}
+
+	// A binary file holding a key mid-line at 200 KiB (past the first 128 KiB
+	// frame, with no newline before BEGIN) is refused before that part goes out.
+	for name, tc := range map[string]struct{ key, secret string }{
+		"encrypted-200k": {key: encKey, secret: "c2VjcmV0"},
+		"ec-200k":        {key: plainKey, secret: "SecretEcKeyPayload"},
+	} {
+		blob := bytes.Repeat([]byte{0x00, 0x80, 0xff, 0x41}, (200<<10)/4)
+		blob = append(blob, tc.key...)
+		p := filepath.Join(site, name+".bin")
+		if err := os.WriteFile(p, blob, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, data, out := d.download(t, p)
+		if out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+			t.Fatalf("%s: refusal = %v, want KIND_REFUSED", name, out.GetRefusal())
+		}
+		if bytes.Contains(data, []byte(tc.secret)) {
+			t.Errorf("%s: key material went out", name)
+		}
+	}
+}
+
+// A folder zip checks each file's first MiB for Docker state, agreeing with a
+// single download (#928 P2), without refusing clean large text files or binary
+// files that only happen to hold Docker field names.
+func TestAFolderZipChecksFirstMiBForDockerState(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+
+	pad := strings.Repeat("x", 180<<10)
+	mountOpts := `{"pad":"` + pad + `","MountOpts":{"o":"pass=secret"}}` + "\n"
+	inspect := `{"ResolvConfPath":"/etc/resolv.conf","pad":"` + pad + `","Env":["SECRET=1"]}` + "\n"
+	// "ResolvConfPath" split right across the 128 KiB chunk boundary, "Env" past it.
+	splitPad := strings.Repeat("a", FrameBytes-6)
+	splitToken := splitPad + `"ResolvConfPath"` + strings.Repeat("b", 40<<10) + `"Env":["SECRET=2"]` + "\n"
+	cleanLong := strings.Repeat("hello world\n", 20_000) // ~240 KiB valid text
+	exactFrame := strings.Repeat("q", FrameBytes)
+	pastMiB := strings.Repeat("y", MaxFileBytes+1024) + `"MountOpts":{}` + "\n"
+	binWithDocker := `"MountOpts":{}` + strings.Repeat("z", 180<<10) + "\x00binary\n"
+	splitUTF8AtMiB := strings.Repeat("a", MaxFileBytes-1) + "é" + "\n"
+	splitUTF8Docker := strings.Repeat("a", 180<<10) + `"MountOpts":{}` + strings.Repeat("b", MaxFileBytes-(180<<10)-15) + "é" + "\n"
+
+	write(t, filepath.Join(site, "mountopts.json"), mountOpts)
+	write(t, filepath.Join(site, "inspect.json"), inspect)
+	write(t, filepath.Join(site, "split.json"), splitToken)
+	write(t, filepath.Join(site, "split-utf8-docker.json"), splitUTF8Docker)
+	write(t, filepath.Join(site, "clean.txt"), cleanLong)
+	write(t, filepath.Join(site, "exact-frame.txt"), exactFrame)
+	write(t, filepath.Join(site, "split-utf8.txt"), splitUTF8AtMiB)
+	write(t, filepath.Join(site, "past-mib.txt"), pastMiB)
+	write(t, filepath.Join(site, "bin-docker.dat"), binWithDocker)
+
+	// Single downloads refuse all four Docker-state files and allow the rest.
+	for _, name := range []string{"mountopts.json", "inspect.json", "split.json", "split-utf8-docker.json"} {
+		sent, _, out := d.download(t, filepath.Join(site, name))
+		if out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || len(sent) != 0 {
+			t.Errorf("single download %s: refusal=%v sent=%d, want KIND_REFUSED and 0 frames", name, out.GetRefusal(), len(sent))
+		}
+	}
+	for name, want := range map[string]string{
+		"clean.txt":       cleanLong,
+		"exact-frame.txt": exactFrame,
+		"split-utf8.txt":  splitUTF8AtMiB,
+		"past-mib.txt":    pastMiB,
+		"bin-docker.dat":  binWithDocker,
+	} {
+		_, data, out := d.download(t, filepath.Join(site, name))
+		if out.GetRefusal() != nil || string(data) != want {
+			t.Errorf("single download %s: refusal=%v len=%d want=%d", name, out.GetRefusal(), len(data), len(want))
+		}
+	}
+
+	// Folder zip leaves out all four Docker-state files and keeps the rest intact.
+	_, zipData, out := d.download(t, site)
+	if out.GetRefusal() != nil {
+		t.Fatalf("folder download refused: %v", out.GetRefusal())
+	}
+	if out.GetLeftOut() != 4 {
+		t.Errorf("folder download left_out = %d, want 4", out.GetLeftOut())
+	}
+	z, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, f := range z.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got[f.Name] = string(b)
+	}
+	for _, excluded := range []string{"mountopts.json", "inspect.json", "split.json", "split-utf8-docker.json"} {
+		if _, ok := got[excluded]; ok {
+			t.Errorf("folder zip included %s, which holds Docker state past 128 KiB", excluded)
+		}
+	}
+	for name, want := range map[string]string{
+		"clean.txt":       cleanLong,
+		"exact-frame.txt": exactFrame,
+		"split-utf8.txt":  splitUTF8AtMiB,
+		"past-mib.txt":    pastMiB,
+		"bin-docker.dat":  binWithDocker,
+	} {
+		if got[name] != want {
+			t.Errorf("folder zip %s: len=%d, want %d", name, len(got[name]), len(want))
+		}
+	}
+}
+
+// Random binary data (and binaries like ssh-keygen that embed a NUL-terminated
+// PEM header string) must not trigger false positives (#921, #928).
+func TestRandomBinaryDataHasNoFalsePositive(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	rng := rand.New(rand.NewPCG(921, 928))
+	blob := make([]byte, 4<<20)
+	for i := range blob {
+		blob[i] = byte(rng.Uint32())
+	}
+	randPath := filepath.Join(site, "random.bin")
+	if err := os.WriteFile(randPath, blob, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, data, out := d.download(t, randPath)
+	if out.GetRefusal() != nil || !bytes.Equal(data, blob) {
+		t.Fatalf("random 4 MiB binary: refusal=%v len=%d", out.GetRefusal(), len(data))
+	}
+
+	// Embed the exact NUL-terminated string shape real ssh-keygen carries in .rodata.
+	tool := append(append([]byte("\x7fELF\x00"), []byte("-----BEGIN OPENSSH PRIVATE KEY-----\n\x00\x00\x00\x00-----END OPENSSH PRIVATE KEY-----\n\x00")...), make([]byte, 1024)...)
+	toolPath := filepath.Join(site, "ssh-keygen-real")
+	if err := os.WriteFile(toolPath, tool, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, gotTool, out := d.download(t, toolPath)
+	if out.GetRefusal() != nil || !bytes.Equal(gotTool, tool) {
+		t.Fatalf("ssh-keygen binary shape: refusal=%v len=%d", out.GetRefusal(), len(gotTool))
 	}
 }
