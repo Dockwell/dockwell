@@ -223,6 +223,7 @@ async function start(): Promise<string> {
         DOCKWELL_CATALOG_DIR: catalogDir,
         DOCKWELL_TEST_TOOLS: tools,
         DOCKWELL_TEST_CGROUP: cgroups,
+        DOCKWELL_FILES_DOWNLOAD_HOSTS: "127.0.0.1",
         // What the panel's domain resolves to, as a test asks no DNS server (ADR 0063).
         DOCKWELL_TEST_DNS: "panel.example.com=192.0.2.10",
       },
@@ -281,6 +282,7 @@ async function shoot(page: Page, name: string) {
       await page.emulateMedia({ colorScheme: scheme });
       const storage = /^docker-slice[45]-/.test(name);
       const imageAction =
+        name.startsWith("files-rest-") ||
         name.startsWith("docker-slice6a-") ||
         name.startsWith("docker-slice6b-") ||
         name.startsWith("docker-slice6c-") ||

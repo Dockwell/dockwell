@@ -287,6 +287,8 @@ type OpenTerminalRequest struct {
 	// The database inside the container to connect to when database_console is
 	// set. Empty uses the engine's default.
 	Database string `protobuf:"bytes,7,opt,name=database,proto3" json:"database,omitempty"`
+	// The host shell's starting directory. Empty uses its usual directory.
+	WorkingDirectory string `protobuf:"bytes,8,opt,name=working_directory,json=workingDirectory,proto3" json:"working_directory,omitempty"`
 	// Full Engine ID in place of container. The passkey target includes this ID.
 	ContainerId string `protobuf:"bytes,400,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	// Run an executable directly in the container, with no shell expansion.
@@ -371,6 +373,13 @@ func (x *OpenTerminalRequest) GetDatabaseConsole() bool {
 func (x *OpenTerminalRequest) GetDatabase() string {
 	if x != nil {
 		return x.Database
+	}
+	return ""
+}
+
+func (x *OpenTerminalRequest) GetWorkingDirectory() string {
+	if x != nil {
+		return x.WorkingDirectory
 	}
 	return ""
 }
@@ -2008,7 +2017,7 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\topen_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bopenTime\x12\x18\n" +
 	"\acolumns\x18\x05 \x01(\rR\acolumns\x12\x12\n" +
 	"\x04rows\x18\x06 \x01(\rR\x04rows\x12\x1c\n" +
-	"\tcontainer\x18\a \x01(\tR\tcontainer\"\xa7\x02\n" +
+	"\tcontainer\x18\a \x01(\tR\tcontainer\"\xd4\x02\n" +
 	"\x13OpenTerminalRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x18\n" +
 	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x12\n" +
@@ -2016,7 +2025,8 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\x05proof\x18\x04 \x01(\tR\x05proof\x12\x1c\n" +
 	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12)\n" +
 	"\x10database_console\x18\x06 \x01(\bR\x0fdatabaseConsole\x12-\n" +
-	"\bdatabase\x18\a \x01(\tB\x11\xa2\xbb\x18\rdatabase-nameR\bdatabase\x12\"\n" +
+	"\bdatabase\x18\a \x01(\tB\x11\xa2\xbb\x18\rdatabase-nameR\bdatabase\x12+\n" +
+	"\x11working_directory\x18\b \x01(\tR\x10workingDirectory\x12\"\n" +
 	"\fcontainer_id\x18\x90\x03 \x01(\tR\vcontainerId\x12\x13\n" +
 	"\x04argv\x18\x91\x03 \x03(\tR\x04argv\"I\n" +
 	"\x14OpenTerminalResponse\x121\n" +

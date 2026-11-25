@@ -400,11 +400,21 @@ func (r *recorder) record(action, path, detail string) (string, error) {
 
 // recordWithID writes one event with a pre-minted ID.
 func (r *recorder) recordWithID(eventID, action, path, detail string) error {
+	return r.storeDetail(eventID, action, path, files.Printable(detail), nil)
+}
+
+func (r *recorder) storeDetail(eventID, action, path, detail string, undo []byte) error {
 	return r.h.db.Update(r.ctx, func(tx *store.Tx) error {
-		return tx.RecordEvent(r.ctx, store.Event{
+		if err := tx.RecordEvent(r.ctx, store.Event{
 			ID: eventID, At: r.h.now(), Actor: r.p.Actor(), Action: action, Subject: files.Printable(path), Target: r.srv.GetId(),
-			Surface: r.client.Surface(r.p), Detail: files.Printable(detail),
-		})
+			Surface: r.client.Surface(r.p), Detail: detail,
+		}); err != nil {
+			return err
+		}
+		if len(undo) > 0 {
+			return tx.RecordFileAccessUndo(r.ctx, eventID, undo)
+		}
+		return nil
 	})
 }
 

@@ -7,14 +7,17 @@ import {
   type ArchiveJob,
   ArchiveJobKind,
   ArchiveJobState,
+  type CalculateFolderSizeResponse,
   downloadFileURL,
   type FileEntry,
   FileService,
   FileType,
+  FolderSizeOmission,
   type ListFilesResponse,
   type ReadFileResponse,
   type Server,
   StepUpAction,
+  TerminalService,
 } from "@dockwell/api";
 import {
   Button,
@@ -44,6 +47,7 @@ import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { type AccessResult, confirmed, DownloadURLSheet, PermissionsSheet, SearchFoldersSheet } from "./everyday";
 import { FileDetailsPane } from "./FileDetailsPane";
 import { type FileRow, FileTable, type MenuTrigger, type SortDir, type SortField } from "./FileTable";
 import { FileViewer } from "./FileViewer";
@@ -136,35 +140,55 @@ function PlaceGroup({
   places,
   current,
   serverId,
+  onUnpin,
 }: {
   title: string;
   places: readonly Place[];
   current: string | undefined;
   serverId: string;
+  onUnpin?: (path: string) => void;
 }) {
   const id = useId();
+  const { t } = useLingui();
   return (
     // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
     <div role="group" aria-labelledby={id} className="files-places-group">
       <div id={id} className="files-places-head">
         {title}
       </div>
-      {places.map((place) => (
-        <RouterButtonLink
-          key={place.path}
-          variant="ghost"
-          size="sm"
-          icon={place.icon}
-          to="/servers/$serverId/files"
-          params={{ serverId }}
-          search={{ path: place.path }}
-          title={place.path}
-          className={place.path === current ? "is-current" : undefined}
-          aria-current={place.path === current ? "location" : undefined}
-        >
-          {place.label}
-        </RouterButtonLink>
-      ))}
+      {places.map((place) => {
+        const link = (
+          <RouterButtonLink
+            key={place.path}
+            variant="ghost"
+            size="sm"
+            icon={place.icon}
+            to="/servers/$serverId/files"
+            params={{ serverId }}
+            search={{ path: place.path }}
+            title={place.path}
+            className={place.path === current ? "is-current" : undefined}
+            aria-current={place.path === current ? "location" : undefined}
+          >
+            {place.label}
+          </RouterButtonLink>
+        );
+        return onUnpin ? (
+          <div key={place.path} className="files-pin-row">
+            {link}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="x"
+              aria-label={t`Unpin ${place.label}`}
+              title={t`Unpin ${place.label}`}
+              onClick={() => onUnpin(place.path)}
+            />
+          </div>
+        ) : (
+          link
+        );
+      })}
     </div>
   );
 }
@@ -256,6 +280,9 @@ type OpenSheet =
   | { kind: "move"; folder: string; targets: readonly FileTarget[] }
   | { kind: "compress"; folder: string; targets: readonly FileTarget[] }
   | { kind: "delete"; targets: readonly FileTarget[] }
+  | { kind: "permissions"; targets: readonly { path: string; entry: FileEntry }[] }
+  | { kind: "url"; folder: string }
+  | { kind: "search"; folder: string }
   | { kind: "deleted" }
   | { kind: "upload"; folder: string; chosen?: Chosen };
 
@@ -318,6 +345,9 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   const [restoreFailure, setRestoreFailure] = useState<string>();
   const [notice, setNotice] = useState<BannerNotice>();
   const [archiveJobs, setArchiveJobs] = useState<readonly ArchiveJob[]>([]);
+  const [sizes, setSizes] = useState<ReadonlyMap<string, CalculateFolderSizeResponse | "loading">>(() => new Map());
+  const [cancellingJob, setCancellingJob] = useState<string>();
+  const [openingTerminal, setOpeningTerminal] = useState(false);
   const [archiveReconnecting, setArchiveReconnecting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [previewFullWindow, setPreviewFullWindow] = useState(false);
@@ -356,6 +386,144 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   const putBack = useRestore(serverId);
   const restoreProblem = useRestoreProblem(serverId);
   const { extract } = useExtract(serverId);
+  const pins = useQuery(FileService.method.listPinnedFolders, { serverId }, { retry: false });
+  const pinned = pins.data?.paths ?? [];
+  const pinnedPlaces: Place[] = pinned.map((path) => ({ path, label: nameOf(path), icon: "pin" }));
+  const [pinning, setPinning] = useState(false);
+
+  const togglePin = async (path: string) => {
+    if (pinning || !pins.data) return;
+    setPinning(true);
+    try {
+      await (pinned.includes(path) ? client.unpinFolder({ serverId, path }) : client.pinFolder({ serverId, path }));
+      await pins.refetch();
+    } catch (error) {
+      setNotice({ tone: "critical", title: t`Couldn't update pinned folders`, body: sentence(error) });
+    } finally {
+      setPinning(false);
+    }
+  };
+
+  const calculateSize = async (path: string) => {
+    if (sizes.get(path) === "loading") return;
+    setSizes((was) => new Map(was).set(path, "loading"));
+    try {
+      const result = await client.calculateFolderSize({ serverId, path });
+      setSizes((was) => new Map(was).set(path, result));
+    } catch (error) {
+      setSizes((was) => {
+        const next = new Map(was);
+        next.delete(path);
+        return next;
+      });
+      setNotice({ tone: "critical", title: t`Couldn't calculate folder size`, body: sentence(error) });
+    }
+  };
+
+  const folderSize = (path: string) => {
+    const result = sizes.get(path);
+    const known = result && result !== "loading" ? result : undefined;
+    const size = known ? formatBytes(known.sizeBytes, i18n.locale) : "";
+    const reasons = {
+      [FolderSizeOmission.UNSPECIFIED]: undefined,
+      [FolderSizeOmission.DOCKER_DATA]: t`Docker data skipped`,
+      [FolderSizeOmission.HARD_LINKS]: t`hard links counted once`,
+      [FolderSizeOmission.REFUSED_ENTRIES]: t`refused entries skipped`,
+      [FolderSizeOmission.SCAN_LIMIT]: t`scan limit reached`,
+    };
+    const omissions = known?.omissions.flatMap((reason) => reasons[reason] ?? []) ?? [];
+    return (
+      <span className="files-size">
+        <Button
+          size="sm"
+          variant="ghost"
+          loading={result === "loading"}
+          onClick={() => void calculateSize(path)}
+          aria-label={known ? t`Recalculate size of ${nameOf(path)}` : t`Calculate size of ${nameOf(path)}`}
+        >
+          {known ? known.partial ? t`At least ${size}` : size : <Trans>Calculate</Trans>}
+        </Button>
+        {omissions.length ? <small>{omissions.join(" · ")}</small> : null}
+      </span>
+    );
+  };
+
+  const restoreAccess = async (results: readonly AccessResult[]) => {
+    const remaining: AccessResult[] = [];
+    let partial = false;
+    let failure = "";
+    setNotice({ tone: "info", title: t`Restoring previous access`, body: "" });
+    for (const item of [...results].reverse()) {
+      const { result, recursive } = item;
+      const restore = result.undo.filter((entry) => entry.after && entry.before);
+      partial ||= restore.length !== result.undo.length;
+      if (!restore.length) continue;
+      try {
+        const undone = await confirmed(transport, (proof, confirmationTarget) =>
+          client.changeFileAccess({
+            serverId,
+            path: result.path,
+            change: {
+              restore,
+              recursive,
+              allowSetId: restore.some(({ before }) => ((before?.mode ?? 0) & 0o6000) !== 0),
+            },
+            proof,
+            confirmationTarget,
+          }),
+        );
+        partial ||= undone.skipped > 0n || !!undone.stopped;
+        if (undone.stopped) failure = undone.stopped;
+      } catch (error) {
+        failure = problem(error, result.path);
+        remaining.push(item);
+      }
+    }
+    void changed();
+    setNotice({
+      tone: failure || partial ? "warning" : "info",
+      title: failure || partial ? t`Some permissions couldn't be restored` : t`Previous access restored`,
+      body: failure || (partial ? t`Entries that no longer matched were skipped.` : ""),
+      action: remaining.length
+        ? { label: t`Retry`, onClick: () => void restoreAccess(remaining.reverse()) }
+        : undefined,
+    });
+  };
+
+  const accessApplied = (results: readonly AccessResult[], partial: boolean) => {
+    setSizes(new Map());
+    setNotice({
+      tone: partial ? "warning" : "info",
+      title: partial ? t`Some changes stopped` : t`Permissions and ownership updated`,
+      body: "",
+      action: results.some(({ result }) => result.undo.some((entry) => entry.after))
+        ? { label: t`Undo`, icon: "undo", onClick: () => void restoreAccess(results) }
+        : undefined,
+    });
+    if (!partial) setSheet(undefined);
+  };
+
+  const terminalHere = async (path: string) => {
+    if (openingTerminal) return;
+    setOpeningTerminal(true);
+    try {
+      const terminals = createClient(TerminalService, transport);
+      const result = await withStepUpIfAsked(transport, StepUpAction.OPEN_TERMINAL, `${serverId}:${path}`, (proof) =>
+        terminals.openTerminal({ serverId, proof, workingDirectory: path, columns: 80, rows: 24 }),
+      );
+      if (result.terminal) {
+        void navigate({
+          to: "/servers/$serverId/terminal",
+          params: { serverId },
+          search: { terminalId: result.terminal.id },
+        });
+      }
+    } catch (error) {
+      setNotice({ tone: "critical", title: t`Couldn't open a terminal`, body: problem(error, path) });
+    } finally {
+      setOpeningTerminal(false);
+    }
+  };
 
   const query = useQuery(
     FileService.method.listFiles,
@@ -373,6 +541,21 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
 
   const presentArchiveOutcome = useCallback(
     (job: ArchiveJob) => {
+      if (job.kind === ArchiveJobKind.URL_DOWNLOAD) {
+        const name = nameOf(job.path);
+        if (job.state === ArchiveJobState.DONE) {
+          if (parentOf(job.path) === shownRef.current) {
+            setSelected(new Set([name]));
+            setAnchor(name);
+          }
+          setNotice({ tone: "info", title: t`Downloaded ${name}`, body: "" });
+        } else if (job.state === ArchiveJobState.CANCELLED) {
+          setNotice({ tone: "info", title: t`Download cancelled`, body: "" });
+        } else if (job.state === ArchiveJobState.FAILED) {
+          setNotice({ tone: "critical", title: t`Couldn't download ${name}`, body: job.error });
+        }
+        return;
+      }
       if (job.state === ArchiveJobState.DONE) {
         if (job.kind === ArchiveJobKind.COMPRESS) {
           const archiveName = nameOf(job.path);
@@ -519,9 +702,11 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                 tone: "warning",
                 title: t`Stopped when the agent restarted`,
                 body:
-                  lost.kind === ArchiveJobKind.COMPRESS
-                    ? t`Compressing ${label} stopped before it finished. Start it again.`
-                    : t`Extracting ${label} stopped before it finished. Part of it may already be in ${nameOf(lost.unpackedTo || lost.path)}.`,
+                  lost.kind === ArchiveJobKind.URL_DOWNLOAD
+                    ? t`Downloading ${label} stopped before it finished. Start it again.`
+                    : lost.kind === ArchiveJobKind.COMPRESS
+                      ? t`Compressing ${label} stopped before it finished. Start it again.`
+                      : t`Extracting ${label} stopped before it finished. Part of it may already be in ${nameOf(lost.unpackedTo || lost.path)}.`,
               });
             }
           } else {
@@ -817,6 +1002,15 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   };
 
   // Build context menu items for the active menu target.
+  const accessTargets = selectedRows
+    .filter((row) => downloadableEntry(row.entry))
+    .map((row) => ({
+      path: join(shown, row.name),
+      entry: row.entry,
+    }));
+  const openPermissions = (targets: readonly { path: string; entry: FileEntry }[]) =>
+    setSheet({ kind: "permissions", targets });
+
   const menuItems: ContextMenuItem[] = (() => {
     if (!menu) return [];
     if (menu.kind === "empty") {
@@ -869,6 +1063,13 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         },
       ];
       if (!target.refused) {
+        items.push({
+          id: "terminal",
+          label: t`Open in terminal`,
+          icon: "terminal",
+          disabled: openingTerminal,
+          onSelect: () => void terminalHere(target.path),
+        });
         items.push({
           id: "download",
           label: t`Download as a .zip`,
@@ -980,6 +1181,14 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
           onSelect: () => setSheet({ kind: "move", folder: shown, targets: multiChangeableTargets }),
         });
       }
+      if (accessTargets.length) {
+        items.push({
+          id: "permissions",
+          label: t`Permissions and owner`,
+          icon: "lock",
+          onSelect: () => openPermissions(accessTargets),
+        });
+      }
       items.push({
         id: "copy-paths",
         label: t`Copy paths`,
@@ -1016,11 +1225,34 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     ];
     if (canDownload) {
       items.push({
+        id: "permissions",
+        label: t`Permissions and owner`,
+        icon: "lock",
+        onSelect: () => openPermissions([{ path, entry: row.entry }]),
+      });
+      items.push({
         id: "download",
         label: row.entry.type === FileType.DIRECTORY ? t`Download as a .zip` : t`Download`,
         icon: "download",
         href: downloadFileURL({ serverId, path }),
         download: true,
+      });
+    }
+    if (row.folder && canChange) {
+      items.push({
+        id: "terminal",
+        label: t`Open in terminal`,
+        icon: "terminal",
+        disabled: openingTerminal,
+        onSelect: () => void terminalHere(path),
+      });
+    }
+    if (row.entry.type === FileType.DIRECTORY && canDownload) {
+      items.push({
+        id: "size",
+        label: t`Calculate folder size`,
+        icon: "folder",
+        onSelect: () => void calculateSize(path),
       });
     }
     if (canChange) {
@@ -1106,38 +1338,49 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     [listing, shown, t],
   );
 
-  const phoneFolderActions = useMemo<MenuAction[]>(
-    () => [
-      {
-        id: "upload",
-        label: t`Upload`,
-        icon: "upload",
-        disabled: !listing,
-        onSelect: () => setSheet({ kind: "upload", folder: shown }),
-      },
-      {
-        id: "new-folder",
-        label: t`New folder`,
-        icon: "folder",
-        disabled: !listing,
-        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "folder" } }),
-      },
-      {
-        id: "new-file",
-        label: t`New file`,
-        icon: "file",
-        disabled: !listing,
-        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "file" } }),
-      },
-      {
-        id: "deleted",
-        label: t`Recently deleted`,
-        icon: "trash",
-        onSelect: () => setSheet({ kind: "deleted" }),
-      },
-    ],
-    [listing, shown, t],
-  );
+  const phoneFolderActions: MenuAction[] = [
+    {
+      id: "upload",
+      label: t`Upload`,
+      icon: "upload",
+      disabled: !listing,
+      onSelect: () => setSheet({ kind: "upload", folder: shown }),
+    },
+    {
+      id: "new-folder",
+      label: t`New folder`,
+      icon: "folder",
+      disabled: !listing,
+      onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "folder" } }),
+    },
+    {
+      id: "new-file",
+      label: t`New file`,
+      icon: "file",
+      disabled: !listing,
+      onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "file" } }),
+    },
+    {
+      id: "deleted",
+      label: t`Recently deleted`,
+      icon: "trash",
+      onSelect: () => setSheet({ kind: "deleted" }),
+    },
+    {
+      id: "terminal",
+      label: t`Open in terminal`,
+      icon: "terminal",
+      disabled: !listing || openingTerminal,
+      onSelect: () => void terminalHere(shown),
+    },
+    {
+      id: "pin",
+      label: pinned.includes(shown) ? t`Unpin folder` : t`Pin folder`,
+      icon: "pin",
+      disabled: !listing || !pins.data || pinning,
+      onSelect: () => void togglePin(shown),
+    },
+  ];
 
   const count = listing?.entries.length ?? 0;
   const many = (n: number) => n.toLocaleString(i18n.locale);
@@ -1200,6 +1443,17 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                 onChange={(event) => setFilter(event.target.value)}
               />
             </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="search"
+              disabled={!listing}
+              aria-label={t`Search below this folder`}
+              title={t`Search below this folder`}
+              onClick={() => setSheet({ kind: "search", folder: shown })}
+            >
+              {phone ? undefined : <Trans>Search below</Trans>}
+            </Button>
             {phone ? (
               <ActionMenu label={t`Folder actions`} actions={phoneFolderActions} />
             ) : (
@@ -1222,6 +1476,35 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                 <Button
                   size="sm"
                   variant="ghost"
+                  icon="download"
+                  disabled={!listing}
+                  aria-label={t`Download from a URL`}
+                  title={t`Download from a URL`}
+                  onClick={() => setSheet({ kind: "url", folder: shown })}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="terminal"
+                  disabled={!listing}
+                  aria-label={t`Open in terminal`}
+                  title={t`Open in terminal`}
+                  loading={openingTerminal}
+                  onClick={() => void terminalHere(shown)}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="pin"
+                  disabled={!listing || !pins.data || pinning}
+                  aria-pressed={pinned.includes(shown)}
+                  aria-label={pinned.includes(shown) ? t`Unpin folder` : t`Pin folder`}
+                  title={pinned.includes(shown) ? t`Unpin folder` : t`Pin folder`}
+                  onClick={() => void togglePin(shown)}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
                   icon="trash"
                   aria-label={t`Recently deleted`}
                   title={t`Recently deleted`}
@@ -1237,34 +1520,70 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         <div className="files-archive-jobs" role="status" aria-live="polite">
           {archiveJobs.map((job) => {
             const compressing = job.kind === ArchiveJobKind.COMPRESS;
+            const downloading = job.kind === ArchiveJobKind.URL_DOWNLOAD;
+            const name = nameOf(job.path);
+            const progressLabel = downloading
+              ? t`Downloading ${name}`
+              : compressing
+                ? t`Compressing ${name}`
+                : t`Extracting ${name}`;
             const entries = Number(job.entries);
             const total = Number(job.totalEntries);
+            const progressValue = downloading ? Number(job.bytes) : entries;
+            const progressTotal = downloading ? Number(job.totalBytes) : total;
             const bytes = formatBytes(job.bytes, i18n.locale);
             const progressText =
-              total > 0
-                ? t`${many(entries)} of ${many(total)} items · ${bytes}`
-                : entries > 0
-                  ? plural(entries, {
-                      one: `# item · ${bytes}`,
-                      other: `# items · ${bytes}`,
-                    })
-                  : bytes;
+              downloading && progressTotal > 0
+                ? t`${bytes} of ${formatBytes(job.totalBytes, i18n.locale)}`
+                : total > 0
+                  ? t`${many(entries)} of ${many(total)} items · ${bytes}`
+                  : entries > 0
+                    ? plural(entries, {
+                        one: `# item · ${bytes}`,
+                        other: `# items · ${bytes}`,
+                      })
+                    : bytes;
             return (
               <div key={job.jobId} className="files-archive-job">
                 <div className="files-archive-job-head">
                   <span className="files-archive-job-title">
-                    <Icon name="archive" size={15} />
-                    <span>{compressing ? t`Compressing ${nameOf(job.path)}` : t`Extracting ${nameOf(job.path)}`}</span>
+                    <Icon name={downloading ? "download" : "archive"} size={15} />
+                    <span>{progressLabel}</span>
                   </span>
                   <span className="files-archive-job-meta">
                     {archiveReconnecting ? t`Reconnecting to check progress` : progressText}
                   </span>
+                  {downloading ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={cancellingJob === job.jobId}
+                      aria-label={t`Cancel download of ${name}`}
+                      onClick={async () => {
+                        setCancellingJob(job.jobId);
+                        try {
+                          const result = await client.cancelFileDownload({ serverId, jobId: job.jobId });
+                          if (result.job && result.job.state !== ArchiveJobState.RUNNING) trackArchiveJob(result.job);
+                        } catch (error) {
+                          setNotice({
+                            tone: "critical",
+                            title: t`Couldn't cancel the download`,
+                            body: sentence(error),
+                          });
+                        } finally {
+                          setCancellingJob(undefined);
+                        }
+                      }}
+                    >
+                      <Trans>Cancel</Trans>
+                    </Button>
+                  ) : null}
                 </div>
                 <progress
                   className="files-progress files-archive-progress"
-                  value={total > 0 ? Math.min(entries, total) : undefined}
-                  max={total > 0 ? total : undefined}
-                  aria-label={compressing ? t`Compressing ${nameOf(job.path)}` : t`Extracting ${nameOf(job.path)}`}
+                  value={progressTotal > 0 ? Math.min(progressValue, progressTotal) : undefined}
+                  max={progressTotal > 0 ? progressTotal : undefined}
+                  aria-label={progressLabel}
                 />
               </div>
             );
@@ -1348,6 +1667,20 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
             <Panel flush className="files-places">
               <nav aria-label={t`Places`}>
                 <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
+                {pinned.length ? (
+                  <>
+                    <div className="files-places-rule" aria-hidden="true" />
+                    <PlaceGroup
+                      title={t`Pinned folders`}
+                      places={pinnedPlaces}
+                      current={placeOf(
+                        shown,
+                        pinned.map((path) => ({ path, label: nameOf(path), icon: "pin" })),
+                      )}
+                      serverId={serverId}
+                    />
+                  </>
+                ) : null}
                 <div className="files-places-rule" aria-hidden="true" />
                 {phone ? (
                   <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
@@ -1469,6 +1802,11 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                           </Button>
                         </>
                       ) : null}
+                      {accessTargets.length ? (
+                        <Button size="sm" variant="ghost" icon="lock" onClick={() => openPermissions(accessTargets)}>
+                          <Trans>Permissions and owner</Trans>
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -1484,6 +1822,11 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                 ) : null}
                 <FileTable
                   rows={rows}
+                  folderSize={(row) =>
+                    row.entry.type === FileType.DIRECTORY && downloadableEntry(row.entry)
+                      ? folderSize(join(shown, row.name))
+                      : undefined
+                  }
                   caption={t`Files in ${shown}`}
                   phone={phone}
                   tight={hasRightPane}
@@ -1573,6 +1916,16 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
             entry={singleSelected.entry}
             path={join(shown, singleSelected.name)}
             isFolder={singleSelected.folder}
+            onPermissions={
+              downloadableEntry(singleSelected.entry)
+                ? () => openPermissions([{ path: join(shown, singleSelected.name), entry: singleSelected.entry }])
+                : undefined
+            }
+            folderSize={
+              singleSelected.entry.type === FileType.DIRECTORY && downloadableEntry(singleSelected.entry)
+                ? folderSize(join(shown, singleSelected.name))
+                : undefined
+            }
             downloadUrl={
               downloadableEntry(singleSelected.entry)
                 ? downloadFileURL({ serverId, path: join(shown, singleSelected.name) })
@@ -1670,6 +2023,40 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
             setSheet(undefined);
             setNotice(undefined);
             trackArchiveJob(job);
+          }}
+        />
+      ) : null}
+
+      {sheet?.kind === "permissions" ? (
+        <PermissionsSheet
+          serverId={serverId}
+          targets={sheet.targets}
+          onClose={() => setSheet(undefined)}
+          onApplied={accessApplied}
+        />
+      ) : null}
+      {sheet?.kind === "url" ? (
+        <DownloadURLSheet
+          serverId={serverId}
+          folder={sheet.folder}
+          onClose={() => setSheet(undefined)}
+          onDone={(job) => {
+            setSheet(undefined);
+            setNotice(undefined);
+            trackArchiveJob(job);
+          }}
+        />
+      ) : null}
+      {sheet?.kind === "search" ? (
+        <SearchFoldersSheet
+          serverId={serverId}
+          folder={sheet.folder}
+          initialQuery={filter}
+          onClose={() => setSheet(undefined)}
+          onOpen={(path, isFolder, line) => {
+            setSheet(undefined);
+            setFilter("");
+            go(isFolder ? { path } : { path: parentOf(path), file: path, ...(line ? { line } : {}) });
           }}
         />
       ) : null}

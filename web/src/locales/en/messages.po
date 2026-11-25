@@ -492,6 +492,15 @@ msgstr "Close details"
 msgid "Dockwell keeps trying."
 msgstr "Dockwell keeps trying."
 
+msgid "Download source"
+msgstr "Download source"
+
+msgid "Entries changed"
+msgstr "Entries changed"
+
+msgid "Entries skipped"
+msgstr "Entries skipped"
+
 msgid "Event"
 msgstr "Event"
 
@@ -642,6 +651,9 @@ msgstr "What it said"
 
 msgid "When"
 msgstr "When"
+
+msgid "Where it stopped"
+msgstr "Where it stopped"
 
 msgid "Who"
 msgstr "Who"
@@ -829,6 +841,12 @@ msgstr "Banned a Fail2ban address on {server}"
 msgid "Banned an SSH address on {server}"
 msgstr "Banned an SSH address on {server}"
 
+msgid "Cancelled download of {path} to {server}"
+msgstr "Cancelled download of {path} to {server}"
+
+msgid "Changed permissions or ownership on {path} on {server}"
+msgstr "Changed permissions or ownership on {path} on {server}"
+
 msgid "Changed their email"
 msgstr "Changed their email"
 
@@ -919,11 +937,17 @@ msgstr "Copied a secret into a new database"
 msgid "Copied the secret {name} into a new database"
 msgstr "Copied the secret {name} into a new database"
 
+msgid "Couldn't change permissions or ownership on {path} on {server}"
+msgstr "Couldn't change permissions or ownership on {path} on {server}"
+
 msgid "Couldn't compress {path} on {server}"
 msgstr "Couldn't compress {path} on {server}"
 
 msgid "Couldn't delete {path} on {server}"
 msgstr "Couldn't delete {path} on {server}"
+
+msgid "Couldn't download {path} to {server}"
+msgstr "Couldn't download {path} to {server}"
 
 msgid "Couldn't extract {path} on {server}"
 msgstr "Couldn't extract {path} on {server}"
@@ -998,6 +1022,9 @@ msgstr "Downloaded {path} from {server}"
 
 msgid "Downloaded {path} from {server}, {size}"
 msgstr "Downloaded {path} from {server}, {size}"
+
+msgid "Downloaded {path} to {server}"
+msgstr "Downloaded {path} to {server}"
 
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "Ended an authenticator app's setup after 5 wrong codes"
@@ -1152,6 +1179,12 @@ msgstr "Named this install {value}"
 
 msgid "Named this install {value}, which was {previous}"
 msgstr "Named this install {value}, which was {previous}"
+
+msgid "No passkey confirmed changing permissions or ownership on {path} on {server}"
+msgstr "No passkey confirmed changing permissions or ownership on {path} on {server}"
+
+msgid "No passkey confirmed downloading {path} to {server}"
+msgstr "No passkey confirmed downloading {path} to {server}"
 
 msgid "No restore check of {subject} has passed lately"
 msgstr "No restore check of {subject} has passed lately"
@@ -1390,6 +1423,9 @@ msgstr "Started compressing {path} on {server}"
 
 msgid "Started compressing {path} on {server}, which can let someone back in"
 msgstr "Started compressing {path} on {server}, which can let someone back in"
+
+msgid "Started downloading {path} to {server}"
+msgstr "Started downloading {path} to {server}"
 
 msgid "Started extracting {path} into {to} on {server}"
 msgstr "Started extracting {path} into {to} on {server}"
@@ -17949,6 +17985,9 @@ msgstr "Move"
 msgid "Permissions"
 msgstr "Permissions"
 
+msgid "Permissions and owner"
+msgstr "Permissions and owner"
+
 #. placeholder {0}: entry.name
 msgid "Previewing {0}"
 msgstr "Previewing {0}"
@@ -18146,8 +18185,21 @@ msgstr "{name} isn't a text file under 1 MB any more, so it can't be saved here.
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 
+msgid "At least {size}"
+msgstr "At least {size}"
+
 msgid "Back to {folder}"
 msgstr "Back to {folder}"
+
+msgid "Calculate"
+msgstr "Calculate"
+
+msgid "Calculate folder size"
+msgstr "Calculate folder size"
+
+#. placeholder {0}: nameOf(path)
+msgid "Calculate size of {0}"
+msgstr "Calculate size of {0}"
 
 msgid "Can't reach this server"
 msgstr "Can't reach this server"
@@ -18155,18 +18207,20 @@ msgstr "Can't reach this server"
 msgid "Can't read this folder"
 msgstr "Can't read this folder"
 
+msgid "Cancel download of {name}"
+msgstr "Cancel download of {name}"
+
 msgid "Common places"
 msgstr "Common places"
 
 msgid "Compressed {archiveName}"
 msgstr "Compressed {archiveName}"
 
-#. placeholder {0}: nameOf(job.path)
-msgid "Compressing {0}"
-msgstr "Compressing {0}"
-
 msgid "Compressing {label} stopped before it finished. Start it again."
 msgstr "Compressing {label} stopped before it finished. Start it again."
+
+msgid "Compressing {name}"
+msgstr "Compressing {name}"
 
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
@@ -18174,14 +18228,29 @@ msgstr "Copy path {shown}"
 msgid "Copy paths"
 msgstr "Copy paths"
 
+msgid "Couldn't calculate folder size"
+msgstr "Couldn't calculate folder size"
+
+msgid "Couldn't cancel the download"
+msgstr "Couldn't cancel the download"
+
 #. placeholder {0}: nameOf(job.path)
 msgid "Couldn't compress {0}"
 msgstr "Couldn't compress {0}"
+
+msgid "Couldn't download {name}"
+msgstr "Couldn't download {name}"
 
 #. placeholder {0}: nameOf(archivePath)
 #. placeholder {0}: nameOf(job.path)
 msgid "Couldn't extract {0}"
 msgstr "Couldn't extract {0}"
+
+msgid "Couldn't open a terminal"
+msgstr "Couldn't open a terminal"
+
+msgid "Couldn't update pinned folders"
+msgstr "Couldn't update pinned folders"
 
 #. placeholder {0}: nameOf(singleDeleted.path)
 msgid "Deleted {0}"
@@ -18191,23 +18260,43 @@ msgstr "Deleted {0}"
 msgid "Deleted {0} for good"
 msgstr "Deleted {0} for good"
 
+msgid "Docker data skipped"
+msgstr "Docker data skipped"
+
 msgid "Dockwell doesn't open this folder"
 msgstr "Dockwell doesn't open this folder"
 
+msgid "Download cancelled"
+msgstr "Download cancelled"
+
+msgid "Download from a URL"
+msgstr "Download from a URL"
+
 msgid "Download {count} items as a .zip"
 msgstr "Download {count} items as a .zip"
+
+msgid "Downloaded {name}"
+msgstr "Downloaded {name}"
+
+msgid "Downloading {label} stopped before it finished. Start it again."
+msgstr "Downloading {label} stopped before it finished. Start it again."
+
+msgid "Downloading {name}"
+msgstr "Downloading {name}"
+
+msgid "Entries that no longer matched were skipped."
+msgstr "Entries that no longer matched were skipped."
 
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracted {0}"
 msgstr "Extracted {0}"
 
-#. placeholder {0}: nameOf(job.path)
-msgid "Extracting {0}"
-msgstr "Extracting {0}"
-
 #. placeholder {0}: nameOf(lost.unpackedTo || lost.path)
 msgid "Extracting {label} stopped before it finished. Part of it may already be in {0}."
 msgstr "Extracting {label} stopped before it finished. Part of it may already be in {0}."
+
+msgid "Extracting {name}"
+msgstr "Extracting {name}"
 
 msgid "Files in {shown}"
 msgstr "Files in {shown}"
@@ -18256,8 +18345,23 @@ msgstr "Nothing here matches your search."
 msgid "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
 msgstr "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
 
+msgid "Open in terminal"
+msgstr "Open in terminal"
+
+msgid "Permissions and ownership updated"
+msgstr "Permissions and ownership updated"
+
+msgid "Pin folder"
+msgstr "Pin folder"
+
+msgid "Pinned folders"
+msgstr "Pinned folders"
+
 msgid "Places"
 msgstr "Places"
+
+msgid "Previous access restored"
+msgstr "Previous access restored"
 
 msgctxt "what was deleted"
 msgid "Put back"
@@ -18265,6 +18369,10 @@ msgstr "Put back"
 
 msgid "Reading this folder"
 msgstr "Reading this folder"
+
+#. placeholder {0}: nameOf(path)
+msgid "Recalculate size of {0}"
+msgstr "Recalculate size of {0}"
 
 msgid "Recently deleted"
 msgstr "Recently deleted"
@@ -18274,6 +18382,15 @@ msgstr "Reconnecting to check progress"
 
 msgid "Resize folder tree"
 msgstr "Resize folder tree"
+
+msgid "Restoring previous access"
+msgstr "Restoring previous access"
+
+msgid "Search below"
+msgstr "Search below"
+
+msgid "Search below this folder"
+msgstr "Search below this folder"
 
 #. placeholder {0}: nameOf(shown)
 msgid "Search in {0}"
@@ -18298,6 +18415,12 @@ msgctxt "the next page of a long list"
 msgid "Show more"
 msgstr "Show more"
 
+msgid "Some changes stopped"
+msgstr "Some changes stopped"
+
+msgid "Some permissions couldn't be restored"
+msgstr "Some permissions couldn't be restored"
+
 msgid "Something called {nextName} is here already."
 msgstr "Something called {nextName} is here already."
 
@@ -18319,14 +18442,30 @@ msgstr "This folder is empty."
 msgid "Too many items to download at once"
 msgstr "Too many items to download at once"
 
+msgid "Unpin folder"
+msgstr "Unpin folder"
+
+#. placeholder {0}: place.label
+msgid "Unpin {0}"
+msgstr "Unpin {0}"
+
 msgid "Upload"
 msgstr "Upload"
 
 msgid "Websites"
 msgstr "Websites"
 
+msgid "hard links counted once"
+msgstr "hard links counted once"
+
 msgid "owned by <0>{owner}</0>"
 msgstr "owned by <0>{owner}</0>"
+
+msgid "refused entries skipped"
+msgstr "some entries skipped"
+
+msgid "scan limit reached"
+msgstr "scan limit reached"
 
 #. placeholder {0}: Number(job.leftOut)
 msgid "{0, plural, one {# item was left out.} other {# items were left out.}}"
@@ -18357,6 +18496,10 @@ msgstr "{0, plural, one {Unpacked # item into {into}.} other {Unpacked # items i
 msgid "{0} of {1} items · {bytes}"
 msgstr "{0} of {1} items · {bytes}"
 
+#. placeholder {0}: formatBytes(job.totalBytes, i18n.locale)
+msgid "{bytes} of {0}"
+msgstr "{bytes} of {0}"
+
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
 
@@ -18377,6 +18520,147 @@ msgstr "Show the folders in {name}"
 
 msgid "{more, plural, one {# more folder} other {# more folders}}"
 msgstr "{more, plural, one {# more folder} other {# more folders}}"
+
+msgid "Allow programs to run with the file owner's or group's privileges"
+msgstr "Allow programs to run with the file owner's or group's privileges"
+
+msgid "And everything inside"
+msgstr "And everything inside"
+
+msgid "Apply changes"
+msgstr "Apply changes"
+
+msgid "Apply these permissions to every selected item"
+msgstr "Apply these permissions to every selected item"
+
+msgid "Choose a preset"
+msgstr "Choose a preset"
+
+msgid "Choose a smaller folder or narrow your search."
+msgstr "Choose a smaller folder or narrow your search."
+
+msgid "Couldn't load users and groups"
+msgstr "Couldn't load users and groups"
+
+msgid "Couldn't search this folder"
+msgstr "Couldn't search this folder"
+
+msgid "Couldn't start the download"
+msgstr "Couldn't start the download"
+
+msgid "Custom permissions"
+msgstr "Custom permissions"
+
+msgid "Download URL"
+msgstr "Download URL"
+
+msgid "File name"
+msgstr "File name"
+
+msgid "Files"
+msgstr "Files"
+
+msgid "Folder and file presets"
+msgstr "Folder and file presets"
+
+msgid "Folders"
+msgstr "Folders"
+
+msgid "Group"
+msgstr "Group"
+
+msgid "Group ID"
+msgstr "Group ID"
+
+msgid "Keep each group"
+msgstr "Keep each group"
+
+msgid "Keep each owner"
+msgstr "Keep each owner"
+
+msgid "Keep existing run permissions on files"
+msgstr "Keep existing run permissions on files"
+
+#. placeholder {0}: single.entry.group
+#. placeholder {0}: single.entry.owner
+msgid "Keep {0}"
+msgstr "Keep {0}"
+
+msgid "Mixed"
+msgstr "Mixed"
+
+msgid "No matches found"
+msgstr "No matches found"
+
+msgid "Numeric ID"
+msgstr "Numeric ID"
+
+msgid "Octal mode"
+msgstr "Octal mode"
+
+msgid "Others"
+msgstr "Others"
+
+msgid "Run"
+msgstr "Run"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Search inside text files too"
+msgstr "Search inside text files too"
+
+msgid "Search stopped at its scan limit"
+msgstr "Search stopped at its scan limit"
+
+msgid "Search term"
+msgstr "Search term"
+
+msgid "Set-ID changes how programs run"
+msgstr "Set-ID changes how programs run"
+
+msgid "Set-group-ID"
+msgstr "Set-group-ID"
+
+msgid "Set-user-ID"
+msgstr "Set-user-ID"
+
+msgid "Special permissions"
+msgstr "Special permissions"
+
+msgid "Start download"
+msgstr "Start download"
+
+msgid "Sticky bit"
+msgstr "Sticky bit"
+
+msgid "The server didn't start the download. Try again."
+msgstr "The server didn't start the download. Try again."
+
+msgid "Up to 1 GB per download"
+msgstr "Up to 1 GB per download"
+
+msgid "User ID"
+msgstr "User ID"
+
+msgid "Write"
+msgstr "Write"
+
+#. placeholder {0}: Number(result.skipped)
+msgid "{0, plural, one {# entry skipped} other {# entries skipped}}"
+msgstr "{0, plural, one {# entry skipped} other {# entries skipped}}"
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {# item} other {# items}}"
+msgstr "{0, plural, one {# item} other {# items}}"
+
+#. placeholder {0}: match.path
+#. placeholder {1}: match.line
+msgid "{0} · line {1}"
+msgstr "{0} · line {1}"
+
+msgid "{role}: {word}"
+msgstr "{role}: {word}"
 
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "A name can't have a / in it. Make the folder first, then this in it."
@@ -19622,9 +19906,6 @@ msgstr "{used} of {total}"
 
 msgid "{without, plural, one {# without a region} other {# without a region}}"
 msgstr "{without, plural, one {# without a region} other {# without a region}}"
-
-msgid "Files"
-msgstr "Files"
 
 msgid "No servers yet"
 msgstr "No servers yet"
@@ -21717,9 +21998,6 @@ msgstr "Throughput"
 
 msgid "Use the left and right arrows to read values over time."
 msgstr "Use the left and right arrows to read values over time."
-
-msgid "Write"
-msgstr "Write"
 
 msgid "Close {name}"
 msgstr "Close {name}"
@@ -25119,9 +25397,6 @@ msgstr "Filter commands"
 msgid "Filter saved commands"
 msgstr "Filter saved commands"
 
-msgid "Group"
-msgstr "Group"
-
 msgid "Import at most 200 commands per file."
 msgstr "Import at most 200 commands per file."
 
@@ -25198,9 +25473,6 @@ msgstr "Personal (only you)"
 
 msgid "Remove control characters (only printable text, newlines and tabs are allowed)."
 msgstr "Remove control characters (only printable text, newlines and tabs are allowed)."
-
-msgid "Run"
-msgstr "Run"
 
 #. placeholder {0}: cmd.name
 msgid "Run {0}"

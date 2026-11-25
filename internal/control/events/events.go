@@ -97,6 +97,8 @@ var fileWrites = []string{
 	"file.upload", "file.upload_failed", "file.upload_unconfirmed",
 	"file.compress", "file.compress_started", "file.compress_failed", "file.compress_unconfirmed",
 	"file.extract", "file.extract_started", "file.extract_failed", "file.extract_unconfirmed",
+	"file.access", "file.access_failed", "file.access_unconfirmed",
+	"file.fetch", "file.fetch_started", "file.fetch_failed", "file.fetch_unconfirmed", "file.fetch_cancelled",
 	"file.change_unknown",
 }
 
@@ -933,6 +935,8 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		// A write's detail leaves the store too: where it went, and what it took.
 		if told, ok := controlfiles.ReadTold(a.Detail); ok && (slices.Contains(fileWrites, a.Action) || a.Action == fileDownload) {
 			e.Subject.ToPath, e.Subject.WayBackIn, e.Subject.ForGood, e.Subject.SizeBytes = told.To, told.WayBackIn, told.ForGood, told.Size
+			e.Subject.EntriesChanged, e.Subject.EntriesSkipped, e.Subject.Stopped = told.Changed, told.Skipped, told.Stopped
+			e.Subject.SourceOrigin = told.SourceOrigin
 			if len(told.Paths) > 0 {
 				e.Subject.Paths = told.Paths
 				e.Subject.PathCount = uint32(max(told.PathCount, len(told.Paths))) //nolint:gosec // bounded count of paths

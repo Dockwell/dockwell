@@ -815,6 +815,48 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             tone: "warning",
           };
         }
+        case "file.access": {
+          const path = event.subject?.path ?? "";
+          const title = t`Changed permissions or ownership on ${path} on ${server}`;
+          return event.subject?.wayBackIn ? { title, icon: "lock", tone: "warning" } : { title, icon: "lock" };
+        }
+        case "file.access_failed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Couldn't change permissions or ownership on ${path} on ${server}`,
+            icon: "lock",
+            tone: "warning",
+          };
+        }
+        case "file.access_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`No passkey confirmed changing permissions or ownership on ${path} on ${server}`,
+            icon: "lock",
+            tone: "warning",
+          };
+        }
+        case "file.fetch_started":
+        case "file.fetch": {
+          const path = event.subject?.path ?? "";
+          const title =
+            event.action === "file.fetch"
+              ? t`Downloaded ${path} to ${server}`
+              : t`Started downloading ${path} to ${server}`;
+          return event.subject?.wayBackIn ? { title, icon: "download", tone: "warning" } : { title, icon: "download" };
+        }
+        case "file.fetch_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't download ${path} to ${server}`, icon: "download", tone: "warning" };
+        }
+        case "file.fetch_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`No passkey confirmed downloading ${path} to ${server}`, icon: "download", tone: "warning" };
+        }
+        case "file.fetch_cancelled": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Cancelled download of ${path} to ${server}`, icon: "download" };
+        }
         case "file.change_unknown": {
           const path = event.subject?.path ?? "";
           return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };

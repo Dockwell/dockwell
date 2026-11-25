@@ -125,6 +125,10 @@ const (
 	// onto a server. Its target is the server's ID, the archive path and the
 	// destination folder, on two lines.
 	StepUpExtractWayBackIn StepUpAction = "file.extract_way_back_in"
+	// StepUpChangeFileAccess confirms a protected permission or ownership change.
+	StepUpChangeFileAccess StepUpAction = "file.change_access"
+	// StepUpDownloadWayBackIn confirms a URL download to a protected path.
+	StepUpDownloadWayBackIn StepUpAction = "file.download_way_back_in"
 	// StepUpInvite invites someone. Its target is the email, the role and the
 	// place, as InviteTarget writes them.
 	StepUpInvite StepUpAction = "member.invite"
@@ -220,6 +224,8 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpRestoreWayBackIn:                  {"putting back", true},
 	StepUpCompressWayBackIn:                 {"compressing into", true},
 	StepUpExtractWayBackIn:                  {"extracting", true},
+	StepUpChangeFileAccess:                  {"changing permissions or ownership on", true},
+	StepUpDownloadWayBackIn:                 {"downloading to", true},
 	StepUpInvite:                            {"inviting", true},
 	StepUpChangeRole:                        {"changing the role of", true},
 	StepUpRemoveMember:                      {"removing", true},
@@ -265,6 +271,17 @@ func doing(action StepUpAction, target string) string {
 			return a.doing + " " + subject + " on " + server
 		default:
 		}
+	}
+	if action == StepUpChangeFileAccess {
+		path, proof, _ := strings.Cut(target, "\n")
+		if _, summary, ok := strings.Cut(proof, "\n"); ok && summary != "" {
+			return a.doing + " " + path + " (" + summary + ")"
+		}
+		return a.doing + " " + path
+	}
+	if action == StepUpDownloadWayBackIn {
+		path, _, _ := strings.Cut(target, "\n")
+		return a.doing + " " + path
 	}
 	if a.targeted {
 		sep := " to "

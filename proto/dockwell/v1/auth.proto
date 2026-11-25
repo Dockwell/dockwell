@@ -1096,6 +1096,12 @@ enum StepUpAction {
   // path and the destination folder on two lines, as
   // "srv_…:/archive.zip\n/dest".
   STEP_UP_ACTION_EXTRACT_WAY_BACK_IN = 95;
+  // Changing permissions or ownership. The target binds the resolved path and
+  // the requested changes.
+  STEP_UP_ACTION_CHANGE_FILE_ACCESS = 96;
+  // Fetching into a way back onto a server. The target binds the resolved
+  // destination and a digest of the URL.
+  STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN = 97;
   // Approving someone else's change in a protected environment, as an admin
   // or the owner, by applying it with ChangeService.ApplyChange. The target is
   // the change's ID and the fingerprint of the plan reviewed, as

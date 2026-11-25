@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -64,6 +65,10 @@ func (o op) actions() (done, failed, unconfirmed string) {
 		return "file.compress", "file.compress_failed", "file.compress_unconfirmed"
 	case "extract":
 		return "file.extract", "file.extract_failed", "file.extract_unconfirmed"
+	case "change permissions or ownership on":
+		return "file.access", "file.access_failed", "file.access_unconfirmed"
+	case "download to":
+		return "file.fetch", "file.fetch_failed", "file.fetch_unconfirmed"
 	default:
 		panic("file operation has no audit actions")
 	}
@@ -77,6 +82,8 @@ func (o op) startedAction() string {
 		return "file.compress_started"
 	case "extract":
 		return "file.extract_started"
+	case "download to":
+		return "file.fetch_started"
 	default:
 		panic("file operation has no started audit action")
 	}
@@ -99,7 +106,12 @@ type Told struct {
 	PathCount int      `json:"path_count,omitempty"`
 	// JobID ties a background archive job's start event to its outcome across
 	// control-plane restarts.
-	JobID string `json:"job_id,omitempty"`
+	JobID        string                       `json:"job_id,omitempty"`
+	Access       *dockwellv1.FileAccessChange `json:"access,omitempty"`
+	SourceOrigin string                       `json:"source_origin,omitempty"`
+	Changed      uint64                       `json:"changed,omitempty"`
+	Skipped      uint64                       `json:"skipped,omitempty"`
+	Stopped      string                       `json:"stopped,omitempty"`
 }
 
 // ReadTold reads what a write's event says, if it's one.
@@ -113,13 +125,14 @@ func ReadTold(detail string) (Told, bool) {
 
 // writing is one write as it goes.
 type writing struct {
-	h        *Handler
-	p        auth.Principal
-	srv      *dockwellv1.Server
-	session  *agentapi.Session
-	record   *recorder
-	op       op
-	giveBack func()
+	h            *Handler
+	p            auth.Principal
+	srv          *dockwellv1.Server
+	session      *agentapi.Session
+	record       *recorder
+	op           op
+	giveBack     func()
+	sourceOrigin string
 }
 
 // start finds who's writing and where, checks what's asked, and reaches the agent.
@@ -225,10 +238,18 @@ func (w *writing) refused(ctx context.Context, at, paths string, r *agentv1.File
 
 // done puts on record a write that happened. It happened whether or not this can.
 func (w *writing) done(ctx context.Context, at string, told Told) {
+	w.doneWithUndo(ctx, at, told, nil)
+}
+
+func (w *writing) doneWithUndo(ctx context.Context, at string, told Told, undo []*dockwellv1.FileAccessUndoEntry) {
 	detail, err := json.Marshal(told)
+	var data []byte
+	if err == nil && len(undo) > 0 {
+		data, err = proto.Marshal(&dockwellv1.ChangeFileAccessResponse{Undo: undo})
+	}
 	if err == nil {
 		done, _, _ := w.op.actions()
-		_, err = w.record.record(done, at, string(detail))
+		err = w.record.storeDetail(ids.New(ids.Event), done, at, string(detail), data)
 	}
 	if err != nil {
 		w.h.logger.ErrorContext(ctx, "a file changed, and can't go on record", slog.String("server", w.srv.GetId()), slog.String("error", err.Error()))
@@ -451,6 +472,20 @@ func (w *writing) archives(ctx context.Context, at string) error {
 // while other users can't read or guess another user's job IDs.
 func jobOwner(p auth.Principal) string { return p.User.ID }
 
+func archiveOwnerFor(job *dockwellv1.ArchiveJob, p auth.Principal) string {
+	if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_URL_DOWNLOAD {
+		return downloadOwner(p)
+	}
+	return jobOwner(p)
+}
+
+func downloadJobSize(job *dockwellv1.ArchiveJob) uint64 {
+	if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_URL_DOWNLOAD {
+		return job.GetBytes()
+	}
+	return 0
+}
+
 func archiveJobKey(serverID, jobID string) string { return serverID + ":" + jobID }
 
 // pendingArchive tracks a background compress or extract job from before the
@@ -524,11 +559,12 @@ func (h *Handler) finishArchiveStart(ctx context.Context, serverID, mintedJobID,
 		return
 	}
 	told := Told{
-		JobID:     job.GetJobId(),
-		WayBackIn: job.GetWayBackIn(),
-		To:        job.GetUnpackedTo(),
-		Paths:     job.GetSourcePaths(),
-		PathCount: int(job.GetSourceCount()),
+		JobID:        job.GetJobId(),
+		WayBackIn:    job.GetWayBackIn(),
+		To:           job.GetUnpackedTo(),
+		Paths:        job.GetSourcePaths(),
+		PathCount:    int(job.GetSourceCount()),
+		SourceOrigin: w.sourceOrigin,
 	}
 	detail, err := json.Marshal(told)
 	if err == nil {
@@ -550,7 +586,7 @@ func (h *Handler) finishArchiveStart(ctx context.Context, serverID, mintedJobID,
 			w:        w,
 			serverID: serverID,
 			jobID:    job.GetJobId(),
-			owner:    jobOwner(w.p),
+			owner:    archiveOwnerFor(job, w.p),
 			recordID: recordID,
 		}
 	}
@@ -639,10 +675,17 @@ func (h *Handler) recordArchiveOutcomeWithWriting(ctx context.Context, w *writin
 			})
 		} else {
 			w.done(ctx, job.GetPath(), Told{
-				To:        job.GetUnpackedTo(),
-				WayBackIn: job.GetWayBackIn(),
-				JobID:     job.GetJobId(),
+				To:           job.GetUnpackedTo(),
+				WayBackIn:    job.GetWayBackIn(),
+				JobID:        job.GetJobId(),
+				Size:         downloadJobSize(job),
+				SourceOrigin: w.sourceOrigin,
 			})
+		}
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_CANCELLED:
+		detail, _ := json.Marshal(Told{JobID: job.GetJobId(), WayBackIn: job.GetWayBackIn()})
+		if _, err := w.record.record("file.fetch_cancelled", job.GetPath(), string(detail)); err != nil {
+			h.logger.ErrorContext(ctx, "can't record a cancelled file download", slog.String("error", err.Error()))
 		}
 	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED:
 		msg := cmp.Or(job.GetError(), "the archive job failed")
@@ -653,12 +696,17 @@ func (h *Handler) recordArchiveOutcomeWithWriting(ctx context.Context, w *writin
 }
 
 func (h *Handler) settleArchiveJobFromStore(ctx context.Context, server, key string, job *dockwellv1.ArchiveJob, recordID string) {
-	wantStarted := "file.extract_started"
 	o := opExtract
-	if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS {
-		wantStarted = "file.compress_started"
+	switch job.GetKind() {
+	case dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS:
 		o = opCompress
+	case dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_URL_DOWNLOAD:
+		o = opFetch
+	case dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_EXTRACT:
+	case dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_UNSPECIFIED:
+		return
 	}
+	wantStarted := o.startedAction()
 	doneAction, failedAction, _ := o.actions()
 
 	var started store.Event
@@ -683,7 +731,7 @@ func (h *Handler) settleArchiveJobFromStore(ctx context.Context, server, key str
 			if ev.Target != server {
 				continue
 			}
-			if ev.Action == doneAction || ev.Action == failedAction {
+			if ev.Action == doneAction || ev.Action == failedAction || ev.Action == "file.fetch_cancelled" {
 				if told, ok := ReadTold(ev.Detail); ok && told.JobID == job.GetJobId() {
 					alreadyRecorded = true
 					return nil
@@ -727,12 +775,20 @@ func (h *Handler) settleArchiveJobFromStore(ctx context.Context, server, key str
 			told.Paths = job.GetSourcePaths()
 			told.PathCount = int(job.GetSourceCount())
 		} else {
+			if source, ok := ReadTold(started.Detail); ok {
+				told.SourceOrigin = source.SourceOrigin
+			}
 			told.To = job.GetUnpackedTo()
+			told.Size = downloadJobSize(job)
 		}
 		raw, merr := json.Marshal(told)
 		if merr != nil {
 			return
 		}
+		detail = string(raw)
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_CANCELLED:
+		action = "file.fetch_cancelled"
+		raw, _ := json.Marshal(Told{JobID: job.GetJobId(), WayBackIn: job.GetWayBackIn()})
 		detail = string(raw)
 	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED:
 		action = failedAction
@@ -795,7 +851,7 @@ func (h *Handler) reconcileArchiveJobs(server string) {
 	}
 	ctx := context.Background()
 	for _, p := range pending {
-		out, err := session.GetArchiveJob(ctx, p.jobID, p.owner)
+		out, err := session.GetArchiveJob(ctx, p.jobID, p.owner, p.owner)
 		if err != nil {
 			continue
 		}
@@ -935,14 +991,11 @@ func (h *Handler) GetArchiveJob(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's agent is too old for archive jobs. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
-	out, err := session.GetArchiveJob(ctx, jobID, jobOwner(p))
+	out, err := session.GetArchiveJob(ctx, jobID, jobOwner(p), downloadOwner(p))
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	if r := out.GetRefusal(); r != nil {
-		if r.GetKind() == agentv1.FileRefusal_KIND_NOT_FOUND {
-			h.failLostArchiveJob(srv.GetId(), jobID)
-		}
 		return nil, refusal(r)
 	}
 	job := out.GetJob()
@@ -967,7 +1020,7 @@ func (h *Handler) ListArchiveJobs(ctx context.Context, req *connect.Request[dock
 	if !session.ArchivesFiles() {
 		return connect.NewResponse(&dockwellv1.ListArchiveJobsResponse{}), nil
 	}
-	out, err := session.ListArchiveJobs(ctx, jobOwner(p))
+	out, err := session.ListArchiveJobs(ctx, jobOwner(p), downloadOwner(p))
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

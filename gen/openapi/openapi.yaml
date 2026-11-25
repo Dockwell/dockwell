@@ -6259,6 +6259,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/archive-jobs/{jobId}:cancelDownload:
+        post:
+            tags:
+                - FileService
+            description: CancelFileDownload stops a URL download started by this session.
+            operationId: FileService_CancelFileDownload
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: jobId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelFileDownloadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelFileDownloadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/containers/{containerId}/history:
         get:
             tags:
@@ -6537,6 +6573,91 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files/accounts:
+        get:
+            tags:
+                - FileService
+            description: ListFileAccounts lists users and groups on the server.
+            operationId: FileService_ListFileAccounts
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListFileAccountsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files/folderSize:
+        get:
+            tags:
+                - FileService
+            description: CalculateFolderSize calculates the logical size visible under a folder, up to the scan limits.
+            operationId: FileService_CalculateFolderSize
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: path
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CalculateFolderSizeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:changeAccess:
+        post:
+            tags:
+                - FileService
+            description: ChangeFileAccess changes mode or ownership on a file or folder.
+            operationId: FileService_ChangeFileAccess
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ChangeFileAccessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChangeFileAccessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:compress:
         post:
             tags:
@@ -6674,6 +6795,37 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
             x-dockwell-stream: response
+    /v1/servers/{serverId}/files:downloadFromUrl:
+        post:
+            tags:
+                - FileService
+            description: DownloadFileFromURL starts a server-side URL download into a new file.
+            operationId: FileService_DownloadFileFromURL
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DownloadFileFromURLRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DownloadFileFromURLResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:extract:
         post:
             tags:
@@ -6850,6 +7002,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SaveFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:search:
+        post:
+            tags:
+                - FileService
+            description: |-
+                SearchFiles finds matching names or text below a folder, up to the scan limits.
+                 Search terms may contain file text, so they go in the body of a POST.
+            operationId: FileService_SearchFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SearchFilesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchFilesResponse'
                 default:
                     description: Default error response
                     content:
@@ -7166,6 +7351,92 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/PlanStopPanelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/pinned-folders:
+        get:
+            tags:
+                - FileService
+            description: ListPinnedFolders lists the caller's pinned folders on a server.
+            operationId: FileService_ListPinnedFolders
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListPinnedFoldersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - FileService
+            description: PinFolder pins a folder for the caller on this server.
+            operationId: FileService_PinFolder
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PinFolderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PinFolderResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/pinned-folders:unpin:
+        post:
+            tags:
+                - FileService
+            description: UnpinFolder removes the caller's pin for a folder on this server.
+            operationId: FileService_UnpinFolder
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UnpinFolderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UnpinFolderResponse'
                 default:
                     description: Default error response
                     content:
@@ -11706,8 +11977,9 @@ components:
                         - ARCHIVE_JOB_KIND_UNSPECIFIED
                         - ARCHIVE_JOB_KIND_COMPRESS
                         - ARCHIVE_JOB_KIND_EXTRACT
+                        - ARCHIVE_JOB_KIND_URL_DOWNLOAD
                     type: string
-                    description: Whether it compresses or extracts.
+                    description: Whether it compresses, extracts or downloads.
                     format: enum
                 state:
                     enum:
@@ -11715,8 +11987,9 @@ components:
                         - ARCHIVE_JOB_STATE_RUNNING
                         - ARCHIVE_JOB_STATE_DONE
                         - ARCHIVE_JOB_STATE_FAILED
+                        - ARCHIVE_JOB_STATE_CANCELLED
                     type: string
-                    description: Running, done or failed.
+                    description: Running, done, failed or cancelled.
                     format: enum
                 path:
                     type: string
@@ -11773,9 +12046,12 @@ components:
                     type: string
                     description: When the job finished or failed. Unset while running.
                     format: date-time
+                totalBytes:
+                    type: string
+                    description: Expected bytes for a URL download, or zero if the length is unknown.
             description: |-
-                ArchiveJob is one server-side compress or extract job, which outlives the
-                 request that started it so long archives survive proxy request timeouts.
+                ArchiveJob is one server-side compress, extract or URL download job. It
+                 outlives the request that started it so long jobs survive proxy timeouts.
         AuditEvent:
             type: object
             properties:
@@ -12651,6 +12927,8 @@ components:
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_COMPRESS_WAY_BACK_IN
                         - STEP_UP_ACTION_EXTRACT_WAY_BACK_IN
+                        - STEP_UP_ACTION_CHANGE_FILE_ACCESS
+                        - STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
                         - STEP_UP_ACTION_CHANGE_EMAIL
                         - STEP_UP_ACTION_INVITE
@@ -13048,6 +13326,26 @@ components:
             description: |-
                 BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
                  with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
+        CalculateFolderSizeResponse:
+            type: object
+            properties:
+                sizeBytes:
+                    type: string
+                partial:
+                    type: boolean
+                    description: True when only a lower bound could be counted.
+                omissions:
+                    type: array
+                    items:
+                        enum:
+                            - FOLDER_SIZE_OMISSION_UNSPECIFIED
+                            - FOLDER_SIZE_OMISSION_DOCKER_DATA
+                            - FOLDER_SIZE_OMISSION_HARD_LINKS
+                            - FOLDER_SIZE_OMISSION_REFUSED_ENTRIES
+                            - FOLDER_SIZE_OMISSION_SCAN_LIMIT
+                        type: string
+                        format: enum
+            description: CalculateFolderSizeResponse returns the logical size of the files counted.
         CancelBuildRequest:
             type: object
             properties:
@@ -13075,6 +13373,20 @@ components:
                 changeId:
                     type: string
             description: CancelDockerImageBuildRequest identifies the change on one server.
+        CancelFileDownloadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                jobId:
+                    type: string
+            description: CancelFileDownloadRequest names a download job to stop.
+        CancelFileDownloadResponse:
+            type: object
+            properties:
+                job:
+                    $ref: '#/components/schemas/ArchiveJob'
+            description: CancelFileDownloadResponse returns the state of the download after cancellation was requested.
         CancelTotpSetupRequest:
             type: object
             properties: {}
@@ -14163,6 +14475,40 @@ components:
                         The reader holds none of its edits, only what it takes in, so its summary and
                          who made it are left out, as they'd describe the other project.
             description: ChangeElsewhere is what of a change is in projects its reader holds no role in.
+        ChangeFileAccessRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                path:
+                    type: string
+                change:
+                    $ref: '#/components/schemas/FileAccessChange'
+                proof:
+                    type: string
+                confirmationTarget:
+                    type: string
+                    description: The target returned with needs_step_up, alongside its proof.
+            description: ChangeFileAccessRequest names a path and its requested permission or ownership changes.
+        ChangeFileAccessResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                changed:
+                    type: string
+                skipped:
+                    type: string
+                wayBackIn:
+                    type: boolean
+                stopped:
+                    type: string
+                    description: A failure after at least one entry changed.
+                undo:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileAccessUndoEntry'
+            description: ChangeFileAccessResponse includes partial progress if a recursive change stopped.
         ChangeServiceRuntimeRequest:
             type: object
             properties:
@@ -19582,6 +19928,30 @@ components:
                 body:
                     type: string
             description: DownloadDockerArtifactResponse carries one frame of the sealed export.
+        DownloadFileFromURLRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                folder:
+                    type: string
+                url:
+                    type: string
+                name:
+                    type: string
+                    description: A single filename. Empty uses the last component of the original URL.
+                proof:
+                    type: string
+                confirmationTarget:
+                    type: string
+                    description: The target returned with needs_step_up, alongside its proof.
+            description: DownloadFileFromURLRequest names a URL and where to put the bytes on the server.
+        DownloadFileFromURLResponse:
+            type: object
+            properties:
+                job:
+                    $ref: '#/components/schemas/ArchiveJob'
+            description: DownloadFileFromURLResponse returns the background download job.
         DownloadFileResponse:
             type: object
             properties:
@@ -20779,6 +21149,16 @@ components:
                     type: integer
                     description: How many paths were downloaded or compressed when paths is populated.
                     format: uint32
+                entriesChanged:
+                    type: string
+                    description: Progress from a permission or ownership change.
+                entriesSkipped:
+                    type: string
+                stopped:
+                    type: string
+                sourceOrigin:
+                    type: string
+                    description: Scheme and host of a URL download.
                 valueName:
                     type: string
                     description: |-
@@ -21075,6 +21455,75 @@ components:
                         True for a field that may hold a secret: the plan says it changed,
                          never what it holds.
             description: FieldChange is one field that differs between two specs.
+        FileAccessChange:
+            type: object
+            properties:
+                mode:
+                    type: integer
+                    description: The nine permission bits and, when acknowledged, the special bits.
+                    format: uint32
+                uid:
+                    type: integer
+                    format: uint32
+                gid:
+                    type: integer
+                    format: uint32
+                recursive:
+                    type: boolean
+                allowSetId:
+                    type: boolean
+                fileMode:
+                    type: integer
+                    description: For recursive changes, mode applies to folders and file_mode to files.
+                    format: uint32
+                keepFileExecute:
+                    type: boolean
+                    description: Also keep execute bits that were already set on a file.
+                restore:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileAccessUndoEntry'
+                    description: Restore an earlier change only where the inode and current access still match.
+            description: FileAccessChange leaves each omitted value as it was.
+        FileAccessState:
+            type: object
+            properties:
+                mode:
+                    type: integer
+                    format: uint32
+                uid:
+                    type: integer
+                    format: uint32
+                gid:
+                    type: integer
+                    format: uint32
+            description: FileAccessState holds a file or folder's permissions and numeric ownership.
+        FileAccessUndoEntry:
+            type: object
+            properties:
+                path:
+                    type: string
+                device:
+                    type: string
+                inode:
+                    type: string
+                before:
+                    $ref: '#/components/schemas/FileAccessState'
+                after:
+                    $ref: '#/components/schemas/FileAccessState'
+                changeTimeNs:
+                    type: string
+                    description: The inode change time after the operation, to detect a stale undo.
+            description: FileAccessUndoEntry identifies an inode and the access change made to it.
+        FileAccount:
+            type: object
+            properties:
+                name:
+                    type: string
+                id:
+                    type: integer
+                    format: uint32
+            description: FileAccount is a local user or group and its numeric ID.
         FileEntry:
             type: object
             properties:
@@ -21143,6 +21592,25 @@ components:
                     type: integer
                     format: uint32
             description: FileEntry is one file or directory on a server.
+        FileSearchMatch:
+            type: object
+            properties:
+                path:
+                    type: string
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    format: enum
+                line:
+                    type: integer
+                    description: The first matching line, or zero when only the name matched.
+                    format: uint32
+            description: FileSearchMatch identifies a matching path and, when found, its first matching line.
         FinishAcceptInviteRequest:
             type: object
             properties:
@@ -24729,6 +25197,18 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListEventsResponse is a page of events.
+        ListFileAccountsResponse:
+            type: object
+            properties:
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileAccount'
+                groups:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileAccount'
+            description: ListFileAccountsResponse lists the local users and groups the server reported.
         ListFilesResponse:
             type: object
             properties:
@@ -24873,6 +25353,14 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListPinnedFoldersResponse:
+            type: object
+            properties:
+                paths:
+                    type: array
+                    items:
+                        type: string
+            description: ListPinnedFoldersResponse lists the caller's pinned paths on the server.
         ListProviderLinksResponse:
             type: object
             properties:
@@ -26597,6 +27085,9 @@ components:
                     description: |-
                         The database inside the container to connect to when database_console is
                          set. Empty uses the engine's default.
+                workingDirectory:
+                    type: string
+                    description: The host shell's starting directory. Empty uses its usual directory.
                 containerId:
                     type: string
                     description: Full Engine ID in place of container. The passkey target includes this ID.
@@ -27302,6 +27793,18 @@ components:
                         True when it once reported a lower use count than before, which happens
                          when a passkey is copied. It no longer signs in; remove it.
             description: Passkey is one of a user's passkeys.
+        PinFolderRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                path:
+                    type: string
+            description: PinFolderRequest names a folder to pin.
+        PinFolderResponse:
+            type: object
+            properties: {}
+            description: PinFolderResponse is empty once the folder is pinned.
         PinnedNeed:
             type: object
             properties:
@@ -31012,6 +31515,29 @@ components:
                 Screenshot is a preview a person can read before starting an installation.
                  Media comes with its catalog, and the control plane serves it; browsing never
                  asks a third-party host for it.
+        SearchFilesRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                path:
+                    type: string
+                query:
+                    type: string
+                text:
+                    type: boolean
+                    description: Also match the contents of small text files, without returning the text.
+            description: SearchFilesRequest names a folder and a literal term to find below it.
+        SearchFilesResponse:
+            type: object
+            properties:
+                matches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FileSearchMatch'
+                partial:
+                    type: boolean
+            description: SearchFilesResponse returns the paths found within the search limits.
         SearchImagesResponse:
             type: object
             properties:
@@ -34987,6 +35513,18 @@ components:
             type: object
             properties: {}
             description: UnmuteAlertsResponse says nothing more.
+        UnpinFolderRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                path:
+                    type: string
+            description: UnpinFolderRequest names the pinned path to remove.
+        UnpinFolderResponse:
+            type: object
+            properties: {}
+            description: UnpinFolderResponse is empty once the pin is gone.
         UpdateProfileRequest:
             type: object
             properties:

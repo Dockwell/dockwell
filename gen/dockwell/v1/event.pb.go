@@ -2336,6 +2336,12 @@ type EventSubject struct {
 	Paths []string `protobuf:"bytes,104,rep,name=paths,proto3" json:"paths,omitempty"`
 	// How many paths were downloaded or compressed when paths is populated.
 	PathCount uint32 `protobuf:"varint,105,opt,name=path_count,json=pathCount,proto3" json:"path_count,omitempty"`
+	// Progress from a permission or ownership change.
+	EntriesChanged uint64 `protobuf:"varint,106,opt,name=entries_changed,json=entriesChanged,proto3" json:"entries_changed,omitempty"`
+	EntriesSkipped uint64 `protobuf:"varint,107,opt,name=entries_skipped,json=entriesSkipped,proto3" json:"entries_skipped,omitempty"`
+	Stopped        string `protobuf:"bytes,108,opt,name=stopped,proto3" json:"stopped,omitempty"`
+	// Scheme and host of a URL download.
+	SourceOrigin string `protobuf:"bytes,109,opt,name=source_origin,json=sourceOrigin,proto3" json:"source_origin,omitempty"`
 	// For service.value_reveal, which of the service's own environment variables
 	// was revealed, by name; never its value. Numbered apart, as open work adds to
 	// this message.
@@ -2442,6 +2448,34 @@ func (x *EventSubject) GetPathCount() uint32 {
 		return x.PathCount
 	}
 	return 0
+}
+
+func (x *EventSubject) GetEntriesChanged() uint64 {
+	if x != nil {
+		return x.EntriesChanged
+	}
+	return 0
+}
+
+func (x *EventSubject) GetEntriesSkipped() uint64 {
+	if x != nil {
+		return x.EntriesSkipped
+	}
+	return 0
+}
+
+func (x *EventSubject) GetStopped() string {
+	if x != nil {
+		return x.Stopped
+	}
+	return ""
+}
+
+func (x *EventSubject) GetSourceOrigin() string {
+	if x != nil {
+		return x.SourceOrigin
+	}
+	return ""
 }
 
 func (x *EventSubject) GetValueName() string {
@@ -2787,7 +2821,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
 	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
-	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xa3\x02\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xb4\x03\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -2800,7 +2834,11 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x14\n" +
 	"\x05paths\x18h \x03(\tR\x05paths\x12\x1d\n" +
 	"\n" +
-	"path_count\x18i \x01(\rR\tpathCount\x12\x1d\n" +
+	"path_count\x18i \x01(\rR\tpathCount\x12'\n" +
+	"\x0fentries_changed\x18j \x01(\x04R\x0eentriesChanged\x12'\n" +
+	"\x0fentries_skipped\x18k \x01(\x04R\x0eentriesSkipped\x12\x18\n" +
+	"\astopped\x18l \x01(\tR\astopped\x12#\n" +
+	"\rsource_origin\x18m \x01(\tR\fsourceOrigin\x12\x1d\n" +
 	"\n" +
 	"value_name\x18< \x01(\tR\tvalueName\"\xf0\x02\n" +
 	"\vEventMember\x12\x14\n" +

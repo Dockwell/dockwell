@@ -586,3 +586,38 @@ func TestWorkingDirectory(t *testing.T) {
 		t.Errorf("WorkingDirectory = %+v, want cwd=%q home=%q", got, sub, realHome)
 	}
 }
+
+func TestAStalledStartingFolderGivesBackItsTerminalPlace(t *testing.T) {
+	m := New(Options{})
+	started, release, returned := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	m.startHost = func(_, _ uint16, _ string) (process, string, error) {
+		close(started)
+		<-release
+		close(returned)
+		return nil, "", errors.New("the mount came back without the folder")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	defer close(release)
+	result := make(chan error, 1)
+	go func() {
+		_, err := m.Open(ctx, &agentv1.OpenTerminalCall{Id: "stalled", WorkingDirectory: "/mnt/stalled"})
+		result <- err
+	}()
+	<-started
+	cancel()
+	if err := <-result; err == nil || !strings.Contains(err.Error(), "stopped answering") {
+		t.Fatalf("opening stalled terminal = %v", err)
+	}
+	m.mu.Lock()
+	_, kept := m.open["stalled"]
+	m.mu.Unlock()
+	if kept {
+		t.Fatal("a stalled shell kept its terminal place")
+	}
+	select {
+	case <-returned:
+		t.Fatal("the mount stopped blocking on its own")
+	default:
+	}
+}

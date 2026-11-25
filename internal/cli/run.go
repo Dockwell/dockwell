@@ -309,13 +309,15 @@ func serverFiles(stdio IO, logger *slog.Logger, dir datadir.Dir) *files.Server {
 	if err == nil {
 		client = docker.New(socket)
 	}
-	return files.New(dir.Root, logger, func(ctx context.Context) (string, error) {
+	disk := files.New(dir.Root, logger, func(ctx context.Context) (string, error) {
 		info, err := client.Info(ctx)
 		if err != nil {
 			return "", err
 		}
 		return info.DockerRootDir, nil
 	})
+	disk.DownloadHosts = strings.Split(stdio.Getenv("DOCKWELL_FILES_DOWNLOAD_HOSTS"), ",")
+	return disk
 }
 
 // dockerRoom reads how much is free, and how large it is in all, on the disk

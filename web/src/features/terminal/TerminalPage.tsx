@@ -88,6 +88,8 @@ export interface TerminalSearch {
   console?: boolean;
   /** The logical database to connect to when console is true. */
   database?: string;
+  /** An existing terminal opened from Files. */
+  terminalId?: string;
 }
 
 interface ConsoleOptions {
@@ -122,7 +124,7 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
     ? `${search.containerId}:${search.console ? "console" : "shell"}:${search.database ?? ""}`
     : search.console
       ? `console:${search.container ?? ""}:${search.database ?? ""}`
-      : "terminal";
+      : (search.terminalId ?? "terminal");
   return (
     <ServerFrame
       id={serverId}
@@ -148,6 +150,7 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
       {(server) => (
         <Terminals
           key={key}
+          terminalId={search.terminalId}
           server={server}
           phone={phone}
           container={search.container}
@@ -192,6 +195,7 @@ interface TerminalsProps {
   /** The logical database inside container when consoleMode is true. */
   database?: string | undefined;
   exact?: ExactTerminal | undefined;
+  terminalId?: string | undefined;
   onTitle: (title: string | undefined) => void;
 }
 
@@ -205,7 +209,16 @@ function matchesConsole(tab: Terminal, container: string, database: string | und
   return database ? match[2] === database : !match[2];
 }
 
-function Terminals({ server, phone, container, consoleMode = false, database, exact, onTitle }: TerminalsProps) {
+function Terminals({
+  server,
+  phone,
+  container,
+  consoleMode = false,
+  database,
+  exact,
+  terminalId,
+  onTitle,
+}: TerminalsProps) {
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
@@ -398,9 +411,13 @@ function Terminals({ server, phone, container, consoleMode = false, database, ex
     setActive(
       (now) =>
         now ??
-        (exact ? undefined : container ? existing.findLast((o) => o.container === container)?.id : existing.at(-1)?.id),
+        (exact
+          ? undefined
+          : container
+            ? existing.findLast((o) => o.container === container)?.id
+            : (existing.find((o) => o.id === terminalId) ?? existing.at(-1))?.id),
     );
-  }, [listed.data, listed.isFetchedAfterMount, container, exact, consoleMode, database, open]);
+  }, [listed.data, listed.isFetchedAfterMount, container, exact, consoleMode, database, open, terminalId]);
 
   // Lock page scrolling while fullscreen is active. Shift+Esc leaves fullscreen from anywhere;
   // bare Esc leaves only when focus is outside the terminal so Esc always reaches the shell.

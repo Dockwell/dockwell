@@ -435,6 +435,8 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN:                   auth.StepUpRestoreWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_COMPRESS_WAY_BACK_IN:                  auth.StepUpCompressWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_EXTRACT_WAY_BACK_IN:                   auth.StepUpExtractWayBackIn,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CHANGE_FILE_ACCESS:                    auth.StepUpChangeFileAccess,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN:                  auth.StepUpDownloadWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE:                                auth.StepUpInvite,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CHANGE_ROLE:                           auth.StepUpChangeRole,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_MEMBER:                         auth.StepUpRemoveMember,

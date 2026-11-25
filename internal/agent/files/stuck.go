@@ -94,6 +94,12 @@ func attempt[T any](parent context.Context, s *Server, p string, work func(conte
 	if n := s.stuckCount(); n >= stopAt {
 		return gaveUp(tooManyStuck(n)), nil
 	}
+	return attemptOwned(parent, s, p, work, gaveUp)
+}
+
+// attemptOwned also runs when other paths are stalled. Only a worker holding
+// resources already acquired through attempt may use it to hand them back.
+func attemptOwned[T any](parent context.Context, s *Server, p string, work func(context.Context, *trail) (T, error), gaveUp func(*agentv1.FileRefusal) T) (T, error) {
 	within := s.AnswerWithin
 	if within <= 0 {
 		within = answerWithin

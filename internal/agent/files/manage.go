@@ -151,13 +151,16 @@ func (s *Server) mountIn(where string) string {
 // home holds its owner's way in, and for each of an admin's way-in folders it is or
 // holds, such as .ssh or their systemd units, wherever their home is.
 func (s *Server) wayInAt(tg *target, st *unix.Stat_t, dir bool) bool {
+	return s.wayInWith(s.waysIn(), tg, st, dir)
+}
+
+func (s *Server) wayInWith(ways *waysIn, tg *target, st *unix.Stat_t, dir bool) bool {
 	from, inVolume := 0, false
 	for i := range tg.w.steps {
 		if tg.w.steps[i].place == oneVolume {
 			from, inVolume = i+1, true
 		}
 	}
-	ways := s.waysIn()
 	if ways.listed(tg.where, s.dataDir, inVolume) {
 		return true
 	}

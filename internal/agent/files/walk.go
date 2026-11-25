@@ -36,6 +36,7 @@ const (
 	whyDockerCopy = "a copy of what Docker keeps of a container or a volume, with the secrets in it"
 	whyPrivateKey = "a private key"
 	whyHashes     = "a list of password hashes"
+	whyStaging    = "a transfer that has not finished"
 )
 
 // shutPlaces are the server's own directories no one reads through here.
@@ -67,6 +68,7 @@ const (
 
 // guard is what's refused on this server, as of one call.
 type guard struct {
+	server *Server
 	shut   map[identity]string // why each directory is shut
 	places map[identity]place  // the directories Docker's data root is made of
 	// held is where each shut directory is, with every link followed, for what
@@ -81,7 +83,7 @@ type shutAt struct{ path, why string }
 // these are at can change between calls, and a restart of Docker can move its
 // data root.
 func (s *Server) guard(ctx context.Context) *guard {
-	g := &guard{shut: map[identity]string{}, places: map[identity]place{}}
+	g := &guard{server: s, shut: map[identity]string{}, places: map[identity]place{}}
 	shut := func(path, why string) {
 		var st unix.Stat_t
 		if unix.Stat(path, &st) == nil {
@@ -130,6 +132,17 @@ func (s *Server) guard(ctx context.Context) *guard {
 // it was reached.
 func (g *guard) enter(at place, name string, st *unix.Stat_t) (place, string) {
 	id := identify(st)
+	if arriving(name) {
+		return free, whyStaging
+	}
+	if g.server != nil {
+		g.server.mu.Lock()
+		staging := g.server.downloadStages[id]
+		g.server.mu.Unlock()
+		if staging {
+			return free, whyStaging
+		}
+	}
 	if why, ok := g.shut[id]; ok {
 		return free, why
 	}

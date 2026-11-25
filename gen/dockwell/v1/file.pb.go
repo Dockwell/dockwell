@@ -79,7 +79,7 @@ func (Unpack) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{0}
 }
 
-// ArchiveJobKind says whether a job compresses or extracts an archive.
+// ArchiveJobKind says whether a job compresses, extracts or downloads.
 type ArchiveJobKind int32
 
 const (
@@ -88,6 +88,8 @@ const (
 	ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS ArchiveJobKind = 1
 	// Extracting an existing .zip, .tar.gz or .tgz archive.
 	ArchiveJobKind_ARCHIVE_JOB_KIND_EXTRACT ArchiveJobKind = 2
+	// Fetching a URL into a new file on the server.
+	ArchiveJobKind_ARCHIVE_JOB_KIND_URL_DOWNLOAD ArchiveJobKind = 3
 )
 
 // Enum value maps for ArchiveJobKind.
@@ -96,11 +98,13 @@ var (
 		0: "ARCHIVE_JOB_KIND_UNSPECIFIED",
 		1: "ARCHIVE_JOB_KIND_COMPRESS",
 		2: "ARCHIVE_JOB_KIND_EXTRACT",
+		3: "ARCHIVE_JOB_KIND_URL_DOWNLOAD",
 	}
 	ArchiveJobKind_value = map[string]int32{
-		"ARCHIVE_JOB_KIND_UNSPECIFIED": 0,
-		"ARCHIVE_JOB_KIND_COMPRESS":    1,
-		"ARCHIVE_JOB_KIND_EXTRACT":     2,
+		"ARCHIVE_JOB_KIND_UNSPECIFIED":  0,
+		"ARCHIVE_JOB_KIND_COMPRESS":     1,
+		"ARCHIVE_JOB_KIND_EXTRACT":      2,
+		"ARCHIVE_JOB_KIND_URL_DOWNLOAD": 3,
 	}
 )
 
@@ -142,6 +146,8 @@ const (
 	ArchiveJobState_ARCHIVE_JOB_STATE_DONE ArchiveJobState = 2
 	// Stopped with an error; nothing partial was left behind.
 	ArchiveJobState_ARCHIVE_JOB_STATE_FAILED ArchiveJobState = 3
+	// The caller cancelled a URL download before it was put in place.
+	ArchiveJobState_ARCHIVE_JOB_STATE_CANCELLED ArchiveJobState = 4
 )
 
 // Enum value maps for ArchiveJobState.
@@ -151,12 +157,14 @@ var (
 		1: "ARCHIVE_JOB_STATE_RUNNING",
 		2: "ARCHIVE_JOB_STATE_DONE",
 		3: "ARCHIVE_JOB_STATE_FAILED",
+		4: "ARCHIVE_JOB_STATE_CANCELLED",
 	}
 	ArchiveJobState_value = map[string]int32{
 		"ARCHIVE_JOB_STATE_UNSPECIFIED": 0,
 		"ARCHIVE_JOB_STATE_RUNNING":     1,
 		"ARCHIVE_JOB_STATE_DONE":        2,
 		"ARCHIVE_JOB_STATE_FAILED":      3,
+		"ARCHIVE_JOB_STATE_CANCELLED":   4,
 	}
 )
 
@@ -245,6 +253,62 @@ func (x FileType) Number() protoreflect.EnumNumber {
 // Deprecated: Use FileType.Descriptor instead.
 func (FileType) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{3}
+}
+
+// FolderSizeOmission explains why the size is a lower bound.
+type FolderSizeOmission int32
+
+const (
+	FolderSizeOmission_FOLDER_SIZE_OMISSION_UNSPECIFIED     FolderSizeOmission = 0
+	FolderSizeOmission_FOLDER_SIZE_OMISSION_DOCKER_DATA     FolderSizeOmission = 1
+	FolderSizeOmission_FOLDER_SIZE_OMISSION_HARD_LINKS      FolderSizeOmission = 2
+	FolderSizeOmission_FOLDER_SIZE_OMISSION_REFUSED_ENTRIES FolderSizeOmission = 3
+	FolderSizeOmission_FOLDER_SIZE_OMISSION_SCAN_LIMIT      FolderSizeOmission = 4
+)
+
+// Enum value maps for FolderSizeOmission.
+var (
+	FolderSizeOmission_name = map[int32]string{
+		0: "FOLDER_SIZE_OMISSION_UNSPECIFIED",
+		1: "FOLDER_SIZE_OMISSION_DOCKER_DATA",
+		2: "FOLDER_SIZE_OMISSION_HARD_LINKS",
+		3: "FOLDER_SIZE_OMISSION_REFUSED_ENTRIES",
+		4: "FOLDER_SIZE_OMISSION_SCAN_LIMIT",
+	}
+	FolderSizeOmission_value = map[string]int32{
+		"FOLDER_SIZE_OMISSION_UNSPECIFIED":     0,
+		"FOLDER_SIZE_OMISSION_DOCKER_DATA":     1,
+		"FOLDER_SIZE_OMISSION_HARD_LINKS":      2,
+		"FOLDER_SIZE_OMISSION_REFUSED_ENTRIES": 3,
+		"FOLDER_SIZE_OMISSION_SCAN_LIMIT":      4,
+	}
+)
+
+func (x FolderSizeOmission) Enum() *FolderSizeOmission {
+	p := new(FolderSizeOmission)
+	*p = x
+	return p
+}
+
+func (x FolderSizeOmission) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (FolderSizeOmission) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_file_proto_enumTypes[4].Descriptor()
+}
+
+func (FolderSizeOmission) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_file_proto_enumTypes[4]
+}
+
+func (x FolderSizeOmission) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FolderSizeOmission.Descriptor instead.
+func (FolderSizeOmission) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{4}
 }
 
 // ListFilesRequest names a directory on a server.
@@ -2756,15 +2820,15 @@ func (x *ListArchiveJobsResponse) GetJobs() []*ArchiveJob {
 	return nil
 }
 
-// ArchiveJob is one server-side compress or extract job, which outlives the
-// request that started it so long archives survive proxy request timeouts.
+// ArchiveJob is one server-side compress, extract or URL download job. It
+// outlives the request that started it so long jobs survive proxy timeouts.
 type ArchiveJob struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Its ID, which GetArchiveJob takes.
 	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	// Whether it compresses or extracts.
+	// Whether it compresses, extracts or downloads.
 	Kind ArchiveJobKind `protobuf:"varint,2,opt,name=kind,proto3,enum=dockwell.v1.ArchiveJobKind" json:"kind,omitempty"`
-	// Running, done or failed.
+	// Running, done, failed or cancelled.
 	State ArchiveJobState `protobuf:"varint,3,opt,name=state,proto3,enum=dockwell.v1.ArchiveJobState" json:"state,omitempty"`
 	// The archive's path on the server, with every symlink in its folder's path
 	// followed.
@@ -2797,7 +2861,9 @@ type ArchiveJob struct {
 	// When the job started on the agent.
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// When the job finished or failed. Unset while running.
-	FinishTime    *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	FinishTime *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	// Expected bytes for a URL download, or zero if the length is unknown.
+	TotalBytes    uint64 `protobuf:"varint,19,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2958,6 +3024,13 @@ func (x *ArchiveJob) GetFinishTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ArchiveJob) GetTotalBytes() uint64 {
+	if x != nil {
+		return x.TotalBytes
+	}
+	return 0
+}
+
 // FileEntry is one file or directory on a server.
 type FileEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3114,6 +3187,1373 @@ func (x *FileEntry) GetGid() uint32 {
 		return x.Gid
 	}
 	return 0
+}
+
+// FileAccount is a local user or group and its numeric ID.
+type FileAccount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Id            uint32                 `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileAccount) Reset() {
+	*x = FileAccount{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileAccount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileAccount) ProtoMessage() {}
+
+func (x *FileAccount) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileAccount.ProtoReflect.Descriptor instead.
+func (*FileAccount) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *FileAccount) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FileAccount) GetId() uint32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+// ListFileAccountsRequest names a server whose users and groups to list.
+type ListFileAccountsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFileAccountsRequest) Reset() {
+	*x = ListFileAccountsRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFileAccountsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFileAccountsRequest) ProtoMessage() {}
+
+func (x *ListFileAccountsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFileAccountsRequest.ProtoReflect.Descriptor instead.
+func (*ListFileAccountsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ListFileAccountsRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ListFileAccountsResponse lists the local users and groups the server reported.
+type ListFileAccountsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []*FileAccount         `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	Groups        []*FileAccount         `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFileAccountsResponse) Reset() {
+	*x = ListFileAccountsResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFileAccountsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFileAccountsResponse) ProtoMessage() {}
+
+func (x *ListFileAccountsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFileAccountsResponse.ProtoReflect.Descriptor instead.
+func (*ListFileAccountsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ListFileAccountsResponse) GetUsers() []*FileAccount {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+func (x *ListFileAccountsResponse) GetGroups() []*FileAccount {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+// FileAccessChange leaves each omitted value as it was.
+type FileAccessChange struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The nine permission bits and, when acknowledged, the special bits.
+	Mode       *uint32 `protobuf:"varint,1,opt,name=mode,proto3,oneof" json:"mode,omitempty"`
+	Uid        *uint32 `protobuf:"varint,2,opt,name=uid,proto3,oneof" json:"uid,omitempty"`
+	Gid        *uint32 `protobuf:"varint,3,opt,name=gid,proto3,oneof" json:"gid,omitempty"`
+	Recursive  bool    `protobuf:"varint,4,opt,name=recursive,proto3" json:"recursive,omitempty"`
+	AllowSetId bool    `protobuf:"varint,5,opt,name=allow_set_id,json=allowSetId,proto3" json:"allow_set_id,omitempty"`
+	// For recursive changes, mode applies to folders and file_mode to files.
+	FileMode *uint32 `protobuf:"varint,6,opt,name=file_mode,json=fileMode,proto3,oneof" json:"file_mode,omitempty"`
+	// Also keep execute bits that were already set on a file.
+	KeepFileExecute bool `protobuf:"varint,7,opt,name=keep_file_execute,json=keepFileExecute,proto3" json:"keep_file_execute,omitempty"`
+	// Restore an earlier change only where the inode and current access still match.
+	Restore       []*FileAccessUndoEntry `protobuf:"bytes,8,rep,name=restore,proto3" json:"restore,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileAccessChange) Reset() {
+	*x = FileAccessChange{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileAccessChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileAccessChange) ProtoMessage() {}
+
+func (x *FileAccessChange) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileAccessChange.ProtoReflect.Descriptor instead.
+func (*FileAccessChange) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *FileAccessChange) GetMode() uint32 {
+	if x != nil && x.Mode != nil {
+		return *x.Mode
+	}
+	return 0
+}
+
+func (x *FileAccessChange) GetUid() uint32 {
+	if x != nil && x.Uid != nil {
+		return *x.Uid
+	}
+	return 0
+}
+
+func (x *FileAccessChange) GetGid() uint32 {
+	if x != nil && x.Gid != nil {
+		return *x.Gid
+	}
+	return 0
+}
+
+func (x *FileAccessChange) GetRecursive() bool {
+	if x != nil {
+		return x.Recursive
+	}
+	return false
+}
+
+func (x *FileAccessChange) GetAllowSetId() bool {
+	if x != nil {
+		return x.AllowSetId
+	}
+	return false
+}
+
+func (x *FileAccessChange) GetFileMode() uint32 {
+	if x != nil && x.FileMode != nil {
+		return *x.FileMode
+	}
+	return 0
+}
+
+func (x *FileAccessChange) GetKeepFileExecute() bool {
+	if x != nil {
+		return x.KeepFileExecute
+	}
+	return false
+}
+
+func (x *FileAccessChange) GetRestore() []*FileAccessUndoEntry {
+	if x != nil {
+		return x.Restore
+	}
+	return nil
+}
+
+// FileAccessState holds a file or folder's permissions and numeric ownership.
+type FileAccessState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mode          uint32                 `protobuf:"varint,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	Uid           uint32                 `protobuf:"varint,2,opt,name=uid,proto3" json:"uid,omitempty"`
+	Gid           uint32                 `protobuf:"varint,3,opt,name=gid,proto3" json:"gid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileAccessState) Reset() {
+	*x = FileAccessState{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileAccessState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileAccessState) ProtoMessage() {}
+
+func (x *FileAccessState) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileAccessState.ProtoReflect.Descriptor instead.
+func (*FileAccessState) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *FileAccessState) GetMode() uint32 {
+	if x != nil {
+		return x.Mode
+	}
+	return 0
+}
+
+func (x *FileAccessState) GetUid() uint32 {
+	if x != nil {
+		return x.Uid
+	}
+	return 0
+}
+
+func (x *FileAccessState) GetGid() uint32 {
+	if x != nil {
+		return x.Gid
+	}
+	return 0
+}
+
+// FileAccessUndoEntry identifies an inode and the access change made to it.
+type FileAccessUndoEntry struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Path   string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Device uint64                 `protobuf:"varint,2,opt,name=device,proto3" json:"device,omitempty"`
+	Inode  uint64                 `protobuf:"varint,3,opt,name=inode,proto3" json:"inode,omitempty"`
+	Before *FileAccessState       `protobuf:"bytes,4,opt,name=before,proto3" json:"before,omitempty"`
+	After  *FileAccessState       `protobuf:"bytes,5,opt,name=after,proto3" json:"after,omitempty"`
+	// The inode change time after the operation, to detect a stale undo.
+	ChangeTimeNs  int64 `protobuf:"varint,6,opt,name=change_time_ns,json=changeTimeNs,proto3" json:"change_time_ns,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileAccessUndoEntry) Reset() {
+	*x = FileAccessUndoEntry{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileAccessUndoEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileAccessUndoEntry) ProtoMessage() {}
+
+func (x *FileAccessUndoEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileAccessUndoEntry.ProtoReflect.Descriptor instead.
+func (*FileAccessUndoEntry) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *FileAccessUndoEntry) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileAccessUndoEntry) GetDevice() uint64 {
+	if x != nil {
+		return x.Device
+	}
+	return 0
+}
+
+func (x *FileAccessUndoEntry) GetInode() uint64 {
+	if x != nil {
+		return x.Inode
+	}
+	return 0
+}
+
+func (x *FileAccessUndoEntry) GetBefore() *FileAccessState {
+	if x != nil {
+		return x.Before
+	}
+	return nil
+}
+
+func (x *FileAccessUndoEntry) GetAfter() *FileAccessState {
+	if x != nil {
+		return x.After
+	}
+	return nil
+}
+
+func (x *FileAccessUndoEntry) GetChangeTimeNs() int64 {
+	if x != nil {
+		return x.ChangeTimeNs
+	}
+	return 0
+}
+
+// ChangeFileAccessRequest names a path and its requested permission or ownership changes.
+type ChangeFileAccessRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Path     string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Change   *FileAccessChange      `protobuf:"bytes,3,opt,name=change,proto3" json:"change,omitempty"`
+	Proof    string                 `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	// The target returned with needs_step_up, alongside its proof.
+	ConfirmationTarget string `protobuf:"bytes,5,opt,name=confirmation_target,json=confirmationTarget,proto3" json:"confirmation_target,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ChangeFileAccessRequest) Reset() {
+	*x = ChangeFileAccessRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeFileAccessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeFileAccessRequest) ProtoMessage() {}
+
+func (x *ChangeFileAccessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeFileAccessRequest.ProtoReflect.Descriptor instead.
+func (*ChangeFileAccessRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *ChangeFileAccessRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *ChangeFileAccessRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ChangeFileAccessRequest) GetChange() *FileAccessChange {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+func (x *ChangeFileAccessRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+func (x *ChangeFileAccessRequest) GetConfirmationTarget() string {
+	if x != nil {
+		return x.ConfirmationTarget
+	}
+	return ""
+}
+
+// ChangeFileAccessResponse includes partial progress if a recursive change stopped.
+type ChangeFileAccessResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Path      string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Changed   uint64                 `protobuf:"varint,2,opt,name=changed,proto3" json:"changed,omitempty"`
+	Skipped   uint64                 `protobuf:"varint,3,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	WayBackIn bool                   `protobuf:"varint,4,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	// A failure after at least one entry changed.
+	Stopped       string                 `protobuf:"bytes,5,opt,name=stopped,proto3" json:"stopped,omitempty"`
+	Undo          []*FileAccessUndoEntry `protobuf:"bytes,6,rep,name=undo,proto3" json:"undo,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeFileAccessResponse) Reset() {
+	*x = ChangeFileAccessResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeFileAccessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeFileAccessResponse) ProtoMessage() {}
+
+func (x *ChangeFileAccessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeFileAccessResponse.ProtoReflect.Descriptor instead.
+func (*ChangeFileAccessResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *ChangeFileAccessResponse) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ChangeFileAccessResponse) GetChanged() uint64 {
+	if x != nil {
+		return x.Changed
+	}
+	return 0
+}
+
+func (x *ChangeFileAccessResponse) GetSkipped() uint64 {
+	if x != nil {
+		return x.Skipped
+	}
+	return 0
+}
+
+func (x *ChangeFileAccessResponse) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+func (x *ChangeFileAccessResponse) GetStopped() string {
+	if x != nil {
+		return x.Stopped
+	}
+	return ""
+}
+
+func (x *ChangeFileAccessResponse) GetUndo() []*FileAccessUndoEntry {
+	if x != nil {
+		return x.Undo
+	}
+	return nil
+}
+
+// CalculateFolderSizeRequest names the folder whose visible files to count.
+type CalculateFolderSizeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CalculateFolderSizeRequest) Reset() {
+	*x = CalculateFolderSizeRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CalculateFolderSizeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CalculateFolderSizeRequest) ProtoMessage() {}
+
+func (x *CalculateFolderSizeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CalculateFolderSizeRequest.ProtoReflect.Descriptor instead.
+func (*CalculateFolderSizeRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *CalculateFolderSizeRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *CalculateFolderSizeRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// CalculateFolderSizeResponse returns the logical size of the files counted.
+type CalculateFolderSizeResponse struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SizeBytes uint64                 `protobuf:"varint,1,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// True when only a lower bound could be counted.
+	Partial       bool                 `protobuf:"varint,2,opt,name=partial,proto3" json:"partial,omitempty"`
+	Omissions     []FolderSizeOmission `protobuf:"varint,3,rep,packed,name=omissions,proto3,enum=dockwell.v1.FolderSizeOmission" json:"omissions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CalculateFolderSizeResponse) Reset() {
+	*x = CalculateFolderSizeResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CalculateFolderSizeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CalculateFolderSizeResponse) ProtoMessage() {}
+
+func (x *CalculateFolderSizeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CalculateFolderSizeResponse.ProtoReflect.Descriptor instead.
+func (*CalculateFolderSizeResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *CalculateFolderSizeResponse) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *CalculateFolderSizeResponse) GetPartial() bool {
+	if x != nil {
+		return x.Partial
+	}
+	return false
+}
+
+func (x *CalculateFolderSizeResponse) GetOmissions() []FolderSizeOmission {
+	if x != nil {
+		return x.Omissions
+	}
+	return nil
+}
+
+// SearchFilesRequest names a folder and a literal term to find below it.
+type SearchFilesRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Path     string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Query    string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	// Also match the contents of small text files, without returning the text.
+	Text          bool `protobuf:"varint,4,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchFilesRequest) Reset() {
+	*x = SearchFilesRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchFilesRequest) ProtoMessage() {}
+
+func (x *SearchFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchFilesRequest.ProtoReflect.Descriptor instead.
+func (*SearchFilesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *SearchFilesRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *SearchFilesRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SearchFilesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchFilesRequest) GetText() bool {
+	if x != nil {
+		return x.Text
+	}
+	return false
+}
+
+// FileSearchMatch identifies a matching path and, when found, its first matching line.
+type FileSearchMatch struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Path  string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Type  FileType               `protobuf:"varint,2,opt,name=type,proto3,enum=dockwell.v1.FileType" json:"type,omitempty"`
+	// The first matching line, or zero when only the name matched.
+	Line          uint32 `protobuf:"varint,3,opt,name=line,proto3" json:"line,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileSearchMatch) Reset() {
+	*x = FileSearchMatch{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileSearchMatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileSearchMatch) ProtoMessage() {}
+
+func (x *FileSearchMatch) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileSearchMatch.ProtoReflect.Descriptor instead.
+func (*FileSearchMatch) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *FileSearchMatch) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *FileSearchMatch) GetType() FileType {
+	if x != nil {
+		return x.Type
+	}
+	return FileType_FILE_TYPE_UNSPECIFIED
+}
+
+func (x *FileSearchMatch) GetLine() uint32 {
+	if x != nil {
+		return x.Line
+	}
+	return 0
+}
+
+// SearchFilesResponse returns the paths found within the search limits.
+type SearchFilesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Matches       []*FileSearchMatch     `protobuf:"bytes,1,rep,name=matches,proto3" json:"matches,omitempty"`
+	Partial       bool                   `protobuf:"varint,2,opt,name=partial,proto3" json:"partial,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchFilesResponse) Reset() {
+	*x = SearchFilesResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchFilesResponse) ProtoMessage() {}
+
+func (x *SearchFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchFilesResponse.ProtoReflect.Descriptor instead.
+func (*SearchFilesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *SearchFilesResponse) GetMatches() []*FileSearchMatch {
+	if x != nil {
+		return x.Matches
+	}
+	return nil
+}
+
+func (x *SearchFilesResponse) GetPartial() bool {
+	if x != nil {
+		return x.Partial
+	}
+	return false
+}
+
+// DownloadFileFromURLRequest names a URL and where to put the bytes on the server.
+type DownloadFileFromURLRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Folder   string                 `protobuf:"bytes,2,opt,name=folder,proto3" json:"folder,omitempty"`
+	Url      string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
+	// A single filename. Empty uses the last component of the original URL.
+	Name  string `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	Proof string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	// The target returned with needs_step_up, alongside its proof.
+	ConfirmationTarget string `protobuf:"bytes,6,opt,name=confirmation_target,json=confirmationTarget,proto3" json:"confirmation_target,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *DownloadFileFromURLRequest) Reset() {
+	*x = DownloadFileFromURLRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadFileFromURLRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadFileFromURLRequest) ProtoMessage() {}
+
+func (x *DownloadFileFromURLRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadFileFromURLRequest.ProtoReflect.Descriptor instead.
+func (*DownloadFileFromURLRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *DownloadFileFromURLRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *DownloadFileFromURLRequest) GetFolder() string {
+	if x != nil {
+		return x.Folder
+	}
+	return ""
+}
+
+func (x *DownloadFileFromURLRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *DownloadFileFromURLRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DownloadFileFromURLRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+func (x *DownloadFileFromURLRequest) GetConfirmationTarget() string {
+	if x != nil {
+		return x.ConfirmationTarget
+	}
+	return ""
+}
+
+// DownloadFileFromURLResponse returns the background download job.
+type DownloadFileFromURLResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *ArchiveJob            `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadFileFromURLResponse) Reset() {
+	*x = DownloadFileFromURLResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadFileFromURLResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadFileFromURLResponse) ProtoMessage() {}
+
+func (x *DownloadFileFromURLResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadFileFromURLResponse.ProtoReflect.Descriptor instead.
+func (*DownloadFileFromURLResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *DownloadFileFromURLResponse) GetJob() *ArchiveJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+// CancelFileDownloadRequest names a download job to stop.
+type CancelFileDownloadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelFileDownloadRequest) Reset() {
+	*x = CancelFileDownloadRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelFileDownloadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelFileDownloadRequest) ProtoMessage() {}
+
+func (x *CancelFileDownloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelFileDownloadRequest.ProtoReflect.Descriptor instead.
+func (*CancelFileDownloadRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *CancelFileDownloadRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *CancelFileDownloadRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+// CancelFileDownloadResponse returns the state of the download after cancellation was requested.
+type CancelFileDownloadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Job           *ArchiveJob            `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelFileDownloadResponse) Reset() {
+	*x = CancelFileDownloadResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelFileDownloadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelFileDownloadResponse) ProtoMessage() {}
+
+func (x *CancelFileDownloadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelFileDownloadResponse.ProtoReflect.Descriptor instead.
+func (*CancelFileDownloadResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *CancelFileDownloadResponse) GetJob() *ArchiveJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+// ListPinnedFoldersRequest names a server whose pins to list.
+type ListPinnedFoldersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPinnedFoldersRequest) Reset() {
+	*x = ListPinnedFoldersRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPinnedFoldersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPinnedFoldersRequest) ProtoMessage() {}
+
+func (x *ListPinnedFoldersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPinnedFoldersRequest.ProtoReflect.Descriptor instead.
+func (*ListPinnedFoldersRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *ListPinnedFoldersRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ListPinnedFoldersResponse lists the caller's pinned paths on the server.
+type ListPinnedFoldersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Paths         []string               `protobuf:"bytes,1,rep,name=paths,proto3" json:"paths,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPinnedFoldersResponse) Reset() {
+	*x = ListPinnedFoldersResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPinnedFoldersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPinnedFoldersResponse) ProtoMessage() {}
+
+func (x *ListPinnedFoldersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPinnedFoldersResponse.ProtoReflect.Descriptor instead.
+func (*ListPinnedFoldersResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *ListPinnedFoldersResponse) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+// PinFolderRequest names a folder to pin.
+type PinFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PinFolderRequest) Reset() {
+	*x = PinFolderRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PinFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PinFolderRequest) ProtoMessage() {}
+
+func (x *PinFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PinFolderRequest.ProtoReflect.Descriptor instead.
+func (*PinFolderRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *PinFolderRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *PinFolderRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// PinFolderResponse is empty once the folder is pinned.
+type PinFolderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PinFolderResponse) Reset() {
+	*x = PinFolderResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PinFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PinFolderResponse) ProtoMessage() {}
+
+func (x *PinFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PinFolderResponse.ProtoReflect.Descriptor instead.
+func (*PinFolderResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{60}
+}
+
+// UnpinFolderRequest names the pinned path to remove.
+type UnpinFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerId      string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnpinFolderRequest) Reset() {
+	*x = UnpinFolderRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnpinFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnpinFolderRequest) ProtoMessage() {}
+
+func (x *UnpinFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnpinFolderRequest.ProtoReflect.Descriptor instead.
+func (*UnpinFolderRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *UnpinFolderRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *UnpinFolderRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// UnpinFolderResponse is empty once the pin is gone.
+type UnpinFolderResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnpinFolderResponse) Reset() {
+	*x = UnpinFolderResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnpinFolderResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnpinFolderResponse) ProtoMessage() {}
+
+func (x *UnpinFolderResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnpinFolderResponse.ProtoReflect.Descriptor instead.
+func (*UnpinFolderResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{62}
 }
 
 var File_dockwell_v1_file_proto protoreflect.FileDescriptor
@@ -3282,7 +4722,7 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x16ListArchiveJobsRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"F\n" +
 	"\x17ListArchiveJobsResponse\x12+\n" +
-	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\x95\x05\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\xb6\x05\n" +
 	"\n" +
 	"ArchiveJob\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12/\n" +
@@ -3306,7 +4746,9 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\n" +
 	"start_time\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12;\n" +
 	"\vfinish_time\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishTime\"\xa2\x03\n" +
+	"finishTime\x12\x1f\n" +
+	"\vtotal_bytes\x18\x13 \x01(\x04R\n" +
+	"totalBytes\"\xa2\x03\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
@@ -3324,27 +4766,128 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	" \x01(\bR\arefused\x12'\n" +
 	"\x0funreadable_name\x18\v \x01(\bR\x0eunreadableName\x12\x10\n" +
 	"\x03uid\x18< \x01(\rR\x03uid\x12\x10\n" +
-	"\x03gid\x18= \x01(\rR\x03gid*C\n" +
+	"\x03gid\x18= \x01(\rR\x03gid\"1\n" +
+	"\vFileAccount\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\rR\x02id\"6\n" +
+	"\x17ListFileAccountsRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"|\n" +
+	"\x18ListFileAccountsResponse\x12.\n" +
+	"\x05users\x18\x01 \x03(\v2\x18.dockwell.v1.FileAccountR\x05users\x120\n" +
+	"\x06groups\x18\x02 \x03(\v2\x18.dockwell.v1.FileAccountR\x06groups\"\xca\x02\n" +
+	"\x10FileAccessChange\x12\x17\n" +
+	"\x04mode\x18\x01 \x01(\rH\x00R\x04mode\x88\x01\x01\x12\x15\n" +
+	"\x03uid\x18\x02 \x01(\rH\x01R\x03uid\x88\x01\x01\x12\x15\n" +
+	"\x03gid\x18\x03 \x01(\rH\x02R\x03gid\x88\x01\x01\x12\x1c\n" +
+	"\trecursive\x18\x04 \x01(\bR\trecursive\x12 \n" +
+	"\fallow_set_id\x18\x05 \x01(\bR\n" +
+	"allowSetId\x12 \n" +
+	"\tfile_mode\x18\x06 \x01(\rH\x03R\bfileMode\x88\x01\x01\x12*\n" +
+	"\x11keep_file_execute\x18\a \x01(\bR\x0fkeepFileExecute\x12:\n" +
+	"\arestore\x18\b \x03(\v2 .dockwell.v1.FileAccessUndoEntryR\arestoreB\a\n" +
+	"\x05_modeB\x06\n" +
+	"\x04_uidB\x06\n" +
+	"\x04_gidB\f\n" +
+	"\n" +
+	"_file_mode\"I\n" +
+	"\x0fFileAccessState\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\rR\x04mode\x12\x10\n" +
+	"\x03uid\x18\x02 \x01(\rR\x03uid\x12\x10\n" +
+	"\x03gid\x18\x03 \x01(\rR\x03gid\"\xe7\x01\n" +
+	"\x13FileAccessUndoEntry\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x16\n" +
+	"\x06device\x18\x02 \x01(\x04R\x06device\x12\x14\n" +
+	"\x05inode\x18\x03 \x01(\x04R\x05inode\x124\n" +
+	"\x06before\x18\x04 \x01(\v2\x1c.dockwell.v1.FileAccessStateR\x06before\x122\n" +
+	"\x05after\x18\x05 \x01(\v2\x1c.dockwell.v1.FileAccessStateR\x05after\x12$\n" +
+	"\x0echange_time_ns\x18\x06 \x01(\x03R\fchangeTimeNs\"\xc8\x01\n" +
+	"\x17ChangeFileAccessRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x125\n" +
+	"\x06change\x18\x03 \x01(\v2\x1d.dockwell.v1.FileAccessChangeR\x06change\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\x12/\n" +
+	"\x13confirmation_target\x18\x05 \x01(\tR\x12confirmationTarget\"\xd2\x01\n" +
+	"\x18ChangeFileAccessResponse\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x18\n" +
+	"\achanged\x18\x02 \x01(\x04R\achanged\x12\x18\n" +
+	"\askipped\x18\x03 \x01(\x04R\askipped\x12\x1e\n" +
+	"\vway_back_in\x18\x04 \x01(\bR\twayBackIn\x12\x18\n" +
+	"\astopped\x18\x05 \x01(\tR\astopped\x124\n" +
+	"\x04undo\x18\x06 \x03(\v2 .dockwell.v1.FileAccessUndoEntryR\x04undo\"M\n" +
+	"\x1aCalculateFolderSizeRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x95\x01\n" +
+	"\x1bCalculateFolderSizeResponse\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x01 \x01(\x04R\tsizeBytes\x12\x18\n" +
+	"\apartial\x18\x02 \x01(\bR\apartial\x12=\n" +
+	"\tomissions\x18\x03 \x03(\x0e2\x1f.dockwell.v1.FolderSizeOmissionR\tomissions\"o\n" +
+	"\x12SearchFilesRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x12\n" +
+	"\x04text\x18\x04 \x01(\bR\x04text\"d\n" +
+	"\x0fFileSearchMatch\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12)\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x12\n" +
+	"\x04line\x18\x03 \x01(\rR\x04line\"g\n" +
+	"\x13SearchFilesResponse\x126\n" +
+	"\amatches\x18\x01 \x03(\v2\x1c.dockwell.v1.FileSearchMatchR\amatches\x12\x18\n" +
+	"\apartial\x18\x02 \x01(\bR\apartial\"\xd4\x01\n" +
+	"\x1aDownloadFileFromURLRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x16\n" +
+	"\x06folder\x18\x02 \x01(\tR\x06folder\x12&\n" +
+	"\x03url\x18\x03 \x01(\tB\x14\xa2\xbb\x18\fdownload-url\xa8\xbb\x18\x01R\x03url\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\x12/\n" +
+	"\x13confirmation_target\x18\x06 \x01(\tR\x12confirmationTarget\"H\n" +
+	"\x1bDownloadFileFromURLResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"O\n" +
+	"\x19CancelFileDownloadRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\"G\n" +
+	"\x1aCancelFileDownloadResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"7\n" +
+	"\x18ListPinnedFoldersRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"1\n" +
+	"\x19ListPinnedFoldersResponse\x12\x14\n" +
+	"\x05paths\x18\x01 \x03(\tR\x05paths\"C\n" +
+	"\x10PinFolderRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x13\n" +
+	"\x11PinFolderResponse\"E\n" +
+	"\x12UnpinFolderRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x15\n" +
+	"\x13UnpinFolderResponse*C\n" +
 	"\x06Unpack\x12\x16\n" +
 	"\x12UNPACK_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"UNPACK_ZIP\x10\x01\x12\x11\n" +
-	"\rUNPACK_TAR_GZ\x10\x02*o\n" +
+	"\rUNPACK_TAR_GZ\x10\x02*\x92\x01\n" +
 	"\x0eArchiveJobKind\x12 \n" +
 	"\x1cARCHIVE_JOB_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19ARCHIVE_JOB_KIND_COMPRESS\x10\x01\x12\x1c\n" +
-	"\x18ARCHIVE_JOB_KIND_EXTRACT\x10\x02*\x8d\x01\n" +
+	"\x18ARCHIVE_JOB_KIND_EXTRACT\x10\x02\x12!\n" +
+	"\x1dARCHIVE_JOB_KIND_URL_DOWNLOAD\x10\x03*\xae\x01\n" +
 	"\x0fArchiveJobState\x12!\n" +
 	"\x1dARCHIVE_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19ARCHIVE_JOB_STATE_RUNNING\x10\x01\x12\x1a\n" +
 	"\x16ARCHIVE_JOB_STATE_DONE\x10\x02\x12\x1c\n" +
-	"\x18ARCHIVE_JOB_STATE_FAILED\x10\x03*~\n" +
+	"\x18ARCHIVE_JOB_STATE_FAILED\x10\x03\x12\x1f\n" +
+	"\x1bARCHIVE_JOB_STATE_CANCELLED\x10\x04*~\n" +
 	"\bFileType\x12\x19\n" +
 	"\x15FILE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eFILE_TYPE_FILE\x10\x01\x12\x17\n" +
 	"\x13FILE_TYPE_DIRECTORY\x10\x02\x12\x15\n" +
 	"\x11FILE_TYPE_SYMLINK\x10\x03\x12\x13\n" +
-	"\x0fFILE_TYPE_OTHER\x10\x042\x80\x19\n" +
+	"\x0fFILE_TYPE_OTHER\x10\x04*\xd4\x01\n" +
+	"\x12FolderSizeOmission\x12$\n" +
+	" FOLDER_SIZE_OMISSION_UNSPECIFIED\x10\x00\x12$\n" +
+	" FOLDER_SIZE_OMISSION_DOCKER_DATA\x10\x01\x12#\n" +
+	"\x1fFOLDER_SIZE_OMISSION_HARD_LINKS\x10\x02\x12(\n" +
+	"$FOLDER_SIZE_OMISSION_REFUSED_ENTRIES\x10\x03\x12#\n" +
+	"\x1fFOLDER_SIZE_OMISSION_SCAN_LIMIT\x10\x042\xcc&\n" +
 	"\vFileService\x12\x99\x01\n" +
 	"\tListFiles\x12\x1d.dockwell.v1.ListFilesRequest\x1a\x1e.dockwell.v1.ListFilesResponse\"M\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
 	"\x05files\x12\x04list\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/servers/{server_id}/files\x90\x02\x01\x12\x9b\x01\n" +
@@ -3383,7 +4926,25 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\rGetArchiveJob\x12!.dockwell.v1.GetArchiveJobRequest\x1a\".dockwell.v1.GetArchiveJobResponse\"d\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
 	"\x05files\x12\varchive-job\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02/\x12-/v1/servers/{server_id}/archive-jobs/{job_id}\x90\x02\x01\x12\xba\x01\n" +
 	"\x0fListArchiveJobs\x12#.dockwell.v1.ListArchiveJobsRequest\x1a$.dockwell.v1.ListArchiveJobsResponse\"\\\xa0\xbb\x18\x01\xaa\xbb\x18\x15\n" +
-	"\x05files\x12\farchive-jobs\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&\x12$/v1/servers/{server_id}/archive-jobs\x90\x02\x01B\xa2\x01\n" +
+	"\x05files\x12\farchive-jobs\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&\x12$/v1/servers/{server_id}/archive-jobs\x90\x02\x01\x12\xbb\x01\n" +
+	"\x10ListFileAccounts\x12$.dockwell.v1.ListFileAccountsRequest\x1a%.dockwell.v1.ListFileAccountsResponse\"Z\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
+	"\x05files\x12\baccounts\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02(\x12&/v1/servers/{server_id}/files/accounts\x90\x02\x01\x12\xc4\x01\n" +
+	"\x10ChangeFileAccess\x12$.dockwell.v1.ChangeFileAccessRequest\x1a%.dockwell.v1.ChangeFileAccessResponse\"c\xa0\xbb\x18\x04\xaa\xbb\x18\x16\n" +
+	"\x05files\x12\rchange-access\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/servers/{server_id}/files:changeAccess\x12\xc9\x01\n" +
+	"\x13CalculateFolderSize\x12'.dockwell.v1.CalculateFolderSizeRequest\x1a(.dockwell.v1.CalculateFolderSizeResponse\"_\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
+	"\x05files\x12\vfolder-size\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02*\x12(/v1/servers/{server_id}/files/folderSize\x90\x02\x01\x12\xa8\x01\n" +
+	"\vSearchFiles\x12\x1f.dockwell.v1.SearchFilesRequest\x1a .dockwell.v1.SearchFilesResponse\"V\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
+	"\x05files\x12\x06search\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02):\x01*\"$/v1/servers/{server_id}/files:search\x12\xd4\x01\n" +
+	"\x13DownloadFileFromURL\x12'.dockwell.v1.DownloadFileFromURLRequest\x1a(.dockwell.v1.DownloadFileFromURLResponse\"j\xa0\xbb\x18\x03\xaa\xbb\x18\x1a\n" +
+	"\x05files\x12\x11download-from-url\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x022:\x01*\"-/v1/servers/{server_id}/files:downloadFromUrl\x12\xde\x01\n" +
+	"\x12CancelFileDownload\x12&.dockwell.v1.CancelFileDownloadRequest\x1a'.dockwell.v1.CancelFileDownloadResponse\"w\xa0\xbb\x18\x03\xaa\xbb\x18\x18\n" +
+	"\x05files\x12\x0fcancel-download\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02A:\x01*\"</v1/servers/{server_id}/archive-jobs/{job_id}:cancelDownload\x12\xbf\x01\n" +
+	"\x11ListPinnedFolders\x12%.dockwell.v1.ListPinnedFoldersRequest\x1a&.dockwell.v1.ListPinnedFoldersResponse\"[\xa0\xbb\x18\x01\xaa\xbb\x18\x12\n" +
+	"\x05files\x12\tlist-pins\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02(\x12&/v1/servers/{server_id}/pinned-folders\x90\x02\x01\x12\xa1\x01\n" +
+	"\tPinFolder\x12\x1d.dockwell.v1.PinFolderRequest\x1a\x1e.dockwell.v1.PinFolderResponse\"U\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
+	"\x05files\x12\x03pin\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/servers/{server_id}/pinned-folders\x12\xaf\x01\n" +
+	"\vUnpinFolder\x12\x1f.dockwell.v1.UnpinFolderRequest\x1a .dockwell.v1.UnpinFolderResponse\"]\xa0\xbb\x18\x03\xaa\xbb\x18\x0e\n" +
+	"\x05files\x12\x05unpin\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x021:\x01*\",/v1/servers/{server_id}/pinned-folders:unpinB\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tFileProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -3398,131 +4959,185 @@ func file_dockwell_v1_file_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_file_proto_rawDescData
 }
 
-var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
+var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_dockwell_v1_file_proto_goTypes = []any{
-	(Unpack)(0),                      // 0: dockwell.v1.Unpack
-	(ArchiveJobKind)(0),              // 1: dockwell.v1.ArchiveJobKind
-	(ArchiveJobState)(0),             // 2: dockwell.v1.ArchiveJobState
-	(FileType)(0),                    // 3: dockwell.v1.FileType
-	(*ListFilesRequest)(nil),         // 4: dockwell.v1.ListFilesRequest
-	(*ListFilesResponse)(nil),        // 5: dockwell.v1.ListFilesResponse
-	(*ReadFileRequest)(nil),          // 6: dockwell.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),         // 7: dockwell.v1.ReadFileResponse
-	(*SaveFileRequest)(nil),          // 8: dockwell.v1.SaveFileRequest
-	(*SaveFileResponse)(nil),         // 9: dockwell.v1.SaveFileResponse
-	(*MakeFileRequest)(nil),          // 10: dockwell.v1.MakeFileRequest
-	(*MakeFileResponse)(nil),         // 11: dockwell.v1.MakeFileResponse
-	(*MoveFileRequest)(nil),          // 12: dockwell.v1.MoveFileRequest
-	(*MoveFileResponse)(nil),         // 13: dockwell.v1.MoveFileResponse
-	(*DeleteFileRequest)(nil),        // 14: dockwell.v1.DeleteFileRequest
-	(*DeleteFileResponse)(nil),       // 15: dockwell.v1.DeleteFileResponse
-	(*ListDeletedFilesRequest)(nil),  // 16: dockwell.v1.ListDeletedFilesRequest
-	(*ListDeletedFilesResponse)(nil), // 17: dockwell.v1.ListDeletedFilesResponse
-	(*DeletedFile)(nil),              // 18: dockwell.v1.DeletedFile
-	(*RestoreFileRequest)(nil),       // 19: dockwell.v1.RestoreFileRequest
-	(*RestoreFileResponse)(nil),      // 20: dockwell.v1.RestoreFileResponse
-	(*PurgeDeletedFileRequest)(nil),  // 21: dockwell.v1.PurgeDeletedFileRequest
-	(*PurgeDeletedFileResponse)(nil), // 22: dockwell.v1.PurgeDeletedFileResponse
-	(*BeginUploadRequest)(nil),       // 23: dockwell.v1.BeginUploadRequest
-	(*BeginUploadResponse)(nil),      // 24: dockwell.v1.BeginUploadResponse
-	(*UploadFileResponse)(nil),       // 25: dockwell.v1.UploadFileResponse
-	(*DownloadFileResponse)(nil),     // 26: dockwell.v1.DownloadFileResponse
-	(*Upload)(nil),                   // 27: dockwell.v1.Upload
-	(*UploadFileRequest)(nil),        // 28: dockwell.v1.UploadFileRequest
-	(*FinishUploadRequest)(nil),      // 29: dockwell.v1.FinishUploadRequest
-	(*CancelUploadRequest)(nil),      // 30: dockwell.v1.CancelUploadRequest
-	(*CancelUploadResponse)(nil),     // 31: dockwell.v1.CancelUploadResponse
-	(*FinishUploadResponse)(nil),     // 32: dockwell.v1.FinishUploadResponse
-	(*DownloadFileRequest)(nil),      // 33: dockwell.v1.DownloadFileRequest
-	(*CompressFilesRequest)(nil),     // 34: dockwell.v1.CompressFilesRequest
-	(*CompressFilesResponse)(nil),    // 35: dockwell.v1.CompressFilesResponse
-	(*ExtractArchiveRequest)(nil),    // 36: dockwell.v1.ExtractArchiveRequest
-	(*ExtractArchiveResponse)(nil),   // 37: dockwell.v1.ExtractArchiveResponse
-	(*GetArchiveJobRequest)(nil),     // 38: dockwell.v1.GetArchiveJobRequest
-	(*GetArchiveJobResponse)(nil),    // 39: dockwell.v1.GetArchiveJobResponse
-	(*ListArchiveJobsRequest)(nil),   // 40: dockwell.v1.ListArchiveJobsRequest
-	(*ListArchiveJobsResponse)(nil),  // 41: dockwell.v1.ListArchiveJobsResponse
-	(*ArchiveJob)(nil),               // 42: dockwell.v1.ArchiveJob
-	(*FileEntry)(nil),                // 43: dockwell.v1.FileEntry
-	(*timestamppb.Timestamp)(nil),    // 44: google.protobuf.Timestamp
-	(*httpbody.HttpBody)(nil),        // 45: google.api.HttpBody
+	(Unpack)(0),                         // 0: dockwell.v1.Unpack
+	(ArchiveJobKind)(0),                 // 1: dockwell.v1.ArchiveJobKind
+	(ArchiveJobState)(0),                // 2: dockwell.v1.ArchiveJobState
+	(FileType)(0),                       // 3: dockwell.v1.FileType
+	(FolderSizeOmission)(0),             // 4: dockwell.v1.FolderSizeOmission
+	(*ListFilesRequest)(nil),            // 5: dockwell.v1.ListFilesRequest
+	(*ListFilesResponse)(nil),           // 6: dockwell.v1.ListFilesResponse
+	(*ReadFileRequest)(nil),             // 7: dockwell.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),            // 8: dockwell.v1.ReadFileResponse
+	(*SaveFileRequest)(nil),             // 9: dockwell.v1.SaveFileRequest
+	(*SaveFileResponse)(nil),            // 10: dockwell.v1.SaveFileResponse
+	(*MakeFileRequest)(nil),             // 11: dockwell.v1.MakeFileRequest
+	(*MakeFileResponse)(nil),            // 12: dockwell.v1.MakeFileResponse
+	(*MoveFileRequest)(nil),             // 13: dockwell.v1.MoveFileRequest
+	(*MoveFileResponse)(nil),            // 14: dockwell.v1.MoveFileResponse
+	(*DeleteFileRequest)(nil),           // 15: dockwell.v1.DeleteFileRequest
+	(*DeleteFileResponse)(nil),          // 16: dockwell.v1.DeleteFileResponse
+	(*ListDeletedFilesRequest)(nil),     // 17: dockwell.v1.ListDeletedFilesRequest
+	(*ListDeletedFilesResponse)(nil),    // 18: dockwell.v1.ListDeletedFilesResponse
+	(*DeletedFile)(nil),                 // 19: dockwell.v1.DeletedFile
+	(*RestoreFileRequest)(nil),          // 20: dockwell.v1.RestoreFileRequest
+	(*RestoreFileResponse)(nil),         // 21: dockwell.v1.RestoreFileResponse
+	(*PurgeDeletedFileRequest)(nil),     // 22: dockwell.v1.PurgeDeletedFileRequest
+	(*PurgeDeletedFileResponse)(nil),    // 23: dockwell.v1.PurgeDeletedFileResponse
+	(*BeginUploadRequest)(nil),          // 24: dockwell.v1.BeginUploadRequest
+	(*BeginUploadResponse)(nil),         // 25: dockwell.v1.BeginUploadResponse
+	(*UploadFileResponse)(nil),          // 26: dockwell.v1.UploadFileResponse
+	(*DownloadFileResponse)(nil),        // 27: dockwell.v1.DownloadFileResponse
+	(*Upload)(nil),                      // 28: dockwell.v1.Upload
+	(*UploadFileRequest)(nil),           // 29: dockwell.v1.UploadFileRequest
+	(*FinishUploadRequest)(nil),         // 30: dockwell.v1.FinishUploadRequest
+	(*CancelUploadRequest)(nil),         // 31: dockwell.v1.CancelUploadRequest
+	(*CancelUploadResponse)(nil),        // 32: dockwell.v1.CancelUploadResponse
+	(*FinishUploadResponse)(nil),        // 33: dockwell.v1.FinishUploadResponse
+	(*DownloadFileRequest)(nil),         // 34: dockwell.v1.DownloadFileRequest
+	(*CompressFilesRequest)(nil),        // 35: dockwell.v1.CompressFilesRequest
+	(*CompressFilesResponse)(nil),       // 36: dockwell.v1.CompressFilesResponse
+	(*ExtractArchiveRequest)(nil),       // 37: dockwell.v1.ExtractArchiveRequest
+	(*ExtractArchiveResponse)(nil),      // 38: dockwell.v1.ExtractArchiveResponse
+	(*GetArchiveJobRequest)(nil),        // 39: dockwell.v1.GetArchiveJobRequest
+	(*GetArchiveJobResponse)(nil),       // 40: dockwell.v1.GetArchiveJobResponse
+	(*ListArchiveJobsRequest)(nil),      // 41: dockwell.v1.ListArchiveJobsRequest
+	(*ListArchiveJobsResponse)(nil),     // 42: dockwell.v1.ListArchiveJobsResponse
+	(*ArchiveJob)(nil),                  // 43: dockwell.v1.ArchiveJob
+	(*FileEntry)(nil),                   // 44: dockwell.v1.FileEntry
+	(*FileAccount)(nil),                 // 45: dockwell.v1.FileAccount
+	(*ListFileAccountsRequest)(nil),     // 46: dockwell.v1.ListFileAccountsRequest
+	(*ListFileAccountsResponse)(nil),    // 47: dockwell.v1.ListFileAccountsResponse
+	(*FileAccessChange)(nil),            // 48: dockwell.v1.FileAccessChange
+	(*FileAccessState)(nil),             // 49: dockwell.v1.FileAccessState
+	(*FileAccessUndoEntry)(nil),         // 50: dockwell.v1.FileAccessUndoEntry
+	(*ChangeFileAccessRequest)(nil),     // 51: dockwell.v1.ChangeFileAccessRequest
+	(*ChangeFileAccessResponse)(nil),    // 52: dockwell.v1.ChangeFileAccessResponse
+	(*CalculateFolderSizeRequest)(nil),  // 53: dockwell.v1.CalculateFolderSizeRequest
+	(*CalculateFolderSizeResponse)(nil), // 54: dockwell.v1.CalculateFolderSizeResponse
+	(*SearchFilesRequest)(nil),          // 55: dockwell.v1.SearchFilesRequest
+	(*FileSearchMatch)(nil),             // 56: dockwell.v1.FileSearchMatch
+	(*SearchFilesResponse)(nil),         // 57: dockwell.v1.SearchFilesResponse
+	(*DownloadFileFromURLRequest)(nil),  // 58: dockwell.v1.DownloadFileFromURLRequest
+	(*DownloadFileFromURLResponse)(nil), // 59: dockwell.v1.DownloadFileFromURLResponse
+	(*CancelFileDownloadRequest)(nil),   // 60: dockwell.v1.CancelFileDownloadRequest
+	(*CancelFileDownloadResponse)(nil),  // 61: dockwell.v1.CancelFileDownloadResponse
+	(*ListPinnedFoldersRequest)(nil),    // 62: dockwell.v1.ListPinnedFoldersRequest
+	(*ListPinnedFoldersResponse)(nil),   // 63: dockwell.v1.ListPinnedFoldersResponse
+	(*PinFolderRequest)(nil),            // 64: dockwell.v1.PinFolderRequest
+	(*PinFolderResponse)(nil),           // 65: dockwell.v1.PinFolderResponse
+	(*UnpinFolderRequest)(nil),          // 66: dockwell.v1.UnpinFolderRequest
+	(*UnpinFolderResponse)(nil),         // 67: dockwell.v1.UnpinFolderResponse
+	(*timestamppb.Timestamp)(nil),       // 68: google.protobuf.Timestamp
+	(*httpbody.HttpBody)(nil),           // 69: google.api.HttpBody
 }
 var file_dockwell_v1_file_proto_depIdxs = []int32{
-	43, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
-	43, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
-	43, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
-	43, // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	44, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
+	44, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
+	44, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
+	44, // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
 	3,  // 4: dockwell.v1.MakeFileRequest.type:type_name -> dockwell.v1.FileType
-	43, // 5: dockwell.v1.MakeFileResponse.file:type_name -> dockwell.v1.FileEntry
-	43, // 6: dockwell.v1.MoveFileResponse.file:type_name -> dockwell.v1.FileEntry
-	18, // 7: dockwell.v1.DeleteFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
-	18, // 8: dockwell.v1.ListDeletedFilesResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	44, // 5: dockwell.v1.MakeFileResponse.file:type_name -> dockwell.v1.FileEntry
+	44, // 6: dockwell.v1.MoveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	19, // 7: dockwell.v1.DeleteFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	19, // 8: dockwell.v1.ListDeletedFilesResponse.deleted:type_name -> dockwell.v1.DeletedFile
 	3,  // 9: dockwell.v1.DeletedFile.type:type_name -> dockwell.v1.FileType
-	44, // 10: dockwell.v1.DeletedFile.delete_time:type_name -> google.protobuf.Timestamp
-	44, // 11: dockwell.v1.DeletedFile.purge_time:type_name -> google.protobuf.Timestamp
-	43, // 12: dockwell.v1.RestoreFileResponse.file:type_name -> dockwell.v1.FileEntry
-	18, // 13: dockwell.v1.PurgeDeletedFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	68, // 10: dockwell.v1.DeletedFile.delete_time:type_name -> google.protobuf.Timestamp
+	68, // 11: dockwell.v1.DeletedFile.purge_time:type_name -> google.protobuf.Timestamp
+	44, // 12: dockwell.v1.RestoreFileResponse.file:type_name -> dockwell.v1.FileEntry
+	19, // 13: dockwell.v1.PurgeDeletedFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
 	0,  // 14: dockwell.v1.BeginUploadRequest.unpack:type_name -> dockwell.v1.Unpack
-	27, // 15: dockwell.v1.BeginUploadResponse.upload:type_name -> dockwell.v1.Upload
-	27, // 16: dockwell.v1.UploadFileResponse.upload:type_name -> dockwell.v1.Upload
-	45, // 17: dockwell.v1.DownloadFileResponse.body:type_name -> google.api.HttpBody
+	28, // 15: dockwell.v1.BeginUploadResponse.upload:type_name -> dockwell.v1.Upload
+	28, // 16: dockwell.v1.UploadFileResponse.upload:type_name -> dockwell.v1.Upload
+	69, // 17: dockwell.v1.DownloadFileResponse.body:type_name -> google.api.HttpBody
 	0,  // 18: dockwell.v1.Upload.unpack:type_name -> dockwell.v1.Unpack
-	45, // 19: dockwell.v1.UploadFileRequest.content:type_name -> google.api.HttpBody
-	43, // 20: dockwell.v1.FinishUploadResponse.file:type_name -> dockwell.v1.FileEntry
-	42, // 21: dockwell.v1.CompressFilesResponse.job:type_name -> dockwell.v1.ArchiveJob
-	42, // 22: dockwell.v1.ExtractArchiveResponse.job:type_name -> dockwell.v1.ArchiveJob
-	42, // 23: dockwell.v1.GetArchiveJobResponse.job:type_name -> dockwell.v1.ArchiveJob
-	42, // 24: dockwell.v1.ListArchiveJobsResponse.jobs:type_name -> dockwell.v1.ArchiveJob
+	69, // 19: dockwell.v1.UploadFileRequest.content:type_name -> google.api.HttpBody
+	44, // 20: dockwell.v1.FinishUploadResponse.file:type_name -> dockwell.v1.FileEntry
+	43, // 21: dockwell.v1.CompressFilesResponse.job:type_name -> dockwell.v1.ArchiveJob
+	43, // 22: dockwell.v1.ExtractArchiveResponse.job:type_name -> dockwell.v1.ArchiveJob
+	43, // 23: dockwell.v1.GetArchiveJobResponse.job:type_name -> dockwell.v1.ArchiveJob
+	43, // 24: dockwell.v1.ListArchiveJobsResponse.jobs:type_name -> dockwell.v1.ArchiveJob
 	1,  // 25: dockwell.v1.ArchiveJob.kind:type_name -> dockwell.v1.ArchiveJobKind
 	2,  // 26: dockwell.v1.ArchiveJob.state:type_name -> dockwell.v1.ArchiveJobState
-	43, // 27: dockwell.v1.ArchiveJob.file:type_name -> dockwell.v1.FileEntry
-	44, // 28: dockwell.v1.ArchiveJob.start_time:type_name -> google.protobuf.Timestamp
-	44, // 29: dockwell.v1.ArchiveJob.finish_time:type_name -> google.protobuf.Timestamp
+	44, // 27: dockwell.v1.ArchiveJob.file:type_name -> dockwell.v1.FileEntry
+	68, // 28: dockwell.v1.ArchiveJob.start_time:type_name -> google.protobuf.Timestamp
+	68, // 29: dockwell.v1.ArchiveJob.finish_time:type_name -> google.protobuf.Timestamp
 	3,  // 30: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
-	44, // 31: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
+	68, // 31: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
 	3,  // 32: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
-	4,  // 33: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
-	6,  // 34: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
-	8,  // 35: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
-	10, // 36: dockwell.v1.FileService.MakeFile:input_type -> dockwell.v1.MakeFileRequest
-	12, // 37: dockwell.v1.FileService.MoveFile:input_type -> dockwell.v1.MoveFileRequest
-	14, // 38: dockwell.v1.FileService.DeleteFile:input_type -> dockwell.v1.DeleteFileRequest
-	16, // 39: dockwell.v1.FileService.ListDeletedFiles:input_type -> dockwell.v1.ListDeletedFilesRequest
-	19, // 40: dockwell.v1.FileService.RestoreFile:input_type -> dockwell.v1.RestoreFileRequest
-	21, // 41: dockwell.v1.FileService.PurgeDeletedFile:input_type -> dockwell.v1.PurgeDeletedFileRequest
-	23, // 42: dockwell.v1.FileService.BeginUpload:input_type -> dockwell.v1.BeginUploadRequest
-	28, // 43: dockwell.v1.FileService.UploadFile:input_type -> dockwell.v1.UploadFileRequest
-	29, // 44: dockwell.v1.FileService.FinishUpload:input_type -> dockwell.v1.FinishUploadRequest
-	30, // 45: dockwell.v1.FileService.CancelUpload:input_type -> dockwell.v1.CancelUploadRequest
-	33, // 46: dockwell.v1.FileService.DownloadFile:input_type -> dockwell.v1.DownloadFileRequest
-	34, // 47: dockwell.v1.FileService.CompressFiles:input_type -> dockwell.v1.CompressFilesRequest
-	36, // 48: dockwell.v1.FileService.ExtractArchive:input_type -> dockwell.v1.ExtractArchiveRequest
-	38, // 49: dockwell.v1.FileService.GetArchiveJob:input_type -> dockwell.v1.GetArchiveJobRequest
-	40, // 50: dockwell.v1.FileService.ListArchiveJobs:input_type -> dockwell.v1.ListArchiveJobsRequest
-	5,  // 51: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
-	7,  // 52: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
-	9,  // 53: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
-	11, // 54: dockwell.v1.FileService.MakeFile:output_type -> dockwell.v1.MakeFileResponse
-	13, // 55: dockwell.v1.FileService.MoveFile:output_type -> dockwell.v1.MoveFileResponse
-	15, // 56: dockwell.v1.FileService.DeleteFile:output_type -> dockwell.v1.DeleteFileResponse
-	17, // 57: dockwell.v1.FileService.ListDeletedFiles:output_type -> dockwell.v1.ListDeletedFilesResponse
-	20, // 58: dockwell.v1.FileService.RestoreFile:output_type -> dockwell.v1.RestoreFileResponse
-	22, // 59: dockwell.v1.FileService.PurgeDeletedFile:output_type -> dockwell.v1.PurgeDeletedFileResponse
-	24, // 60: dockwell.v1.FileService.BeginUpload:output_type -> dockwell.v1.BeginUploadResponse
-	25, // 61: dockwell.v1.FileService.UploadFile:output_type -> dockwell.v1.UploadFileResponse
-	32, // 62: dockwell.v1.FileService.FinishUpload:output_type -> dockwell.v1.FinishUploadResponse
-	31, // 63: dockwell.v1.FileService.CancelUpload:output_type -> dockwell.v1.CancelUploadResponse
-	26, // 64: dockwell.v1.FileService.DownloadFile:output_type -> dockwell.v1.DownloadFileResponse
-	35, // 65: dockwell.v1.FileService.CompressFiles:output_type -> dockwell.v1.CompressFilesResponse
-	37, // 66: dockwell.v1.FileService.ExtractArchive:output_type -> dockwell.v1.ExtractArchiveResponse
-	39, // 67: dockwell.v1.FileService.GetArchiveJob:output_type -> dockwell.v1.GetArchiveJobResponse
-	41, // 68: dockwell.v1.FileService.ListArchiveJobs:output_type -> dockwell.v1.ListArchiveJobsResponse
-	51, // [51:69] is the sub-list for method output_type
-	33, // [33:51] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	45, // 33: dockwell.v1.ListFileAccountsResponse.users:type_name -> dockwell.v1.FileAccount
+	45, // 34: dockwell.v1.ListFileAccountsResponse.groups:type_name -> dockwell.v1.FileAccount
+	50, // 35: dockwell.v1.FileAccessChange.restore:type_name -> dockwell.v1.FileAccessUndoEntry
+	49, // 36: dockwell.v1.FileAccessUndoEntry.before:type_name -> dockwell.v1.FileAccessState
+	49, // 37: dockwell.v1.FileAccessUndoEntry.after:type_name -> dockwell.v1.FileAccessState
+	48, // 38: dockwell.v1.ChangeFileAccessRequest.change:type_name -> dockwell.v1.FileAccessChange
+	50, // 39: dockwell.v1.ChangeFileAccessResponse.undo:type_name -> dockwell.v1.FileAccessUndoEntry
+	4,  // 40: dockwell.v1.CalculateFolderSizeResponse.omissions:type_name -> dockwell.v1.FolderSizeOmission
+	3,  // 41: dockwell.v1.FileSearchMatch.type:type_name -> dockwell.v1.FileType
+	56, // 42: dockwell.v1.SearchFilesResponse.matches:type_name -> dockwell.v1.FileSearchMatch
+	43, // 43: dockwell.v1.DownloadFileFromURLResponse.job:type_name -> dockwell.v1.ArchiveJob
+	43, // 44: dockwell.v1.CancelFileDownloadResponse.job:type_name -> dockwell.v1.ArchiveJob
+	5,  // 45: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
+	7,  // 46: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
+	9,  // 47: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
+	11, // 48: dockwell.v1.FileService.MakeFile:input_type -> dockwell.v1.MakeFileRequest
+	13, // 49: dockwell.v1.FileService.MoveFile:input_type -> dockwell.v1.MoveFileRequest
+	15, // 50: dockwell.v1.FileService.DeleteFile:input_type -> dockwell.v1.DeleteFileRequest
+	17, // 51: dockwell.v1.FileService.ListDeletedFiles:input_type -> dockwell.v1.ListDeletedFilesRequest
+	20, // 52: dockwell.v1.FileService.RestoreFile:input_type -> dockwell.v1.RestoreFileRequest
+	22, // 53: dockwell.v1.FileService.PurgeDeletedFile:input_type -> dockwell.v1.PurgeDeletedFileRequest
+	24, // 54: dockwell.v1.FileService.BeginUpload:input_type -> dockwell.v1.BeginUploadRequest
+	29, // 55: dockwell.v1.FileService.UploadFile:input_type -> dockwell.v1.UploadFileRequest
+	30, // 56: dockwell.v1.FileService.FinishUpload:input_type -> dockwell.v1.FinishUploadRequest
+	31, // 57: dockwell.v1.FileService.CancelUpload:input_type -> dockwell.v1.CancelUploadRequest
+	34, // 58: dockwell.v1.FileService.DownloadFile:input_type -> dockwell.v1.DownloadFileRequest
+	35, // 59: dockwell.v1.FileService.CompressFiles:input_type -> dockwell.v1.CompressFilesRequest
+	37, // 60: dockwell.v1.FileService.ExtractArchive:input_type -> dockwell.v1.ExtractArchiveRequest
+	39, // 61: dockwell.v1.FileService.GetArchiveJob:input_type -> dockwell.v1.GetArchiveJobRequest
+	41, // 62: dockwell.v1.FileService.ListArchiveJobs:input_type -> dockwell.v1.ListArchiveJobsRequest
+	46, // 63: dockwell.v1.FileService.ListFileAccounts:input_type -> dockwell.v1.ListFileAccountsRequest
+	51, // 64: dockwell.v1.FileService.ChangeFileAccess:input_type -> dockwell.v1.ChangeFileAccessRequest
+	53, // 65: dockwell.v1.FileService.CalculateFolderSize:input_type -> dockwell.v1.CalculateFolderSizeRequest
+	55, // 66: dockwell.v1.FileService.SearchFiles:input_type -> dockwell.v1.SearchFilesRequest
+	58, // 67: dockwell.v1.FileService.DownloadFileFromURL:input_type -> dockwell.v1.DownloadFileFromURLRequest
+	60, // 68: dockwell.v1.FileService.CancelFileDownload:input_type -> dockwell.v1.CancelFileDownloadRequest
+	62, // 69: dockwell.v1.FileService.ListPinnedFolders:input_type -> dockwell.v1.ListPinnedFoldersRequest
+	64, // 70: dockwell.v1.FileService.PinFolder:input_type -> dockwell.v1.PinFolderRequest
+	66, // 71: dockwell.v1.FileService.UnpinFolder:input_type -> dockwell.v1.UnpinFolderRequest
+	6,  // 72: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
+	8,  // 73: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
+	10, // 74: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
+	12, // 75: dockwell.v1.FileService.MakeFile:output_type -> dockwell.v1.MakeFileResponse
+	14, // 76: dockwell.v1.FileService.MoveFile:output_type -> dockwell.v1.MoveFileResponse
+	16, // 77: dockwell.v1.FileService.DeleteFile:output_type -> dockwell.v1.DeleteFileResponse
+	18, // 78: dockwell.v1.FileService.ListDeletedFiles:output_type -> dockwell.v1.ListDeletedFilesResponse
+	21, // 79: dockwell.v1.FileService.RestoreFile:output_type -> dockwell.v1.RestoreFileResponse
+	23, // 80: dockwell.v1.FileService.PurgeDeletedFile:output_type -> dockwell.v1.PurgeDeletedFileResponse
+	25, // 81: dockwell.v1.FileService.BeginUpload:output_type -> dockwell.v1.BeginUploadResponse
+	26, // 82: dockwell.v1.FileService.UploadFile:output_type -> dockwell.v1.UploadFileResponse
+	33, // 83: dockwell.v1.FileService.FinishUpload:output_type -> dockwell.v1.FinishUploadResponse
+	32, // 84: dockwell.v1.FileService.CancelUpload:output_type -> dockwell.v1.CancelUploadResponse
+	27, // 85: dockwell.v1.FileService.DownloadFile:output_type -> dockwell.v1.DownloadFileResponse
+	36, // 86: dockwell.v1.FileService.CompressFiles:output_type -> dockwell.v1.CompressFilesResponse
+	38, // 87: dockwell.v1.FileService.ExtractArchive:output_type -> dockwell.v1.ExtractArchiveResponse
+	40, // 88: dockwell.v1.FileService.GetArchiveJob:output_type -> dockwell.v1.GetArchiveJobResponse
+	42, // 89: dockwell.v1.FileService.ListArchiveJobs:output_type -> dockwell.v1.ListArchiveJobsResponse
+	47, // 90: dockwell.v1.FileService.ListFileAccounts:output_type -> dockwell.v1.ListFileAccountsResponse
+	52, // 91: dockwell.v1.FileService.ChangeFileAccess:output_type -> dockwell.v1.ChangeFileAccessResponse
+	54, // 92: dockwell.v1.FileService.CalculateFolderSize:output_type -> dockwell.v1.CalculateFolderSizeResponse
+	57, // 93: dockwell.v1.FileService.SearchFiles:output_type -> dockwell.v1.SearchFilesResponse
+	59, // 94: dockwell.v1.FileService.DownloadFileFromURL:output_type -> dockwell.v1.DownloadFileFromURLResponse
+	61, // 95: dockwell.v1.FileService.CancelFileDownload:output_type -> dockwell.v1.CancelFileDownloadResponse
+	63, // 96: dockwell.v1.FileService.ListPinnedFolders:output_type -> dockwell.v1.ListPinnedFoldersResponse
+	65, // 97: dockwell.v1.FileService.PinFolder:output_type -> dockwell.v1.PinFolderResponse
+	67, // 98: dockwell.v1.FileService.UnpinFolder:output_type -> dockwell.v1.UnpinFolderResponse
+	72, // [72:99] is the sub-list for method output_type
+	45, // [45:72] is the sub-list for method input_type
+	45, // [45:45] is the sub-list for extension type_name
+	45, // [45:45] is the sub-list for extension extendee
+	0,  // [0:45] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_file_proto_init() }
@@ -3531,13 +5146,14 @@ func file_dockwell_v1_file_proto_init() {
 		return
 	}
 	file_dockwell_v1_options_proto_init()
+	file_dockwell_v1_file_proto_msgTypes[43].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_file_proto_rawDesc), len(file_dockwell_v1_file_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   40,
+			NumEnums:      5,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

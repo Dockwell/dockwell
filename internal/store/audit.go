@@ -32,6 +32,23 @@ type AuditFilter struct {
 // MaxAuditQuery is the most characters AuditFilter.Query holds.
 const MaxAuditQuery = 200
 
+// RecordFileAccessUndo keeps the binary Undo entries beside their audit event.
+func (t *Tx) RecordFileAccessUndo(ctx context.Context, eventID string, data []byte) error {
+	if _, err := t.exec(ctx, `INSERT INTO file_access_undo (event_id, data) VALUES (?, ?)`, eventID, data); err != nil {
+		return fmt.Errorf("can't record undo for a file permission change: %w", err)
+	}
+	return nil
+}
+
+// FileAccessUndo reads the binary Undo entries for a single audit event.
+func (t *Tx) FileAccessUndo(ctx context.Context, eventID string) ([]byte, error) {
+	var data []byte
+	if err := t.queryRow(ctx, `SELECT data FROM file_access_undo WHERE event_id = ?`, eventID).Scan(&data); err != nil {
+		return nil, fmt.Errorf("can't read undo for a file permission change: %w", err)
+	}
+	return data, nil
+}
+
 // AuditEvents returns a page of the audit log, newest first: at most limit
 // events from before cursor, or from the newest with a zero cursor.
 func (t *Tx) AuditEvents(ctx context.Context, f AuditFilter, before TimelineCursor, limit int) ([]Event, error) {

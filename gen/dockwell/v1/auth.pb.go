@@ -301,6 +301,12 @@ const (
 	// path and the destination folder on two lines, as
 	// "srv_…:/archive.zip\n/dest".
 	StepUpAction_STEP_UP_ACTION_EXTRACT_WAY_BACK_IN StepUpAction = 95
+	// Changing permissions or ownership. The target binds the resolved path and
+	// the requested changes.
+	StepUpAction_STEP_UP_ACTION_CHANGE_FILE_ACCESS StepUpAction = 96
+	// Fetching into a way back onto a server. The target binds the resolved
+	// destination and a digest of the URL.
+	StepUpAction_STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN StepUpAction = 97
 	// Approving someone else's change in a protected environment, as an admin
 	// or the owner, by applying it with ChangeService.ApplyChange. The target is
 	// the change's ID and the fingerprint of the plan reviewed, as
@@ -397,6 +403,8 @@ var (
 		93:  "STEP_UP_ACTION_RESTORE_WAY_BACK_IN",
 		94:  "STEP_UP_ACTION_COMPRESS_WAY_BACK_IN",
 		95:  "STEP_UP_ACTION_EXTRACT_WAY_BACK_IN",
+		96:  "STEP_UP_ACTION_CHANGE_FILE_ACCESS",
+		97:  "STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN",
 		114: "STEP_UP_ACTION_APPROVE_CHANGE",
 		115: "STEP_UP_ACTION_CHANGE_EMAIL",
 		110: "STEP_UP_ACTION_INVITE",
@@ -445,6 +453,8 @@ var (
 		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":                   93,
 		"STEP_UP_ACTION_COMPRESS_WAY_BACK_IN":                  94,
 		"STEP_UP_ACTION_EXTRACT_WAY_BACK_IN":                   95,
+		"STEP_UP_ACTION_CHANGE_FILE_ACCESS":                    96,
+		"STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN":                  97,
 		"STEP_UP_ACTION_APPROVE_CHANGE":                        114,
 		"STEP_UP_ACTION_CHANGE_EMAIL":                          115,
 		"STEP_UP_ACTION_INVITE":                                110,
@@ -5132,7 +5142,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xd9\r\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xa9\x0e\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -5158,7 +5168,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!STEP_UP_ACTION_DELETE_WAY_BACK_IN\x10\\\x12&\n" +
 	"\"STEP_UP_ACTION_RESTORE_WAY_BACK_IN\x10]\x12'\n" +
 	"#STEP_UP_ACTION_COMPRESS_WAY_BACK_IN\x10^\x12&\n" +
-	"\"STEP_UP_ACTION_EXTRACT_WAY_BACK_IN\x10_\x12!\n" +
+	"\"STEP_UP_ACTION_EXTRACT_WAY_BACK_IN\x10_\x12%\n" +
+	"!STEP_UP_ACTION_CHANGE_FILE_ACCESS\x10`\x12'\n" +
+	"#STEP_UP_ACTION_DOWNLOAD_WAY_BACK_IN\x10a\x12!\n" +
 	"\x1dSTEP_UP_ACTION_APPROVE_CHANGE\x10r\x12\x1f\n" +
 	"\x1bSTEP_UP_ACTION_CHANGE_EMAIL\x10s\x12\x19\n" +
 	"\x15STEP_UP_ACTION_INVITE\x10n\x12\x1e\n" +

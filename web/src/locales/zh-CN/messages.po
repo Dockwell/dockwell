@@ -492,6 +492,15 @@ msgstr "关闭详情"
 msgid "Dockwell keeps trying."
 msgstr "Dockwell 会继续尝试。"
 
+msgid "Download source"
+msgstr "下载来源"
+
+msgid "Entries changed"
+msgstr "已更改的项目"
+
+msgid "Entries skipped"
+msgstr "已跳过的项目"
+
 msgid "Event"
 msgstr "事件"
 
@@ -642,6 +651,9 @@ msgstr "告警内容"
 
 msgid "When"
 msgstr "时间"
+
+msgid "Where it stopped"
+msgstr "停止原因"
 
 msgid "Who"
 msgstr "执行者"
@@ -829,6 +841,12 @@ msgstr "已在 {server} 上通过 Fail2ban 封禁地址"
 msgid "Banned an SSH address on {server}"
 msgstr "已在 {server} 上封禁 SSH 地址"
 
+msgid "Cancelled download of {path} to {server}"
+msgstr "取消了下载到 {server} 的 {path}"
+
+msgid "Changed permissions or ownership on {path} on {server}"
+msgstr "更改了 {server} 上 {path} 的权限或所有权"
+
 msgid "Changed their email"
 msgstr "更改了自己的邮箱"
 
@@ -919,11 +937,17 @@ msgstr "已将一个密钥复制到新数据库"
 msgid "Copied the secret {name} into a new database"
 msgstr "已将密钥 {name} 复制到新数据库"
 
+msgid "Couldn't change permissions or ownership on {path} on {server}"
+msgstr "无法更改 {server} 上 {path} 的权限或所有权"
+
 msgid "Couldn't compress {path} on {server}"
 msgstr "无法压缩 {server} 上的 {path}"
 
 msgid "Couldn't delete {path} on {server}"
 msgstr "无法删除 {server} 上的 {path}"
+
+msgid "Couldn't download {path} to {server}"
+msgstr "无法将 {path} 下载到 {server}"
 
 msgid "Couldn't extract {path} on {server}"
 msgstr "无法解压 {server} 上的 {path}"
@@ -998,6 +1022,9 @@ msgstr "已从 {server} 下载 {path}"
 
 msgid "Downloaded {path} from {server}, {size}"
 msgstr "已从 {server} 下载 {path}，{size}"
+
+msgid "Downloaded {path} to {server}"
+msgstr "已将 {path} 下载到 {server}"
 
 msgid "Ended an authenticator app's setup after 5 wrong codes"
 msgstr "输错 5 次验证码后结束了身份验证器应用的设置"
@@ -1152,6 +1179,12 @@ msgstr "将此安装命名为 {value}"
 
 msgid "Named this install {value}, which was {previous}"
 msgstr "将这个安装命名为 {value}（原为 {previous}）"
+
+msgid "No passkey confirmed changing permissions or ownership on {path} on {server}"
+msgstr "未使用通行密钥确认更改 {server} 上 {path} 的权限或所有权"
+
+msgid "No passkey confirmed downloading {path} to {server}"
+msgstr "未使用通行密钥确认将 {path} 下载到 {server}"
 
 msgid "No restore check of {subject} has passed lately"
 msgstr "{subject} 最近没有通过的恢复检查"
@@ -1390,6 +1423,9 @@ msgstr "开始在 {server} 上压缩 {path}"
 
 msgid "Started compressing {path} on {server}, which can let someone back in"
 msgstr "开始在 {server} 上压缩 {path}（可能让人重新进入服务器）"
+
+msgid "Started downloading {path} to {server}"
+msgstr "已开始将 {path} 下载到 {server}"
 
 msgid "Started extracting {path} into {to} on {server}"
 msgstr "开始在 {server} 上将 {path} 解压到 {to}"
@@ -17949,6 +17985,9 @@ msgstr "移动"
 msgid "Permissions"
 msgstr "权限"
 
+msgid "Permissions and owner"
+msgstr "权限和所有者"
+
 #. placeholder {0}: entry.name
 msgid "Previewing {0}"
 msgstr "正在预览 {0}"
@@ -18146,8 +18185,21 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
 
+msgid "At least {size}"
+msgstr "至少 {size}"
+
 msgid "Back to {folder}"
 msgstr "返回 {folder}"
+
+msgid "Calculate"
+msgstr "计算"
+
+msgid "Calculate folder size"
+msgstr "计算文件夹大小"
+
+#. placeholder {0}: nameOf(path)
+msgid "Calculate size of {0}"
+msgstr "计算 {0} 的大小"
 
 msgid "Can't reach this server"
 msgstr "无法连接这台服务器"
@@ -18155,18 +18207,20 @@ msgstr "无法连接这台服务器"
 msgid "Can't read this folder"
 msgstr "无法读取这个文件夹"
 
+msgid "Cancel download of {name}"
+msgstr "取消下载 {name}"
+
 msgid "Common places"
 msgstr "常用位置"
 
 msgid "Compressed {archiveName}"
 msgstr "已压缩 {archiveName}"
 
-#. placeholder {0}: nameOf(job.path)
-msgid "Compressing {0}"
-msgstr "正在压缩 {0}"
-
 msgid "Compressing {label} stopped before it finished. Start it again."
 msgstr "压缩 {label} 在完成前停止了。请重新开始。"
+
+msgid "Compressing {name}"
+msgstr "正在压缩 {name}"
 
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
@@ -18174,14 +18228,29 @@ msgstr "复制路径 {shown}"
 msgid "Copy paths"
 msgstr "复制路径"
 
+msgid "Couldn't calculate folder size"
+msgstr "无法计算文件夹大小"
+
+msgid "Couldn't cancel the download"
+msgstr "无法取消下载"
+
 #. placeholder {0}: nameOf(job.path)
 msgid "Couldn't compress {0}"
 msgstr "无法压缩 {0}"
+
+msgid "Couldn't download {name}"
+msgstr "无法下载 {name}"
 
 #. placeholder {0}: nameOf(archivePath)
 #. placeholder {0}: nameOf(job.path)
 msgid "Couldn't extract {0}"
 msgstr "无法解压 {0}"
+
+msgid "Couldn't open a terminal"
+msgstr "无法打开终端"
+
+msgid "Couldn't update pinned folders"
+msgstr "无法更新固定文件夹"
 
 #. placeholder {0}: nameOf(singleDeleted.path)
 msgid "Deleted {0}"
@@ -18191,23 +18260,43 @@ msgstr "已删除 {0}"
 msgid "Deleted {0} for good"
 msgstr "已永久删除 {0}"
 
+msgid "Docker data skipped"
+msgstr "已跳过 Docker 数据"
+
 msgid "Dockwell doesn't open this folder"
 msgstr "Dockwell 不打开这个文件夹"
 
+msgid "Download cancelled"
+msgstr "下载已取消"
+
+msgid "Download from a URL"
+msgstr "从网址下载"
+
 msgid "Download {count} items as a .zip"
 msgstr "以 .zip 下载 {count} 项"
+
+msgid "Downloaded {name}"
+msgstr "已下载 {name}"
+
+msgid "Downloading {label} stopped before it finished. Start it again."
+msgstr "{label} 尚未下载完毕就已停止。请重新下载。"
+
+msgid "Downloading {name}"
+msgstr "正在下载 {name}"
+
+msgid "Entries that no longer matched were skipped."
+msgstr "已跳过状态不再匹配的项目。"
 
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracted {0}"
 msgstr "已解压 {0}"
 
-#. placeholder {0}: nameOf(job.path)
-msgid "Extracting {0}"
-msgstr "正在解压 {0}"
-
 #. placeholder {0}: nameOf(lost.unpackedTo || lost.path)
 msgid "Extracting {label} stopped before it finished. Part of it may already be in {0}."
 msgstr "解压 {label} 在完成前停止了。部分内容可能已在 {0} 中。"
+
+msgid "Extracting {name}"
+msgstr "正在解压 {name}"
 
 msgid "Files in {shown}"
 msgstr "{shown} 中的文件"
@@ -18256,8 +18345,23 @@ msgstr "这里没有符合搜索条件的内容。"
 msgid "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
 msgstr "这里只列出了其中 {count} 项。更新 {0} 上的代理后，即可搜索并分页查看全部。"
 
+msgid "Open in terminal"
+msgstr "在终端中打开"
+
+msgid "Permissions and ownership updated"
+msgstr "已更新权限和所有权"
+
+msgid "Pin folder"
+msgstr "固定文件夹"
+
+msgid "Pinned folders"
+msgstr "固定的文件夹"
+
 msgid "Places"
 msgstr "常用位置"
+
+msgid "Previous access restored"
+msgstr "已恢复原有访问权限"
 
 msgctxt "what was deleted"
 msgid "Put back"
@@ -18265,6 +18369,10 @@ msgstr "放回原处"
 
 msgid "Reading this folder"
 msgstr "正在读取这个文件夹"
+
+#. placeholder {0}: nameOf(path)
+msgid "Recalculate size of {0}"
+msgstr "重新计算 {0} 的大小"
 
 msgid "Recently deleted"
 msgstr "最近删除"
@@ -18274,6 +18382,15 @@ msgstr "正在重新连接以查看进度"
 
 msgid "Resize folder tree"
 msgstr "调整文件夹树宽度"
+
+msgid "Restoring previous access"
+msgstr "正在恢复原有访问权限"
+
+msgid "Search below"
+msgstr "搜索下级目录"
+
+msgid "Search below this folder"
+msgstr "搜索此文件夹及其子文件夹"
 
 #. placeholder {0}: nameOf(shown)
 msgid "Search in {0}"
@@ -18298,6 +18415,12 @@ msgctxt "the next page of a long list"
 msgid "Show more"
 msgstr "加载更多"
 
+msgid "Some changes stopped"
+msgstr "部分更改已停止"
+
+msgid "Some permissions couldn't be restored"
+msgstr "部分权限无法恢复"
+
 msgid "Something called {nextName} is here already."
 msgstr "这里已存在名为 {nextName} 的项目。"
 
@@ -18319,14 +18442,30 @@ msgstr "这个文件夹是空的。"
 msgid "Too many items to download at once"
 msgstr "一次下载的项目过多"
 
+msgid "Unpin folder"
+msgstr "取消固定文件夹"
+
+#. placeholder {0}: place.label
+msgid "Unpin {0}"
+msgstr "取消固定 {0}"
+
 msgid "Upload"
 msgstr "上传"
 
 msgid "Websites"
 msgstr "网站"
 
+msgid "hard links counted once"
+msgstr "硬链接仅计一次"
+
 msgid "owned by <0>{owner}</0>"
 msgstr "所有者 <0>{owner}</0>"
+
+msgid "refused entries skipped"
+msgstr "已跳过无法读取的项目"
+
+msgid "scan limit reached"
+msgstr "已达到扫描上限"
 
 #. placeholder {0}: Number(job.leftOut)
 msgid "{0, plural, one {# item was left out.} other {# items were left out.}}"
@@ -18357,6 +18496,10 @@ msgstr "{0, plural, other {已将 # 项解压到 {into}。}}"
 msgid "{0} of {1} items · {bytes}"
 msgstr "{0} / {1} 项 · {bytes}"
 
+#. placeholder {0}: formatBytes(job.totalBytes, i18n.locale)
+msgid "{bytes} of {0}"
+msgstr "{bytes} / {0}"
+
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
 
@@ -18377,6 +18520,147 @@ msgstr "展开 {name} 中的文件夹"
 
 msgid "{more, plural, one {# more folder} other {# more folders}}"
 msgstr "{more, plural, other {还有 # 个文件夹}}"
+
+msgid "Allow programs to run with the file owner's or group's privileges"
+msgstr "允许程序以文件所有者或所属组的权限运行"
+
+msgid "And everything inside"
+msgstr "包括其中的所有文件和子文件夹"
+
+msgid "Apply changes"
+msgstr "应用更改"
+
+msgid "Apply these permissions to every selected item"
+msgstr "将这些权限应用到所有选中的项目"
+
+msgid "Choose a preset"
+msgstr "选择预设"
+
+msgid "Choose a smaller folder or narrow your search."
+msgstr "请选择较小的文件夹或缩小搜索范围。"
+
+msgid "Couldn't load users and groups"
+msgstr "无法加载用户和组"
+
+msgid "Couldn't search this folder"
+msgstr "无法搜索此文件夹"
+
+msgid "Couldn't start the download"
+msgstr "无法开始下载"
+
+msgid "Custom permissions"
+msgstr "自定义权限"
+
+msgid "Download URL"
+msgstr "下载网址"
+
+msgid "File name"
+msgstr "文件名"
+
+msgid "Files"
+msgstr "文件"
+
+msgid "Folder and file presets"
+msgstr "文件夹和文件权限预设"
+
+msgid "Folders"
+msgstr "文件夹"
+
+msgid "Group"
+msgstr "分组"
+
+msgid "Group ID"
+msgstr "组 ID"
+
+msgid "Keep each group"
+msgstr "保留各自所属的组"
+
+msgid "Keep each owner"
+msgstr "保留各自的所有者"
+
+msgid "Keep existing run permissions on files"
+msgstr "保留文件已有的执行权限"
+
+#. placeholder {0}: single.entry.group
+#. placeholder {0}: single.entry.owner
+msgid "Keep {0}"
+msgstr "保留 {0}"
+
+msgid "Mixed"
+msgstr "不一致"
+
+msgid "No matches found"
+msgstr "未找到匹配项"
+
+msgid "Numeric ID"
+msgstr "数字 ID"
+
+msgid "Octal mode"
+msgstr "八进制权限"
+
+msgid "Others"
+msgstr "其他用户"
+
+msgid "Run"
+msgstr "运行"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Search inside text files too"
+msgstr "同时搜索文本文件的内容"
+
+msgid "Search stopped at its scan limit"
+msgstr "搜索已达到扫描上限"
+
+msgid "Search term"
+msgstr "搜索词"
+
+msgid "Set-ID changes how programs run"
+msgstr "设置 ID 位会改变程序的运行权限"
+
+msgid "Set-group-ID"
+msgstr "设置组 ID 位"
+
+msgid "Set-user-ID"
+msgstr "设置用户 ID 位"
+
+msgid "Special permissions"
+msgstr "特殊权限"
+
+msgid "Start download"
+msgstr "开始下载"
+
+msgid "Sticky bit"
+msgstr "粘滞位"
+
+msgid "The server didn't start the download. Try again."
+msgstr "服务器未开始下载。请重试。"
+
+msgid "Up to 1 GB per download"
+msgstr "每次下载最多 1 GB"
+
+msgid "User ID"
+msgstr "用户 ID"
+
+msgid "Write"
+msgstr "写入"
+
+#. placeholder {0}: Number(result.skipped)
+msgid "{0, plural, one {# entry skipped} other {# entries skipped}}"
+msgstr "{0, plural, other {跳过了 # 项}}"
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {# item} other {# items}}"
+msgstr "{0, plural, other {# 项}}"
+
+#. placeholder {0}: match.path
+#. placeholder {1}: match.line
+msgid "{0} · line {1}"
+msgstr "{0} · 第 {1} 行"
+
+msgid "{role}: {word}"
+msgstr "{role}：{word}"
 
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
@@ -19622,9 +19906,6 @@ msgstr "{used} / {total}"
 
 msgid "{without, plural, one {# without a region} other {# without a region}}"
 msgstr "{without, plural, other {# 台没有区域}}"
-
-msgid "Files"
-msgstr "文件"
 
 msgid "No servers yet"
 msgstr "还没有服务器"
@@ -21717,9 +21998,6 @@ msgstr "吞吐量"
 
 msgid "Use the left and right arrows to read values over time."
 msgstr "使用左右方向键按时间查看数值。"
-
-msgid "Write"
-msgstr "写入"
 
 msgid "Close {name}"
 msgstr "关闭 {name}"
@@ -25119,9 +25397,6 @@ msgstr "筛选命令"
 msgid "Filter saved commands"
 msgstr "筛选已保存命令"
 
-msgid "Group"
-msgstr "分组"
-
 msgid "Import at most 200 commands per file."
 msgstr "每个文件最多导入 200 条命令。"
 
@@ -25198,9 +25473,6 @@ msgstr "个人（仅自己可见）"
 
 msgid "Remove control characters (only printable text, newlines and tabs are allowed)."
 msgstr "请移除控制字符（仅允许可打印文本、换行符和制表符）。"
-
-msgid "Run"
-msgstr "运行"
 
 #. placeholder {0}: cmd.name
 msgid "Run {0}"

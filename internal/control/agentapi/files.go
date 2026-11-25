@@ -213,8 +213,8 @@ func (s *Session) ExtractArchive(ctx context.Context, path, confirmedArchive, co
 }
 
 // GetArchiveJob asks the agent for the current state of one archive job.
-func (s *Session) GetArchiveJob(ctx context.Context, jobID, owner string) (*agentv1.GetArchiveJobResult, error) {
-	call := &agentv1.GetArchiveJobCall{JobId: jobID, Owner: owner}
+func (s *Session) GetArchiveJob(ctx context.Context, jobID, owner, downloadOwner string) (*agentv1.GetArchiveJobResult, error) {
+	call := &agentv1.GetArchiveJobCall{JobId: jobID, Owner: owner, DownloadOwner: downloadOwner}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_GetArchiveJob{GetArchiveJob: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err
@@ -226,8 +226,8 @@ func (s *Session) GetArchiveJob(ctx context.Context, jobID, owner string) (*agen
 }
 
 // ListArchiveJobs asks the agent for active and recent archive jobs for owner.
-func (s *Session) ListArchiveJobs(ctx context.Context, owner string) (*agentv1.ListArchiveJobsResult, error) {
-	call := &agentv1.ListArchiveJobsCall{Owner: owner}
+func (s *Session) ListArchiveJobs(ctx context.Context, owner, downloadOwner string) (*agentv1.ListArchiveJobsResult, error) {
+	call := &agentv1.ListArchiveJobsCall{Owner: owner, DownloadOwner: downloadOwner}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ListArchiveJobs{ListArchiveJobs: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err

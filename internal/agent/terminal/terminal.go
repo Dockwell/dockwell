@@ -26,6 +26,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 )
@@ -61,7 +62,11 @@ const chunk = 32 << 10
 const hangUpWait = 3 * time.Second
 
 // drainWait is how long what a shell wrote last gets to be read once it exits.
-const drainWait = 200 * time.Millisecond
+const (
+	drainWait       = 200 * time.Millisecond
+	hostStartWithin = 5 * time.Second
+	maxHostStarts   = 4
+)
 
 // ErrNotFound is a terminal this agent doesn't have.
 var ErrNotFound = errors.New("there's no such terminal on this server")
@@ -93,12 +98,14 @@ type Manager struct {
 	logger *slog.Logger
 	now    func() time.Time
 
-	mu       sync.Mutex
-	open     map[string]*Terminal // nil reserves a place while its shell starts
-	starting sync.WaitGroup
-	stopping bool
-	ended    []*agentv1.TerminalEnded // not yet told
-	ready    chan struct{}            // signalled when ended has something
+	mu         sync.Mutex
+	open       map[string]*Terminal // nil reserves a place while its shell starts
+	starting   sync.WaitGroup
+	hostStarts chan struct{}
+	startHost  func(cols, rows uint16, directory string) (process, string, error)
+	stopping   bool
+	ended      []*agentv1.TerminalEnded // not yet told
+	ready      chan struct{}            // signalled when ended has something
 }
 
 // New returns a Manager with no terminals. Run it for its timeouts to apply.
@@ -116,7 +123,9 @@ func New(opts Options) *Manager {
 	if now == nil {
 		now = time.Now
 	}
-	return &Manager{opts: opts, logger: opts.Logger, now: now, open: map[string]*Terminal{}, ready: make(chan struct{}, 1)}
+	m := &Manager{opts: opts, logger: opts.Logger, now: now, open: map[string]*Terminal{}, ready: make(chan struct{}, 1), hostStarts: make(chan struct{}, maxHostStarts)}
+	m.startHost = m.startOnServer
+	return m
 }
 
 // Run ends terminals that time out, until ctx is done, then hangs up every one: a
@@ -242,10 +251,24 @@ func (m *Manager) signal() {
 	}
 }
 
+// ValidateWorkingDirectory checks the optional host-only path that cmd.Dir uses.
+func ValidateWorkingDirectory(directory, container, containerID string) error {
+	if directory == "" {
+		return nil
+	}
+	if container != "" || containerID != "" {
+		return errors.New("a starting folder is available only for a server terminal")
+	}
+	return files.CheckPath(directory)
+}
+
 // Open starts root's login shell on a new terminal, or the first shell a container
 // has, in it. A container that's as good as root on the server takes a passkey,
 // which call says confirmed it, or Open returns ErrNeedsStepUp and starts nothing.
 func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalResult, error) {
+	if err := ValidateWorkingDirectory(call.GetWorkingDirectory(), call.GetContainer(), call.GetContainerId()); err != nil {
+		return nil, err
+	}
 	if err := ValidateContainerTarget(call.GetContainer(), call.GetContainerId(), call.GetArgv()); err != nil {
 		return nil, err
 	}
@@ -284,7 +307,7 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 	if container, exact := call.GetContainer(), call.GetContainerId(); container != "" || exact != "" {
 		proc, title, in, err = m.startInContainer(ctx, container, exact, call.GetArgv(), call.GetDatabaseConsole(), call.GetDatabase(), call.GetConfirmed(), cols, rows)
 	} else {
-		proc, title, err = m.startOnServer(cols, rows)
+		proc, title, err = m.openOnServer(ctx, cols, rows, call.GetWorkingDirectory())
 	}
 	if err != nil {
 		m.mu.Lock()
@@ -440,9 +463,46 @@ func (t *Terminal) notify() {
 	t.changed = make(chan struct{})
 }
 
+// openOnServer bounds the actual shell start, including a chdir in the child.
+// A start left on a dead mount holds its own place until it can be reaped.
+func (m *Manager) openOnServer(ctx context.Context, cols, rows uint16, directory string) (process, string, error) {
+	select {
+	case m.hostStarts <- struct{}{}:
+	default:
+		return nil, "", errors.New("several server shells are still starting. Check the server's mounts, then try again")
+	}
+	ctx, cancel := context.WithTimeout(ctx, hostStartWithin)
+	defer cancel()
+	type started struct {
+		process process
+		title   string
+		err     error
+	}
+	answer := make(chan started)
+	go func() {
+		defer func() { <-m.hostStarts }()
+		proc, title, err := m.startHost(cols, rows, directory)
+		select {
+		case answer <- started{proc, title, err}:
+		case <-ctx.Done():
+			if proc != nil {
+				proc.signal(syscall.SIGKILL)
+				_ = proc.close()
+				_, _ = proc.wait(nil)
+			}
+		}
+	}()
+	select {
+	case out := <-answer:
+		return out.process, out.title, out.err
+	case <-ctx.Done():
+		return nil, "", errors.New("the server's shell stopped answering while it started. Check the starting folder and its mount, then try again")
+	}
+}
+
 // startOnServer runs the agent's own user's login shell, root's on a server, on a
 // pseudo-terminal, and says who it runs as where.
-func (m *Manager) startOnServer(cols, rows uint16) (process, string, error) {
+func (m *Manager) startOnServer(cols, rows uint16, directory string) (process, string, error) {
 	opts := m.opts
 	acct := accountOf(cmpOr(opts.Passwd, "/etc/passwd"), os.Getuid())
 	var cmd *exec.Cmd
@@ -465,13 +525,17 @@ func (m *Manager) startOnServer(cols, rows uint16) (process, string, error) {
 	if st, err := os.Stat(acct.home); err == nil && st.IsDir() && unix.Access(acct.home, unix.X_OK) == nil {
 		cmd.Dir = acct.home
 	}
+	home := cmd.Dir
+	if directory != "" {
+		cmd.Dir = directory
+	}
 	p, err := start(cmd, cols, rows)
 	if err != nil {
 		return nil, "", fmt.Errorf("can't start a shell: %w", err)
 	}
 	host, _ := os.Hostname()
 	host, _, _ = strings.Cut(host, ".")
-	return &ptyShell{pty: p, cmd: cmd, home: cmd.Dir}, acct.name + "@" + cmpOr(host, "server"), nil
+	return &ptyShell{pty: p, cmd: cmd, home: home}, acct.name + "@" + cmpOr(host, "server"), nil
 }
 
 // begin carries proc's terminal from now on.
