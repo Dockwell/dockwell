@@ -2253,6 +2253,8 @@ message DownloadFileResult {
   FileRefusal refusal = 2;
   // For folder or multi-path downloads: entries left out.
   uint64 left_out = 420;
+  // For folder or multi-path downloads: archive paths left out (first 10 when many).
+  repeated string left_out_paths = 421;
 }
 
 // ReceiveFileRequest asks for what an upload's write carries.

@@ -279,6 +279,9 @@ func (w *contextWalk) add(parent int, at place, rel, name string, depth int) err
 		}
 		rest -= int64(len(p))
 	}
+	if scan.finish(where) != nil {
+		return errContextUnsafe
+	}
 	if fileChanged(fd, &st) {
 		return errContextChanged
 	}

@@ -405,6 +405,94 @@ describe("File manager UX", () => {
     expect(screen.getByText(/Compressing site\.zip stopped before it finished\./)).toBeVisible();
   });
 
+  it("lists which files were left out when a compress job skips items", async () => {
+    const compressFiles = vi.fn((req: { archivePath: string }) =>
+      create(CompressFilesResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: "job_leftout_1",
+          kind: ArchiveJobKind.COMPRESS,
+          state: ArchiveJobState.DONE,
+          path: req.archivePath,
+          entries: 3n,
+          bytes: 512n,
+          leftOut: 2n,
+          leftOutPaths: [".env", "backup.tar"],
+        }),
+      }),
+    );
+    await renderFiles({
+      listFiles: () => site,
+      listArchiveJobs: () => create(ListArchiveJobsResponseSchema, { jobs: [] }),
+      compressFiles: compressFiles as never,
+    });
+    fireEvent.contextMenu(screen.getByText("alpha.txt"));
+    const menu = await screen.findByRole("menu", { name: "Actions for alpha.txt" });
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Compress" }));
+    const compSheet = await screen.findByRole("dialog", { name: "Compress alpha.txt" });
+    await userEvent.click(within(compSheet).getByRole("button", { name: "Compress" }));
+    expect(await screen.findByText("Compressed alpha.txt.zip")).toBeVisible();
+    expect(screen.getByText(/2 items were left out: \.env, backup\.tar\./)).toBeVisible();
+  });
+
+  it("notes when more items were left out than listed by a compress job", async () => {
+    const compressFiles = vi.fn((req: { archivePath: string }) =>
+      create(CompressFilesResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: "job_leftout_many",
+          kind: ArchiveJobKind.COMPRESS,
+          state: ArchiveJobState.DONE,
+          path: req.archivePath,
+          entries: 5n,
+          bytes: 512n,
+          leftOut: 12n,
+          leftOutPaths: ["a.pem", "b.ppk"],
+        }),
+      }),
+    );
+    await renderFiles({
+      listFiles: () => site,
+      listArchiveJobs: () => create(ListArchiveJobsResponseSchema, { jobs: [] }),
+      compressFiles: compressFiles as never,
+    });
+    fireEvent.contextMenu(screen.getByText("alpha.txt"));
+    const menu = await screen.findByRole("menu", { name: "Actions for alpha.txt" });
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Compress" }));
+    const compSheet = await screen.findByRole("dialog", { name: "Compress alpha.txt" });
+    await userEvent.click(within(compSheet).getByRole("button", { name: "Compress" }));
+    expect(await screen.findByText("Compressed alpha.txt.zip")).toBeVisible();
+    expect(screen.getByText(/12 items were left out: a\.pem, b\.ppk, and 10 more\./)).toBeVisible();
+  });
+
+  it("caps the compress notice to three left-out names and summarizes the rest", async () => {
+    const compressFiles = vi.fn((req: { archivePath: string }) =>
+      create(CompressFilesResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: "job_leftout_capped",
+          kind: ArchiveJobKind.COMPRESS,
+          state: ArchiveJobState.DONE,
+          path: req.archivePath,
+          entries: 5n,
+          bytes: 512n,
+          leftOut: 10n,
+          leftOutPaths: ["a.pem", "b.ppk", "c.key", "d.key", "e.key", "f.key", "g.key", "h.key", "i.key", "j.key"],
+        }),
+      }),
+    );
+    await renderFiles({
+      listFiles: () => site,
+      listArchiveJobs: () => create(ListArchiveJobsResponseSchema, { jobs: [] }),
+      compressFiles: compressFiles as never,
+    });
+    fireEvent.contextMenu(screen.getByText("alpha.txt"));
+    const menu = await screen.findByRole("menu", { name: "Actions for alpha.txt" });
+    await userEvent.click(within(menu).getByRole("menuitem", { name: "Compress" }));
+    const compSheet = await screen.findByRole("dialog", { name: "Compress alpha.txt" });
+    await userEvent.click(within(compSheet).getByRole("button", { name: "Compress" }));
+    expect(await screen.findByText("Compressed alpha.txt.zip")).toBeVisible();
+    expect(screen.getByText(/10 items were left out: a\.pem, b\.ppk, c\.key, and 7 more\./)).toBeVisible();
+    expect(screen.queryByText(/d\.key/)).toBeNull();
+  });
+
   it("refuses to preview images over 1 MB without calling readFile (N1)", async () => {
     const readFile = vi.fn();
     const withBigPhoto = create(ListFilesResponseSchema, {

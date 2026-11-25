@@ -141,15 +141,16 @@ func TestCompressRefusesPrivateKeyAndLeavesNothingBehind(t *testing.T) {
 	write(t, filepath.Join(site, "ok.txt"), "hello\n")
 	write(t, filepath.Join(site, "secret.pem"), "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBK\n-----END PRIVATE KEY-----\n")
 
-	archive := filepath.Join(site, "leak.zip")
+	// Compressing a single file that holds a private key is refused cleanly
+	// before creating any archive or staging file on disk.
+	singleArchive := filepath.Join(site, "only-key.zip")
 	comp, err := d.server.Compress(t.Context(), []string{
-		filepath.Join(site, "ok.txt"),
 		filepath.Join(site, "secret.pem"),
-	}, archive, "", testArchiveOwner)
+	}, singleArchive, "", testArchiveOwner)
 	if err != nil || comp.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
-		t.Fatalf("Compress with private key = %v, %v, want KIND_REFUSED", comp, err)
+		t.Fatalf("Compress single private key = %v, %v, want KIND_REFUSED", comp, err)
 	}
-	if there(archive) {
+	if there(singleArchive) {
 		t.Error("refused archive was created on disk")
 	}
 	entries, _ := os.ReadDir(site)
@@ -157,6 +158,42 @@ func TestCompressRefusesPrivateKeyAndLeavesNothingBehind(t *testing.T) {
 		if strings.HasPrefix(e.Name(), uploadPrefix) {
 			t.Errorf("staging file %s was left behind", e.Name())
 		}
+	}
+
+	// Compressing a multi-file selection leaves out the private key, lists it,
+	// and packs the remaining files cleanly (L3).
+	archive := filepath.Join(site, "mixed.zip")
+	comp, err = d.server.Compress(t.Context(), []string{
+		filepath.Join(site, "ok.txt"),
+		filepath.Join(site, "secret.pem"),
+	}, archive, "", testArchiveOwner)
+	if err != nil || comp.GetRefusal() != nil {
+		t.Fatalf("Compress mixed selection = %v, %v", comp, err)
+	}
+	done := waitJob(t, d.server, comp.GetJob().GetJobId())
+	if done.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
+		t.Fatalf("mixed compress job = %v", done)
+	}
+	if done.GetLeftOut() != 1 || len(done.GetLeftOutPaths()) != 1 || done.GetLeftOutPaths()[0] != "secret.pem" {
+		t.Errorf("left_out = %d (%v), want 1 ([secret.pem])", done.GetLeftOut(), done.GetLeftOutPaths())
+	}
+	raw, err := os.ReadFile(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(zr.Comment, "secret.pem") {
+		t.Errorf("zip comment = %q, want secret.pem listed", zr.Comment)
+	}
+	got := zipNames(t, raw)
+	if got["ok.txt"] != "hello\n" {
+		t.Errorf("ok.txt = %q, want hello", got["ok.txt"])
+	}
+	if _, leaked := got["secret.pem"]; leaked {
+		t.Error("secret.pem leaked into compressed archive")
 	}
 }
 
@@ -628,17 +665,46 @@ func TestDownloadManyStreamsSelectionAsZip(t *testing.T) {
 		t.Fatalf("zip entries = %v (%v)", got, keys)
 	}
 
-	// Refuses before sending anything when a selected file holds a private key.
+	// Refuses before sending anything when a single selected file holds a private key.
 	sent := false
 	ref, err := d.server.DownloadMany(t.Context(), []string{
-		filepath.Join(site, "a.txt"),
 		filepath.Join(site, "secret.key"),
 	}, func(*agentv1.SendFileRequest) error {
 		sent = true
 		return nil
 	})
 	if err != nil || ref.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || sent {
-		t.Fatalf("DownloadMany with key = %v, %v, sent=%v", ref, err, sent)
+		t.Fatalf("DownloadMany single key = %v, %v, sent=%v", ref, err, sent)
+	}
+
+	// A multi-file selection leaves out the private key, lists it, and packs the rest (L3).
+	var mixedBody bytes.Buffer
+	mixed, err := d.server.DownloadMany(t.Context(), []string{
+		filepath.Join(site, "a.txt"),
+		filepath.Join(site, "secret.key"),
+	}, func(m *agentv1.SendFileRequest) error {
+		mixedBody.Write(m.GetData())
+		return nil
+	})
+	if err != nil || mixed.GetRefusal() != nil {
+		t.Fatalf("DownloadMany mixed = %v, %v", mixed, err)
+	}
+	if mixed.GetLeftOut() != 1 || len(mixed.GetLeftOutPaths()) != 1 || mixed.GetLeftOutPaths()[0] != "secret.key" {
+		t.Errorf("DownloadMany mixed left_out = %d (%v), want 1 ([secret.key])", mixed.GetLeftOut(), mixed.GetLeftOutPaths())
+	}
+	mixedGot := zipNames(t, mixedBody.Bytes())
+	if mixedGot["a.txt"] != "alpha" {
+		t.Errorf("a.txt = %q, want alpha", mixedGot["a.txt"])
+	}
+	if _, leaked := mixedGot["secret.key"]; leaked {
+		t.Error("secret.key leaked into selection zip")
+	}
+	mzr, err := zip.NewReader(bytes.NewReader(mixedBody.Bytes()), int64(mixedBody.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(mzr.Comment, "secret.key") {
+		t.Errorf("selection zip comment = %q, want secret.key listed", mzr.Comment)
 	}
 }
 

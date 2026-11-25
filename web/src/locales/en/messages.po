@@ -18530,6 +18530,14 @@ msgstr "scan limit reached"
 msgid "{0, plural, one {# item was left out.} other {# items were left out.}}"
 msgstr "{0, plural, one {# item was left out.} other {# items were left out.}}"
 
+#. placeholder {0}: Number(job.leftOut)
+msgid "{0, plural, one {# item was left out: {leftOutNames}, and {moreLeftOut} more.} other {# items were left out: {leftOutNames}, and {moreLeftOut} more.}}"
+msgstr "{0, plural, one {# item was left out: {leftOutNames}, and {moreLeftOut} more.} other {# items were left out: {leftOutNames}, and {moreLeftOut} more.}}"
+
+#. placeholder {0}: Number(job.leftOut)
+msgid "{0, plural, one {# item was left out: {leftOutNames}.} other {# items were left out: {leftOutNames}.}}"
+msgstr "{0, plural, one {# item was left out: {leftOutNames}.} other {# items were left out: {leftOutNames}.}}"
+
 #. placeholder {0}: Number(job.skippedLinks)
 msgid "{0, plural, one {# link wasn't made.} other {# links weren't made.}}"
 msgstr "{0, plural, one {# link wasn't made.} other {# links weren't made.}}"

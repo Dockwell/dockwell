@@ -12248,6 +12248,11 @@ components:
                 totalBytes:
                     type: string
                     description: Expected bytes for a URL download, or zero if the length is unknown.
+                leftOutPaths:
+                    type: array
+                    items:
+                        type: string
+                    description: 'For compress: archive paths left out (first 10 when many).'
             description: |-
                 ArchiveJob is one server-side compress, extract or URL download job. It
                  outlives the request that started it so long jobs survive proxy timeouts.

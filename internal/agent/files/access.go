@@ -3,7 +3,6 @@
 package files
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -220,8 +219,7 @@ func (a *accessChange) protectedHead(fd int) bool {
 	n, err := io.ReadFull(f, a.head)
 	head := a.head[:n]
 	protected := err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) ||
-		holdsPrivateKey(head) || bytes.Contains(head, beginKeyMark) && keyStarts().Match(head) ||
-		!showsBinary(head) && hashLine().Match(head)
+		holdsPrivateKey(head) || !showsBinary(head) && hashLine().Match(head)
 	clear(head)
 	return protected
 }
