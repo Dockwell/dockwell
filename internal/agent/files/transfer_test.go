@@ -751,4 +751,18 @@ func TestADownloadStopsAtWhatAReadRefusesAnywhere(t *testing.T) {
 	if r := scan.check("/x", []byte("price: $5$ off\nsee -----BEGIN RSA PRIVATE KEY----- in the docs\n")); r != nil {
 		t.Errorf("a mention = %v", r)
 	}
+	// Random bytes that happen to hold a hash line's shape aren't a password file:
+	// a line with control bytes or broken UTF-8 isn't text (CI on #921).
+	scan = &keyScan{}
+	if r := scan.check("/x", []byte("\x01\x9f\xffab:$1$q\x02\x80zz\n")); r != nil {
+		t.Errorf("binary that looks like a hash line = %v", r)
+	}
+	scan = &keyScan{}
+	if r := scan.check("/x", []byte("ab:$1$q\xff\xfe\x00zz\n")); r != nil {
+		t.Errorf("a hash line's shape followed by binary = %v", r)
+	}
+	scan = &keyScan{}
+	if r := scan.check("/x", []byte("bin\x00\nroot:$6$salt$hash\r\n")); r == nil {
+		t.Error("a text hash line after a binary one went out")
+	}
 }

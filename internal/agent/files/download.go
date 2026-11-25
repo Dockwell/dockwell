@@ -13,6 +13,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dockwell/dockwell/internal/lazyre"
 
@@ -315,7 +316,7 @@ func (k *keyScan) check(where string, part []byte) *agentv1.FileRefusal {
 		switch {
 		case bytes.Contains(k.line, []byte("-----BEGIN ")) && holdsPrivateKey(k.line):
 			why = whyPrivateKey
-		case bytes.IndexByte(k.line, '$') >= 0 && hashLine().Match(k.line):
+		case bytes.IndexByte(k.line, '$') >= 0 && textLine(k.line) && hashLine().Match(k.line):
 			why = whyHashes
 		}
 		if ended {
@@ -576,4 +577,29 @@ func (f *frames) flush() error {
 	// A send has marshalled the part by the time it returns, so the buffer is free.
 	f.buf = f.buf[:0]
 	return nil
+}
+
+// textLine says whether a line's start reads as text: UTF-8 with no control
+// bytes but tabs and a carriage return. A password file is text, and a run of
+// random bytes in an image or an archive that happens to look like one of its
+// lines isn't (CI on #921: random 2 MiB files tripped hashLine). The start is
+// cut at lineHead, so a rune cut there still counts as text.
+func textLine(line []byte) bool {
+	for _, b := range line {
+		if b < 0x20 && b != '\t' && b != '\r' || b == 0x7f {
+			return false
+		}
+	}
+	if utf8.Valid(line) {
+		return true
+	}
+	if len(line) < lineHead {
+		return false
+	}
+	for cut := 1; cut < utf8.UTFMax && cut < len(line); cut++ {
+		if utf8.Valid(line[:len(line)-cut]) {
+			return true
+		}
+	}
+	return false
 }
