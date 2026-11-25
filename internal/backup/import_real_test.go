@@ -88,7 +88,11 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			return strings.TrimSpace(out.String() + errs.String()), code == 0
+			if code != 0 {
+				return strings.TrimSpace(out.String() + errs.String()), false
+			}
+			// A client's warnings go to stderr; what was read is stdout.
+			return strings.TrimSpace(out.String()), true
 		}
 
 		// Seed table & row as app user shop.
@@ -305,7 +309,11 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			return strings.TrimSpace(out.String() + errs.String()), code == 0
+			if code != 0 {
+				return strings.TrimSpace(out.String() + errs.String()), false
+			}
+			// A client's warnings go to stderr; what was read is stdout.
+			return strings.TrimSpace(out.String()), true
 		}
 
 		if said, ok := myExecAs("shop", "shop-app-secret", "shop", "CREATE TABLE orders (id INT PRIMARY KEY, note VARCHAR(64)); INSERT INTO orders VALUES (1, 'before-import');"); !ok {

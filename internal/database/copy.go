@@ -332,7 +332,9 @@ func (ld Loader) PGArchiveToSQL(ctx context.Context, to *docker.Container, forma
 	if clean {
 		cmd = append(cmd, "--clean", "--if-exists")
 	}
-	cmd = append(cmd, flag)
+	// -f - writes the SQL to standard output; pg_restore 18 refuses to run
+	// with neither -f nor -d.
+	cmd = append(cmd, flag, "-f", "-")
 	said := &capped{max: 4 << 10}
 	code, err := ld.throwawayStreams(ctx, to.Config.Image, "none", "pgrestore", nil, cmd, docker.Streams{Stdin: in, Stdout: out, Stderr: said})
 	switch {
