@@ -14801,6 +14801,21 @@ msgstr "+{left}"
 msgid "Beside it"
 msgstr "Beside it"
 
+msgid "Connection string copied"
+msgstr "Connection string copied"
+
+msgid "Connection string copied without the password"
+msgstr "Connection string copied without the password"
+
+msgid "Connection string wasn't copied"
+msgstr "Connection string wasn't copied"
+
+msgid "Copy connection string"
+msgstr "Copy connection string"
+
+msgid "Copy external connection string"
+msgstr "Copy external connection string"
+
 msgid "Create a database"
 msgstr "Create a database"
 
@@ -14816,6 +14831,12 @@ msgstr "Engines"
 msgid "Every engine"
 msgstr "Every engine"
 
+msgid "External connection string copied"
+msgstr "External connection string copied"
+
+msgid "External connection string copied without the password"
+msgstr "External connection string copied without the password"
+
 msgid "Filter by name or engine"
 msgstr "Filter by name or engine"
 
@@ -14827,6 +14848,12 @@ msgstr "From the catalog, with its password kept as a secret"
 
 msgid "In a volume Dockwell didn't make"
 msgstr "In a volume Dockwell didn't make"
+
+msgid "It has no volume to back up"
+msgstr "It has no volume to back up"
+
+msgid "Its volume isn't one Dockwell backs up"
+msgstr "Its volume isn't one Dockwell backs up"
 
 msgid "Last run"
 msgstr "Last run"
@@ -14868,6 +14895,9 @@ msgstr "Read the database users"
 msgid "Reading what happened"
 msgstr "Reading what happened"
 
+msgid "Ready to copy"
+msgstr "Ready to copy"
+
 msgid "Recent activity"
 msgstr "Recent activity"
 
@@ -14879,6 +14909,9 @@ msgstr "Take one on from its page: it keeps running, with no restart."
 
 msgid "This database has no service to manage"
 msgstr "This database has no service to manage"
+
+msgid "Your browser blocked copying after confirmation. Click Copy to put it on your clipboard."
+msgstr "Your browser blocked copying after confirmation. Click Copy to put it on your clipboard."
 
 msgid "not scheduled"
 msgstr "not scheduled"

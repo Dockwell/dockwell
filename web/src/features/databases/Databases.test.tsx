@@ -53,7 +53,7 @@ import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 import { gist } from "./DatabaseOverview";
 import { balancedColumns } from "./DatabasesPage";
-import { connectionURL, engineOfImage } from "./useDatabases";
+import { connectionURL, engineOfImage, externalConnectionURL } from "./useDatabases";
 
 const now = Date.now();
 
@@ -2089,5 +2089,83 @@ describe("how a database is backed up (#793)", () => {
       expect(router.state.location.pathname).toBe(`/servers/${SERVER}/terminal`);
       expect(router.state.location.search).toMatchObject({ container: "default-db-1", console: true });
     });
+  });
+
+  it("offers Back up now and Copy connection string (with step-up and conditional external URL) in the row menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const dbNoExternal = aDatabase({ id: "svc_db", externalAccess: undefined });
+    const dbExternal = aDatabase({
+      id: "svc_ext",
+      resource: { kind: "service", scope: ENV, name: "extdb" },
+      host: "extdb",
+      externalAccess: { port: 5432, allowFrom: ["203.0.113.7"] },
+    });
+
+    expect(externalConnectionURL(dbNoExternal, dbNoExternal.readings[0], "198.51.100.10", "pw")).toBe("");
+    expect(externalConnectionURL(dbExternal, dbExternal.readings[0], "198.51.100.10", "pw")).toBe(
+      "postgres://postgres:pw@198.51.100.10:5432/shop",
+    );
+    expect(externalConnectionURL(dbExternal, dbExternal.readings[0], "2001:db8::1", "pw")).toBe(
+      "postgres://postgres:pw@[2001:db8::1]:5432/shop",
+    );
+
+    const revealDirect = vi.fn(() => ({ value: "s3cr3t!" }));
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(
+        aServer({
+          id: SERVER,
+          name: "hz-1",
+          inventory: { osName: "Ubuntu 24.04.1 LTS", addresses: ["203.0.113.10"] },
+        }),
+      ),
+      snapshotComplete,
+    );
+    renderAt(
+      "/databases",
+      api([dbNoExternal, dbExternal], {
+        servers: { watchServers: watch.stream },
+        variables: {
+          listVariables: () => ({
+            variables: [{ id: "var_pw", name: "POSTGRES_PASSWORD", secret: true }],
+          }),
+          revealSecret: revealDirect,
+        },
+        backups: {
+          previewBackup: () => ({ method: BackupMethod.DUMP, database: "PostgreSQL", running: [] }),
+        },
+      }),
+    );
+
+    const table = await screen.findByRole("table", { name: "Databases" });
+
+    // Internal-only DB has no external copy action, and Back up now opens BackUpSheet.
+    await user.click(within(table).getByRole("button", { name: "Actions for db" }));
+    expect(screen.queryByRole("menuitem", { name: "Copy external connection string" })).toBeNull();
+    await user.click(await screen.findByRole("menuitem", { name: "Copy connection string" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("postgres://postgres:s3cr3t!@db:5432/shop"));
+    expect(revealDirect).toHaveBeenCalledTimes(1);
+
+    // Back up now opens the backup sheet for that volume.
+    await user.click(within(table).getByRole("button", { name: "Actions for db" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Back up now" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // External-access DB offers Copy external connection string using server address.
+    await user.click(within(table).getByRole("button", { name: "Actions for extdb" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Copy external connection string" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("postgres://postgres:s3cr3t!@203.0.113.10:5432/shop"));
+
+    // If reveal fails, nothing is copied.
+    writeText.mockClear();
+    revealDirect.mockImplementationOnce(() => {
+      throw new ConnectError("step-up cancelled", Code.PermissionDenied);
+    });
+    await user.click(within(table).getByRole("button", { name: "Actions for db" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Copy connection string" }));
+    expect(await screen.findByText("Connection string wasn't copied")).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
   });
 });

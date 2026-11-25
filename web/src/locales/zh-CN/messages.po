@@ -14801,6 +14801,21 @@ msgstr "+{left}"
 msgid "Beside it"
 msgstr "同环境服务"
 
+msgid "Connection string copied"
+msgstr "已复制连接字符串"
+
+msgid "Connection string copied without the password"
+msgstr "已复制连接字符串（不含密码）"
+
+msgid "Connection string wasn't copied"
+msgstr "未能复制连接字符串"
+
+msgid "Copy connection string"
+msgstr "复制连接字符串"
+
+msgid "Copy external connection string"
+msgstr "复制外部连接字符串"
+
 msgid "Create a database"
 msgstr "创建数据库"
 
@@ -14816,6 +14831,12 @@ msgstr "数据库引擎"
 msgid "Every engine"
 msgstr "所有数据库引擎"
 
+msgid "External connection string copied"
+msgstr "已复制外部连接字符串"
+
+msgid "External connection string copied without the password"
+msgstr "已复制外部连接字符串（不含密码）"
+
 msgid "Filter by name or engine"
 msgstr "按名称或引擎筛选"
 
@@ -14827,6 +14848,12 @@ msgstr "从应用目录安装，密码保存为密钥"
 
 msgid "In a volume Dockwell didn't make"
 msgstr "在非 Dockwell 创建的卷中"
+
+msgid "It has no volume to back up"
+msgstr "此数据库没有可备份的数据卷"
+
+msgid "Its volume isn't one Dockwell backs up"
+msgstr "Dockwell 不会备份此数据卷"
 
 msgid "Last run"
 msgstr "最近运行"
@@ -14868,6 +14895,9 @@ msgstr "读取数据库用户"
 msgid "Reading what happened"
 msgstr "正在读取动态"
 
+msgid "Ready to copy"
+msgstr "已准备好复制"
+
 msgid "Recent activity"
 msgstr "最近动态"
 
@@ -14879,6 +14909,9 @@ msgstr "在它的页面接管：它会继续运行，无需重启。"
 
 msgid "This database has no service to manage"
 msgstr "此数据库没有可管理的服务"
+
+msgid "Your browser blocked copying after confirmation. Click Copy to put it on your clipboard."
+msgstr "确认后浏览器阻止了自动复制。点击“复制”以写入剪贴板。"
 
 msgid "not scheduled"
 msgstr "未安排"

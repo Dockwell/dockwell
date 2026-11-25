@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
 import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
 import {
   type Backup,
+  BackupService,
   BackupState,
   ChangeService,
   type Database,
@@ -12,7 +14,9 @@ import {
   EventKind,
   EventService,
   type ServiceInfo,
+  StepUpAction,
   TerminalService,
+  VariableService,
 } from "@dockwell/api";
 import {
   Button,
@@ -33,6 +37,7 @@ import {
   Tag,
   Timeline,
   type TimelineEvent,
+  Toast,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -53,6 +58,8 @@ import { useShownName } from "../apps/names";
 import { PrepareServiceDelete, PreparingServiceAction, useServiceRowActions } from "../apps/ServiceRowActions";
 import { usePlaces, useServices, useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useAuthError } from "../auth/messages";
+import { withStepUpIfAsked } from "../auth/stepUp";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
@@ -79,11 +86,15 @@ import {
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
+import { REVEALED_FOR } from "../variables/useReveal";
+import { backsUp } from "./DatabaseOverview";
 import { Meter } from "./Meter";
 import {
+  connectionURL,
   consoleTarget,
   engineAndVersion,
   engineName,
+  externalConnectionURL,
   firstReading,
   policiesOf,
   readOf,
@@ -130,7 +141,8 @@ export function DatabasesPage({
   const count = databases.length;
   const place = useListPlace(search, onSearch, SORT_KEYS);
   const manage = useServiceRowActions((db: Database) => db.resource?.scope ?? "");
-  const actionsFor = useDatabaseActions(manage.actionsFor);
+  const rowTools = useDatabaseRowTools(manage.actionsFor);
+  const actionsFor = rowTools.actionsFor;
   const shownName = useShownName();
   const engineKinds = useMemo(
     () => [...new Map(databases.map((db) => [engineName(db.engine), db.engine])).entries()],
@@ -280,6 +292,7 @@ export function DatabasesPage({
       {manage.selected ? (
         <DatabaseRowPlan db={manage.selected.service} action={manage.selected.action} onClose={manage.close} />
       ) : null}
+      {rowTools.overlays}
     </Page>
   );
 }
@@ -370,17 +383,114 @@ function useColumnHeads(fleet: boolean) {
   }, [t, fleet]);
 }
 
+interface CopyFeedback {
+  tone: "healthy" | "info" | "critical";
+  title: string;
+  description?: string;
+  /** Held only when the browser blocked clipboard write after an async passkey prompt; cleared after REVEALED_FOR. */
+  pendingText?: string;
+}
+
 /**
- * A database's menu: its page, console, users and backups. Deleting one stays on its
- * page, where the users Dockwell made in it go with it in the same plan.
+ * A database's row menu: its page, console, back up now, connection string copy
+ * (internal, and external only when external access is on; passwords copied only
+ * after a step-up, as Reveal does), users and backups.
  */
-function useDatabaseActions(manage: (db: Database) => MenuAction[]): (db: Database) => MenuAction[] {
+function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
   const { t } = useLingui();
   const navigate = useNavigate();
+  const transport = useTransport();
+  const explain = useAuthError();
   const health = useHealth();
-  const mayConsole = useMay()(TerminalService.method.openTerminal);
-  return (db) => {
+  const { servers } = useFleetView();
+  const may = useMay();
+  const mayConsole = may(TerminalService.method.openTerminal);
+  const [backingUp, setBackingUp] = useState<Database>();
+  const [feedback, setFeedback] = useState<CopyFeedback>();
+
+  // Any revealed value held for a manual clipboard fallback expires with the same 60s window as Reveal.
+  useEffect(() => {
+    if (!feedback?.pendingText) return;
+    const timer = setTimeout(() => setFeedback(undefined), REVEALED_FOR);
+    return () => clearTimeout(timer);
+  }, [feedback?.pendingText]);
+
+  const externalAddressOf = (db: Database): string => {
+    const reading = firstReading(db);
+    const server = servers?.find((s) => s.id === reading?.serverId);
+    return server?.address || reading?.serverName || "";
+  };
+
+  const copyConnection = async (db: Database, mode: "internal" | "external") => {
+    const read = readOf(firstReading(db));
+    const environment = db.resource?.scope ?? "";
+    const externalHost = mode === "external" ? externalAddressOf(db) : "";
+    const build = (password: string | undefined) =>
+      mode === "external"
+        ? externalConnectionURL(db, read, externalHost, password)
+        : connectionURL(db, read, password);
+    const hasSecret = db.passwordSecret !== "" && !read?.checksNoOne;
+    const mayReveal = may(VariableService.method.revealSecret, { environment });
+
+    let password: string | undefined;
+    let omittedPassword = false;
+    if (hasSecret) {
+      if (!mayReveal.allowed) {
+        omittedPassword = true;
+      } else {
+        try {
+          const client = createClient(VariableService, transport);
+          const listed = await client.listVariables({ environment });
+          const secret = listed.variables.find((v) => v.secret && v.name === db.passwordSecret);
+          if (!secret) {
+            omittedPassword = true;
+          } else {
+            const revealed = await withStepUpIfAsked(transport, StepUpAction.REVEAL_SECRET, secret.id, (proof) =>
+              client.revealSecret({ id: secret.id, proof }),
+            );
+            password = revealed.value;
+          }
+        } catch (err) {
+          setFeedback({
+            tone: "critical",
+            title: t`Connection string wasn't copied`,
+            description: explain(err),
+          });
+          return;
+        }
+      }
+    }
+
+    const url = build(password);
+    if (!url) return;
+    const copiedTitle =
+      mode === "external"
+        ? omittedPassword
+          ? t`External connection string copied without the password`
+          : t`External connection string copied`
+        : omittedPassword
+          ? t`Connection string copied without the password`
+          : t`Connection string copied`;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(url);
+      setFeedback({ tone: omittedPassword ? "info" : "healthy", title: copiedTitle });
+    } catch {
+      setFeedback({
+        tone: "info",
+        title: t`Ready to copy`,
+        description: t`Your browser blocked copying after confirmation. Click Copy to put it on your clipboard.`,
+        pendingText: url,
+      });
+    }
+  };
+
+  const actionsFor = (db: Database): MenuAction[] => {
+    const environment = db.resource?.scope ?? "";
     const target = consoleTarget(db, health.of({ id: db.id }));
+    const mayBackUp = may(BackupService.method.createBackup, { environment });
+    const canBackUp = backsUp(db);
+    const externalHost = db.externalAccess ? externalAddressOf(db) : "";
     return [
       {
         id: "open",
@@ -408,6 +518,35 @@ function useDatabaseActions(manage: (db: Database) => MenuAction[]): (db: Databa
           ]
         : []),
       {
+        id: "backup",
+        icon: "archive",
+        label: t`Back up now`,
+        off: !canBackUp
+          ? db.volumeExternal
+            ? t`Its volume isn't one Dockwell backs up`
+            : t`It has no volume to back up`
+          : mayBackUp.allowed
+            ? undefined
+            : mayBackUp.reason,
+        onSelect: () => setBackingUp(db),
+      },
+      {
+        id: "copy-connection",
+        icon: "copy",
+        label: t`Copy connection string`,
+        onSelect: () => void copyConnection(db, "internal"),
+      },
+      ...(db.externalAccess && externalHost
+        ? [
+            {
+              id: "copy-external-connection",
+              icon: "copy" as const,
+              label: t`Copy external connection string`,
+              onSelect: () => void copyConnection(db, "external"),
+            },
+          ]
+        : []),
+      {
         id: "users",
         icon: "user",
         label: t`Users`,
@@ -422,6 +561,44 @@ function useDatabaseActions(manage: (db: Database) => MenuAction[]): (db: Databa
       ...manage(db),
     ];
   };
+
+  const overlays = (
+    <>
+      {backingUp ? (
+        <BackUpSheet
+          volumes={[{ id: backingUp.volumeId, name: backingUp.volume, environment: backingUp.resource?.scope ?? "" }]}
+          chosen={backingUp.volumeId}
+          onClose={() => setBackingUp(undefined)}
+        />
+      ) : null}
+      {feedback ? (
+        <div className="dw-toaster">
+          <Toast
+            tone={feedback.tone}
+            title={feedback.title}
+            description={feedback.description}
+            duration={feedback.pendingText ? undefined : 6000}
+            action={
+              feedback.pendingText
+                ? {
+                    label: t`Copy`,
+                    onClick: () => {
+                      const text = feedback.pendingText ?? "";
+                      void navigator.clipboard?.writeText(text).then(() => {
+                        setFeedback({ tone: "healthy", title: t`Connection string copied` });
+                      });
+                    },
+                  }
+                : undefined
+            }
+            onClose={() => setFeedback(undefined)}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+
+  return { actionsFor, overlays };
 }
 
 function DatabaseRowPlan({ db, action, onClose }: { db: Database; action: "move" | "delete"; onClose: () => void }) {

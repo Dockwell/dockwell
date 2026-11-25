@@ -156,17 +156,16 @@ export function engineAndVersion(db: Database, reading = readOf(firstReading(db)
   return `${engineName(db.engine)} ${versionOf(db, reading)}`;
 }
 
-/**
- * The URL a service beside it connects with: with the password where it's given, and
- * with none where it isn't, as a person copies it before revealing the secret.
- */
-export function connectionURL(
+function buildConnectionURL(
   db: Database,
   reading: DatabaseReading | undefined,
+  host: string,
+  port: number,
   password: string | undefined,
 ): string {
   const scheme = SCHEMES[db.engine];
-  const where = `${db.host}:${db.port}`;
+  const address = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  const where = `${address}:${port}`;
   const secret = password === undefined ? "" : `:${encodeURIComponent(password)}`;
   if (db.engine === DatabaseEngine.MONGODB) {
     // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.
@@ -178,6 +177,32 @@ export function connectionURL(
   const user = encodeURIComponent(firstUser(db, reading));
   const name = db.engine === DatabaseEngine.POSTGRESQL ? `/${firstDatabase(reading) || "postgres"}` : "";
   return `${scheme}://${user}${secret}@${where}${name}`;
+}
+
+/**
+ * The URL a service beside it connects with: with the password where it's given, and
+ * with none where it isn't, as a person copies it before revealing the secret.
+ */
+export function connectionURL(
+  db: Database,
+  reading: DatabaseReading | undefined,
+  password: string | undefined,
+): string {
+  return buildConnectionURL(db, reading, db.host, db.port, password);
+}
+
+/**
+ * The URL from outside the server, only when external access is on and the server's
+ * address is known. Empty otherwise.
+ */
+export function externalConnectionURL(
+  db: Database,
+  reading: DatabaseReading | undefined,
+  serverAddress: string,
+  password: string | undefined,
+): string {
+  if (!db.externalAccess || !serverAddress) return "";
+  return buildConnectionURL(db, reading, serverAddress, db.externalAccess.port || db.port, password);
 }
 
 /** The user a database's password is for: the one Dockwell signs in as, or the image's first. */
