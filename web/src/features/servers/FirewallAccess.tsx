@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
   type Fail2banBan,
@@ -17,6 +18,7 @@ import {
   type SshMatch,
   SshRootLogin,
   type SshSource,
+  StepUpAction,
 } from "@dockwell/api";
 import {
   Button,
@@ -37,6 +39,7 @@ import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { type Offer, useMay } from "../auth/may";
+import { withStepUpIfAsked } from "../auth/stepUp";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
 import { CopyButton } from "./CopyButton";
@@ -413,10 +416,7 @@ function useJailWords(): (jail: Fail2banJail) => string {
 }
 
 /**
- * fail2ban on a server, as Server-Firewall.dc.html's card has it, read-only for
- * now: whether it runs, its jails as it runs them, and the addresses banned
- * now. fail2ban keeps no history of its bans, so the chart of them waits for
- * one Dockwell keeps (ADR 0052).
+ * Fail2ban on a server: its jails, protection and current bans.
  */
 export function Fail2banPanel({ server, connected }: { server: Server; connected: boolean }) {
   const { t } = useLingui();
@@ -439,6 +439,11 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
   const readAgain = useReadAgainOnceOver(() => void read.refetch());
   const plan = (opening: Opening) => changes.open({ ...opening, onClose: readAgain });
   const [editing, setEditing] = useState<Editing>();
+  const [ban, setBan] = useState<{ jail: string; address: string } | "new">();
+  const mayBan = useMay()(FirewallService.method.setFail2banAddressBan, { install: true });
+  const managesBans = f2b?.managesJailsAndBans ?? false;
+  const active = f2b?.jails.filter((j) => j.running && !j.unreadable) ?? [];
+  const yourAddress = read.data?.yourAddress ?? "";
   const name = server.name;
   const badge = (() => {
     switch (f2b?.state) {
@@ -491,7 +496,18 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
   } else if (f2b.state === Fail2banState.UNREADABLE) {
     body = <Callout tone="warning">{f2b.why}</Callout>;
   } else {
-    body = <Jails server={server} jails={f2b.jails} onEdit={setEditing} open={plan} mayPlan={mayPlan} />;
+    body = (
+      <Jails
+        server={server}
+        jails={f2b.jails}
+        onEdit={setEditing}
+        open={plan}
+        mayPlan={mayPlan}
+        mayBan={mayBan}
+        managesBans={managesBans}
+        onUnban={(jail, address) => setBan({ jail, address })}
+      />
+    );
   }
   const running = f2b?.state === Fail2banState.RUNNING;
   const sshJail = f2b?.jails.find((j) => j.name === "sshd");
@@ -505,12 +521,27 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
               <Trans>Protect SSH</Trans>
             </Button>
           ) : null}
+          {running && managesBans && active.length > 0 ? (
+            <Button variant="secondary" size="sm" onClick={() => setBan("new")} {...mayBan.off}>
+              <Trans>Ban an address</Trans>
+            </Button>
+          ) : null}
           {badge}
         </>
       }
       className="firewall-fail2ban"
     >
       {body}
+      {ban ? (
+        <Fail2banAddressSheet
+          server={server}
+          jails={active}
+          unban={ban === "new" ? undefined : ban}
+          yourAddress={yourAddress}
+          onClose={() => setBan(undefined)}
+          onChanged={() => void read.refetch()}
+        />
+      ) : null}
       {editing ? (
         <JailSheet
           server={server}
@@ -650,7 +681,13 @@ function JailSheet({
     // Dockwell's own jail keeps everything the form doesn't show: its filter, what
     // it reads, and its ports, which a failed read of SSH's must never empty.
     const base = spec
-      ? { filter: spec.filter, backend: spec.backend, logPaths: [...spec.logPaths], ports: [...spec.ports] }
+      ? {
+          filter: spec.filter,
+          backend: spec.backend,
+          logPaths: [...spec.logPaths],
+          ports: [...spec.ports],
+          disabled: spec.disabled,
+        }
       : { filter: "sshd", backend: files.length > 0 ? "" : "systemd", logPaths: files, ports: [...sshPorts] };
     onClose();
     open({
@@ -797,6 +834,9 @@ function Jails({
   onEdit,
   open,
   mayPlan,
+  mayBan,
+  managesBans,
+  onUnban,
 }: {
   server: Server;
   jails: readonly Fail2banJail[];
@@ -805,9 +845,27 @@ function Jails({
   open: (opening: Opening) => void;
   /** Whether this reader may plan a change to a jail, and why not. */
   mayPlan: Offer;
+  mayBan: Offer;
+  managesBans: boolean;
+  onUnban: (jail: string, address: string) => void;
 }) {
   const { t } = useLingui();
   const name = server.name;
+  const setStopped = (jail: Fail2banJail) => {
+    if (!jail.spec) return;
+    const jailName = jail.name;
+    const disabled = !jail.spec.disabled;
+    open({
+      kind: "propose",
+      summary: disabled ? t`Stop the ${jailName} jail on ${name}` : t`Start the ${jailName} jail on ${name}`,
+      edits: [
+        {
+          resource: { kind: "fail2ban.jail", scope: server.id, name: jailName },
+          spec: { kind: { case: "fail2banJail", value: { ...jail.spec, disabled } } },
+        },
+      ],
+    });
+  };
   const remove = (jail: string) =>
     open({
       kind: "propose",
@@ -817,6 +875,7 @@ function Jails({
   const words = useJailWords();
   const time = useTimeWords();
   const now = useControlPlaneNow(SSH_EVERY_MS);
+  const [allBans, setAllBans] = useState(false);
   const bannedNow = jails.reduce((sum, j) => sum + j.bannedNow, 0);
   const bannedTotal = jails.reduce((sum, j) => sum + j.bannedTotal, 0);
   const bans: { jail: string; ban: Fail2banBan }[] = jails
@@ -827,7 +886,7 @@ function Jails({
         (a.ban.since ? timestampDate(a.ban.since).getTime() : 0),
     );
   // fail2ban's own count, as the agent sends only the latest of a jail's bans.
-  const more = Math.max(bans.length, bannedNow) - BANS_SHOWN;
+  const more = allBans ? bannedNow - bans.length : bannedNow - BANS_SHOWN;
   if (jails.length === 0) {
     return (
       <p className="firewall-note">
@@ -855,7 +914,11 @@ function Jails({
             <li key={j.name} className="firewall-jail">
               <div>
                 <code>{j.name}</code>
-                <span>{words(j)}</span>
+                {managesBans && !j.running && j.spec?.disabled ? (
+                  <StatusBadge status="stopped" label={t`Stopped`} labelIsState />
+                ) : (
+                  <span>{words(j)}</span>
+                )}
                 {j.unreadable ? <span>{j.unreadable}</span> : null}
                 {j.dockwell ? <span>{t`Dockwell writes this jail.`}</span> : null}
                 {j.name === "sshd" || j.dockwell ? (
@@ -869,6 +932,11 @@ function Jails({
                         {...mayPlan.off}
                       >
                         <Trans>Edit</Trans>
+                      </Button>
+                    ) : null}
+                    {managesBans && j.dockwell && j.spec ? (
+                      <Button variant="ghost" size="sm" onClick={() => setStopped(j)} {...mayPlan.off}>
+                        {j.spec.disabled ? t`Start jail` : t`Stop jail`}
                       </Button>
                     ) : null}
                     {j.dockwell ? (
@@ -896,18 +964,138 @@ function Jails({
             <Trans>Recent bans</Trans>
           </h3>
           <ul className="firewall-bans">
-            {bans.slice(0, BANS_SHOWN).map(({ jail, ban }) => (
+            {(allBans ? bans : bans.slice(0, BANS_SHOWN)).map(({ jail, ban }) => (
               <li key={`${jail}-${ban.address}`} className="firewall-ban">
                 <code>{ban.address}</code>
                 <span>{ban.since ? t`${jail} · ${time.ago(timestampDate(ban.since), now)}` : jail}</span>
+                {managesBans ? (
+                  <Button variant="ghost" size="sm" onClick={() => onUnban(jail, ban.address)} {...mayBan.off}>
+                    <Trans>Unban</Trans>
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
-          {more > 0 ? (
+          {bans.length > BANS_SHOWN ? (
+            <Button size="sm" variant="ghost" onClick={() => setAllBans((open) => !open)} aria-expanded={allBans}>
+              {allBans ? t`Show fewer bans` : t`Show all bans`}
+            </Button>
+          ) : null}
+          {more > 0 && (allBans || bans.length <= BANS_SHOWN) ? (
             <p className="firewall-note">{plural(more, { one: "and # more", other: "and # more" })}</p>
           ) : null}
         </section>
       ) : null}
     </div>
+  );
+}
+
+function Fail2banAddressSheet({
+  server,
+  jails,
+  unban,
+  yourAddress,
+  onClose,
+  onChanged,
+}: {
+  server: Server;
+  jails: readonly Fail2banJail[];
+  unban: { jail: string; address: string } | undefined;
+  yourAddress: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const client = createClient(FirewallService, transport);
+  const [jail, setJail] = useState(unban?.jail ?? jails[0]?.name ?? "");
+  const [address, setAddress] = useState(unban?.address ?? "");
+  const [review, setReview] = useState(!!unban);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const field = useRef<HTMLInputElement>(null);
+  const target = address.trim();
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (busy || !jail || !target) return;
+    if (!unban && yourAddress && target === yourAddress) {
+      setError(t`This is your current address. Choose another address to ban.`);
+      return;
+    }
+    setError(undefined);
+    if (!review) {
+      setReview(true);
+      return;
+    }
+    setBusy(true);
+    const request = { serverId: server.id, jail, address: target, banned: !unban };
+    try {
+      if (unban) await client.setFail2banAddressBan(request);
+      else {
+        await withStepUpIfAsked(transport, StepUpAction.BAN_FAIL2BAN_ADDRESS, "", (proof) =>
+          client.setFail2banAddressBan({ ...request, proof }),
+        );
+      }
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(sentence(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const name = server.name;
+  return (
+    <Sheet
+      open
+      title={unban ? t`Unban an address` : t`Ban an address`}
+      initialFocusRef={review ? undefined : field}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={review && !unban ? () => setReview(false) : onClose} disabled={busy}>
+            {review && !unban ? t`Back` : t`Cancel`}
+          </Button>
+          <Button
+            variant={review && !unban ? "danger" : "primary"}
+            onClick={() => void submit()}
+            disabled={!jail || !target || busy}
+          >
+            {unban ? t`Unban` : review ? t`Ban address` : t`Review plan`}
+          </Button>
+        </>
+      }
+    >
+      <form className="firewall-add" onSubmit={(event) => void submit(event)}>
+        {error ? <Callout tone="critical">{error}</Callout> : null}
+        {review ? (
+          <p className="firewall-note">
+            {unban
+              ? t`Unban ${target} in the ${jail} jail on ${name}.`
+              : t`Ban ${target} in the ${jail} jail on ${name}.`}
+          </p>
+        ) : (
+          <>
+            <TextField
+              ref={field}
+              label={t`IP address`}
+              mono
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="203.0.113.7"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+            <SelectField
+              label={t`Jail`}
+              value={jail}
+              options={jails.map((j) => ({ value: j.name, label: j.name }))}
+              onChange={(event) => setJail(event.target.value)}
+            />
+          </>
+        )}
+      </form>
+    </Sheet>
   );
 }

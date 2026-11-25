@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -171,9 +172,17 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
 	}
 	for _, e := range req.Msg.GetEdits() {
-		if e.GetMustCreate() && (e.GetDelete() || e.GetBaseRevision() != 0 || len(e.GetServers()) != 1 ||
-			(e.GetSpec().GetNetwork() == nil && e.GetSpec().GetVolume() == nil)) {
-			return nil, authapi.Invalid(errors.New("create-only needs a new network or volume and one server"))
+		if e.GetMustCreate() {
+			spec := e.GetSpec()
+			switch {
+			case spec.GetFirewallRule() != nil:
+				if e.GetDelete() || e.GetBaseRevision() != 0 || len(e.GetServers()) != 0 {
+					return nil, authapi.Invalid(errors.New("create-only needs a new firewall rule scoped to its server"))
+				}
+			case e.GetDelete() || e.GetBaseRevision() != 0 || len(e.GetServers()) != 1 ||
+				(spec.GetNetwork() == nil && spec.GetVolume() == nil):
+				return nil, authapi.Invalid(errors.New("create-only needs a new network or volume and one server"))
+			}
 		}
 		if how, ok := ownMethods[e.GetResource().GetKind()]; ok {
 			return nil, authapi.Invalid(errors.New(how))
@@ -190,8 +199,10 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 // words for, as a project it brings to life with an ID its services take, and
 // what the plan should say beside its steps.
 type Also struct {
-	Edits []revision.Edit
-	Notes []revision.Note
+	// ExternalAccess permits managed rule names in SetDatabaseExternalAccess.
+	ExternalAccess bool
+	Edits          []revision.Edit
+	Notes          []revision.Note
 	// IDs are what new resources the edits make are called, by what's edited, where
 	// the method chose one up front (revision.Edit.ID).
 	IDs map[resource.Ref]string
@@ -278,13 +289,24 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	if err != nil {
 		return nil, fail(err)
 	}
+	caller := authapi.ClientAddress(ctx)
 	for i := range edits {
+		if r, ok := edits[i].Spec.(*resourcev1.FirewallRule); ok {
+			name := edits[i].Ref.Name
+			if revision.ReservedFirewallRule(name) && !also.ExternalAccess {
+				return nil, authapi.Invalid(fmt.Errorf("%q is reserved for database external access. Rename the firewall rule or manage access on the database page", name))
+			}
+			if caller.IsValid() && r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY &&
+				slices.ContainsFunc(r.GetSources(), func(source string) bool { return firewall.SourceContains(source, caller) }) {
+				return nil, authapi.Invalid(errors.New("a deny source includes your current address. Choose an address or range that leaves yours out"))
+			}
+		}
 		// A method that read the spec says where it read it; an edit can say so itself.
 		if also.Base != 0 {
 			edits[i].Base = also.Base
 		}
 		edits[i].Pull, edits[i].Run = also.Pull, also.Run
-		edits[i].MustCreate = also.MustCreate[edits[i].Ref]
+		edits[i].MustCreate = also.MustCreate[edits[i].Ref] || (edits[i].Ref.Kind == firewall.Kind && edits[i].MustCreate)
 		if edits[i].Ref.Kind == compose.TemplateKind && edits[i].Base == 0 {
 			if edits[i].Spec == nil {
 				return nil, authapi.Invalid(errors.New("name the current revision to delete a Compose template"))
@@ -1194,7 +1216,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
 				EnvToSecrets: e.GetEnvToSecrets(), WithContents: e.GetWithContents(),
 				KeepSharedIn: e.GetKeepSharedIn(), DeleteShared: e.GetDeleteShared(),
-				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate(),
+				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate() && ref.Kind != firewall.Kind,
 			})
 		}
 		return nil

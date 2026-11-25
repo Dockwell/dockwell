@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/netip"
 	"slices"
 	"strings"
 	"sync"
@@ -442,6 +443,22 @@ func (a *Agents) Connected() []string {
 	return slices.Collect(maps.Keys(a.sessions))
 }
 
+// ServerAtAddress names a connected server whose stream comes from addr.
+func (a *Agents) ServerAtAddress(addr netip.Addr, except string) string {
+	if !addr.IsValid() {
+		return ""
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, id := range slices.Sorted(maps.Keys(a.sessions)) {
+		s := a.sessions[id]
+		if id != except && s.peerAddress == addr.Unmap() {
+			return s.name
+		}
+	}
+	return ""
+}
+
 // Session returns a server's stream, the one calls go to now, and whether it
 // is connected.
 func (a *Agents) Session(server string) (*Session, bool) {
@@ -504,18 +521,23 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 	}
 }
 
+type sessionPeer struct {
+	serial string
+	addr   netip.Addr
+}
+
 // open starts a session for a stream that has said hello. send writes to
 // the stream; Session.close ends the session when the stream does.
-func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, serial ...string) *Session {
+func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, peers ...sessionPeer) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
-	if len(serial) > 0 {
-		s.serial = serial[0]
+	if len(peers) > 0 {
+		s.serial, s.peerAddress = peers[0].serial, peers[0].addr
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
@@ -637,11 +659,12 @@ func (a *Agents) connected(server string) {
 
 // Session is one stream to a server's agent, and the calls waiting on it.
 type Session struct {
-	serial  string
-	agents  *Agents
-	server  string
-	name    string
-	version string
+	peerAddress netip.Addr
+	serial      string
+	agents      *Agents
+	server      string
+	name        string
+	version     string
 	// kicked closes as the server is removed, which ends its stream at once
 	// (ADR 0090), and kickOnce closes it once.
 	kicked   chan struct{}
@@ -742,8 +765,10 @@ type Session struct {
 	// transfersFiles says the agent uploads and downloads them.
 	transfersFiles bool
 	// archivesFiles says the agent compresses, extracts, and downloads selections as zip.
-	archivesFiles bool
-	managesSSH    bool
+	archivesFiles   bool
+	managesSSH      bool
+	managesFirewall bool
+	guardsDockerUDP bool
 	// firstPasswords says the agent changes a database's first user's password in
 	// it as its service restarts with a new one (ADR 0038).
 	firstPasswords bool
@@ -1923,6 +1948,21 @@ func (s *Session) seal(ref resource.Ref, values map[string]string) ([]byte, erro
 // it writes them in, which would run ${NAME} as the words it is: a password anyone who
 // can read the plan knows.
 func (s *Session) checkWrites(ref resource.Ref, spec proto.Message) error {
+	if !s.managesFirewall {
+		switch v := spec.(type) {
+		case *resourcev1.FirewallRule:
+			if v.GetPort() == 0 {
+				return fmt.Errorf("%w: update the agent on %s before applying a firewall rule for all ports", resource.ErrAgentTooOld, s.name)
+			}
+		case *resourcev1.Jail:
+			if v.GetDisabled() {
+				return fmt.Errorf("%w: update the agent on %s before stopping a fail2ban jail", resource.ErrAgentTooOld, s.name)
+			}
+		}
+	}
+	if p, ok := spec.(*resourcev1.FirewallPolicy); ok && p.GetGuardDockerPorts() && (!s.managesFirewall || !s.guardsDockerUDP) {
+		return fmt.Errorf("%w: update the agent on %s before guarding Docker ports", resource.ErrAgentTooOld, s.name)
+	}
 	if s.writesReferences || spec == nil || !binding.WritesReferences(spec) {
 		return nil
 	}

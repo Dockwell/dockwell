@@ -163,7 +163,7 @@ func (s state) clone() state {
 }
 
 func (s state) empty() bool {
-	return len(s.Rules) == 0 && !s.Policy.GetDenyEverythingElse() && len(s.SSHOpen) == 0
+	return len(s.Rules) == 0 && !s.Policy.GetDenyEverythingElse() && !s.Policy.GetGuardDockerPorts() && len(s.SSHOpen) == 0
 }
 
 // confirmedState is what was last confirmed, and the table it loaded as, which
@@ -364,30 +364,35 @@ func (m *Manager) Applied() Applied {
 type Exposed struct {
 	Port     uint16
 	Protocol string
+	// Proxied is whether Docker takes this traffic through the input chain.
+	Proxied bool
 	// What is the container a port Docker publishes goes to. Empty for what
 	// listens on the server itself.
 	What string
 }
 
-// Closes says what turning deny everything else on would close, as the server
-// is now: each port that listens or that Docker publishes and that no rule
-// confirmed lets in from anywhere. SSH's ports and the control plane's own
-// stay let in by their pins, so they aren't there.
-func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
-	if !desired.GetDenyEverythingElse() || m.Exposed == nil {
+// Closes names listening and published ports the proposed policy may close.
+func (m *Manager) Closes(ctx context.Context, desired *resourcev1.FirewallPolicy) []string {
+	if (!desired.GetDenyEverythingElse() && !desired.GetGuardDockerPorts()) || m.Exposed == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
 	defer cancel()
 	exposed, err := m.Exposed(ctx)
 	if err != nil {
 		return nil
 	}
-	h := m.readHost(ctx)
+	h := m.plannedHost(ctx).host
 	m.mu.Lock()
-	s := m.confirmed.clone()
+	before := m.confirmed.clone()
 	m.mu.Unlock()
-	pins := withPinned(h.pins, s.Pinned, nil)
+	next := before.clone()
+	editFirewall(ctx, &next, resource.Ref{Kind: firewall.PolicyKind}, nil, desired)
+	pins := withPinned(h.pins, next.Pinned, nil)
+	var proxied []uint16
+	if m.Proxied != nil {
+		proxied = m.Proxied()
+	}
 	slices.SortFunc(exposed, func(a, b Exposed) int {
 		return cmp.Or(cmp.Compare(a.Port, b.Port), cmp.Compare(a.Protocol, b.Protocol), cmp.Compare(a.What, b.What))
 	})
@@ -396,9 +401,7 @@ func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
 		if e.Protocol == "tcp" && (slices.Contains(pins.Own, e.Port) || slices.Contains(pins.SSHPorts, e.Port)) {
 			continue
 		}
-		if slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
-			return !isDeny(r) && protocolOf(r) == e.Protocol && portOf(r) == e.Port && len(r.GetSources()) == 0
-		}) {
+		if !policyCloses(next, e, proxied) || policyCloses(before, e, proxied) {
 			continue
 		}
 		label := fmt.Sprintf("%d/%s", e.Port, e.Protocol)
@@ -408,6 +411,23 @@ func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
 		out = appendNew(out, label)
 	}
 	return out
+}
+
+func policyCloses(s state, e Exposed, proxied []uint16) bool {
+	published := e.What != "" && !e.Proxied
+	guard := published && s.Policy.GetGuardDockerPorts()
+	if guard && e.Protocol == "tcp" && slices.Contains(proxied, e.Port) {
+		return false
+	}
+	if !s.Policy.GetDenyEverythingElse() && (!guard || e.Protocol == "udp" && !s.Policy.GetGuardDockerUdp()) {
+		return false
+	}
+	for _, r := range s.Rules {
+		if !isDeny(r) && matchesPort(r, e.Protocol, e.Port) && len(r.GetSources()) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // KeepCurrent renders the confirmed table again whenever Docker's networks
@@ -655,7 +675,7 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, mov
 	}
 	next, tbl, pins, err := m.prepareLocked(ctx, next, host, false)
 	if err == nil {
-		err = check(next, pins, m.PanelOverSSH)
+		err = m.check(next, pins)
 	}
 	if err == nil && trial != nil && trial.ProofPeer.IsValid() && !sshPeerReachable(tbl, trial) {
 		err = fmt.Errorf("the kept firewall would block SSH from %s on port %d. Choose a client address that will stay allowed", trial.ProofPeer, trial.Port)
@@ -1326,7 +1346,13 @@ func (m *Manager) prepareLocked(ctx context.Context, s state, h hostNow, rollbac
 		// deny everything else off, and keep that change.
 		s.Pinned = Pinned{}
 	}
-	return s, render(s, pins, nets), pins, nil
+	tbl := render(s, pins, nets)
+	if tbl.GuardDockerPorts && m.Proxied != nil {
+		if ports := m.Proxied(); len(ports) > 0 {
+			tbl.DockerPins = []nftables.Rule{{Name: "pin control plane through proxy", Protocol: "tcp", Ports: ports}}
+		}
+	}
+	return s, tbl, pins, nil
 }
 
 // withPinned is the pins found now, less sessions from Docker's networks, with
@@ -1354,7 +1380,7 @@ func withPinned(found Pins, kept Pinned, docker []netip.Prefix) Pins {
 
 // render is the table a state loads as.
 func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
-	t := nftables.Table{Pins: pins.Rules(), DenyRest: s.Policy.GetDenyEverythingElse(), NoDocker: nets.None}
+	t := nftables.Table{Pins: pins.Rules(), DenyRest: s.Policy.GetDenyEverythingElse(), GuardDockerPorts: s.Policy.GetGuardDockerPorts(), GuardDockerUDP: s.Policy.GetGuardDockerUdp(), NoDocker: nets.None}
 	if port := s.SSH.GetPort(); len(s.SSHOpen) > 0 && port > 0 && port <= 65535 {
 		t.Pins = append(t.Pins, nftables.Rule{Name: "ssh managed listener", Protocol: "tcp", Ports: []uint16{uint16(port)}, Sources: slices.Clone(s.SSHOpen)})
 	}
@@ -1375,7 +1401,10 @@ func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
 
 // nftablesRule is a rule as the table writes it.
 func nftablesRule(name string, r *resourcev1.FirewallRule) nftables.Rule {
-	out := nftables.Rule{Name: "rule " + name, Protocol: protocolOf(r), Ports: []uint16{portOf(r)}}
+	out := nftables.Rule{Name: "rule " + name, Protocol: protocolOf(r)}
+	if port := portOf(r); port != 0 {
+		out.Ports = []uint16{port}
+	}
 	for _, s := range r.GetSources() {
 		if p, err := netip.ParsePrefix(s); err == nil {
 			out.Sources = append(out.Sources, p)
@@ -1384,7 +1413,14 @@ func nftablesRule(name string, r *resourcev1.FirewallRule) nftables.Rule {
 	return out
 }
 
+func matchesPort(r *resourcev1.FirewallRule, protocol string, port uint16) bool {
+	return (portOf(r) == 0 || portOf(r) == port) && (protocolOf(r) == "" || protocolOf(r) == protocol)
+}
+
 func protocolOf(r *resourcev1.FirewallRule) string {
+	if r.GetPort() == 0 && r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UNSPECIFIED {
+		return ""
+	}
 	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
 		return "udp"
 	}
@@ -1399,23 +1435,43 @@ func isDeny(r *resourcev1.FirewallRule) bool {
 	return r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY
 }
 
-// CheckRule refuses, when it's planned, a change to a rule that leaves the
-// server unsafe to reach, as check judges the state it leaves: actual is the
-// rule now, nil for a new one, and desired what it becomes, nil to delete it.
-func (m *Manager) CheckRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) error {
-	return m.checkPlan(ctx, func(s *state) {
-		if actual != nil {
+// CheckRule judges all firewall edits on this server together.
+func (m *Manager) CheckRule(ctx context.Context, ref resource.Ref, actual, desired *resourcev1.FirewallRule) error {
+	return m.checkPlan(ctx, ref, actual, desired)
+}
+
+// editFirewall applies the firewall portion of the plan to the confirmed state.
+func editFirewall(ctx context.Context, s *state, ref resource.Ref, actual, desired proto.Message) {
+	apply := func(ref resource.Ref, spec proto.Message) {
+		switch ref.Kind {
+		case firewall.Kind:
+			if r, _ := spec.(*resourcev1.FirewallRule); r != nil {
+				s.Rules[ref.Name] = r
+			} else {
+				delete(s.Rules, ref.Name)
+			}
+		case firewall.PolicyKind:
+			s.Policy, _ = spec.(*resourcev1.FirewallPolicy)
+		}
+	}
+	edits := resource.DesiredIn(ctx)
+	for i := range edits {
+		apply(edits[i].Ref, edits[i].Spec)
+	}
+	// A standalone Driver.Plan has no resource reference. Match its old
+	// spec, if it has one, as opposed to guessing which named rule it edits.
+	if ref.Kind == firewall.Kind && ref.Name == "" {
+		ref.Name = "\x00planned"
+		if actual, _ := actual.(*resourcev1.FirewallRule); actual != nil {
 			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
 				if proto.Equal(s.Rules[name], actual) {
-					delete(s.Rules, name)
+					ref.Name = name
 					break
 				}
 			}
 		}
-		if desired != nil {
-			s.Rules["\x00planned"] = desired
-		}
-	})
+	}
+	apply(ref, desired)
 }
 
 // WaysIn are the ways into the server, for the firewall's plan to warn only of
@@ -1522,27 +1578,15 @@ type Tunnel struct {
 	Port uint16
 }
 
-// StaysAfterRule says who still reaches SSH once a planned edit to a rule is
-// kept, or nil when it leaves SSH open to anywhere.
-func (m *Manager) StaysAfterRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) *resource.AccessStays {
-	return m.stays(ctx, func(s *state) {
-		if actual != nil {
-			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
-				if proto.Equal(s.Rules[name], actual) {
-					delete(s.Rules, name)
-					break
-				}
-			}
-		}
-		if desired != nil {
-			s.Rules["\x00planned"] = desired
-		}
-	}, false)
+// StaysAfterRule names live sessions covered by the rule and who still
+// reaches SSH after the planned change.
+func (m *Manager) StaysAfterRule(ctx context.Context, ref resource.Ref, actual, desired *resourcev1.FirewallRule) *resource.AccessStays {
+	return m.stays(ctx, ref, actual, desired, false)
 }
 
 // StaysAfterPolicy says who still reaches SSH once a planned policy is kept.
 func (m *Manager) StaysAfterPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) *resource.AccessStays {
-	return m.stays(ctx, func(s *state) { s.Policy = desired }, desired.GetDenyEverythingElse())
+	return m.stays(ctx, resource.Ref{Kind: firewall.PolicyKind}, nil, desired, desired.GetDenyEverythingElse())
 }
 
 // stays judges what was confirmed, as one planned edit leaves it, as the
@@ -1552,7 +1596,7 @@ func (m *Manager) StaysAfterPolicy(ctx context.Context, desired *resourcev1.Fire
 // ports on the control server. Nil when there's nothing of it to say. What it
 // can't read, it leaves out: the plan-time check has refused by then what
 // can't be judged.
-func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *resource.AccessStays {
+func (m *Manager) stays(ctx context.Context, ref resource.Ref, actual, desired proto.Message, turnsOn bool) *resource.AccessStays {
 	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
 	defer cancel()
 	read := m.plannedHost(ctx)
@@ -1563,12 +1607,21 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 	m.mu.Lock()
 	before := m.confirmed.clone()
 	next := m.confirmed.clone()
-	fn(&next)
+	editFirewall(ctx, &next, ref, actual, desired)
 	nets, _ := m.networksLocked(ctx, h)
 	m.mu.Unlock()
 	pins := withPinned(h.pins, next.Pinned, nets.Subnets)
 	out := &resource.AccessStays{}
-	if narrowsSSH(next, pins.SSHPorts) {
+	if r, _ := desired.(*resourcev1.FirewallRule); isDeny(r) &&
+		slices.ContainsFunc(sshPortsOr22(pins.SSHPorts), func(port uint16) bool { return matchesPort(r, "tcp", port) }) {
+		for _, from := range h.pins.SSHFrom {
+			if ruleCovers(r, from.Addr()) {
+				out.SSHSessionsCovered = appendNew(out.SSHSessionsCovered, from.Addr().String())
+			}
+		}
+		slices.Sort(out.SSHSessionsCovered)
+	}
+	if broadlyNarrowsSSH(next, pins.SSHPorts) {
 		for _, p := range sshPortsOr22(pins.SSHPorts) {
 			out.SSHPorts = append(out.SSHPorts, uint32(p))
 		}
@@ -1577,7 +1630,7 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 		}
 		for _, name := range slices.Sorted(maps.Keys(next.Rules)) {
 			r := next.Rules[name]
-			if isDeny(r) || protocolOf(r) != "tcp" || !slices.Contains(sshPortsOr22(pins.SSHPorts), portOf(r)) {
+			if isDeny(r) || !slices.ContainsFunc(sshPortsOr22(pins.SSHPorts), func(port uint16) bool { return matchesPort(r, "tcp", port) }) {
 				continue
 			}
 			for _, src := range r.GetSources() {
@@ -1595,7 +1648,7 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 	if read.tunnelsRead && next.Policy.GetDenyEverythingElse() {
 		allowedIn := func(s state, port uint16) bool {
 			return port != 0 && slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
-				return !isDeny(r) && protocolOf(r) == "udp" && portOf(r) == port
+				return !isDeny(r) && matchesPort(r, "udp", port)
 			})
 		}
 		for _, t := range read.tunnels {
@@ -1608,7 +1661,7 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 			}
 		}
 	}
-	if len(out.SSHPorts)+len(out.PanelPorts)+len(out.Tunnels) == 0 {
+	if len(out.SSHPorts)+len(out.PanelPorts)+len(out.Tunnels)+len(out.SSHSessionsCovered) == 0 {
 		return nil
 	}
 	return out
@@ -1617,13 +1670,18 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 // CheckPolicy refuses, when it's planned, a policy that leaves the server
 // unsafe to reach, as check judges the state it leaves; nil removes it.
 func (m *Manager) CheckPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) error {
-	return m.checkPlan(ctx, func(s *state) { s.Policy = desired })
+	if desired.GetGuardDockerPorts() {
+		h := m.plannedHost(ctx).host
+		if m.Docker == nil || h.dockerErr != nil || h.docker.None || len(h.docker.Interfaces) == 0 {
+			return errors.New("the server's Docker bridge interfaces couldn't be identified. Check Docker and plan again")
+		}
+	}
+	return m.checkPlan(ctx, resource.Ref{Kind: firewall.PolicyKind}, nil, desired)
 }
 
-// checkPlan judges what was confirmed, as one planned edit leaves it, as the
-// server is now. The step checks again as it applies, over all the change's
-// edits so far, as the server is then.
-func (m *Manager) checkPlan(ctx context.Context, fn func(*state)) error {
+// checkPlan judges the final planned state before any step loads. Each apply
+// also checks the state it is about to load, using fresh host information.
+func (m *Manager) checkPlan(ctx context.Context, ref resource.Ref, actual, desired proto.Message) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
 	defer cancel()
 	h := m.plannedHost(ctx).host
@@ -1633,10 +1691,10 @@ func (m *Manager) checkPlan(ctx context.Context, fn func(*state)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	next := m.confirmed.clone()
-	fn(&next)
+	editFirewall(ctx, &next, ref, actual, desired)
 	// A Docker that doesn't answer only leaves its containers' sessions in.
 	nets, _ := m.networksLocked(ctx, h)
-	return check(next, withPinned(h.pins, next.Pinned, nets.Subnets), m.PanelOverSSH)
+	return m.check(next, withPinned(h.pins, next.Pinned, nets.Subnets))
 }
 
 // sshPortsOr22 are SSH's ports, or 22 where Dockwell found none.
@@ -1650,7 +1708,7 @@ func sshPortsOr22(ports []uint16) []uint16 {
 // allowsFromAnywhere reports a rule that lets a TCP port in from anywhere.
 func allowsFromAnywhere(s state, port uint16) bool {
 	for _, r := range s.Rules {
-		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0 {
+		if !isDeny(r) && matchesPort(r, "tcp", port) && len(r.GetSources()) == 0 {
 			return true
 		}
 	}
@@ -1660,49 +1718,98 @@ func allowsFromAnywhere(s state, port uint16) bool {
 // allows reports a rule that lets a TCP port in, from anywhere or from some.
 func allows(s state, port uint16) bool {
 	for _, r := range s.Rules {
-		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port {
+		if !isDeny(r) && matchesPort(r, "tcp", port) {
 			return true
 		}
 	}
 	return false
 }
 
-// narrowsSSH reports a state that closes SSH to someone: a deny of one of its
-// ports, or deny everything else with a port of SSH's that no rule lets in
-// from anywhere. Only then does who is pinned decide who gets in.
+// narrowsSSH reports if an SSH port would be closed to any source.
 func narrowsSSH(s state, ports []uint16) bool {
-	ports = sshPortsOr22(ports)
-	for _, r := range s.Rules {
-		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
+	for _, port := range sshPortsOr22(ports) {
+		if allowsFromAnywhere(s, port) {
+			continue
+		}
+		if s.Policy.GetDenyEverythingElse() {
 			return true
 		}
-	}
-	if !s.Policy.GetDenyEverythingElse() {
-		return false
-	}
-	for _, port := range ports {
-		if !allowsFromAnywhere(s, port) {
-			return true
+		for _, r := range s.Rules {
+			if isDeny(r) && matchesPort(r, "tcp", port) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// check refuses a state the server can't take safely, as the pins say: a deny
-// of a port the control plane listens on, which its pin would let in anyway;
-// or, with nobody's address pinned to SSH, anything that narrows SSH: a deny of
-// one of its ports, or deny everything else with no allow of each of its ports
-// from anywhere. Where Dockwell finds no SSH at all, port 22 stands for it.
+// broadlyNarrowsSSH is a narrowed default for SSH, as opposed to a deny of
+// named addresses. Only a narrowed default can make SSH open only from pins
+// and allows.
+func broadlyNarrowsSSH(s state, ports []uint16) bool {
+	for _, port := range sshPortsOr22(ports) {
+		if allowsFromAnywhere(s, port) {
+			continue
+		}
+		if s.Policy.GetDenyEverythingElse() {
+			return true
+		}
+		for _, r := range s.Rules {
+			if isDeny(r) && matchesPort(r, "tcp", port) && (len(r.GetSources()) == 0 ||
+				slices.Contains(r.GetSources(), "0.0.0.0/0") || slices.Contains(r.GetSources(), "::/0")) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func ruleCovers(r *resourcev1.FirewallRule, address netip.Addr) bool {
+	return len(r.GetSources()) == 0 ||
+		slices.ContainsFunc(r.GetSources(), func(source string) bool { return firewall.SourceContains(source, address) })
+}
+
+func (m *Manager) check(s state, pins Pins) error {
+	if m.Proxied != nil {
+		proxied := m.Proxied()
+		for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
+			r := s.Rules[name]
+			if portOf(r) == 0 && isDeny(r) {
+				for _, port := range proxied {
+					if matchesPort(r, "tcp", port) {
+						return fmt.Errorf("%s would deny TCP port %d, which is used to reach the control plane through a proxy. Use rules for the ports you want to deny and leave that port out", name, port)
+					}
+				}
+			}
+		}
+	}
+	return check(s, pins, m.PanelOverSSH)
+}
+
+// check refuses a rule that would deny a control plane listener or narrow
+// SSH without a way in. On an SSH-only panel, a deny of named addresses must
+// also leave the SSH peers the agent knows able to reconnect.
 func check(s state, p Pins, panelOverSSH bool) error {
 	names := slices.Sorted(maps.Keys(s.Rules))
-	if panelOverSSH && narrowsSSH(s, p.SSHPorts) {
-		// The panel here has no domain, so it's reached through SSH: a pin holds
-		// only while the address it names does, and losing SSH loses the panel
-		// too. Whatever narrows SSH, the policy or a deny of its port, is refused
-		// while a port of SSH's has no rule that allows it.
-		for _, port := range sshPortsOr22(p.SSHPorts) {
-			if !allows(s, port) {
-				return fmt.Errorf("the panel on this server has no domain, so you reach it through SSH, and this would leave SSH open only from the addresses signed in now. If yours changes, you lose SSH and the panel at once. Add a rule that allows port %d first, from anywhere or from the ranges you'll come from, then plan this again", port)
+	ports := sshPortsOr22(p.SSHPorts)
+	if panelOverSSH {
+		for _, port := range ports {
+			if broadlyNarrowsSSH(s, []uint16{port}) && !allows(s, port) {
+				return fmt.Errorf("the panel on this server has no domain and this would restrict new SSH connections. Add a rule that allows port %d from where you connect, then plan again", port)
+			}
+			for _, name := range names {
+				r := s.Rules[name]
+				if !isDeny(r) || !matchesPort(r, "tcp", port) || len(r.GetSources()) == 0 {
+					continue
+				}
+				for _, peer := range p.SSHFrom {
+					if ruleCovers(r, peer.Addr()) && !slices.ContainsFunc(names, func(name string) bool {
+						allow := s.Rules[name]
+						return !isDeny(allow) && matchesPort(allow, "tcp", port) && ruleCovers(allow, peer.Addr())
+					}) {
+						return fmt.Errorf("%s includes SSH address %s, which may be in use for the panel. Leave that address out or allow it on TCP port %d", name, peer.Addr(), port)
+					}
+				}
 			}
 		}
 	}
@@ -1712,31 +1819,13 @@ func check(s state, p Pins, panelOverSSH bool) error {
 			return fmt.Errorf("this would deny port %d, which the control plane on this server listens on, for the panel or its agents. Leave that port out", portOf(r))
 		}
 	}
-	if len(p.SSHFrom) > 0 {
+	if len(p.SSHFrom) > 0 || !narrowsSSH(s, p.SSHPorts) {
 		return nil
 	}
-	ports, refuse := p.SSHPorts, errNoSession
-	if len(ports) == 0 {
-		ports, refuse = []uint16{22}, errNoSSH
+	if len(p.SSHPorts) == 0 {
+		return errNoSSH
 	}
-	for _, name := range names {
-		r := s.Rules[name]
-		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
-			return refuse
-		}
-	}
-	if s.Policy.GetDenyEverythingElse() {
-		for _, port := range ports {
-			open := slices.ContainsFunc(names, func(name string) bool {
-				r := s.Rules[name]
-				return !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0
-			})
-			if !open {
-				return refuse
-			}
-		}
-	}
-	return nil
+	return errNoSession
 }
 
 var (

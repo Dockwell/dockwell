@@ -902,9 +902,8 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
         out.push({
           key: `closes-${key}`,
           amber: true,
-          title: t`Deny everything else closes what no rule lets in on ${server.serverName}`,
-          detail: t`It closes ${closes}: add a rule for any you mean to keep open.`,
-          more: t`These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open.`,
+          title: t`Ports this plan would close on ${server.serverName}`,
+          detail: t`Add a rule for any of these ports you want to keep open: ${closes}.`,
         });
       }
       // Who SSH stays open from, by name: a pin holds only while its address does.
@@ -920,6 +919,15 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
             : t`SSH on ${server.serverName} stays open from nowhere`,
           detail: t`To keep it open from more, add a rule that allows port ${ports} first.`,
           more: t`If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later.`,
+        });
+      }
+      if (stays?.sshSessionsCovered.length && !applied) {
+        const peers = stays.sshSessionsCovered.join(", ");
+        out.push({
+          key: `ssh-sessions-${key}`,
+          amber: true,
+          title: t`This deny covers addresses with open SSH sessions on ${server.serverName}`,
+          detail: t`${peers} stay connected. Check that you can reconnect before you keep the change.`,
         });
       }
       if (stays && stays.tunnels.length > 0 && !applied) {
@@ -1069,6 +1077,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     const key = `note-${i}`;
     const name = note.resource?.name ?? "";
     switch (note.reason) {
+      case "firewall_all_ports":
+        return { key, title: t`${name} now covers every port for its selected protocols and addresses`, amber: true };
       case "managed_elsewhere":
         return managed(note, key);
       case "provider_serves_every_project": {

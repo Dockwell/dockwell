@@ -99,7 +99,7 @@ func (h *Handler) SetDatabaseExternalAccess(ctx context.Context, req *connect.Re
 	// The port: the one it's tagged on; or one it publishes beyond its server already,
 	// on its engine's port, which is then held to the list rather than left open beside
 	// a new one; or its engine's port, or the next no other service publishes.
-	also := changes.Also{}
+	also := changes.Also{ExternalAccess: true}
 	var port uint32
 	if i := slices.IndexFunc(app.GetPorts(), func(p *resourcev1.PortMapping) bool { return p.GetExternal() }); i >= 0 {
 		port = app.Ports[i].GetHostPort()

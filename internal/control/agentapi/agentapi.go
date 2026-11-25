@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"net/netip"
 	"slices"
 	"sync"
 	"time"
@@ -309,7 +310,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	if h.agents != nil {
-		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send, peer.Serial)
+		at, _ := netip.ParseAddrPort(stream.Peer().Addr)
+		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send, sessionPeer{serial: peer.Serial, addr: at.Addr().WithZone("").Unmap()})
 		defer session.close()
 		go h.tellPublicAddress(ctx, peer.ServerID, session)
 	}

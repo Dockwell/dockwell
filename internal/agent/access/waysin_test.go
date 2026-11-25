@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 )
 
@@ -95,8 +96,8 @@ func TestEachPlanReadsTheServerOnce(t *testing.T) {
 	}
 	plan := func(ctx context.Context, port uint32) {
 		m.WaysIn(ctx)
-		_ = m.CheckRule(ctx, nil, rule(port))
-		m.StaysAfterRule(ctx, nil, rule(port))
+		_ = m.CheckRule(ctx, resource.Ref{Kind: firewall.Kind, Name: "test"}, nil, rule(port))
+		m.StaysAfterRule(ctx, resource.Ref{Kind: firewall.Kind, Name: "test"}, nil, rule(port))
 	}
 	one := m.Planning(t.Context())
 	plan(one, 5432)

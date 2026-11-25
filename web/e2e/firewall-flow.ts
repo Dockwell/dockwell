@@ -48,17 +48,42 @@ const sshdT = (port: number) =>
   ].join("\n");
 
 /** fail2ban-client 1.0.2 with an sshd jail that reads the journal and bans two addresses. */
-const fail2banClient = `case "$*" in
+const fail2banClient = `state="$0.bans"
+first=198.51.100.77
+second=192.0.2.211
+bans="$first $second"
+if [ -f "$state" ]; then bans=$(cat "$state"); fi
+config="$(dirname "$0")/../../etc/fail2ban/jail.d/dockwell.conf"
+case "$*" in
 version) echo 1.0.2 ;;
 ping) echo 'Server replied: pong' ;;
-status) printf 'Status\\n|- Number of jail:\\t1\\n\`- Jail list:\\tsshd\\n' ;;
-"status sshd") printf 'Status for the jail: sshd\\n|- Filter\\n|  |- Currently failed:\\t1\\n|  |- Total failed:\\t27\\n|  \`- Journal matches:\\t_SYSTEMD_UNIT=sshd.service + _COMM=sshd\\n\`- Actions\\n   |- Currently banned:\\t2\\n   |- Total banned:\\t5\\n   \`- Banned IP list:\\t198.51.100.77 192.0.2.211\\n' ;;
+status)
+  if [ -f "$config" ] && grep -q '^enabled = false$' "$config"; then
+    printf 'Status\\n|- Number of jail:\\t0\\n\`- Jail list:\\t\\n'
+  else
+    printf 'Status\\n|- Number of jail:\\t1\\n\`- Jail list:\\tsshd\\n'
+  fi ;;
+"status sshd") set -- $bans; printf 'Status for the jail: sshd\\n|- Filter\\n|  |- Currently failed:\\t1\\n|  |- Total failed:\\t27\\n|  \`- Journal matches:\\t_SYSTEMD_UNIT=sshd.service + _COMM=sshd\\n\`- Actions\\n   |- Currently banned:\\t%s\\n   |- Total banned:\\t5\\n   \`- Banned IP list:\\t%s\\n' "$#" "$bans" ;;
 "get sshd maxretry") echo 5 ;;
 "get sshd findtime") echo 600 ;;
 "get sshd bantime") echo 3600 ;;
 -t) echo "OK: configuration test is successful" ;;
 reload) echo OK ;;
-"get sshd banip --with-time") printf '198.51.100.77 \\t2026-11-08 03:10:00 + 3600 = 2026-11-08 04:10:00\\n192.0.2.211 \\t2026-11-08 02:40:00 + 3600 = 2026-11-08 03:40:00\\n' ;;
+"get sshd ignoreip") echo '127.0.0.0/8 ::1' ;;
+"get sshd banip --with-time")
+  for addr in $bans; do
+    case "$addr" in
+      "$first") printf '%s \\t2026-11-08 03:10:00 + 3600 = 2026-11-08 04:10:00\\n' "$addr" ;;
+      "$second") printf '%s \\t2026-11-08 02:40:00 + 3600 = 2026-11-08 03:40:00\\n' "$addr" ;;
+      *) printf '%s \\t2026-11-08 03:20:00 + 3600 = 2026-11-08 04:20:00\\n' "$addr" ;;
+    esac
+  done ;;
+"set sshd banip "*)
+  printf '%s %s\\n' "$bans" "$4" > "$state"
+  echo 1 ;;
+"set sshd unbanip "*)
+  for addr in $bans; do if [ "$addr" != "$4" ]; then printf '%s ' "$addr"; fi; done > "$state"
+  echo 1 ;;
 *) echo "Invalid command ($*)" >&2; exit 255 ;;
 esac
 `;

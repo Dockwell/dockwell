@@ -144,11 +144,12 @@ func GuardsAccess(t Type) bool {
 // WireGuard tunnel whose port no rule allows, and the panel's own ports where
 // the change turns deny everything else on on the control server.
 type AccessStays struct {
-	SSHPorts   []uint32 `json:",omitempty"`
-	Pinned     []string `json:",omitempty"`
-	Allowed    []string `json:",omitempty"`
-	Tunnels    []string `json:",omitempty"`
-	PanelPorts []uint32 `json:",omitempty"`
+	SSHPorts           []uint32 `json:",omitempty"`
+	Pinned             []string `json:",omitempty"`
+	Allowed            []string `json:",omitempty"`
+	Tunnels            []string `json:",omitempty"`
+	PanelPorts         []uint32 `json:",omitempty"`
+	SSHSessionsCovered []string `json:",omitempty"`
 }
 
 // DecidesWhoGetsIn is a kind that decides who gets onto a server without

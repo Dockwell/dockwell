@@ -4,6 +4,7 @@ package firewall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -29,17 +30,16 @@ type PolicyBackend interface {
 	DeletePolicy(ctx context.Context) error
 }
 
-// Closer is a backend that says what turning deny everything else on would
-// close, for the plan to list (ADR 0052).
+// Closer is a backend that lists ports a policy would close (ADR 0052).
 type Closer interface {
-	Closes(desired *resourcev1.FirewallPolicy) []string
+	Closes(ctx context.Context, desired *resourcev1.FirewallPolicy) []string
 }
 
 // Stayer is a backend that says who still reaches SSH once an edit that narrows
 // it is kept, for the plan to name (ADR 0052).
 type Stayer interface {
 	StaysAfterPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) *resource.AccessStays
-	StaysAfterRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) *resource.AccessStays
+	StaysAfterRule(ctx context.Context, ref resource.Ref, actual, desired *resourcev1.FirewallRule) *resource.AccessStays
 }
 
 // PolicyDriver manages a server's firewall policy.
@@ -77,8 +77,14 @@ func (*PolicyDriver) CheckName(name string) error {
 	return nil
 }
 
-// Validate has nothing to check: the policy is on or off.
-func (*PolicyDriver) Validate(proto.Message) error { return nil }
+// Validate checks that the UDP option belongs to an enabled Docker guard.
+func (*PolicyDriver) Validate(spec proto.Message) error {
+	p := spec.(*resourcev1.FirewallPolicy)
+	if p.GetGuardDockerUdp() && !p.GetGuardDockerPorts() {
+		return errors.New("guarding Docker UDP ports requires the Docker guard. Turn the guard on first")
+	}
+	return nil
+}
 
 // Observe asks the firewall.
 func (d *PolicyDriver) Observe(ctx context.Context, _ resource.Ref) (proto.Message, error) {
@@ -107,17 +113,20 @@ func (d *PolicyDriver) Judge(ctx context.Context, _ resource.Ref, actual, desire
 	default:
 		dec.Action = resource.ActionUpdate
 	}
+	before, _ := actual.(*resourcev1.FirewallPolicy)
 	p, _ := desired.(*resourcev1.FirewallPolicy)
-	if p.GetDenyEverythingElse() {
+	if p.GetDenyEverythingElse() && !before.GetDenyEverythingElse() ||
+		p.GetGuardDockerPorts() && !before.GetGuardDockerPorts() ||
+		p.GetGuardDockerUdp() && !before.GetGuardDockerUdp() && !before.GetDenyEverythingElse() {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
-		if c, ok := d.Backend.(Closer); ok {
-			dec.Closes = c.Closes(p)
-		}
 	}
 	if c, ok := d.Backend.(Checker); ok {
 		if err := c.CheckPolicy(ctx, p); err != nil {
 			return dec, err
 		}
+	}
+	if c, ok := d.Backend.(Closer); ok && len(dec.Warnings) > 0 {
+		dec.Closes = c.Closes(ctx, p)
 	}
 	if s, ok := d.Backend.(Stayer); ok {
 		dec.Stays = s.StaysAfterPolicy(ctx, p)

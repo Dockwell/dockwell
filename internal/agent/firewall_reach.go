@@ -220,7 +220,7 @@ func dockwellReach(l *dockwellv1.HostListener, t *nftables.Table, family int) re
 	const by = "Dockwell"
 	var allowed []string
 	matches := func(r nftables.Rule) (anywhere bool, sources []string, covers bool) {
-		if r.Protocol != l.GetProtocol() || !slices.Contains(r.Ports, uint16(l.GetPort())) { //nolint:gosec // a port
+		if r.Protocol != "" && r.Protocol != l.GetProtocol() || len(r.Ports) > 0 && !slices.Contains(r.Ports, uint16(l.GetPort())) { //nolint:gosec // a port
 			return false, nil, false
 		}
 		if len(r.Sources) == 0 {

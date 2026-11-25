@@ -294,6 +294,31 @@ const REACHABLE_INSIDE = [
   "2001:30::/28",
 ].map(parseRange);
 
+/** Whether an individual address or CIDR contains this address. */
+export function sourceContainsAddress(source: string, address: string): boolean {
+  const [ip = "", prefix, extra] = source.split("/");
+  let bytes = addressBytes(ip);
+  let peer = addressBytes(address);
+  if (!bytes || !peer || extra !== undefined) return false;
+  let bits = bytes.length * 8;
+  if (prefix !== undefined) {
+    if (!/^\d+$/.test(prefix) || Number(prefix) > bits) return false;
+    bits = Number(prefix);
+  }
+  if (isMappedV4(peer)) peer = peer.slice(12);
+  if (isMappedV4(bytes)) {
+    bytes = bytes.slice(12);
+    bits = Math.max(0, bits - 96);
+  }
+  return mostSpecific([{ bytes, bits }], peer) >= 0;
+}
+
+function isMappedV4(bytes: readonly number[]): boolean {
+  return (
+    bytes.length === 16 && bytes.slice(0, 10).every((byte) => byte === 0) && bytes[10] === 255 && bytes[11] === 255
+  );
+}
+
 /** How long the longest range of a list that holds an address is, or -1. */
 function mostSpecific(ranges: readonly { bytes: number[]; bits: number }[], bytes: readonly number[]): number {
   let longest = -1;
@@ -319,9 +344,7 @@ export function isPrivateAddress(ip: string): boolean {
   const bytes = addressBytes(plain);
   if (!bytes) return false;
   if (zone !== undefined) return true;
-  const mapped =
-    bytes.length === 16 && bytes.slice(0, 10).every((byte) => byte === 0) && bytes[10] === 255 && bytes[11] === 255;
-  const unmapped = mapped ? bytes.slice(12) : bytes;
+  const unmapped = isMappedV4(bytes) ? bytes.slice(12) : bytes;
   return mostSpecific(REACHABLE_INSIDE, unmapped) < mostSpecific(NOT_REACHABLE, unmapped);
 }
 

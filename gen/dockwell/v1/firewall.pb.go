@@ -596,7 +596,9 @@ func (x *GetServerFirewallRequest) GetServerId() string {
 type GetServerFirewallResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The firewall, as the agent read it, Dockwell's own with the rest.
-	Firewall      *ServerFirewall `protobuf:"bytes,1,opt,name=firewall,proto3" json:"firewall,omitempty"`
+	Firewall *ServerFirewall `protobuf:"bytes,1,opt,name=firewall,proto3" json:"firewall,omitempty"`
+	// The caller's address as the control plane sees it. Empty over loopback.
+	YourAddress   string `protobuf:"bytes,4,opt,name=your_address,json=yourAddress,proto3" json:"your_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -636,6 +638,13 @@ func (x *GetServerFirewallResponse) GetFirewall() *ServerFirewall {
 		return x.Firewall
 	}
 	return nil
+}
+
+func (x *GetServerFirewallResponse) GetYourAddress() string {
+	if x != nil {
+		return x.YourAddress
+	}
+	return ""
 }
 
 // DockwellFirewallRule is one of Dockwell's own rules for a server.
@@ -822,8 +831,10 @@ type DockwellTable struct {
 	WaitingRules []*DockwellFirewallRule `protobuf:"bytes,5,rep,name=waiting_rules,json=waitingRules,proto3" json:"waiting_rules,omitempty"`
 	// The policy as that change leaves it. Unset when it leaves none.
 	WaitingPolicy *v1alpha1.FirewallPolicy `protobuf:"bytes,6,opt,name=waiting_policy,json=waitingPolicy,proto3" json:"waiting_policy,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// True when explicit allows can be required for published Docker ports.
+	CanGuardDockerPorts bool `protobuf:"varint,7,opt,name=can_guard_docker_ports,json=canGuardDockerPorts,proto3" json:"can_guard_docker_ports,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *DockwellTable) Reset() {
@@ -896,6 +907,13 @@ func (x *DockwellTable) GetWaitingPolicy() *v1alpha1.FirewallPolicy {
 		return x.WaitingPolicy
 	}
 	return nil
+}
+
+func (x *DockwellTable) GetCanGuardDockerPorts() bool {
+	if x != nil {
+		return x.CanGuardDockerPorts
+	}
+	return false
 }
 
 // HostListener is a port something on the server listens on, beyond loopback.
@@ -2155,9 +2173,11 @@ type ServerFail2Ban struct {
 	// The addresses signed in to the server over SSH from outside it now, as
 	// the firewall's pins read them, such as "203.0.113.7". A jail's form puts
 	// them in what it never bans, unless the person takes them out.
-	SignedInFrom  []string `protobuf:"bytes,6,rep,name=signed_in_from,json=signedInFrom,proto3" json:"signed_in_from,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SignedInFrom []string `protobuf:"bytes,6,rep,name=signed_in_from,json=signedInFrom,proto3" json:"signed_in_from,omitempty"`
+	// True when the agent can change bans and start or stop Dockwell's jails.
+	ManagesJailsAndBans bool `protobuf:"varint,7,opt,name=manages_jails_and_bans,json=managesJailsAndBans,proto3" json:"manages_jails_and_bans,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ServerFail2Ban) Reset() {
@@ -2232,6 +2252,13 @@ func (x *ServerFail2Ban) GetSignedInFrom() []string {
 	return nil
 }
 
+func (x *ServerFail2Ban) GetManagesJailsAndBans() bool {
+	if x != nil {
+		return x.ManagesJailsAndBans
+	}
+	return false
+}
+
 // Fail2banJail is one of fail2ban's jails, as it runs.
 type Fail2BanJail struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2273,7 +2300,9 @@ type Fail2BanJail struct {
 	Ignore []string `protobuf:"bytes,15,rep,name=ignore,proto3" json:"ignore,omitempty"`
 	// The jail as Dockwell holds it, when Dockwell writes it: what an edit
 	// starts from, so it changes only what it means to.
-	Spec          *v1alpha1.Jail `protobuf:"bytes,16,opt,name=spec,proto3" json:"spec,omitempty"`
+	Spec *v1alpha1.Jail `protobuf:"bytes,16,opt,name=spec,proto3" json:"spec,omitempty"`
+	// True when the jail is currently protecting the server.
+	Running       bool `protobuf:"varint,17,opt,name=running,proto3" json:"running,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2420,6 +2449,129 @@ func (x *Fail2BanJail) GetSpec() *v1alpha1.Jail {
 	return nil
 }
 
+func (x *Fail2BanJail) GetRunning() bool {
+	if x != nil {
+		return x.Running
+	}
+	return false
+}
+
+// SetFail2banAddressBanRequest names the address and its jail.
+type SetFail2BanAddressBanRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	ServerId string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	Jail     string                 `protobuf:"bytes,2,opt,name=jail,proto3" json:"jail,omitempty"`
+	Address  string                 `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	// Ban when true and unban when false.
+	Banned bool `protobuf:"varint,4,opt,name=banned,proto3" json:"banned,omitempty"`
+	// Passkey proof for a ban. Unbanning needs only a signed-in admin.
+	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetFail2BanAddressBanRequest) Reset() {
+	*x = SetFail2BanAddressBanRequest{}
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFail2BanAddressBanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFail2BanAddressBanRequest) ProtoMessage() {}
+
+func (x *SetFail2BanAddressBanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFail2BanAddressBanRequest.ProtoReflect.Descriptor instead.
+func (*SetFail2BanAddressBanRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SetFail2BanAddressBanRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *SetFail2BanAddressBanRequest) GetJail() string {
+	if x != nil {
+		return x.Jail
+	}
+	return ""
+}
+
+func (x *SetFail2BanAddressBanRequest) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *SetFail2BanAddressBanRequest) GetBanned() bool {
+	if x != nil {
+		return x.Banned
+	}
+	return false
+}
+
+func (x *SetFail2BanAddressBanRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// SetFail2banAddressBanResponse confirms fail2ban accepted the operation.
+type SetFail2BanAddressBanResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetFail2BanAddressBanResponse) Reset() {
+	*x = SetFail2BanAddressBanResponse{}
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetFail2BanAddressBanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetFail2BanAddressBanResponse) ProtoMessage() {}
+
+func (x *SetFail2BanAddressBanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetFail2BanAddressBanResponse.ProtoReflect.Descriptor instead.
+func (*SetFail2BanAddressBanResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{20}
+}
+
 // Fail2banBan is an address a jail has banned.
 type Fail2BanBan struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2435,7 +2587,7 @@ type Fail2BanBan struct {
 
 func (x *Fail2BanBan) Reset() {
 	*x = Fail2BanBan{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[19]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2447,7 +2599,7 @@ func (x *Fail2BanBan) String() string {
 func (*Fail2BanBan) ProtoMessage() {}
 
 func (x *Fail2BanBan) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[19]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2460,7 +2612,7 @@ func (x *Fail2BanBan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Fail2BanBan.ProtoReflect.Descriptor instead.
 func (*Fail2BanBan) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *Fail2BanBan) GetAddress() string {
@@ -2498,7 +2650,7 @@ type SshKey struct {
 
 func (x *SshKey) Reset() {
 	*x = SshKey{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[20]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2510,7 +2662,7 @@ func (x *SshKey) String() string {
 func (*SshKey) ProtoMessage() {}
 
 func (x *SshKey) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[20]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2523,7 +2675,7 @@ func (x *SshKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SshKey.ProtoReflect.Descriptor instead.
 func (*SshKey) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SshKey) GetType() string {
@@ -2572,7 +2724,7 @@ type ListServerSshKeysRequest struct {
 
 func (x *ListServerSshKeysRequest) Reset() {
 	*x = ListServerSshKeysRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[21]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2584,7 +2736,7 @@ func (x *ListServerSshKeysRequest) String() string {
 func (*ListServerSshKeysRequest) ProtoMessage() {}
 
 func (x *ListServerSshKeysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[21]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2597,7 +2749,7 @@ func (x *ListServerSshKeysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshKeysRequest.ProtoReflect.Descriptor instead.
 func (*ListServerSshKeysRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListServerSshKeysRequest) GetServerId() string {
@@ -2626,7 +2778,7 @@ type ListServerSshKeysResponse struct {
 
 func (x *ListServerSshKeysResponse) Reset() {
 	*x = ListServerSshKeysResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[22]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2638,7 +2790,7 @@ func (x *ListServerSshKeysResponse) String() string {
 func (*ListServerSshKeysResponse) ProtoMessage() {}
 
 func (x *ListServerSshKeysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[22]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2651,7 +2803,7 @@ func (x *ListServerSshKeysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshKeysResponse.ProtoReflect.Descriptor instead.
 func (*ListServerSshKeysResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListServerSshKeysResponse) GetAccounts() []string {
@@ -2692,7 +2844,7 @@ type EditServerSshKeyRequest struct {
 
 func (x *EditServerSshKeyRequest) Reset() {
 	*x = EditServerSshKeyRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[23]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2704,7 +2856,7 @@ func (x *EditServerSshKeyRequest) String() string {
 func (*EditServerSshKeyRequest) ProtoMessage() {}
 
 func (x *EditServerSshKeyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[23]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2717,7 +2869,7 @@ func (x *EditServerSshKeyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditServerSshKeyRequest.ProtoReflect.Descriptor instead.
 func (*EditServerSshKeyRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EditServerSshKeyRequest) GetServerId() string {
@@ -2792,7 +2944,7 @@ type EditServerSshKeyResponse struct {
 
 func (x *EditServerSshKeyResponse) Reset() {
 	*x = EditServerSshKeyResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[24]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2804,7 +2956,7 @@ func (x *EditServerSshKeyResponse) String() string {
 func (*EditServerSshKeyResponse) ProtoMessage() {}
 
 func (x *EditServerSshKeyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[24]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2817,7 +2969,7 @@ func (x *EditServerSshKeyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditServerSshKeyResponse.ProtoReflect.Descriptor instead.
 func (*EditServerSshKeyResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *EditServerSshKeyResponse) GetKey() *SshKey {
@@ -2842,7 +2994,7 @@ type SshSession struct {
 
 func (x *SshSession) Reset() {
 	*x = SshSession{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[25]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2854,7 +3006,7 @@ func (x *SshSession) String() string {
 func (*SshSession) ProtoMessage() {}
 
 func (x *SshSession) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[25]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2867,7 +3019,7 @@ func (x *SshSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SshSession.ProtoReflect.Descriptor instead.
 func (*SshSession) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{25}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SshSession) GetId() string {
@@ -2922,7 +3074,7 @@ type ListServerSshSessionsRequest struct {
 
 func (x *ListServerSshSessionsRequest) Reset() {
 	*x = ListServerSshSessionsRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[26]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2934,7 +3086,7 @@ func (x *ListServerSshSessionsRequest) String() string {
 func (*ListServerSshSessionsRequest) ProtoMessage() {}
 
 func (x *ListServerSshSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[26]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2947,7 +3099,7 @@ func (x *ListServerSshSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListServerSshSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{26}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ListServerSshSessionsRequest) GetServerId() string {
@@ -2967,7 +3119,7 @@ type ListServerSshSessionsResponse struct {
 
 func (x *ListServerSshSessionsResponse) Reset() {
 	*x = ListServerSshSessionsResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[27]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2979,7 +3131,7 @@ func (x *ListServerSshSessionsResponse) String() string {
 func (*ListServerSshSessionsResponse) ProtoMessage() {}
 
 func (x *ListServerSshSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[27]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2992,7 +3144,7 @@ func (x *ListServerSshSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListServerSshSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ListServerSshSessionsResponse) GetSessions() []*SshSession {
@@ -3014,7 +3166,7 @@ type DisconnectServerSshSessionRequest struct {
 
 func (x *DisconnectServerSshSessionRequest) Reset() {
 	*x = DisconnectServerSshSessionRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[28]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3026,7 +3178,7 @@ func (x *DisconnectServerSshSessionRequest) String() string {
 func (*DisconnectServerSshSessionRequest) ProtoMessage() {}
 
 func (x *DisconnectServerSshSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[28]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3039,7 +3191,7 @@ func (x *DisconnectServerSshSessionRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use DisconnectServerSshSessionRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectServerSshSessionRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DisconnectServerSshSessionRequest) GetServerId() string {
@@ -3072,7 +3224,7 @@ type DisconnectServerSshSessionResponse struct {
 
 func (x *DisconnectServerSshSessionResponse) Reset() {
 	*x = DisconnectServerSshSessionResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[29]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3084,7 +3236,7 @@ func (x *DisconnectServerSshSessionResponse) String() string {
 func (*DisconnectServerSshSessionResponse) ProtoMessage() {}
 
 func (x *DisconnectServerSshSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[29]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3097,7 +3249,7 @@ func (x *DisconnectServerSshSessionResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DisconnectServerSshSessionResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectServerSshSessionResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{31}
 }
 
 // SshLogin is an authentication result reported by the SSH daemon.
@@ -3114,7 +3266,7 @@ type SshLogin struct {
 
 func (x *SshLogin) Reset() {
 	*x = SshLogin{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[30]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3126,7 +3278,7 @@ func (x *SshLogin) String() string {
 func (*SshLogin) ProtoMessage() {}
 
 func (x *SshLogin) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[30]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3139,7 +3291,7 @@ func (x *SshLogin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SshLogin.ProtoReflect.Descriptor instead.
 func (*SshLogin) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SshLogin) GetTime() *timestamppb.Timestamp {
@@ -3188,7 +3340,7 @@ type SshLoginFailures struct {
 
 func (x *SshLoginFailures) Reset() {
 	*x = SshLoginFailures{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[31]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3200,7 +3352,7 @@ func (x *SshLoginFailures) String() string {
 func (*SshLoginFailures) ProtoMessage() {}
 
 func (x *SshLoginFailures) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[31]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3213,7 +3365,7 @@ func (x *SshLoginFailures) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SshLoginFailures.ProtoReflect.Descriptor instead.
 func (*SshLoginFailures) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{31}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *SshLoginFailures) GetAddress() string {
@@ -3244,7 +3396,7 @@ type ListServerSshLoginsRequest struct {
 
 func (x *ListServerSshLoginsRequest) Reset() {
 	*x = ListServerSshLoginsRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[32]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3256,7 +3408,7 @@ func (x *ListServerSshLoginsRequest) String() string {
 func (*ListServerSshLoginsRequest) ProtoMessage() {}
 
 func (x *ListServerSshLoginsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[32]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3269,7 +3421,7 @@ func (x *ListServerSshLoginsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshLoginsRequest.ProtoReflect.Descriptor instead.
 func (*ListServerSshLoginsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{32}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ListServerSshLoginsRequest) GetServerId() string {
@@ -3322,7 +3474,7 @@ type ListServerSshLoginsResponse struct {
 
 func (x *ListServerSshLoginsResponse) Reset() {
 	*x = ListServerSshLoginsResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[33]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3334,7 +3486,7 @@ func (x *ListServerSshLoginsResponse) String() string {
 func (*ListServerSshLoginsResponse) ProtoMessage() {}
 
 func (x *ListServerSshLoginsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[33]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3347,7 +3499,7 @@ func (x *ListServerSshLoginsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServerSshLoginsResponse.ProtoReflect.Descriptor instead.
 func (*ListServerSshLoginsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{33}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListServerSshLoginsResponse) GetLogins() []*SshLogin {
@@ -3397,7 +3549,7 @@ type BanServerSshAddressRequest struct {
 
 func (x *BanServerSshAddressRequest) Reset() {
 	*x = BanServerSshAddressRequest{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[34]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3409,7 +3561,7 @@ func (x *BanServerSshAddressRequest) String() string {
 func (*BanServerSshAddressRequest) ProtoMessage() {}
 
 func (x *BanServerSshAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[34]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3422,7 +3574,7 @@ func (x *BanServerSshAddressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BanServerSshAddressRequest.ProtoReflect.Descriptor instead.
 func (*BanServerSshAddressRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *BanServerSshAddressRequest) GetServerId() string {
@@ -3455,7 +3607,7 @@ type BanServerSshAddressResponse struct {
 
 func (x *BanServerSshAddressResponse) Reset() {
 	*x = BanServerSshAddressResponse{}
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[35]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3467,7 +3619,7 @@ func (x *BanServerSshAddressResponse) String() string {
 func (*BanServerSshAddressResponse) ProtoMessage() {}
 
 func (x *BanServerSshAddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_firewall_proto_msgTypes[35]
+	mi := &file_dockwell_v1_firewall_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3480,7 +3632,7 @@ func (x *BanServerSshAddressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BanServerSshAddressResponse.ProtoReflect.Descriptor instead.
 func (*BanServerSshAddressResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{35}
+	return file_dockwell_v1_firewall_proto_rawDescGZIP(), []int{37}
 }
 
 var File_dockwell_v1_firewall_proto protoreflect.FileDescriptor
@@ -3489,9 +3641,10 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\n" +
 	"\x1adockwell/v1/firewall.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
 	"\x18GetServerFirewallRequest\x12\x1b\n" +
-	"\tserver_id\x18\x01 \x01(\tR\bserverId\"`\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\x83\x01\n" +
 	"\x19GetServerFirewallResponse\x127\n" +
-	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewallJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"h\n" +
+	"\bfirewall\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFirewallR\bfirewall\x12!\n" +
+	"\fyour_address\x18\x04 \x01(\tR\vyourAddressJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"h\n" +
 	"\x14DockwellFirewallRule\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12<\n" +
 	"\x04rule\x18\x02 \x01(\v2(.dockwell.resource.v1alpha1.FirewallRuleR\x04rule\"\xfb\x02\n" +
@@ -3502,14 +3655,15 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\tlistening\x18\x04 \x03(\v2\x19.dockwell.v1.HostListenerR\tlistening\x121\n" +
 	"\x14published_unreadable\x18\x05 \x01(\tR\x13publishedUnreadable\x12*\n" +
 	"\x11docker_user_rules\x18\x06 \x01(\rR\x0fdockerUserRules\x126\n" +
-	"\bdockwell\x18\a \x01(\v2\x1a.dockwell.v1.DockwellTableR\bdockwell\"\xea\x02\n" +
+	"\bdockwell\x18\a \x01(\v2\x1a.dockwell.v1.DockwellTableR\bdockwell\"\x9f\x03\n" +
 	"\rDockwellTable\x12\x1a\n" +
 	"\bunusable\x18\x01 \x01(\tR\bunusable\x127\n" +
 	"\x05rules\x18\x02 \x03(\v2!.dockwell.v1.DockwellFirewallRuleR\x05rules\x12B\n" +
 	"\x06policy\x18\x03 \x01(\v2*.dockwell.resource.v1alpha1.FirewallPolicyR\x06policy\x12%\n" +
 	"\x0ewaiting_change\x18\x04 \x01(\tR\rwaitingChange\x12F\n" +
 	"\rwaiting_rules\x18\x05 \x03(\v2!.dockwell.v1.DockwellFirewallRuleR\fwaitingRules\x12Q\n" +
-	"\x0ewaiting_policy\x18\x06 \x01(\v2*.dockwell.resource.v1alpha1.FirewallPolicyR\rwaitingPolicy\"\xba\x02\n" +
+	"\x0ewaiting_policy\x18\x06 \x01(\v2*.dockwell.resource.v1alpha1.FirewallPolicyR\rwaitingPolicy\x123\n" +
+	"\x16can_guard_docker_ports\x18\a \x01(\bR\x13canGuardDockerPorts\"\xba\x02\n" +
 	"\fHostListener\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1a\n" +
@@ -3622,14 +3776,15 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"w\n" +
 	"\x19GetServerFail2banResponse\x127\n" +
 	"\bfail2ban\x18\x01 \x01(\v2\x1b.dockwell.v1.ServerFail2banR\bfail2ban\x12!\n" +
-	"\fyour_address\x18\x02 \x01(\tR\vyourAddress\"\xf5\x01\n" +
+	"\fyour_address\x18\x02 \x01(\tR\vyourAddress\"\xaa\x02\n" +
 	"\x0eServerFail2ban\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x120\n" +
 	"\x05state\x18\x02 \x01(\x0e2\x1a.dockwell.v1.Fail2banStateR\x05state\x12\x10\n" +
 	"\x03why\x18\x03 \x01(\tR\x03why\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12/\n" +
 	"\x05jails\x18\x05 \x03(\v2\x19.dockwell.v1.Fail2banJailR\x05jails\x12$\n" +
-	"\x0esigned_in_from\x18\x06 \x03(\tR\fsignedInFrom\"\xcc\x04\n" +
+	"\x0esigned_in_from\x18\x06 \x03(\tR\fsignedInFrom\x123\n" +
+	"\x16manages_jails_and_bans\x18\a \x01(\bR\x13managesJailsAndBans\"\xe6\x04\n" +
 	"\fFail2banJail\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tmax_retry\x18\x02 \x01(\rR\bmaxRetry\x126\n" +
@@ -3651,7 +3806,15 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"unreadable\x12\x1a\n" +
 	"\bdockwell\x18\x0e \x01(\bR\bdockwell\x12\x16\n" +
 	"\x06ignore\x18\x0f \x03(\tR\x06ignore\x124\n" +
-	"\x04spec\x18\x10 \x01(\v2 .dockwell.resource.v1alpha1.JailR\x04spec\"\x8b\x01\n" +
+	"\x04spec\x18\x10 \x01(\v2 .dockwell.resource.v1alpha1.JailR\x04spec\x12\x18\n" +
+	"\arunning\x18\x11 \x01(\bR\arunning\"\x97\x01\n" +
+	"\x1cSetFail2banAddressBanRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04jail\x18\x02 \x01(\tR\x04jail\x12\x18\n" +
+	"\aaddress\x18\x03 \x01(\tR\aaddress\x12\x16\n" +
+	"\x06banned\x18\x04 \x01(\bR\x06banned\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\"\x1f\n" +
+	"\x1dSetFail2banAddressBanResponse\"\x8b\x01\n" +
 	"\vFail2banBan\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x120\n" +
 	"\x05since\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x120\n" +
@@ -3778,7 +3941,7 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x1cFAIL2BAN_STATE_NOT_INSTALLED\x10\x01\x12\x1a\n" +
 	"\x16FAIL2BAN_STATE_STOPPED\x10\x02\x12\x1a\n" +
 	"\x16FAIL2BAN_STATE_RUNNING\x10\x03\x12\x1d\n" +
-	"\x19FAIL2BAN_STATE_UNREADABLE\x10\x042\xb2\x13\n" +
+	"\x19FAIL2BAN_STATE_UNREADABLE\x10\x042\x84\x15\n" +
 	"\x0fFirewallService\x12\xb2\x01\n" +
 	"\x11GetServerFirewall\x12%.dockwell.v1.GetServerFirewallRequest\x1a&.dockwell.v1.GetServerFirewallResponse\"N\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
 	"\bfirewall\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/firewall\x90\x02\x01\x12\x99\x01\n" +
@@ -3800,7 +3963,9 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\n" +
 	"\x03ssh\x12\x03ban\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02%:\x01*\" /v1/servers/{server_id}/ssh/bans\x12\xb2\x01\n" +
 	"\x11GetServerFail2ban\x12%.dockwell.v1.GetServerFail2banRequest\x1a&.dockwell.v1.GetServerFail2banResponse\"N\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
-	"\bfail2ban\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/fail2ban\x90\x02\x01\x1a\x86\x06\xa2\xbb\x18\xc4\x02\n" +
+	"\bfail2ban\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/fail2ban\x90\x02\x01\x12\xcf\x01\n" +
+	"\x15SetFail2banAddressBan\x12).dockwell.v1.SetFail2banAddressBanRequest\x1a*.dockwell.v1.SetFail2banAddressBanResponse\"_\xa0\xbb\x18\x04\xaa\xbb\x18\x13\n" +
+	"\bfail2ban\x12\aset-ban\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02.:\x01*\")/v1/servers/{server_id}/fail2ban/bans:set\x1a\x86\x06\xa2\xbb\x18\xc4\x02\n" +
 	"\bfirewall\x12\xb7\x02What filters a server's inbound traffic: the firewalls already there, ufw, firewalld and nftables, each read with its own tool, how far what listens reaches past them, and the ports Docker publishes, which reach their containers past them. Dockwell's own rules are firewall.rule resources, which a change edits.\xa2\xbb\x18\x98\x02\n" +
 	"\x03ssh\x12\x90\x02How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and a warning when the sshd that listens may not have read them, or that there's nothing to warn of, which doesn't say it has. Reading it changes nothing.\xa2\xbb\x18\x9b\x01\n" +
 	"\bfail2ban\x12\x8e\x01What fail2ban does on a server: whether it runs, its jails as it runs them, and the addresses each has banned now. Reading it changes nothing.B\xa6\x01\n" +
@@ -3819,7 +3984,7 @@ func file_dockwell_v1_firewall_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_firewall_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_dockwell_v1_firewall_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_dockwell_v1_firewall_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_dockwell_v1_firewall_proto_goTypes = []any{
 	(ListenerReachReason)(0),                   // 0: dockwell.v1.ListenerReachReason
 	(ListenerReach)(0),                         // 1: dockwell.v1.ListenerReach
@@ -3848,42 +4013,44 @@ var file_dockwell_v1_firewall_proto_goTypes = []any{
 	(*GetServerFail2BanResponse)(nil),          // 24: dockwell.v1.GetServerFail2banResponse
 	(*ServerFail2Ban)(nil),                     // 25: dockwell.v1.ServerFail2ban
 	(*Fail2BanJail)(nil),                       // 26: dockwell.v1.Fail2banJail
-	(*Fail2BanBan)(nil),                        // 27: dockwell.v1.Fail2banBan
-	(*SshKey)(nil),                             // 28: dockwell.v1.SshKey
-	(*ListServerSshKeysRequest)(nil),           // 29: dockwell.v1.ListServerSshKeysRequest
-	(*ListServerSshKeysResponse)(nil),          // 30: dockwell.v1.ListServerSshKeysResponse
-	(*EditServerSshKeyRequest)(nil),            // 31: dockwell.v1.EditServerSshKeyRequest
-	(*EditServerSshKeyResponse)(nil),           // 32: dockwell.v1.EditServerSshKeyResponse
-	(*SshSession)(nil),                         // 33: dockwell.v1.SshSession
-	(*ListServerSshSessionsRequest)(nil),       // 34: dockwell.v1.ListServerSshSessionsRequest
-	(*ListServerSshSessionsResponse)(nil),      // 35: dockwell.v1.ListServerSshSessionsResponse
-	(*DisconnectServerSshSessionRequest)(nil),  // 36: dockwell.v1.DisconnectServerSshSessionRequest
-	(*DisconnectServerSshSessionResponse)(nil), // 37: dockwell.v1.DisconnectServerSshSessionResponse
-	(*SshLogin)(nil),                           // 38: dockwell.v1.SshLogin
-	(*SshLoginFailures)(nil),                   // 39: dockwell.v1.SshLoginFailures
-	(*ListServerSshLoginsRequest)(nil),         // 40: dockwell.v1.ListServerSshLoginsRequest
-	(*ListServerSshLoginsResponse)(nil),        // 41: dockwell.v1.ListServerSshLoginsResponse
-	(*BanServerSshAddressRequest)(nil),         // 42: dockwell.v1.BanServerSshAddressRequest
-	(*BanServerSshAddressResponse)(nil),        // 43: dockwell.v1.BanServerSshAddressResponse
-	(*v1alpha1.FirewallRule)(nil),              // 44: dockwell.resource.v1alpha1.FirewallRule
-	(*timestamppb.Timestamp)(nil),              // 45: google.protobuf.Timestamp
-	(*v1alpha1.FirewallPolicy)(nil),            // 46: dockwell.resource.v1alpha1.FirewallPolicy
-	(*v1alpha1.SshConfig)(nil),                 // 47: dockwell.resource.v1alpha1.SshConfig
-	(*durationpb.Duration)(nil),                // 48: google.protobuf.Duration
-	(*v1alpha1.Jail)(nil),                      // 49: dockwell.resource.v1alpha1.Jail
+	(*SetFail2BanAddressBanRequest)(nil),       // 27: dockwell.v1.SetFail2banAddressBanRequest
+	(*SetFail2BanAddressBanResponse)(nil),      // 28: dockwell.v1.SetFail2banAddressBanResponse
+	(*Fail2BanBan)(nil),                        // 29: dockwell.v1.Fail2banBan
+	(*SshKey)(nil),                             // 30: dockwell.v1.SshKey
+	(*ListServerSshKeysRequest)(nil),           // 31: dockwell.v1.ListServerSshKeysRequest
+	(*ListServerSshKeysResponse)(nil),          // 32: dockwell.v1.ListServerSshKeysResponse
+	(*EditServerSshKeyRequest)(nil),            // 33: dockwell.v1.EditServerSshKeyRequest
+	(*EditServerSshKeyResponse)(nil),           // 34: dockwell.v1.EditServerSshKeyResponse
+	(*SshSession)(nil),                         // 35: dockwell.v1.SshSession
+	(*ListServerSshSessionsRequest)(nil),       // 36: dockwell.v1.ListServerSshSessionsRequest
+	(*ListServerSshSessionsResponse)(nil),      // 37: dockwell.v1.ListServerSshSessionsResponse
+	(*DisconnectServerSshSessionRequest)(nil),  // 38: dockwell.v1.DisconnectServerSshSessionRequest
+	(*DisconnectServerSshSessionResponse)(nil), // 39: dockwell.v1.DisconnectServerSshSessionResponse
+	(*SshLogin)(nil),                           // 40: dockwell.v1.SshLogin
+	(*SshLoginFailures)(nil),                   // 41: dockwell.v1.SshLoginFailures
+	(*ListServerSshLoginsRequest)(nil),         // 42: dockwell.v1.ListServerSshLoginsRequest
+	(*ListServerSshLoginsResponse)(nil),        // 43: dockwell.v1.ListServerSshLoginsResponse
+	(*BanServerSshAddressRequest)(nil),         // 44: dockwell.v1.BanServerSshAddressRequest
+	(*BanServerSshAddressResponse)(nil),        // 45: dockwell.v1.BanServerSshAddressResponse
+	(*v1alpha1.FirewallRule)(nil),              // 46: dockwell.resource.v1alpha1.FirewallRule
+	(*timestamppb.Timestamp)(nil),              // 47: google.protobuf.Timestamp
+	(*v1alpha1.FirewallPolicy)(nil),            // 48: dockwell.resource.v1alpha1.FirewallPolicy
+	(*v1alpha1.SshConfig)(nil),                 // 49: dockwell.resource.v1alpha1.SshConfig
+	(*durationpb.Duration)(nil),                // 50: google.protobuf.Duration
+	(*v1alpha1.Jail)(nil),                      // 51: dockwell.resource.v1alpha1.Jail
 }
 var file_dockwell_v1_firewall_proto_depIdxs = []int32{
 	11, // 0: dockwell.v1.GetServerFirewallResponse.firewall:type_name -> dockwell.v1.ServerFirewall
-	44, // 1: dockwell.v1.DockwellFirewallRule.rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	45, // 2: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
+	46, // 1: dockwell.v1.DockwellFirewallRule.rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	47, // 2: dockwell.v1.ServerFirewall.time:type_name -> google.protobuf.Timestamp
 	14, // 3: dockwell.v1.ServerFirewall.tools:type_name -> dockwell.v1.FirewallTool
 	16, // 4: dockwell.v1.ServerFirewall.published:type_name -> dockwell.v1.PublishedPort
 	13, // 5: dockwell.v1.ServerFirewall.listening:type_name -> dockwell.v1.HostListener
 	12, // 6: dockwell.v1.ServerFirewall.dockwell:type_name -> dockwell.v1.DockwellTable
 	10, // 7: dockwell.v1.DockwellTable.rules:type_name -> dockwell.v1.DockwellFirewallRule
-	46, // 8: dockwell.v1.DockwellTable.policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
+	48, // 8: dockwell.v1.DockwellTable.policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
 	10, // 9: dockwell.v1.DockwellTable.waiting_rules:type_name -> dockwell.v1.DockwellFirewallRule
-	46, // 10: dockwell.v1.DockwellTable.waiting_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
+	48, // 10: dockwell.v1.DockwellTable.waiting_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
 	1,  // 11: dockwell.v1.HostListener.reach:type_name -> dockwell.v1.ListenerReach
 	0,  // 12: dockwell.v1.HostListener.reason:type_name -> dockwell.v1.ListenerReachReason
 	2,  // 13: dockwell.v1.FirewallTool.kind:type_name -> dockwell.v1.FirewallToolKind
@@ -3892,54 +4059,56 @@ var file_dockwell_v1_firewall_proto_depIdxs = []int32{
 	3,  // 16: dockwell.v1.FirewallTool.input_policy:type_name -> dockwell.v1.FirewallVerdict
 	3,  // 17: dockwell.v1.FirewallSeenRule.verdict:type_name -> dockwell.v1.FirewallVerdict
 	19, // 18: dockwell.v1.GetServerSshResponse.ssh:type_name -> dockwell.v1.ServerSsh
-	45, // 19: dockwell.v1.ServerSsh.time:type_name -> google.protobuf.Timestamp
+	47, // 19: dockwell.v1.ServerSsh.time:type_name -> google.protobuf.Timestamp
 	4,  // 20: dockwell.v1.ServerSsh.password_login:type_name -> dockwell.v1.SshAnswer
 	6,  // 21: dockwell.v1.ServerSsh.root_login:type_name -> dockwell.v1.SshRootLogin
 	4,  // 22: dockwell.v1.ServerSsh.key_login:type_name -> dockwell.v1.SshAnswer
 	21, // 23: dockwell.v1.ServerSsh.set_in:type_name -> dockwell.v1.SshSource
 	22, // 24: dockwell.v1.ServerSsh.matches:type_name -> dockwell.v1.SshMatch
 	5,  // 25: dockwell.v1.ServerSsh.loaded:type_name -> dockwell.v1.SshLoaded
-	45, // 26: dockwell.v1.ServerSsh.loaded_time:type_name -> google.protobuf.Timestamp
-	47, // 27: dockwell.v1.ServerSsh.managed:type_name -> dockwell.resource.v1alpha1.SshConfig
+	47, // 26: dockwell.v1.ServerSsh.loaded_time:type_name -> google.protobuf.Timestamp
+	49, // 27: dockwell.v1.ServerSsh.managed:type_name -> dockwell.resource.v1alpha1.SshConfig
 	20, // 28: dockwell.v1.ServerSsh.proof:type_name -> dockwell.v1.SshProof
 	25, // 29: dockwell.v1.GetServerFail2banResponse.fail2ban:type_name -> dockwell.v1.ServerFail2ban
-	45, // 30: dockwell.v1.ServerFail2ban.time:type_name -> google.protobuf.Timestamp
+	47, // 30: dockwell.v1.ServerFail2ban.time:type_name -> google.protobuf.Timestamp
 	7,  // 31: dockwell.v1.ServerFail2ban.state:type_name -> dockwell.v1.Fail2banState
 	26, // 32: dockwell.v1.ServerFail2ban.jails:type_name -> dockwell.v1.Fail2banJail
-	48, // 33: dockwell.v1.Fail2banJail.find_time:type_name -> google.protobuf.Duration
-	48, // 34: dockwell.v1.Fail2banJail.ban_time:type_name -> google.protobuf.Duration
-	27, // 35: dockwell.v1.Fail2banJail.bans:type_name -> dockwell.v1.Fail2banBan
-	49, // 36: dockwell.v1.Fail2banJail.spec:type_name -> dockwell.resource.v1alpha1.Jail
-	45, // 37: dockwell.v1.Fail2banBan.since:type_name -> google.protobuf.Timestamp
-	45, // 38: dockwell.v1.Fail2banBan.until:type_name -> google.protobuf.Timestamp
-	45, // 39: dockwell.v1.SshKey.added:type_name -> google.protobuf.Timestamp
-	28, // 40: dockwell.v1.ListServerSshKeysResponse.keys:type_name -> dockwell.v1.SshKey
-	28, // 41: dockwell.v1.EditServerSshKeyResponse.key:type_name -> dockwell.v1.SshKey
-	45, // 42: dockwell.v1.SshSession.since:type_name -> google.protobuf.Timestamp
-	33, // 43: dockwell.v1.ListServerSshSessionsResponse.sessions:type_name -> dockwell.v1.SshSession
-	45, // 44: dockwell.v1.SshLogin.time:type_name -> google.protobuf.Timestamp
-	38, // 45: dockwell.v1.ListServerSshLoginsResponse.logins:type_name -> dockwell.v1.SshLogin
-	39, // 46: dockwell.v1.ListServerSshLoginsResponse.failures:type_name -> dockwell.v1.SshLoginFailures
+	50, // 33: dockwell.v1.Fail2banJail.find_time:type_name -> google.protobuf.Duration
+	50, // 34: dockwell.v1.Fail2banJail.ban_time:type_name -> google.protobuf.Duration
+	29, // 35: dockwell.v1.Fail2banJail.bans:type_name -> dockwell.v1.Fail2banBan
+	51, // 36: dockwell.v1.Fail2banJail.spec:type_name -> dockwell.resource.v1alpha1.Jail
+	47, // 37: dockwell.v1.Fail2banBan.since:type_name -> google.protobuf.Timestamp
+	47, // 38: dockwell.v1.Fail2banBan.until:type_name -> google.protobuf.Timestamp
+	47, // 39: dockwell.v1.SshKey.added:type_name -> google.protobuf.Timestamp
+	30, // 40: dockwell.v1.ListServerSshKeysResponse.keys:type_name -> dockwell.v1.SshKey
+	30, // 41: dockwell.v1.EditServerSshKeyResponse.key:type_name -> dockwell.v1.SshKey
+	47, // 42: dockwell.v1.SshSession.since:type_name -> google.protobuf.Timestamp
+	35, // 43: dockwell.v1.ListServerSshSessionsResponse.sessions:type_name -> dockwell.v1.SshSession
+	47, // 44: dockwell.v1.SshLogin.time:type_name -> google.protobuf.Timestamp
+	40, // 45: dockwell.v1.ListServerSshLoginsResponse.logins:type_name -> dockwell.v1.SshLogin
+	41, // 46: dockwell.v1.ListServerSshLoginsResponse.failures:type_name -> dockwell.v1.SshLoginFailures
 	8,  // 47: dockwell.v1.FirewallService.GetServerFirewall:input_type -> dockwell.v1.GetServerFirewallRequest
 	17, // 48: dockwell.v1.FirewallService.GetServerSsh:input_type -> dockwell.v1.GetServerSshRequest
-	29, // 49: dockwell.v1.FirewallService.ListServerSshKeys:input_type -> dockwell.v1.ListServerSshKeysRequest
-	31, // 50: dockwell.v1.FirewallService.EditServerSshKey:input_type -> dockwell.v1.EditServerSshKeyRequest
-	34, // 51: dockwell.v1.FirewallService.ListServerSshSessions:input_type -> dockwell.v1.ListServerSshSessionsRequest
-	36, // 52: dockwell.v1.FirewallService.DisconnectServerSshSession:input_type -> dockwell.v1.DisconnectServerSshSessionRequest
-	40, // 53: dockwell.v1.FirewallService.ListServerSshLogins:input_type -> dockwell.v1.ListServerSshLoginsRequest
-	42, // 54: dockwell.v1.FirewallService.BanServerSshAddress:input_type -> dockwell.v1.BanServerSshAddressRequest
+	31, // 49: dockwell.v1.FirewallService.ListServerSshKeys:input_type -> dockwell.v1.ListServerSshKeysRequest
+	33, // 50: dockwell.v1.FirewallService.EditServerSshKey:input_type -> dockwell.v1.EditServerSshKeyRequest
+	36, // 51: dockwell.v1.FirewallService.ListServerSshSessions:input_type -> dockwell.v1.ListServerSshSessionsRequest
+	38, // 52: dockwell.v1.FirewallService.DisconnectServerSshSession:input_type -> dockwell.v1.DisconnectServerSshSessionRequest
+	42, // 53: dockwell.v1.FirewallService.ListServerSshLogins:input_type -> dockwell.v1.ListServerSshLoginsRequest
+	44, // 54: dockwell.v1.FirewallService.BanServerSshAddress:input_type -> dockwell.v1.BanServerSshAddressRequest
 	23, // 55: dockwell.v1.FirewallService.GetServerFail2ban:input_type -> dockwell.v1.GetServerFail2banRequest
-	9,  // 56: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
-	18, // 57: dockwell.v1.FirewallService.GetServerSsh:output_type -> dockwell.v1.GetServerSshResponse
-	30, // 58: dockwell.v1.FirewallService.ListServerSshKeys:output_type -> dockwell.v1.ListServerSshKeysResponse
-	32, // 59: dockwell.v1.FirewallService.EditServerSshKey:output_type -> dockwell.v1.EditServerSshKeyResponse
-	35, // 60: dockwell.v1.FirewallService.ListServerSshSessions:output_type -> dockwell.v1.ListServerSshSessionsResponse
-	37, // 61: dockwell.v1.FirewallService.DisconnectServerSshSession:output_type -> dockwell.v1.DisconnectServerSshSessionResponse
-	41, // 62: dockwell.v1.FirewallService.ListServerSshLogins:output_type -> dockwell.v1.ListServerSshLoginsResponse
-	43, // 63: dockwell.v1.FirewallService.BanServerSshAddress:output_type -> dockwell.v1.BanServerSshAddressResponse
-	24, // 64: dockwell.v1.FirewallService.GetServerFail2ban:output_type -> dockwell.v1.GetServerFail2banResponse
-	56, // [56:65] is the sub-list for method output_type
-	47, // [47:56] is the sub-list for method input_type
+	27, // 56: dockwell.v1.FirewallService.SetFail2banAddressBan:input_type -> dockwell.v1.SetFail2banAddressBanRequest
+	9,  // 57: dockwell.v1.FirewallService.GetServerFirewall:output_type -> dockwell.v1.GetServerFirewallResponse
+	18, // 58: dockwell.v1.FirewallService.GetServerSsh:output_type -> dockwell.v1.GetServerSshResponse
+	32, // 59: dockwell.v1.FirewallService.ListServerSshKeys:output_type -> dockwell.v1.ListServerSshKeysResponse
+	34, // 60: dockwell.v1.FirewallService.EditServerSshKey:output_type -> dockwell.v1.EditServerSshKeyResponse
+	37, // 61: dockwell.v1.FirewallService.ListServerSshSessions:output_type -> dockwell.v1.ListServerSshSessionsResponse
+	39, // 62: dockwell.v1.FirewallService.DisconnectServerSshSession:output_type -> dockwell.v1.DisconnectServerSshSessionResponse
+	43, // 63: dockwell.v1.FirewallService.ListServerSshLogins:output_type -> dockwell.v1.ListServerSshLoginsResponse
+	45, // 64: dockwell.v1.FirewallService.BanServerSshAddress:output_type -> dockwell.v1.BanServerSshAddressResponse
+	24, // 65: dockwell.v1.FirewallService.GetServerFail2ban:output_type -> dockwell.v1.GetServerFail2banResponse
+	28, // 66: dockwell.v1.FirewallService.SetFail2banAddressBan:output_type -> dockwell.v1.SetFail2banAddressBanResponse
+	57, // [57:67] is the sub-list for method output_type
+	47, // [47:57] is the sub-list for method input_type
 	47, // [47:47] is the sub-list for extension type_name
 	47, // [47:47] is the sub-list for extension extendee
 	0,  // [0:47] is the sub-list for field type_name
@@ -3951,18 +4120,18 @@ func file_dockwell_v1_firewall_proto_init() {
 		return
 	}
 	file_dockwell_v1_options_proto_init()
-	file_dockwell_v1_firewall_proto_msgTypes[23].OneofWrappers = []any{
+	file_dockwell_v1_firewall_proto_msgTypes[25].OneofWrappers = []any{
 		(*EditServerSshKeyRequest_PublicKey)(nil),
 		(*EditServerSshKeyRequest_RemoveFingerprint)(nil),
 	}
-	file_dockwell_v1_firewall_proto_msgTypes[32].OneofWrappers = []any{}
+	file_dockwell_v1_firewall_proto_msgTypes[34].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_firewall_proto_rawDesc), len(file_dockwell_v1_firewall_proto_rawDesc)),
 			NumEnums:      8,
-			NumMessages:   36,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

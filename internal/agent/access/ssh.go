@@ -20,6 +20,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
+	"github.com/dockwell/dockwell/internal/resource/firewall"
 )
 
 // SSHChange is a validated and reversible change to the agent's SSH drop-in.
@@ -233,9 +234,10 @@ func sshPortPin(name string, port uint16, peers []netip.Prefix) nftables.Rule {
 
 func sshPeerReachable(table nftables.Table, trial *SSHChange) bool {
 	matches := func(rule nftables.Rule) bool {
-		return rule.Protocol == "tcp" && slices.Contains(rule.Ports, trial.Port) &&
+		return (rule.Protocol == "" || rule.Protocol == "tcp") &&
+			(len(rule.Ports) == 0 || slices.Contains(rule.Ports, trial.Port)) &&
 			(len(rule.Sources) == 0 || slices.ContainsFunc(rule.Sources, func(p netip.Prefix) bool {
-				return p.Contains(trial.ProofPeer)
+				return firewall.SourceContains(p.String(), trial.ProofPeer)
 			}))
 	}
 	if slices.ContainsFunc(table.Pins, matches) || slices.ContainsFunc(table.Allows, matches) {

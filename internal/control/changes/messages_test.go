@@ -188,7 +188,7 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 	}})
 	expect("a project that isn't there", "not_found", "there's no project nowhere. The projects are default", err)
 	_, err = e.Propose(ctx, revision.Proposal{Summary: "x", Actor: "user:usr_mira", Edits: []revision.Edit{rule("srv_1", "http", 0)}})
-	expect("an invalid spec", "invalid", "firewall.rule http in srv_1 isn't valid: a rule's port runs from 1 to 65535, not 0", err)
+	expect("an invalid spec", "invalid", "firewall.rule http in srv_1 isn't valid: a rule needs a port or addresses to cover on every port. Add one", err)
 
 	// http on hz-1: one plan applied, and another made before it.
 	first, second := proposed(t, e, rule("srv_1", "http", 80)), proposed(t, e, rule("srv_1", "http", 81))

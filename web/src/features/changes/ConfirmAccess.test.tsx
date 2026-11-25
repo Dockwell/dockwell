@@ -417,7 +417,7 @@ function policyPlanned(): Change {
               resource: { kind: "firewall.policy", scope: "srv_1", name: "default" },
               action: PlanAction.CREATE,
               warnings: [PlanWarning.MAY_LOCK_OUT],
-              closes: ["5432/tcp", "8080/tcp (shop-web-1)"],
+              closes: ["5432/tcp", "8080/tcp (shop-web-1)", "51820/udp (vpn)"],
               stays: {
                 sshPorts: [22],
                 pinned: ["203.0.113.7/32"],
@@ -447,13 +447,9 @@ describe("a change to a server's firewall policy", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     act(() => watch.push(watched(change)));
-    expect(await within(sheet).findByText("Deny everything else closes what no rule lets in on hz-1")).toBeVisible();
-    // What it closes and what to do are in sight; why is under How this works.
+    expect(await within(sheet).findByText("Ports this plan would close on hz-1")).toBeVisible();
     expect(sheet).toHaveTextContent(
-      "It closes 5432/tcp, 8080/tcp (shop-web-1): add a rule for any you mean to keep open.",
-    );
-    expect(sheet).toHaveTextContent(
-      "SSH stays open as this plan says, and on the control server its own ports stay open.",
+      "Add a rule for any of these ports you want to keep open: 5432/tcp, 8080/tcp (shop-web-1), 51820/udp (vpn).",
     );
     expect(within(sheet).getByText("This may cut off access to hz-1")).toBeVisible();
     // Who SSH stays open from, by name, and what happens when that address changes.

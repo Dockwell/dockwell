@@ -181,6 +181,22 @@ service FirewallService {
     };
     option (google.api.http) = {get: "/v1/servers/{server_id}/fail2ban"};
   }
+  // SetFail2banAddressBan bans or unbans an address in one active jail.
+  rpc SetFail2banAddressBan(SetFail2banAddressBanRequest) returns (SetFail2banAddressBanResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "fail2ban"
+      verb: "set-ban"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/fail2ban/bans:set"
+      body: "*"
+    };
+  }
 }
 
 // GetServerFirewallRequest names a server.
@@ -194,6 +210,8 @@ message GetServerFirewallResponse {
   // The firewall, as the agent read it, Dockwell's own with the rest.
   ServerFirewall firewall = 1;
   reserved 2, 3;
+  // The caller's address as the control plane sees it. Empty over loopback.
+  string your_address = 4;
 }
 
 // DockwellFirewallRule is one of Dockwell's own rules for a server.
@@ -250,6 +268,8 @@ message DockwellTable {
   repeated DockwellFirewallRule waiting_rules = 5;
   // The policy as that change leaves it. Unset when it leaves none.
   dockwell.resource.v1alpha1.FirewallPolicy waiting_policy = 6;
+  // True when explicit allows can be required for published Docker ports.
+  bool can_guard_docker_ports = 7;
 }
 
 // HostListener is a port something on the server listens on, beyond loopback.
@@ -659,6 +679,8 @@ message ServerFail2ban {
   // the firewall's pins read them, such as "203.0.113.7". A jail's form puts
   // them in what it never bans, unless the person takes them out.
   repeated string signed_in_from = 6;
+  // True when the agent can change bans and start or stop Dockwell's jails.
+  bool manages_jails_and_bans = 7;
 }
 
 // Fail2banState is whether fail2ban is there and running.
@@ -715,7 +737,23 @@ message Fail2banJail {
   // The jail as Dockwell holds it, when Dockwell writes it: what an edit
   // starts from, so it changes only what it means to.
   dockwell.resource.v1alpha1.Jail spec = 16;
+  // True when the jail is currently protecting the server.
+  bool running = 17;
 }
+
+// SetFail2banAddressBanRequest names the address and its jail.
+message SetFail2banAddressBanRequest {
+  string server_id = 1;
+  string jail = 2;
+  string address = 3;
+  // Ban when true and unban when false.
+  bool banned = 4;
+  // Passkey proof for a ban. Unbanning needs only a signed-in admin.
+  string proof = 5;
+}
+
+// SetFail2banAddressBanResponse confirms fail2ban accepted the operation.
+message SetFail2banAddressBanResponse {}
 
 // Fail2banBan is an address a jail has banned.
 message Fail2banBan {

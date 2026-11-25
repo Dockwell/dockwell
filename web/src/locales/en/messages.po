@@ -823,6 +823,9 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Banned a Fail2ban address on {server}"
+msgstr "Banned a Fail2ban address on {server}"
+
 msgid "Banned an SSH address on {server}"
 msgstr "Banned an SSH address on {server}"
 
@@ -1010,6 +1013,19 @@ msgstr "Extracted {path} into {to} on {server}"
 
 msgid "Extracted {path} into {to} on {server}, which can let someone back in"
 msgstr "Extracted {path} into {to} on {server}, which can let someone back in"
+
+#. placeholder {0}: ban.address
+#. placeholder {1}: ban.jail
+msgid "Fail2ban ban of {0} in {1} unconfirmed on {server}"
+msgstr "Fail2ban ban of {0} in {1} unconfirmed on {server}"
+
+msgid "Fail2ban operation unconfirmed on {server}"
+msgstr "Fail2ban operation unconfirmed on {server}"
+
+#. placeholder {0}: ban.address
+#. placeholder {1}: ban.jail
+msgid "Fail2ban unban of {0} in {1} unconfirmed on {server}"
+msgstr "Fail2ban unban of {0} in {1} unconfirmed on {server}"
 
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
@@ -1458,6 +1474,9 @@ msgstr "Turned on deploy on push"
 
 msgid "Turned on deploy on push for {name}"
 msgstr "Turned on deploy on push for {name}"
+
+msgid "Unbanned a Fail2ban address on {server}"
+msgstr "Unbanned a Fail2ban address on {server}"
 
 msgid "Undo: {reverted}"
 msgstr "Undo: {reverted}"
@@ -11385,11 +11404,20 @@ msgstr "a sign-in lasts, in hours"
 msgid "action"
 msgstr "action"
 
+msgid "all ports"
+msgstr "all ports"
+
+msgid "all {transport} ports"
+msgstr "all {transport} ports"
+
 msgid "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
 
 msgid "allow <0>{port}</0>, {proto}, from anywhere"
 msgstr "allow <0>{port}</0>, {proto}, from anywhere"
+
+msgid "allow {match} from <0>{from}</0>"
+msgstr "allow {match} from <0>{from}</0>"
 
 msgid "as the provider has them now"
 msgstr "as the provider has them now"
@@ -11399,6 +11427,9 @@ msgstr "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 
 msgid "block <0>{port}</0>, {proto}, from anywhere"
 msgstr "block <0>{port}</0>, {proto}, from anywhere"
+
+msgid "block {match} from <0>{from}</0>"
+msgstr "block {match} from <0>{from}</0>"
 
 msgid "branch"
 msgstr "branch"
@@ -11733,6 +11764,9 @@ msgstr "A service of the same name in the file replaces it, and one the file doe
 msgid "A service of the same name in the file replaces it."
 msgstr "A service of the same name in the file replaces it."
 
+msgid "Add a rule for any of these ports you want to keep open: {closes}."
+msgstr "Add a rule for any of these ports you want to keep open: {closes}."
+
 msgid "Add it to what the jail never bans first, or apply this knowing it."
 msgstr "Add it to what the jail never bans first, or apply this knowing it."
 
@@ -11865,10 +11899,6 @@ msgstr "Checks {domain} every minute"
 msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 msgstr "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 
-#. placeholder {0}: server.serverName
-msgid "Deny everything else closes what no rule lets in on {0}"
-msgstr "Deny everything else closes what no rule lets in on {0}"
-
 msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 msgstr "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 
@@ -11989,9 +12019,6 @@ msgstr "It can write to {holder}, which holds {held}, which {holdsFor} mounts."
 
 msgid "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
 msgstr "It can't be read meanwhile, and it goes once the server is back and the 7 days are up."
-
-msgid "It closes {closes}: add a rule for any you mean to keep open."
-msgstr "It closes {closes}: add a rule for any you mean to keep open."
 
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
@@ -12145,6 +12172,10 @@ msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "Nothing installed from this catalog upgrades to them."
 
+#. placeholder {0}: server.serverName
+msgid "Ports this plan would close on {0}"
+msgstr "Ports this plan would close on {0}"
+
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "Pulls {image} again, and replaces {name} only if that's a newer image."
 
@@ -12282,9 +12313,6 @@ msgstr "The server's security rests on what that reaches, so it is as good as ro
 msgid "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 msgstr "The {image} that revision {revision} ran, {digest}, isn't on the server, and its registry won't give it, so {name} runs what {image} is now"
 
-msgid "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
-msgstr "These ports listen, or Docker publishes them, and no rule lets them in from anywhere. SSH stays open as this plan says, and on the control server its own ports stay open."
-
 msgid "They are {list}."
 msgstr "They are {list}."
 
@@ -12302,6 +12330,10 @@ msgstr "This catalog comes first, so the catalog shows its apps."
 
 msgid "This copy was taken with the app running"
 msgstr "This copy was taken with the app running"
+
+#. placeholder {0}: server.serverName
+msgid "This deny covers addresses with open SSH sessions on {0}"
+msgstr "This deny covers addresses with open SSH sessions on {0}"
 
 #. placeholder {0}: server.serverName
 msgid "This jail can ban your own address on {0}"
@@ -12603,6 +12635,9 @@ msgstr "{name} no longer serves every project"
 msgid "{name} no longer serves {project}"
 msgstr "{name} no longer serves {project}"
 
+msgid "{name} now covers every port for its selected protocols and addresses"
+msgstr "{name} now covers every port for its selected protocols and addresses"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -12709,6 +12744,9 @@ msgstr "{on} needs nothing, so it takes no step."
 
 msgid "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
 msgstr "{path}'s {detail}, made in Cloudflare, becomes Dockwell's"
+
+msgid "{peers} stay connected. Check that you can reconnect before you keep the change."
+msgstr "{peers} stay connected. Check that you can reconnect before you keep the change."
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} can upgrade again, from the catalog each came from."
@@ -20012,6 +20050,15 @@ msgstr "An address or a range to never ban"
 msgid "As it is: {s}"
 msgstr "As it is: {s}"
 
+msgid "Ban address"
+msgstr "Ban address"
+
+msgid "Ban an address"
+msgstr "Ban an address"
+
+msgid "Ban {target} in the {jail} jail on {name}."
+msgstr "Ban {target} in the {jail} jail on {name}."
+
 msgid "Banned for"
 msgstr "Banned for"
 
@@ -20048,6 +20095,12 @@ msgstr "For good"
 
 msgid "Forced commands only"
 msgstr "Forced commands only"
+
+msgid "IP address"
+msgstr "IP address"
+
+msgid "Jail"
+msgstr "Jail"
 
 msgid "Jails"
 msgstr "Jails"
@@ -20106,6 +20159,24 @@ msgstr "SSH"
 msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
 msgstr "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
 
+msgid "Show all bans"
+msgstr "Show all bans"
+
+msgid "Show fewer bans"
+msgstr "Show fewer bans"
+
+msgid "Start jail"
+msgstr "Start jail"
+
+msgid "Start the {jailName} jail on {name}"
+msgstr "Start the {jailName} jail on {name}"
+
+msgid "Stop jail"
+msgstr "Stop jail"
+
+msgid "Stop the {jailName} jail on {name}"
+msgstr "Stop the {jailName} jail on {name}"
+
 #. placeholder {0}: j.name
 msgid "Stop writing the {0} jail"
 msgstr "Stop writing the {0} jail"
@@ -20136,6 +20207,18 @@ msgstr "These are what sshd's files say; sshd uses what it read when it last sta
 
 msgid "This can ban {takenOutList} as it applies"
 msgstr "This can ban {takenOutList} as it applies"
+
+msgid "This is your current address. Choose another address to ban."
+msgstr "This is your current address. Choose another address to ban."
+
+msgid "Unban"
+msgstr "Unban"
+
+msgid "Unban an address"
+msgstr "Unban an address"
+
+msgid "Unban {target} in the {jail} jail on {name}."
+msgstr "Unban {target} in the {jail} jail on {name}."
 
 msgid "Until it reloads, it may still accept what this says is off."
 msgstr "Until it reloads, it may still accept what this says is off."
@@ -20291,6 +20374,27 @@ msgstr "Every address"
 msgid "Filter firewall rules and ports"
 msgstr "Filter firewall rules and ports"
 
+msgid "Forwarded connections need an allow rule. UDP keeps its existing access unless you include it."
+msgstr "Forwarded connections need an allow rule. UDP keeps its existing access unless you include it."
+
+msgid "Guard Docker UDP ports"
+msgstr "Guard Docker UDP ports"
+
+msgid "Guard Docker UDP ports on {name}"
+msgstr "Guard Docker UDP ports on {name}"
+
+msgid "Guard Docker UDP ports, waiting for Keep"
+msgstr "Guard Docker UDP ports, waiting for Keep"
+
+msgid "Guard Docker ports"
+msgstr "Guard Docker ports"
+
+msgid "Guard Docker ports on {name}"
+msgstr "Guard Docker ports on {name}"
+
+msgid "Guard Docker ports, waiting for Keep"
+msgstr "Guard Docker ports, waiting for Keep"
+
 msgid "Inbound traffic"
 msgstr "Inbound traffic"
 
@@ -20317,6 +20421,9 @@ msgstr "It turns away what no rule lets in."
 
 msgid "Its port"
 msgstr "Its port"
+
+msgid "Leave Docker UDP ports open on {name}"
+msgstr "Leave Docker UDP ports open on {name}"
 
 msgid "Limit"
 msgstr "Limit"
@@ -20353,6 +20460,9 @@ msgstr "Open: nothing here closes it"
 msgid "Ports Docker publishes"
 msgstr "Ports Docker publishes"
 
+msgid "Published UDP ports need an allow rule, including ports used by VPN containers."
+msgstr "Published UDP ports need an allow rule, including ports used by VPN containers."
+
 msgid "Reach"
 msgstr "Reach"
 
@@ -20375,6 +20485,9 @@ msgstr "Rules of {title}"
 
 msgid "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
 msgstr "Rules ufw, firewalld and Docker didn't make. A drop in any of them wins, and Dockwell doesn't weigh them one by one, so where they may drop what listens above, it says it can't tell."
+
+msgid "Stop guarding Docker ports on {name}"
+msgstr "Stop guarding Docker ports on {name}"
 
 #. placeholder {0}: server.name
 #. placeholder {1}: server.name
@@ -20473,11 +20586,23 @@ msgstr "Add a rule"
 msgid "Add a rule to {0}"
 msgstr "Add a rule to {0}"
 
+msgid "Addresses or ranges, separated by commas."
+msgstr "Addresses or ranges, separated by commas."
+
 msgid "Addresses or ranges, separated by commas. Empty lets anyone in."
 msgstr "Addresses or ranges, separated by commas. Empty lets anyone in."
 
-msgid "Allow {n}/{protocol} on {serverName}"
-msgstr "Allow {n}/{protocol} on {serverName}"
+msgid "All ports"
+msgstr "All ports"
+
+msgid "All {protocol} ports"
+msgstr "All {protocol} ports"
+
+msgid "Allow addresses on {serverName}"
+msgstr "Allow addresses on {serverName}"
+
+msgid "Allow {n}/{portProtocol} on {serverName}"
+msgstr "Allow {n}/{portProtocol} on {serverName}"
 
 msgid "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
 msgstr "As {name} starts, these are off until its agent is up, a few seconds in, and loads them again: for those seconds, everything they'd drop gets in. Nothing is lost, and nobody is locked out."
@@ -20488,6 +20613,9 @@ msgstr "As {name} starts, these are off until its agent is up, a few seconds in,
 msgid "Change waiting for Keep"
 msgstr "Change waiting for Keep"
 
+msgid "Deny addresses on {serverName}"
+msgstr "Deny addresses on {serverName}"
+
 msgid "Deny everything else"
 msgstr "Deny everything else"
 
@@ -20497,8 +20625,8 @@ msgstr "Deny everything else on {name}"
 msgid "Deny everything else, waiting for Keep"
 msgstr "Deny everything else, waiting for Keep"
 
-msgid "Deny {n}/{protocol} on {serverName}"
-msgstr "Deny {n}/{protocol} on {serverName}"
+msgid "Deny {n}/{portProtocol} on {serverName}"
+msgstr "Deny {n}/{portProtocol} on {serverName}"
 
 msgid "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
 msgstr "Dockwell has no rules for {name} yet. What comes in is as the server's own firewall leaves it."
@@ -20512,8 +20640,25 @@ msgstr "Dockwell's rules"
 msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
 msgstr "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
 
+#. placeholder {0}: existing.name
+#. placeholder {0}: row.id
+msgid "Edit the rule {0}"
+msgstr "Edit the rule {0}"
+
+msgid "Edit the rule {name} on {serverName}"
+msgstr "Edit the rule {name} on {serverName}"
+
+msgid "Enter an address or range, or choose a port."
+msgstr "Enter an address or range, or choose a port."
+
+msgid "Import {count} firewall rules on {name}"
+msgstr "Import {count} firewall rules on {name}"
+
 msgid "It stays only once you confirm you can still reach the server"
 msgstr "It stays only once you confirm you can still reach the server"
+
+msgid "Leave empty to cover every port from the addresses below."
+msgstr "Leave empty to cover every port from the addresses below."
 
 msgid "Let in what no rule drops on {name}"
 msgstr "Let in what no rule drops on {name}"
@@ -20533,6 +20678,10 @@ msgstr "Office VPN"
 msgid "Removal waiting for Keep"
 msgstr "Removal waiting for Keep"
 
+#. placeholder {0}: picked.length
+msgid "Remove selected ({0})"
+msgstr "Remove selected ({0})"
+
 #. placeholder {0}: row.id
 msgid "Remove the rule {0}"
 msgstr "Remove the rule {0}"
@@ -20541,8 +20690,29 @@ msgstr "Remove the rule {0}"
 msgid "Remove the rule {0} from {name}"
 msgstr "Remove the rule {0} from {name}"
 
+msgid "Remove {count} firewall rules from {name}"
+msgstr "Remove {count} firewall rules from {name}"
+
+msgid "Select rules"
+msgstr "Select rules"
+
+msgid "Select the rule {id}"
+msgstr "Select the rule {id}"
+
+msgid "The deny rule {rule} covers your current address. Leave your address out of its sources and import again."
+msgstr "The deny rule {rule} covers your current address. Leave your address out of its sources and import again."
+
+msgid "The name {rule} is reserved for database external access. Rename the rule, or set access on the database page."
+msgstr "The name {rule} is reserved for database external access. Rename the rule, or set access on the database page."
+
 msgid "The server itself"
 msgstr "The server itself"
+
+msgid "This file isn't a Dockwell firewall export. Choose a JSON export under 256 KB with up to 200 rules."
+msgstr "This file isn't a Dockwell firewall export. Choose a JSON export under 256 KB with up to 200 rules."
+
+msgid "This range covers your current address. Choose a source that leaves yours out."
+msgstr "This range covers your current address. Choose a source that leaves yours out."
 
 msgid "Use my address"
 msgstr "Use my address"

@@ -16,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -289,5 +290,19 @@ func TestSSHPortPlanNamesARuleItCannotMove(t *testing.T) {
 	m.confirmed.Rules["blocked"] = &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}
 	if _, err := m.CheckSSH(t.Context(), &resourcev1.SshConfig{Port: 2222, Account: "admin"}); err == nil || !strings.Contains(err.Error(), "blocked") {
 		t.Fatalf("plan with a deny rule returned %v", err)
+	}
+}
+
+func TestSSHTrialPeerReachIncludesAddressRules(t *testing.T) {
+	trial := &SSHChange{Port: 2222, ProofPeer: netip.MustParseAddr("203.0.113.7")}
+	r := nftables.Rule{Sources: []netip.Prefix{netip.MustParsePrefix("203.0.113.0/24")}}
+	for _, protocol := range []string{"", "tcp", "udp"} {
+		r.Protocol = protocol
+		if got := sshPeerReachable(nftables.Table{Denies: []nftables.Rule{r}}, trial); got != (protocol == "udp") {
+			t.Errorf("protocol %q, address deny reach = %t", protocol, got)
+		}
+		if got := sshPeerReachable(nftables.Table{Allows: []nftables.Rule{r}, DenyRest: true}, trial); got != (protocol != "udp") {
+			t.Errorf("protocol %q, address allow reach = %t", protocol, got)
+		}
 	}
 }

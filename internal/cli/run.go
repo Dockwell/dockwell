@@ -581,7 +581,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Tunnels: tunnelFinder(stdio, logger), Health: monitor,
 		PruneRunState: runtime.PruneRunState,
 		Backups:       backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
-		Jails: jailed.Stored, SSHSessions: sessions, DockerIngressImage: proxy.Reference(), DockerVolumeKept: kept.Has,
+		Jails: jailed.Stored, Fail2banProtected: jailed.Control, SSHSessions: sessions, DockerIngressImage: proxy.Reference(), DockerVolumeKept: kept.Has,
 		System: units,
 	}
 }

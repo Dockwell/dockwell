@@ -6199,6 +6199,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/fail2ban/bans:set:
+        post:
+            tags:
+                - FirewallService
+            description: SetFail2banAddressBan bans or unbans an address in one active jail.
+            operationId: FirewallService_SetFail2BanAddressBan
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetFail2banAddressBanRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetFail2banAddressBanResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -10317,6 +10348,13 @@ components:
                         The ports the panel and the control plane listen on, on the control
                          server, when the change turns deny everything else on there: they stay
                          open by their pin, and the test to run is the panel in a new tab too.
+                sshSessionsCovered:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Addresses with a live SSH session covered by the proposed deny. Its
+                         session stays open, but reconnecting can depend on the pin.
             description: |-
                 AccessStays is who still reaches a server's SSH once a change that narrows
                  it is kept (ADR 0052). An address here is all that keeps its person in: if
@@ -12138,6 +12176,7 @@ components:
                         - STEP_UP_ACTION_EDIT_SSH_KEY
                         - STEP_UP_ACTION_DISCONNECT_SSH_SESSION
                         - STEP_UP_ACTION_BAN_SSH_ADDRESS
+                        - STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS
                         - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
@@ -18569,6 +18608,9 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/FirewallPolicy'
                     description: The policy as that change leaves it. Unset when it leaves none.
+                canGuardDockerPorts:
+                    type: boolean
+                    description: True when explicit allows can be required for published Docker ports.
             description: |-
                 DockwellTable is Dockwell's own firewall on a server, as its agent holds it
                  (ADR 0052).
@@ -19041,7 +19083,9 @@ components:
                          other messages, 80 to 89.
                 mustCreate:
                     type: boolean
-                    description: Require a new network or volume and an unoccupied Engine name.
+                    description: |-
+                        Require a new resource name for a firewall rule, network or volume.
+                         A network or volume also needs an unoccupied Docker Engine name.
             description: Edit sets one resource's desired spec, or deletes it.
         EditServerSshKeyRequest:
             type: object
@@ -19512,6 +19556,10 @@ components:
                     description: |-
                         What became of making a catalog app's owner, for an event with an action that
                          starts "app_owner." (ADR 0105). Its subject is the app.owner resource.
+                fail2ban:
+                    allOf:
+                        - $ref: '#/components/schemas/EventFail2ban'
+                    description: The attempted operation for an unconfirmed manual Fail2ban change.
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -19765,6 +19813,19 @@ components:
                  what the server runs, when some of it held the values of variables and secrets.
                  An agent keeps those so its server can be put back while the control plane is
                  away, and is sent them as it connects without them.
+        EventFail2ban:
+            type: object
+            properties:
+                operation:
+                    type: string
+                    description: The operation, "ban" or "unban".
+                jail:
+                    type: string
+                    description: The running jail targeted by the operation.
+                address:
+                    type: string
+                    description: The IP address targeted by the operation.
+            description: EventFail2ban identifies a manual ban or unban whose outcome is unknown.
         EventHealth:
             type: object
             properties:
@@ -20293,6 +20354,9 @@ components:
                     description: |-
                         The jail as Dockwell holds it, when Dockwell writes it: what an edit
                          starts from, so it changes only what it means to.
+                running:
+                    type: boolean
+                    description: True when the jail is currently protecting the server.
             description: Fail2banJail is one of fail2ban's jails, as it runs.
         FetchBackupRequest:
             type: object
@@ -20590,6 +20654,14 @@ components:
                         Drop inbound traffic no rule lets in. What keeps the server reachable is
                          still let in: connections already open, SSH from where people come in now,
                          and on the control server its own ports.
+                guardDockerPorts:
+                    type: boolean
+                    description: |-
+                        Require an explicit firewall allow for new connections Docker forwards,
+                         except UDP unless guard_docker_udp is set too.
+                guardDockerUdp:
+                    type: boolean
+                    description: Include published UDP ports in the Docker guard.
             description: |-
                 FirewallPolicy is what a server's firewall does with inbound traffic no rule
                  lets in, kind "firewall.policy", named "default", one for each server.
@@ -20612,11 +20684,11 @@ components:
                         - PROTOCOL_TCP
                         - PROTOCOL_UDP
                     type: string
-                    description: TCP unless set.
+                    description: TCP by default for a port rule, or all protocols for an address rule.
                     format: enum
                 port:
                     type: integer
-                    description: The port the rule covers. Omit on an existing rule to keep its port.
+                    description: The port the rule covers. Omit to cover every port from the named sources.
                     format: uint32
                 sources:
                     type: array
@@ -20628,7 +20700,7 @@ components:
                 comment:
                     type: string
                     description: Why the rule exists, shown next to it.
-            description: FirewallRule allows or blocks inbound traffic to a port on a server.
+            description: FirewallRule allows or blocks inbound traffic on a server.
         FirewallSeenRule:
             type: object
             properties:
@@ -21153,6 +21225,9 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/ServerFirewall'
                     description: The firewall, as the agent read it, Dockwell's own with the rest.
+                yourAddress:
+                    type: string
+                    description: The caller's address as the control plane sees it. Empty over loopback.
             description: GetServerFirewallResponse is what filters the server's inbound traffic.
         GetServerHistoryResponse:
             type: object
@@ -23201,6 +23276,9 @@ components:
                         Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
                          server's own loopback and the control server's addresses, which it never
                          bans either.
+                disabled:
+                    type: boolean
+                    description: Keep the jail's settings while stopping its protection.
             description: |-
                 Jail is one of fail2ban's jails on a server, as Dockwell writes it in
                  its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
@@ -30364,6 +30442,9 @@ components:
                         The addresses signed in to the server over SSH from outside it now, as
                          the firewall's pins read them, such as "203.0.113.7". A jail's form puts
                          them in what it never bans, unless the person takes them out.
+                managesJailsAndBans:
+                    type: boolean
+                    description: True when the agent can change bans and start or stop Dockwell's jails.
             description: |-
                 ServerFail2ban is what fail2ban does on a server, as its agent read it
                  through fail2ban-client. A jail is as fail2ban says it runs, which may not
@@ -31942,6 +32023,26 @@ components:
             description: |-
                 SetDatabaseExternalAccessResponse is the change that gives or takes external
                  access, planned.
+        SetFail2banAddressBanRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                jail:
+                    type: string
+                address:
+                    type: string
+                banned:
+                    type: boolean
+                    description: Ban when true and unban when false.
+                proof:
+                    type: string
+                    description: Passkey proof for a ban. Unbanning needs only a signed-in admin.
+            description: SetFail2banAddressBanRequest names the address and its jail.
+        SetFail2banAddressBanResponse:
+            type: object
+            properties: {}
+            description: SetFail2banAddressBanResponse confirms fail2ban accepted the operation.
         SetGitHookRoleRequest:
             type: object
             properties:

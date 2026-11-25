@@ -526,6 +526,9 @@ describe("a plan's fields, in words", () => {
     expect(reads(rowsOf({ kind: "firewall.rule", changes: [added("action", "allow"), added("port", "22")] }))).toEqual([
       "rule to allow 22, TCP, from anywhere",
     ]);
+    expect(
+      reads(rowsOf({ kind: "firewall.rule", changes: [added("action", "deny"), added("sources", "2001:db8::/32")] })),
+    ).toEqual(["rule to block all ports from 2001:db8::/32"]);
   });
 
   it("reads a kind no one has words for yet as words, from its fields' names", () => {

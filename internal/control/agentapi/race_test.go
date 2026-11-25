@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -333,4 +334,31 @@ func TestAnInstallsCallGetsItsHours(t *testing.T) {
 // fresh copies a result, so each call gets its own.
 func fresh(r *agentv1.CallResult) *agentv1.CallResult {
 	return &agentv1.CallResult{Result: r.GetResult()}
+}
+
+func TestConnectedAgentPeerAddressFollowsTheStream(t *testing.T) {
+	a := NewAgents(resource.NewRegistry(), slog.New(slog.DiscardHandler))
+	hello := &agentv1.Hello{}
+	send := func(*agentv1.ConnectResponse) error { return nil }
+	peer := netip.MustParseAddr("203.0.113.7")
+	old := a.open("srv_joined", "joined-server", hello, send, sessionPeer{addr: peer})
+	if got := a.ServerAtAddress(netip.MustParseAddr("::ffff:203.0.113.7"), "srv_control"); got != "joined-server" {
+		t.Fatalf("server for the agent peer = %q", got)
+	}
+	if got := a.ServerAtAddress(peer, "srv_joined"); got != "" {
+		t.Fatalf("the target server is already protected locally, got %q", got)
+	}
+	next := netip.MustParseAddr("198.51.100.3")
+	current := a.open("srv_joined", "joined-server", hello, send, sessionPeer{addr: next})
+	old.close()
+	if got := a.ServerAtAddress(peer, "srv_control"); got != "" {
+		t.Fatalf("old stream still protects its peer: %q", got)
+	}
+	if got := a.ServerAtAddress(next, "srv_control"); got != "joined-server" {
+		t.Fatalf("current stream is missing: %q", got)
+	}
+	current.close()
+	if got := a.ServerAtAddress(next, "srv_control"); got != "" {
+		t.Fatalf("closed stream still protects its peer: %q", got)
+	}
 }

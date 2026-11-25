@@ -1334,6 +1334,17 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	// What planning noted itself, such as a route proven by DNS that gets no key.
 	p.Notes = append(slices.Clone(p.Notes), plan.Notes...)
+	for i := range items {
+		it := &items[i]
+		before, _ := it.current.(*resourcev1.FirewallRule)
+		after, _ := it.spec.(*resourcev1.FirewallRule)
+		if before.GetPort() != 0 && after != nil && after.GetPort() == 0 {
+			p.Notes = append(p.Notes, Note{
+				Reason: "firewall_all_ports", Ref: it.ref,
+				Message: it.ref.Name + " now covers every port for its selected protocols and addresses",
+			})
+		}
+	}
 	// What the change leaves behind it, such as a redirect left landing on nothing.
 	var across []Note
 	if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
@@ -1980,14 +1991,6 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
-				if rule, ok := it.spec.(*resourcev1.FirewallRule); ok && rule.GetPort() == 0 {
-					if current, ok := it.current.(*resourcev1.FirewallRule); ok {
-						rule.Port = current.GetPort()
-						rule.Action = cmp.Or(rule.GetAction(), current.GetAction())
-						rule.Protocol = cmp.Or(rule.GetProtocol(), current.GetProtocol())
-						rule.Comment = cmp.Or(rule.GetComment(), current.GetComment())
-					}
-				}
 				registryPushOnly := false
 				if login, ok := it.spec.(*resourcev1.RegistryLogin); ok && login.AllowPush != nil &&
 					proto.Equal(login, &resourcev1.RegistryLogin{AllowPush: login.AllowPush}) {

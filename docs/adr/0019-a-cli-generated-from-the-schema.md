@@ -86,6 +86,7 @@ The binary is one (ADR 0007), so the CLI ships inside `dockwell` beside `run`, `
   - `--project` for an environment;
   - `--project`, `--environment` and `--on` for a service, which runs on any number of servers, so `--on` repeats for each;
   - `--on` for a container or firewall rule, which is on one server, so `--on` takes one, and given twice is a usage error.
+  - For firewall rules, omitting the port on create or update matches every port from the supplied source addresses. When changing only a port rule's sources, include its existing port in the update.
 
   All are optional, and the help says to leave them out while there is only one.
 - When the API answers `choice`, the error now carries a detail, `dockwell.v1.Choice`, with the level, the options and the request's field that takes the answer, such as `edits[0].project`. It is a `google.rpc.Status` detail over every protocol, REST included, so the panel and the MCP server can ask the same way.

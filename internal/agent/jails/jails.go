@@ -228,18 +228,55 @@ func (m *Manager) change(ctx context.Context, fn func(map[string]*resourcev1.Jai
 	if res, err := m.run(ctx, "ping"); err == nil && res.Code != 0 {
 		// Its server isn't running: it reads the file as it starts.
 		resource.Report(ctx, resource.Outcome{Note: "fail2ban isn't running, so the jail loads as it starts."})
-	} else if res, err := m.run(ctx, reload...); err != nil || res.Code != 0 {
-		restoreLive()
-		return fmt.Errorf("fail2ban didn't reload with the jails, so it stays as it was: %s", why(res, err))
+	} else {
+		if res, err := m.run(ctx, reload...); err != nil || res.Code != 0 {
+			restoreLive()
+			return fmt.Errorf("fail2ban didn't reload with the jails, so it stays as it was: %s", why(res, err))
+		}
+		if err := m.verifyEnabled(ctx, next); err != nil {
+			restoreLive()
+			return err
+		}
 	}
 	if err := m.saveLocked(next); err != nil {
-		if sshPortBefore != nil {
-			restoreLive()
-		}
+		restoreLive()
 		return err
 	}
 	m.jails = next
 	return nil
+}
+
+// verifyEnabled checks a start or stop against the running service. A later
+// local file can override enabled after fail2ban accepts the reload.
+func (m *Manager) verifyEnabled(ctx context.Context, next map[string]*resourcev1.Jail) error {
+	var changed []string
+	for name, spec := range next {
+		if spec.GetDisabled() != m.jails[name].GetDisabled() {
+			changed = append(changed, name)
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	res, err := m.run(ctx, "status")
+	if err != nil || res.Code != 0 {
+		return fmt.Errorf("can't verify whether fail2ban started or stopped the jail: %s", why(res, err))
+	}
+	for line := range strings.SplitSeq(string(res.Out), "\n") {
+		_, list, ok := strings.Cut(line, "Jail list:")
+		if !ok {
+			continue
+		}
+		active := strings.Fields(strings.ReplaceAll(list, ",", " "))
+		slices.Sort(changed)
+		for _, name := range changed {
+			if slices.Contains(active, name) == next[name].GetDisabled() {
+				return fmt.Errorf("fail2ban didn't start or stop %s as planned. Check its enabled setting in jail.local and jail.d", name)
+			}
+		}
+		return nil
+	}
+	return errors.New("can't find the list of active jails in fail2ban's status")
 }
 
 func sshPortOverride(path string) ([]byte, error) {
@@ -297,7 +334,7 @@ func Render(jails map[string]*resourcev1.Jail, control []string) string {
 	b.WriteString("# Change these jails in Dockwell, or set them otherwise in jail.local, which fail2ban reads after it.\n")
 	for _, name := range slices.Sorted(maps.Keys(jails)) {
 		j := jails[name]
-		fmt.Fprintf(&b, "\n[%s]\nenabled = true\nfilter = %s\n", name, j.GetFilter())
+		fmt.Fprintf(&b, "\n[%s]\nenabled = %t\nfilter = %s\n", name, !j.GetDisabled(), j.GetFilter())
 		if j.GetBackend() != "" {
 			fmt.Fprintf(&b, "backend = %s\n", j.GetBackend())
 		}

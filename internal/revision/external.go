@@ -38,16 +38,21 @@ const (
 // firewallRuleKind is the kind of a server's firewall rule.
 const firewallRuleKind resource.Kind = "firewall.rule"
 
+const externalRulePrefix = "external-"
+
+// ReservedFirewallRule reports a name Dockwell reserves for database access.
+func ReservedFirewallRule(name string) bool { return strings.HasPrefix(name, externalRulePrefix) }
+
 // ExternalRule is the name of the firewall rule a database's external access keeps
 // on its server: which is ExternalAllow or ExternalDeny.
 func ExternalRule(serviceID, which string) string {
-	return "external-" + strings.ToLower(strings.TrimPrefix(serviceID, id.Service+"_")) + "-" + which
+	return externalRulePrefix + strings.ToLower(strings.TrimPrefix(serviceID, id.Service+"_")) + "-" + which
 }
 
 // ExternalOf is the service a firewall rule's name says it keeps external access
 // for, and whether it's one.
 func ExternalOf(rule, which string) (string, bool) {
-	rest, ok := strings.CutPrefix(rule, "external-")
+	rest, ok := strings.CutPrefix(rule, externalRulePrefix)
 	if !ok {
 		return "", false
 	}
@@ -454,7 +459,7 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 				}
 				// An allow there already that lets anyone in reaches past the list (the
 				// re-check's N3).
-				if err := e.wideAllowOn(ctx, tx, items, server, p.GetHostPort(), t.name); err != nil {
+				if err := e.wideAllowOn(ctx, tx, items, server, p.GetHostPort(), t.name, ExternalRule(svcID, ExternalAllow)); err != nil {
 					return err
 				}
 			}
@@ -464,10 +469,10 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 	// in more than a list may, reaches past the list.
 	for _, it := range allows {
 		r := it.spec.(*resourcev1.FirewallRule)
-		if _, own := ExternalOf(it.ref.Name, ExternalAllow); own {
+		if _, own := ExternalOf(it.ref.Name, ExternalAllow); own && r.GetPort() != 0 {
 			continue
 		}
-		if _, err := AllowFrom(r.GetSources()); err == nil {
+		if _, err := AllowFrom(r.GetSources()); err == nil && r.GetPort() != 0 {
 			continue
 		}
 		guarded, name, err := e.externalPortOn(ctx, tx, items, it.ref.Scope, r)
@@ -475,8 +480,12 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 			return err
 		}
 		if guarded {
-			return fault.New(ErrInvalid, "%s lets anyone reach port %d on %s, past %s's external access list, as an allow comes before every deny. "+
-				"Change who reaches %s on its page instead", it.ref.Name, r.GetPort(), serverWords(ctx, tx, it.ref.Scope), name, name)
+			if r.GetPort() != 0 {
+				return fault.New(ErrInvalid, "%s lets anyone reach port %d on %s, past %s's external access list, as an allow comes before every deny. "+
+					"Change who reaches %s on its page instead", it.ref.Name, r.GetPort(), serverWords(ctx, tx, it.ref.Scope), name, name)
+			}
+			return fault.New(ErrInvalid, "%s can let addresses reach %s on %s past its external access list, as an allow comes before every deny. "+
+				"Change who reaches %s on its page instead", it.ref.Name, name, serverWords(ctx, tx, it.ref.Scope), name)
 		}
 	}
 	return nil
@@ -532,7 +541,7 @@ func secondPublic(name string, svc *resourcev1.Service, external []*resourcev1.P
 
 // wideAllowOn refuses where another allow on a server's port, as the change leaves
 // it, lets in more than a list may: it reaches past the list.
-func (e *Engine) wideAllowOn(ctx context.Context, tx *store.Tx, items []item, server string, port uint32, name string) error {
+func (e *Engine) wideAllowOn(ctx context.Context, tx *store.Tx, items []item, server string, port uint32, name, ownAllow string) error {
 	stored, err := tx.ListResources(ctx, server, string(firewallRuleKind))
 	if err != nil {
 		return err
@@ -547,18 +556,19 @@ func (e *Engine) wideAllowOn(ctx context.Context, tx *store.Tx, items []item, se
 		}
 	}
 	for _, rule := range slices.Sorted(maps.Keys(names)) {
-		if _, own := ExternalOf(rule, ExternalAllow); own {
-			continue
-		}
-		if _, own := ExternalOf(rule, ExternalDeny); own {
+		if rule == ownAllow {
 			continue
 		}
 		r, err := e.ruleAfter(ctx, tx, items, resource.Ref{Kind: firewallRuleKind, Scope: server, Name: rule})
 		if err != nil {
 			return err
 		}
-		if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || r.GetPort() != port {
+		if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || (r.GetPort() != 0 && r.GetPort() != port) {
 			continue
+		}
+		if r.GetPort() == 0 {
+			return fault.New(ErrInvalid, "%s already lets addresses reach port %d on %s past %s's list, as an allow comes before every deny. Narrow it or delete it first",
+				rule, port, serverWords(ctx, tx, server), name)
 		}
 		if _, err := AllowFrom(r.GetSources()); err != nil {
 			return fault.New(ErrInvalid, "%s already lets anyone reach port %d on %s, past %s's list, as an allow comes before every deny. Narrow it or delete it first",
@@ -617,7 +627,7 @@ func (e *Engine) externalPortOn(ctx context.Context, tx *store.Tx, items []item,
 		if err != nil {
 			return false, "", err
 		}
-		if deny == nil || deny.GetPort() != r.GetPort() {
+		if deny == nil || (r.GetPort() != 0 && deny.GetPort() != r.GetPort()) {
 			continue
 		}
 		name, svc, err := e.serviceAfter(ctx, tx, items, svcID)
@@ -625,7 +635,7 @@ func (e *Engine) externalPortOn(ctx context.Context, tx *store.Tx, items []item,
 			return false, "", err
 		}
 		for _, p := range ExternalPorts(svc) {
-			if p.GetHostPort() == r.GetPort() {
+			if p.GetHostPort() == deny.GetPort() {
 				return true, name, nil
 			}
 		}
