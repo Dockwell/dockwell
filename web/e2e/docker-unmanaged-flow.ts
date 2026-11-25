@@ -85,6 +85,8 @@ export const flow: Flow = {
 
       step("docker unmanaged: open a local image and search Docker Hub from Images");
       await page.goto(`${origin}${server}/docker/images`);
+      // CI's run holds enough images that this one can be past the first page.
+      await page.getByRole("textbox", { name: "Search images" }).fill("acme/legacy");
       const image = page.getByRole("row").filter({ hasText: "acme/legacy" }).first();
       await image.getByRole("button", { name: /Actions for/ }).click();
       await page.getByRole("menuitem", { name: "Run image", exact: true }).click();
