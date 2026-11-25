@@ -47,7 +47,11 @@ export function StatusBadge({
     <span className={cx("dw-status", `dw-status-${variant}`, `dw-tone-${spec.tone}`, className)} title={title}>
       <Glyph shape={spec.shape} size={variant === "pill" ? 8 : 10} />
       {announceWord ? <span className="dw-sr">{word}: </span> : null}
-      {shown ? <span className="dw-status-label">{shown}</span> : null}
+      {shown ? (
+        <span className="dw-status-label" title={typeof shown === "string" && !title ? shown : undefined}>
+          {shown}
+        </span>
+      ) : null}
       {meta ? <span className="dw-status-meta">{meta}</span> : null}
     </span>
   );
