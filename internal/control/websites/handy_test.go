@@ -4,7 +4,9 @@ package websites
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -532,5 +534,49 @@ func TestSubpathProxyServiceIDProposeAndRoleCheck(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "no link") {
 		t.Fatalf("raw cross-env NetworkMember should be refused, got %v", err)
+	}
+}
+
+// TestSubpathUpstreamDNSGuardN3 verifies N3: sub-path proxy URLs whose hostnames
+// resolve to metadata, loopback or private addresses are refused at plan time.
+func TestSubpathUpstreamDNSGuardN3(t *testing.T) {
+	t.Parallel()
+	h, _, _, _ := setupWebsitesHandler(t)
+	h.lookupIP = func(_ context.Context, _, host string) ([]netip.Addr, error) {
+		switch host {
+		case "meta.nip.io":
+			return []netip.Addr{netip.MustParseAddr("169.254.169.254")}, nil
+		case "loop.nip.io":
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		case "priv.nip.io":
+			return []netip.Addr{netip.MustParseAddr("10.0.0.9")}, nil
+		case "pub.example.test":
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		default:
+			return nil, fmt.Errorf("no such host: %s", host)
+		}
+	}
+	for _, host := range []string{"meta.nip.io", "loop.nip.io", "priv.nip.io"} {
+		_, err := h.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{
+			Website: &resourcev1.Website{
+				Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/site"}},
+				Rules: &resourcev1.WebsiteRules{
+					SubpathProxies: []*resourcev1.WebsiteSubpathProxy{{Path: "/api", Url: "http://" + host + ":80"}},
+				},
+			},
+		}))
+		if err == nil || connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("PreviewWebsite with resolved forbidden host %s = %v, want InvalidArgument", host, err)
+		}
+	}
+	if _, err := h.PreviewWebsite(t.Context(), connect.NewRequest(&dockwellv1.PreviewWebsiteRequest{
+		Website: &resourcev1.Website{
+			Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/site"}},
+			Rules: &resourcev1.WebsiteRules{
+				SubpathProxies: []*resourcev1.WebsiteSubpathProxy{{Path: "/api", Url: "https://pub.example.test"}},
+			},
+		},
+	})); err != nil {
+		t.Fatalf("PreviewWebsite with public resolved host failed: %v", err)
 	}
 }

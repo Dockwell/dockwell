@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -79,7 +80,18 @@ func TestRateLimiterPerRouteAndGlobalEvictionAndDrop(t *testing.T) {
 // flood across the Unix socket path that Caddy uses, verifying bounded buckets and low
 // heap growth.
 func TestRateLimiterFloodOverUnixSocketBoundsMemory(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("", "dw-rl-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filepath.Join(dir, "signin.sock")) > 100 {
+		_ = os.RemoveAll(dir)
+		dir, err = os.MkdirTemp("/tmp", "dw-rl-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	sock := filepath.Join(dir, "signin.sock")
 	ln, err := net.Listen("unix", sock)
 	if err != nil {

@@ -302,15 +302,21 @@ func phpConfig(w *resourcev1.Website) string {
 	b.WriteString("\tencode zstd gzip\n")
 	// In MiB, as PHP's M is, so both turn away the same request.
 	fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %dMiB\n\t}\n", requestBodyMaxMB(p))
-	writeRules(&b, w.GetRules())
-	b.WriteString(wellKnown)
-	b.WriteString("\thandle {\n")
+	ordered := needsOrderedAuthRoute(w.GetRules())
+	baseIndent := "\t"
+	if ordered {
+		b.WriteString("\troute {\n")
+		baseIndent = "\t\t"
+	}
+	writeRules(&b, w.GetRules(), baseIndent)
+	writeWellKnown(&b, baseIndent)
+	fmt.Fprintf(&b, "%shandle {\n", baseIndent)
 	custom := strings.TrimSpace(w.GetCustomCaddy()) != ""
-	indent := "\t\t"
+	indent := baseIndent + "\t"
 	if custom {
-		b.WriteString("\t\troute {\n")
-		writeCustomCaddy(&b, w.GetCustomCaddy(), "\t\t\t")
-		indent = "\t\t\t"
+		fmt.Fprintf(&b, "%s\troute {\n", baseIndent)
+		writeCustomCaddy(&b, w.GetCustomCaddy(), baseIndent+"\t\t")
+		indent = baseIndent + "\t\t"
 	}
 	// Nothing under a folder that starts with a dot runs or is sent, such as .git's.
 	fmt.Fprintf(&b, "%s@dotted path_regexp /\\.\n%srespond @dotted 404\n", indent, indent)
@@ -347,8 +353,12 @@ func phpConfig(w *resourcev1.Website) string {
 	// tools leave of them.
 	fmt.Fprintf(&b, "%sfile_server {\n%s\tindex %s\n%s\thide .* %s\n%s}\n", indent, indent, strings.Join(files, " "), indent, strings.Join(Hidden, " "), indent)
 	if custom {
-		b.WriteString("\t\t}\n")
+		fmt.Fprintf(&b, "%s\t}\n", baseIndent)
 	}
-	b.WriteString("\t}\n}\n")
+	fmt.Fprintf(&b, "%s}\n", baseIndent)
+	if ordered {
+		b.WriteString("\t}\n")
+	}
+	b.WriteString("}\n")
 	return b.String()
 }

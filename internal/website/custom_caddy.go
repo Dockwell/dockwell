@@ -31,6 +31,10 @@ var forbiddenDirectives = map[string]string{
 	"email":      "global options aren't allowed here: write directives for this website's block alone",
 	"log":        "log isn't allowed here: Dockwell configures this website's access logging itself",
 	"log_append": "log_append isn't allowed in custom site config",
+	"browse":     "browse isn't allowed in custom site config",
+	"templates":  "templates isn't allowed in custom site config",
+	"map":        "map isn't allowed in custom site config",
+	"vars":       "vars isn't allowed in custom site config; use root for a folder inside the website",
 }
 
 // AllowedRoot returns the container directory a website is allowed to serve files from,
@@ -64,8 +68,9 @@ func CheckCustomCaddy(raw, allowedRoot string) (string, error) {
 		}
 	}
 	lower := strings.ToLower(s)
-	if strings.Contains(lower, "{$") || strings.Contains(lower, "{env.") || strings.Contains(lower, "{system.") || strings.Contains(lower, "{file.") {
-		return "", errors.New("custom Caddy config can't read container environment, system or file placeholders")
+	if strings.Contains(lower, "{$") || strings.Contains(lower, "{env.") || strings.Contains(lower, "{system.") || strings.Contains(lower, "{file.") ||
+		strings.Contains(lower, "{query.") || strings.Contains(lower, "{http.request.uri.query.") {
+		return "", errors.New("custom Caddy config can't read container environment, system, file or query placeholders")
 	}
 
 	depth := 0
@@ -109,6 +114,13 @@ func CheckCustomCaddy(raw, allowedRoot string) (string, error) {
 		if first == "root" {
 			if err := checkCustomRootDirective(tokens, allowedRoot, lineIdx+1); err != nil {
 				return "", err
+			}
+		}
+		if first == "file_server" {
+			for _, tok := range tokens[1:] {
+				if strings.EqualFold(tok, "browse") {
+					return "", fmt.Errorf("custom Caddy line %d: browse isn't allowed in custom site config", lineIdx+1)
+				}
 			}
 		}
 		// Prevent host matchers scoping to another website's name.

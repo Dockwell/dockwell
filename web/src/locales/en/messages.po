@@ -26954,6 +26954,9 @@ msgstr "Could not download certificate"
 msgid "Could not download private key"
 msgstr "Could not download private key"
 
+msgid "Could not read certificate names"
+msgstr "Could not read certificate names"
+
 msgid "Could not renew certificate"
 msgstr "Could not renew certificate"
 
@@ -26972,9 +26975,6 @@ msgstr "Download key"
 msgid "Download shared certificate key?"
 msgstr "Download shared certificate key?"
 
-msgid "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
-msgstr "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
-
 msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
 msgstr "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
 
@@ -26986,6 +26986,9 @@ msgstr "Issued"
 
 msgid "Issued (custom)"
 msgstr "Issued (custom)"
+
+msgid "It also works for every name below."
+msgstr "It also works for every name below."
 
 msgid "It says"
 msgstr "It says"

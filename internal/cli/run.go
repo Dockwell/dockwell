@@ -126,7 +126,8 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	// Opened first, as the ingress keeps its certificates by DNS in it too.
 	kept, journal := keptDesired(logger, dir, id)
 	certs, _ := kept.(ingress.CertKeeper)
-	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, proxied, id.ControlURL, certs)
+	acmeAccounts, _ := kept.(ingress.ACMEAccountKeeper)
+	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, proxied, id.ControlURL, certs, acmeAccounts)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.OnePanel = serverOnePanel(stdio)
 	if cfg.Docker != nil {
@@ -430,7 +431,7 @@ const ingressEvery = time.Minute
 //
 // certs keeps the certificates by DNS the ingress serves on the server's disk, sealed
 // (ADR 0088); nil keeps them in memory alone.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, proxied func() []uint16, controlURL string, certs ingress.CertKeeper) agent.Config {
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, proxied func() []uint16, controlURL string, certs ingress.CertKeeper, acmeAccounts ingress.ACMEAccountKeeper) agent.Config {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -451,6 +452,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Proxy: &caddy.Caddy{
 			Dir: dir.Ingress(), Runtime: proxy,
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
+			ACMEAccounts: acmeAccounts,
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}

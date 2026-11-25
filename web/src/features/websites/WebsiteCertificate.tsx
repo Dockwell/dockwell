@@ -84,7 +84,7 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
   const [busy, setBusy] = useState<"renew" | "cert" | "key" | null>(null);
   const [notice, setNotice] = useState<{ tone: "info" | "critical"; title: string; body: string }>();
   const [forcePrompt, setForcePrompt] = useState<string>();
-  const [confirmSharedKey, setConfirmSharedKey] = useState(false);
+  const [confirmSharedKey, setConfirmSharedKey] = useState<string[]>();
   const [uploading, setUploading] = useState(false);
 
   const renew = async (force: boolean) => {
@@ -121,6 +121,33 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
     } finally {
       setBusy(null);
     }
+  };
+
+  const startDownloadKey = async () => {
+    setBusy("key");
+    setNotice(undefined);
+    try {
+      // Ask the server for the authoritative list of covered names (SANs plus DNS-01
+      // Names, Serves and standings) via a key-less read before any passkey prompt (N6).
+      const meta = await client.downloadCertificate({ domain: domain.name, includeKey: false });
+      const names = meta.coveredNames.length > 0 ? meta.coveredNames : meta.sans.length > 0 ? meta.sans : coveredNames;
+      const shared =
+        isSharedOrMultiName ||
+        names.length > 1 ||
+        names.some((n) => n.startsWith("*.") || n.toLowerCase() !== domain.name.toLowerCase());
+      if (shared) {
+        setConfirmSharedKey(names);
+        setBusy(null);
+        return;
+      }
+    } catch (err) {
+      if (isSharedOrMultiName) {
+        setNotice({ tone: "critical", title: t`Could not read certificate names`, body: sentence(err) });
+        setBusy(null);
+        return;
+      }
+    }
+    await downloadKey();
   };
 
   const downloadKey = async () => {
@@ -215,13 +242,7 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
                     variant="ghost"
                     icon="key"
                     loading={busy === "key"}
-                    onClick={() => {
-                      if (isSharedOrMultiName) {
-                        setConfirmSharedKey(true);
-                      } else {
-                        void downloadKey();
-                      }
-                    }}
+                    onClick={() => void startDownloadKey()}
                     {...mayDownloadKey.off}
                   >
                     <Trans>Download key</Trans>
@@ -279,11 +300,11 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
       {confirmSharedKey ? (
         <Sheet
           open
-          onClose={() => setConfirmSharedKey(false)}
+          onClose={() => setConfirmSharedKey(undefined)}
           title={t`Download shared certificate key?`}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setConfirmSharedKey(false)}>
+              <Button variant="secondary" onClick={() => setConfirmSharedKey(undefined)}>
                 <Trans>Cancel</Trans>
               </Button>
               <Button
@@ -291,7 +312,7 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
                 icon="key"
                 loading={busy === "key"}
                 onClick={() => {
-                  setConfirmSharedKey(false);
+                  setConfirmSharedKey(undefined);
                   void downloadKey();
                 }}
               >
@@ -302,13 +323,10 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
         >
           <div className="website-fields">
             <Callout tone="warning" title={t`This private key covers multiple names`}>
-              <Trans>
-                Downloading this key grants TLS credentials for every name listed below, which may include other
-                websites or projects on this server. A passkey check follows.
-              </Trans>
+              <Trans>It also works for every name below.</Trans>
             </Callout>
             <ul className="website-cert-names">
-              {coveredNames.map((name) => (
+              {confirmSharedKey.map((name) => (
                 <li key={name}>
                   <code>{name}</code>
                 </li>

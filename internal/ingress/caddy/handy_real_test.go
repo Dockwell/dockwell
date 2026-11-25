@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
@@ -17,7 +18,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -26,6 +29,24 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/signin"
 	"github.com/dockwell/dockwell/internal/ingress"
 )
+
+type memACMEAccountKeeper struct {
+	data  []byte
+	saves int
+}
+
+func (k *memACMEAccountKeeper) KeepACMEAccounts(plain []byte) error {
+	k.data = append([]byte(nil), plain...)
+	k.saves++
+	return nil
+}
+
+func (k *memACMEAccountKeeper) KeptACMEAccounts() ([]byte, error) {
+	if len(k.data) == 0 {
+		return nil, nil
+	}
+	return append([]byte(nil), k.data...), nil
+}
 
 func makeTestCert(t *testing.T, domain, org string) (certPEM, keyPEM string) {
 	t.Helper()
@@ -153,7 +174,7 @@ func TestValidateCaddyfileOnRealCaddy(t *testing.T) {
 		t.Fatalf("metadata upstream config: ok=%v msg=%q err=%v", ok, msg, err)
 	}
 
-	// M1: every bypass confirmed in the security review must be refused by the adapted-JSON allowlist.
+	// M1 & N2: every bypass confirmed in the review and re-check must be refused on real Caddy.
 	bypasses := []struct {
 		name string
 		cfg  string
@@ -167,6 +188,22 @@ func TestValidateCaddyfileOnRealCaddy(t *testing.T) {
 		{"disallowed templates handler", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\troot * /srv\n\ttemplates\n\tfile_server\n}\n"},
 		{"disallowed host matcher", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\t@other host evil.example.com\n\trespond @other ok\n}\n"},
 		{"php_fastcgi root placeholder", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\tphp_fastcgi 127.0.0.1:9000 {\n\t\troot /srv/{http.request.uri.query.p}\n\t}\n}\n"},
+		// Re-check N2 live bypasses:
+		{"N2(a) browse template_file /proc/self/environ", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\troot * /srv\n\tfile_server {\n\t\tbrowse /proc/self/environ\n\t}\n}\n"},
+		{"N2(a) file_server browse default", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\troot * /srv\n\tfile_server browse\n}\n"},
+		{"N2(b) vars dynamic query key/value", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\troot * /srv\n\tvars {http.request.uri.query.k} {http.request.uri.query.v}\n\tfile_server\n}\n"},
+		{"N2(b) vars empty root", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\tvars root \"\"\n\tfile_server\n}\n"},
+		{"N2(b) vars non-root key", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\troot * /srv\n\tvars custom_key /etc\n\tfile_server\n}\n"},
+		{"M1 map handler", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\tmap {path} {myvar} {\n\t\tdefault /\n\t}\n\trespond ok\n}\n"},
+		{"M1 query placeholder in respond", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\trespond \"{http.request.uri.query.secret}\" 200\n}\n"},
+		{"M1 query placeholder in header", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\theader X-Q \"{http.request.uri.query.x}\"\n\trespond ok\n}\n"},
+		{"M1 arbitrary vars placeholder in respond", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\trespond \"{http.vars.secret}\" 200\n}\n"},
+		{"M1 header placeholder in rewrite (not header/body)", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\trewrite * /{http.request.header.X-Path}\n\trespond ok\n}\n"},
+		{"M1 remote-address placeholder in rewrite (not header/body)", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\trewrite * /{http.request.remote.host}\n\trespond ok\n}\n"},
+		// N3 upstream resolution bypasses:
+		{"N3 ip6-localhost upstream", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\treverse_proxy ip6-localhost:8080\n}\n"},
+		{"N3 private IP literal upstream", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\treverse_proxy http://10.0.0.5:8080\n}\n"},
+		{"N3 private 192.168 upstream", "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\treverse_proxy http://192.168.1.10:8080\n}\n"},
 	}
 	for _, tc := range bypasses {
 		ok, msg, err := c.ValidateCaddyfile(ctx, tc.cfg, "/srv")
@@ -174,10 +211,45 @@ func TestValidateCaddyfileOnRealCaddy(t *testing.T) {
 			t.Fatalf("%s: unexpected error: %v", tc.name, err)
 		}
 		if ok {
-			t.Errorf("M1 bypass %q was ACCEPTED by ValidateCaddyfile (should be refused)", tc.name)
+			t.Errorf("bypass %q was ACCEPTED by ValidateCaddyfile (should be refused)", tc.name)
 		} else {
-			t.Logf("M1 refused %q: %s", tc.name, msg)
+			t.Logf("refused %q: %s", tc.name, msg)
 		}
+	}
+
+	// N3: hostnames resolving to metadata, loopback or private addresses must be refused;
+	// a hostname resolving to a public IP must be accepted.
+	c.lookupForTest = func(_ context.Context, _, host string) ([]netip.Addr, error) {
+		switch host {
+		case "meta.nip.io":
+			return []netip.Addr{netip.MustParseAddr("169.254.169.254")}, nil
+		case "loop.nip.io":
+			return []netip.Addr{netip.MustParseAddr("127.0.0.1")}, nil
+		case "priv.nip.io":
+			return []netip.Addr{netip.MustParseAddr("10.20.30.40")}, nil
+		case "public.example.test":
+			return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+		default:
+			return nil, fmt.Errorf("no such host: %s", host)
+		}
+	}
+	t.Cleanup(func() { c.lookupForTest = nil })
+	for _, host := range []string{"meta.nip.io", "loop.nip.io", "priv.nip.io"} {
+		cfg := fmt.Sprintf("{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\treverse_proxy http://%s:80\n}\n", host)
+		ok, msg, err := c.ValidateCaddyfile(ctx, cfg, "/srv")
+		if err != nil || ok {
+			t.Errorf("N3 resolved %s: ok=%v msg=%q err=%v, want refused", host, ok, msg, err)
+		}
+	}
+	pubCfg := "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\treverse_proxy https://public.example.test\n}\n"
+	if ok, msg, err := c.ValidateCaddyfile(ctx, pubCfg, "/srv"); err != nil || !ok {
+		t.Fatalf("N3 public resolved host refused: ok=%v msg=%q err=%v", ok, msg, err)
+	}
+
+	// Header and remote-address placeholders are allowed inside header and respond bodies.
+	hdrBodyCfg := "{\n\tadmin off\n\tauto_https off\n}\n:8080 {\n\theader X-Client \"{http.request.remote.host}\"\n\theader X-Req-Id \"{http.request.header.X-Request-Id}\"\n\trespond /whoami \"you are {http.request.remote.host}\" 200\n}\n"
+	if ok, msg, err := c.ValidateCaddyfile(ctx, hdrBodyCfg, "/srv"); err != nil || !ok {
+		t.Fatalf("allowed header/remote-address placeholders in header & respond refused: ok=%v msg=%q err=%v", ok, msg, err)
 	}
 
 	// Dockwell's own standard site log block must still pass the allowlist.
@@ -241,11 +313,13 @@ func TestRenewAndReadCertificateWithPebble(t *testing.T) {
 
 	dir := shortDir(t)
 	uid := syscallUID()
+	acctKeeper := &memACMEAccountKeeper{}
 	c := &Caddy{
 		Dir:             dir,
 		Runtime:         &process{bin: bin, dir: dir},
 		ACMEDirectory:   p.directory,
 		ACMERoots:       p.roots,
+		ACMEAccounts:    acctKeeper,
 		HTTPPort:        p.httpPort,
 		HTTPSPort:       p.tlsPort,
 		adminUIDForTest: &uid,
@@ -372,15 +446,121 @@ func TestRenewAndReadCertificateWithPebble(t *testing.T) {
 	if liveSerial := dialSerial(); liveSerial.Cmp(second.SerialNumber) != 0 {
 		t.Fatalf("live TLS serial = %v, want renewed serial %v", liveSerial, second.SerialNumber)
 	}
+	// Verify N4: CertMagic .json metadata was updated alongside .key and .crt, and ACME account was saved once.
+	if acctKeeper.saves != 1 {
+		t.Fatalf("ACME account saves = %d, want 1", acctKeeper.saves)
+	}
+	var jsonFound bool
+	_ = filepath.WalkDir(filepath.Join(dir, "data", "caddy", "certificates"), func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && d.Name() == domain+".json" {
+			raw, rerr := os.ReadFile(p)
+			if rerr == nil {
+				var meta struct {
+					SANs       []string       `json:"sans"`
+					IssuerData map[string]any `json:"issuer_data"`
+				}
+				if json.Unmarshal(raw, &meta) == nil && len(meta.SANs) == 1 && meta.SANs[0] == domain && meta.IssuerData["ca"] == c.ACMEDirectory {
+					jsonFound = true
+				}
+			}
+		}
+		return nil
+	})
+	if !jsonFound {
+		t.Fatalf("expected updated CertMagic %s.json metadata in Caddy storage", domain)
+	}
+
+	// Verify N1: a later custom or DNS-01 certificate for the same domain immediately wins
+	// over the forced-renewal bridge pin and drops the pin from Caddy's config.
+	customPEM, customKey := makeTestCert(t, domain, "Later Custom CA")
+	if err := c.SetCertificates(ctx, []ingress.DNSCert{{
+		ID:      "custom.dockwell.env.renew",
+		Name:    "custom",
+		Names:   []string{domain},
+		Serves:  []string{domain},
+		Chain:   []byte(customPEM),
+		Key:     []byte(customKey),
+		Custom:  true,
+		RouteID: "dockwell.env.renew",
+	}}, []string{domain}); err != nil {
+		t.Fatalf("SetCertificates(custom) failed: %v", err)
+	}
+	conn, err := tls.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", c.HTTPSPort), &tls.Config{
+		ServerName:         domain,
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		t.Fatalf("TLS dial after custom cert failed: %v", err)
+	}
+	peerOrg := conn.ConnectionState().PeerCertificates[0].Issuer.Organization
+	_ = conn.Close()
+	if len(peerOrg) == 0 || peerOrg[0] != "Later Custom CA" {
+		t.Fatalf("later custom cert did not win over forced-renewal pin: got issuer org %v", peerOrg)
+	}
+
+	// Remove the custom cert, force-renew a second time, and verify the SAME ACME account is reused (saves still 1).
+	if err := c.SetCertificates(ctx, nil, nil); err != nil {
+		t.Fatalf("clear SetCertificates failed: %v", err)
+	}
+	if _, renewed, err := c.RenewCertificate(ctx, domain, true); err != nil || !renewed {
+		t.Fatalf("second RenewCertificate(force=true) = renewed=%v err=%v", renewed, err)
+	}
+	if acctKeeper.saves != 1 {
+		t.Fatalf("second forced renewal created a new ACME account (saves=%d, want 1)", acctKeeper.saves)
+	}
+	third := waitIssued(second.SerialNumber)
+	if liveSerial := dialSerial(); liveSerial.Cmp(third.SerialNumber) != 0 {
+		t.Fatalf("live TLS serial after 2nd forced renew = %v, want %v", liveSerial, third.SerialNumber)
+	}
+
+	// Verify N1: once the forced certificate enters its renewal window (or Caddy renews it),
+	// PruneRenewedCerts removes both load_pem and tls_connection_policies, and Caddy serves
+	// its own managed certificate from CertMagic instead of the pinned one.
+	c.nowForTest = func() time.Time { return third.NotAfter.Add(-10 * 24 * time.Hour) }
+	if err := c.PruneRenewedCerts(ctx, []string{domain}); err != nil {
+		t.Fatalf("PruneRenewedCerts failed: %v", err)
+	}
+	c.nowForTest = nil
+	cfgRaw, _, err := c.call(ctx, http.MethodGet, "/config/", nil, nil)
+	if err != nil {
+		t.Fatalf("read Caddy config after PruneRenewedCerts: %v", err)
+	}
+	if strings.Contains(string(cfgRaw), renewedCertTag) || strings.Contains(string(cfgRaw), "tls_connection_policies") {
+		t.Fatalf("forced-renewal pin or tls_connection_policies remained after PruneRenewedCerts:\n%s", cfgRaw)
+	}
+	// Caddy continues serving its own managed certificate over TLS.
+	if liveAfterPrune := dialSerial(); liveAfterPrune == nil {
+		t.Fatalf("Caddy served no certificate after pruning forced-renewal pin")
+	}
 
 	// M3 failure safety: if CA is unreachable during forced renewal, the existing valid
 	// certificate stays intact on disk and keeps serving over TLS.
+	savedDir := c.ACMEDirectory
 	c.ACMEDirectory = "https://127.0.0.1:1/dir"
 	if _, renewed, err := c.RenewCertificate(ctx, domain, true); err == nil || renewed {
 		t.Fatalf("expected forced renewal against unreachable CA to fail, got renewed=%v err=%v", renewed, err)
 	}
-	if afterFail := dialSerial(); afterFail.Cmp(second.SerialNumber) != 0 {
-		t.Fatalf("existing valid cert was lost after failed renewal: got %v, want %v", afterFail, second.SerialNumber)
+	c.ACMEDirectory = savedDir
+	if afterFail := dialSerial(); afterFail == nil {
+		t.Fatalf("existing valid cert was lost after failed renewal")
+	}
+
+	// N4 symlink safety: a symlink planted in Caddy's certificate dir pointing outside dataDir
+	// must never be followed by writeRenewedCertToStorage.
+	outsideFile := filepath.Join(t.TempDir(), "outside.crt")
+	if err := os.WriteFile(outsideFile, []byte("untouched"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	symlinkDir := filepath.Join(dir, "data", "caddy", "certificates", "symlink-issuer")
+	_ = os.MkdirAll(filepath.Dir(symlinkDir), 0o700)
+	_ = os.Symlink(filepath.Dir(outsideFile), symlinkDir)
+	_ = c.writeRenewedCertToStorage(ctx, "sym.example.com", forcedACMECert{
+		certPEM: []byte(customPEM),
+		keyPEM:  []byte(customKey),
+		caURL:   "https://symlink-issuer/",
+	})
+	if got, _ := os.ReadFile(outsideFile); string(got) != "untouched" {
+		t.Fatalf("writeRenewedCertToStorage followed symlink outside dataDir: got %q", got)
 	}
 }
 

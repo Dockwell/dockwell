@@ -438,15 +438,11 @@ func (h *Handler) SetCustomCertificate(ctx context.Context, req *connect.Request
 	return connect.NewResponse(&dockwellv1.SetCustomCertificateResponse{Change: c}), nil
 }
 
-// checkKeyDownloadScope enforces H1:
-//   - Never return a key whose certificate covers any panel domain.
-//   - A project admin may download a key only when the certificate is the route's own
-//     single-domain certificate (no other project's names, no wildcards, no extra SANs).
-//   - A shared or multi-name certificate's key requires an install admin.
-func (h *Handler) checkKeyDownloadScope(ctx context.Context, b *domainBinding, domain, byDNS string, sans, dnsNames, dnsServes []string) ([]string, error) {
-	covered := collectCertNames(domain, sans, dnsNames, dnsServes)
-	// Also consult the control plane's DNS-01 certificate standings when available.
-	sharedAcrossProjects := false
+// coveredCertNames computes the authoritative list of names covered by a domain's
+// certificate from its leaf SANs, DNS-01 Names and Serves, and the control plane's
+// certificate manager standings, plus whether any standing spans another project.
+func (h *Handler) coveredCertNames(ctx context.Context, projectID, domain string, sans, dnsNames, dnsServes []string) (covered []string, sharedAcrossProjects bool) {
+	covered = collectCertNames(domain, sans, dnsNames, dnsServes)
 	if h.Certificates != nil {
 		if standings, err := h.Certificates.List(ctx); err == nil {
 			for i := range standings {
@@ -454,7 +450,7 @@ func (h *Handler) checkKeyDownloadScope(ctx context.Context, b *domainBinding, d
 				if certNamesCover(st.Names, domain) {
 					covered = collectCertNames(domain, covered, st.Names)
 					for _, pid := range st.Projects {
-						if pid != b.projectID {
+						if pid != projectID {
 							sharedAcrossProjects = true
 						}
 					}
@@ -465,6 +461,16 @@ func (h *Handler) checkKeyDownloadScope(ctx context.Context, b *domainBinding, d
 			}
 		}
 	}
+	return covered, sharedAcrossProjects
+}
+
+// checkKeyDownloadScope enforces H1:
+//   - Never return a key whose certificate covers any panel domain.
+//   - A project admin may download a key only when the certificate is the route's own
+//     single-domain certificate (no other project's names, no wildcards, no extra SANs).
+//   - A shared or multi-name certificate's key requires an install admin.
+func (h *Handler) checkKeyDownloadScope(ctx context.Context, b *domainBinding, domain, byDNS string, sans, dnsNames, dnsServes []string) ([]string, error) {
+	covered, sharedAcrossProjects := h.coveredCertNames(ctx, b.projectID, domain, sans, dnsNames, dnsServes)
 	for _, panel := range h.panelDomains() {
 		if strings.EqualFold(domain, panel) || certNamesCover(covered, panel) {
 			return nil, authapi.ReasonError(connect.CodePermissionDenied,
@@ -609,10 +615,12 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("couldn't read certificate for %s: %w", domain, err))
 	}
+	covered, _ := h.coveredCertNames(ctx, b.projectID, domain, got.GetSans(), got.GetDnsNames(), got.GetDnsServes())
 	if m.GetIncludeKey() {
 		// Re-verify scope on the exact certificate returned by the agent before handing
 		// out its private key (guards against races or stale reports).
-		covered, err := h.checkKeyDownloadScope(ctx, b, domain, got.GetByDns(), got.GetSans(), got.GetDnsNames(), got.GetDnsServes())
+		var err error
+		covered, err = h.checkKeyDownloadScope(ctx, b, domain, got.GetByDns(), got.GetSans(), got.GetDnsNames(), got.GetDnsServes())
 		if err != nil {
 			return nil, err
 		}
@@ -630,13 +638,14 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 		}
 	}
 	return connect.NewResponse(&dockwellv1.DownloadCertificateResponse{
-		CertPem:   got.GetCertPem(),
-		KeyPem:    got.GetKeyPem(),
-		Issuer:    got.GetIssuer(),
-		Subject:   got.GetSubject(),
-		Sans:      got.GetSans(),
-		NotBefore: got.GetNotBefore(),
-		NotAfter:  got.GetNotAfter(),
-		Custom:    got.GetCustom(),
+		CertPem:      got.GetCertPem(),
+		KeyPem:       got.GetKeyPem(),
+		Issuer:       got.GetIssuer(),
+		Subject:      got.GetSubject(),
+		Sans:         got.GetSans(),
+		NotBefore:    got.GetNotBefore(),
+		NotAfter:     got.GetNotAfter(),
+		Custom:       got.GetCustom(),
+		CoveredNames: covered,
 	}), nil
 }

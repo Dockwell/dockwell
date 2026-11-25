@@ -145,6 +145,46 @@ func proxyOwns() owner {
 	return owner{uid: uid, gid: gid}
 }
 
+// mkdirAllOwned creates every missing directory along rel inside root and gives
+// each newly created segment to who when who.uid >= 0, without following symlinks.
+func mkdirAllOwned(root *os.Root, rel string, perm os.FileMode, who owner) error {
+	clean := filepath.Clean(rel)
+	if clean == "." || clean == "" {
+		return nil
+	}
+	parts := strings.Split(clean, string(filepath.Separator))
+	cur := ""
+	for _, p := range parts {
+		if p == "" || p == "." {
+			continue
+		}
+		if cur == "" {
+			cur = p
+		} else {
+			cur = filepath.Join(cur, p)
+		}
+		st, err := root.Lstat(cur)
+		if err == nil {
+			if !st.IsDir() {
+				return fmt.Errorf("%s %w", cur, errNotRegular)
+			}
+			continue
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := root.Mkdir(cur, perm); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+		if who.uid >= 0 {
+			if err := root.Lchown(cur, who.uid, who.gid); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // writeIn replaces a file under dir, whole or not at all: what stands at name,
 // even a link, is replaced and never followed. It reaches the disk before it
 // takes the name, so a power cut leaves the old file or the new one, which is
@@ -157,13 +197,8 @@ func writeIn(dir, name string, b []byte, mode os.FileMode, who owner) error {
 	defer root.Close()
 	parent := filepath.Dir(name)
 	if parent != "." {
-		if err := root.MkdirAll(parent, 0o700); err != nil {
+		if err := mkdirAllOwned(root, parent, 0o700, who); err != nil {
 			return err
-		}
-		if who.uid >= 0 {
-			if err := root.Lchown(parent, who.uid, who.gid); err != nil {
-				return err
-			}
 		}
 	}
 	// What a crash left of an earlier write goes too: it may hold what the file no

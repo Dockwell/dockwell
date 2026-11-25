@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/netguard"
 )
 
 const (
@@ -414,6 +415,11 @@ func checkSubpathProxies(proxies []*resourcev1.WebsiteSubpathProxy) error {
 			if err != nil {
 				return fmt.Errorf("sub-path proxy %s: %w", rawPath, err)
 			}
+			if u, uerr := url.Parse(clean); uerr == nil {
+				if why := netguard.Forbidden(u.Hostname(), netguard.Options{}); why != "" {
+					return fmt.Errorf("sub-path proxy %s: %s is %s, so a sub-path proxy can't send there", rawPath, u.Hostname(), why)
+				}
+			}
 			p.Url = clean
 		default:
 			if !serviceIDRE.MatchString(svcID) {
@@ -552,8 +558,15 @@ func writeBasicAuthBlock(b *strings.Builder, ba *resourcev1.WebsiteBasicAuth, ma
 	fmt.Fprintf(b, "%s}\n", indent)
 }
 
-// writeRules emits the Caddyfile directives for WebsiteRules inside :8080 { ... }.
-func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
+// needsOrderedAuthRoute reports whether rules require an explicit outer route block
+// so path cleaning and Basic Auth execute strictly before and after rewrites (L5).
+func needsOrderedAuthRoute(r *resourcev1.WebsiteRules) bool {
+	return r != nil && r.GetBasicAuth() != nil && len(r.GetBasicAuth().GetUsers()) > 0
+}
+
+// writeRules emits the Caddyfile directives for WebsiteRules inside :8080 { ... }
+// (or inside an outer route { ... } block when needsOrderedAuthRoute is true).
+func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules, indent string) {
 	if r == nil {
 		return
 	}
@@ -567,20 +580,20 @@ func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
 		}
 	}
 	if hasAuth {
+		// Collapse repeated slashes before Basic Auth and rewrite matching; Caddy's path
+		// matcher resolves dot segments, percent-escapes and case on the cleaned path (L5).
+		fmt.Fprintf(b, "%suri path_regexp /{2,} /\n", indent)
 		authMatcher := "*"
 		if ba.GetPath() != "" {
-			fmt.Fprintf(b, "\t@basic_auth path %s %s/*\n", ba.GetPath(), ba.GetPath())
+			fmt.Fprintf(b, "%s@basic_auth path %s %s/*\n", indent, ba.GetPath(), ba.GetPath())
 			authMatcher = "@basic_auth"
 		}
-		writeBasicAuthBlock(b, ba, authMatcher, "\t")
-		// Caddy runs rewrite/uri before basic_auth. Also match the original pre-rewrite
-		// path so a rewrite out of a protected prefix cannot bypass Basic Auth (L5).
-		if hasRewrite && ba.GetPath() != "" {
-			fmt.Fprintf(b, "\t@basic_auth_orig vars_regexp {http.request.orig_uri.path} ^%s(/|$)\n", regexp.QuoteMeta(ba.GetPath()))
-			writeBasicAuthBlock(b, ba, "@basic_auth_orig", "\t")
-		}
+		writeBasicAuthBlock(b, ba, authMatcher, indent)
 	}
 
+	var corsPreflightMaxAge uint32
+	var corsPreflightOriginPattern string
+	hasCorsPreflight := false
 	if c := r.GetCors(); c != nil && c.GetEnabled() && len(c.GetAllowedOrigins()) > 0 {
 		methods := c.GetAllowedMethods()
 		if len(methods) == 0 {
@@ -590,55 +603,43 @@ func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
 		if len(hdrs) == 0 {
 			hdrs = DefaultCorsHeaders
 		}
-		maxAge := cmp.Or(c.GetMaxAgeSeconds(), uint32(DefaultCorsMaxAge))
+		corsPreflightMaxAge = cmp.Or(c.GetMaxAgeSeconds(), uint32(DefaultCorsMaxAge))
+		hasCorsPreflight = true
 		if len(c.GetAllowedOrigins()) == 1 && c.GetAllowedOrigins()[0] == "*" {
-			b.WriteString("\theader {\n")
-			b.WriteString("\t\tAccess-Control-Allow-Origin \"*\"\n")
-			fmt.Fprintf(b, "\t\tAccess-Control-Allow-Methods \"%s\"\n", strings.Join(methods, ", "))
-			fmt.Fprintf(b, "\t\tAccess-Control-Allow-Headers \"%s\"\n", strings.Join(hdrs, ", "))
-			b.WriteString("\t}\n")
-			b.WriteString("\t@cors_preflight method OPTIONS\n")
-			b.WriteString("\thandle @cors_preflight {\n")
-			fmt.Fprintf(b, "\t\theader Access-Control-Max-Age \"%d\"\n", maxAge)
-			b.WriteString("\t\trespond \"\" 204\n")
-			b.WriteString("\t}\n")
+			fmt.Fprintf(b, "%sheader {\n", indent)
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Origin \"*\"\n", indent)
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Methods \"%s\"\n", indent, strings.Join(methods, ", "))
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Headers \"%s\"\n", indent, strings.Join(hdrs, ", "))
+			fmt.Fprintf(b, "%s}\n", indent)
 		} else {
 			quoted := make([]string, len(c.GetAllowedOrigins()))
 			for i, o := range c.GetAllowedOrigins() {
 				quoted[i] = regexp.QuoteMeta(o)
 			}
-			pattern := "^(" + strings.Join(quoted, "|") + ")$"
-			fmt.Fprintf(b, "\t@cors_origin header_regexp Origin %s\n", pattern)
-			b.WriteString("\theader @cors_origin {\n")
-			b.WriteString("\t\tAccess-Control-Allow-Origin {http.request.header.Origin}\n")
-			fmt.Fprintf(b, "\t\tAccess-Control-Allow-Methods \"%s\"\n", strings.Join(methods, ", "))
-			fmt.Fprintf(b, "\t\tAccess-Control-Allow-Headers \"%s\"\n", strings.Join(hdrs, ", "))
+			corsPreflightOriginPattern = "^(" + strings.Join(quoted, "|") + ")$"
+			fmt.Fprintf(b, "%s@cors_origin header_regexp Origin %s\n", indent, corsPreflightOriginPattern)
+			fmt.Fprintf(b, "%sheader @cors_origin {\n", indent)
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Origin {http.request.header.Origin}\n", indent)
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Methods \"%s\"\n", indent, strings.Join(methods, ", "))
+			fmt.Fprintf(b, "%s\tAccess-Control-Allow-Headers \"%s\"\n", indent, strings.Join(hdrs, ", "))
 			if c.GetAllowCredentials() {
-				b.WriteString("\t\tAccess-Control-Allow-Credentials \"true\"\n")
+				fmt.Fprintf(b, "%s\tAccess-Control-Allow-Credentials \"true\"\n", indent)
 			}
-			b.WriteString("\t\t+Vary Origin\n")
-			b.WriteString("\t}\n")
-			b.WriteString("\t@cors_preflight {\n")
-			b.WriteString("\t\tmethod OPTIONS\n")
-			fmt.Fprintf(b, "\t\theader_regexp Origin %s\n", pattern)
-			b.WriteString("\t}\n")
-			b.WriteString("\thandle @cors_preflight {\n")
-			fmt.Fprintf(b, "\t\theader Access-Control-Max-Age \"%d\"\n", maxAge)
-			b.WriteString("\t\trespond \"\" 204\n")
-			b.WriteString("\t}\n")
+			fmt.Fprintf(b, "%s\t+Vary Origin\n", indent)
+			fmt.Fprintf(b, "%s}\n", indent)
 		}
 	}
 
 	if len(r.GetHeaders()) > 0 {
-		b.WriteString("\theader {\n")
+		fmt.Fprintf(b, "%sheader {\n", indent)
 		for _, h := range r.GetHeaders() {
 			if h.GetRemove() {
-				fmt.Fprintf(b, "\t\t-%s\n", h.GetName())
+				fmt.Fprintf(b, "%s\t-%s\n", indent, h.GetName())
 			} else {
-				fmt.Fprintf(b, "\t\t%s \"%s\"\n", h.GetName(), h.GetValue())
+				fmt.Fprintf(b, "%s\t%s \"%s\"\n", indent, h.GetName(), h.GetValue())
 			}
 		}
-		b.WriteString("\t}\n")
+		fmt.Fprintf(b, "%s}\n", indent)
 	}
 
 	if sc := r.GetStaticCache(); sc != nil && sc.GetEnabled() {
@@ -655,38 +656,70 @@ func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
 		if sc.GetImmutable() {
 			cc += ", immutable"
 		}
-		fmt.Fprintf(b, "\t@static_cache path %s\n", strings.Join(globs, " "))
-		fmt.Fprintf(b, "\theader @static_cache Cache-Control \"%s\"\n", cc)
+		fmt.Fprintf(b, "%s@static_cache path %s\n", indent, strings.Join(globs, " "))
+		fmt.Fprintf(b, "%sheader @static_cache Cache-Control \"%s\"\n", indent, cc)
 	}
 
+	// Emit exact redirects and all internal rewrites before the post-rewrite Basic Auth
+	// check and before handle/handle_path blocks.
+	var prefixRedirects []*resourcev1.WebsitePathRule
 	rwIdx := 0
 	for _, rule := range r.GetPathRules() {
 		if rule.GetKind() == resourcev1.WebsitePathRuleKind_WEBSITE_PATH_RULE_KIND_REDIRECT {
+			if strings.HasSuffix(rule.GetFrom(), "/*") && strings.HasSuffix(rule.GetTo(), "/*") {
+				prefixRedirects = append(prefixRedirects, rule)
+				continue
+			}
 			code := "302"
 			if rule.GetPermanent() {
 				code = "301"
 			}
-			if strings.HasSuffix(rule.GetFrom(), "/*") && strings.HasSuffix(rule.GetTo(), "/*") {
-				prefix := strings.TrimSuffix(rule.GetFrom(), "/*")
-				destPrefix := strings.TrimSuffix(rule.GetTo(), "/*")
-				fmt.Fprintf(b, "\thandle_path %s/* {\n", prefix)
-				fmt.Fprintf(b, "\t\tredir * %s{uri} %s\n", destPrefix, code)
-				b.WriteString("\t}\n")
-			} else {
-				fmt.Fprintf(b, "\tredir %s %s %s\n", rule.GetFrom(), rule.GetTo(), code)
-			}
+			fmt.Fprintf(b, "%sredir %s %s %s\n", indent, rule.GetFrom(), rule.GetTo(), code)
 			continue
 		}
 		// Internal rewrite.
 		if strings.HasSuffix(rule.GetFrom(), "/*") && strings.HasSuffix(rule.GetTo(), "/*") {
 			fromPrefix := strings.TrimSuffix(rule.GetFrom(), "*")
 			toPrefix := strings.TrimSuffix(rule.GetTo(), "*")
-			fmt.Fprintf(b, "\t@rw_%d path %s\n", rwIdx, rule.GetFrom())
-			fmt.Fprintf(b, "\turi @rw_%d replace %s %s 1\n", rwIdx, fromPrefix, toPrefix)
+			fmt.Fprintf(b, "%s@rw_%d path %s\n", indent, rwIdx, rule.GetFrom())
+			fmt.Fprintf(b, "%suri @rw_%d replace %s %s 1\n", indent, rwIdx, fromPrefix, toPrefix)
 			rwIdx++
 		} else {
-			fmt.Fprintf(b, "\trewrite %s %s\n", rule.GetFrom(), rule.GetTo())
+			fmt.Fprintf(b, "%srewrite %s %s\n", indent, rule.GetFrom(), rule.GetTo())
 		}
+	}
+
+	// Also enforce Basic Auth after rewrites so a rewrite into a protected prefix
+	// (e.g. /open -> /admin/secret.html) cannot bypass Basic Auth (L5).
+	if hasAuth && hasRewrite && ba.GetPath() != "" {
+		writeBasicAuthBlock(b, ba, "@basic_auth", indent)
+	}
+
+	if hasCorsPreflight {
+		if corsPreflightOriginPattern == "" {
+			fmt.Fprintf(b, "%s@cors_preflight method OPTIONS\n", indent)
+		} else {
+			fmt.Fprintf(b, "%s@cors_preflight {\n", indent)
+			fmt.Fprintf(b, "%s\tmethod OPTIONS\n", indent)
+			fmt.Fprintf(b, "%s\theader_regexp Origin %s\n", indent, corsPreflightOriginPattern)
+			fmt.Fprintf(b, "%s}\n", indent)
+		}
+		fmt.Fprintf(b, "%shandle @cors_preflight {\n", indent)
+		fmt.Fprintf(b, "%s\theader Access-Control-Max-Age \"%d\"\n", indent, corsPreflightMaxAge)
+		fmt.Fprintf(b, "%s\trespond \"\" 204\n", indent)
+		fmt.Fprintf(b, "%s}\n", indent)
+	}
+
+	for _, rule := range prefixRedirects {
+		code := "302"
+		if rule.GetPermanent() {
+			code = "301"
+		}
+		prefix := strings.TrimSuffix(rule.GetFrom(), "/*")
+		destPrefix := strings.TrimSuffix(rule.GetTo(), "/*")
+		fmt.Fprintf(b, "%shandle_path %s/* {\n", indent, prefix)
+		fmt.Fprintf(b, "%s\tredir * %s{uri} %s\n", indent, destPrefix, code)
+		fmt.Fprintf(b, "%s}\n", indent)
 	}
 
 	for i, sp := range r.GetSubpathProxies() {
@@ -701,20 +734,20 @@ func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
 		} else {
 			target = fmt.Sprintf("http://%s:%d", SubpathAlias(i), sp.GetServicePort())
 		}
-		fmt.Fprintf(b, "\t@subpath_%d path %s %s/*\n", i, sp.GetPath(), sp.GetPath())
-		fmt.Fprintf(b, "\thandle @subpath_%d {\n", i)
+		fmt.Fprintf(b, "%s@subpath_%d path %s %s/*\n", indent, i, sp.GetPath(), sp.GetPath())
+		fmt.Fprintf(b, "%shandle @subpath_%d {\n", indent, i)
 		if sp.GetStripPrefix() {
-			fmt.Fprintf(b, "\t\turi strip_prefix %s\n", sp.GetPath())
+			fmt.Fprintf(b, "%s\turi strip_prefix %s\n", indent, sp.GetPath())
 		}
 		if upstreamPrefix != "" {
-			fmt.Fprintf(b, "\t\trewrite * %s{uri}\n", upstreamPrefix)
+			fmt.Fprintf(b, "%s\trewrite * %s{uri}\n", indent, upstreamPrefix)
 		}
-		fmt.Fprintf(b, "\t\treverse_proxy %s", target)
+		fmt.Fprintf(b, "%s\treverse_proxy %s", indent, target)
 		if sp.GetSendTargetHost() {
-			b.WriteString(" {\n\t\t\theader_up Host {upstream_hostport}\n\t\t}\n")
+			fmt.Fprintf(b, " {\n%s\t\theader_up Host {upstream_hostport}\n%s\t}\n", indent, indent)
 		} else {
 			b.WriteString("\n")
 		}
-		b.WriteString("\t}\n")
+		fmt.Fprintf(b, "%s}\n", indent)
 	}
 }

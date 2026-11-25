@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -33,6 +35,26 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/website"
 )
+
+// checkSubpathUpstreams resolves every external sub-path proxy URL hostname at plan time
+// through the outbound guard so names resolving to metadata, loopback or private addresses
+// are refused even when no custom Caddy config is set (N3).
+func (h *Handler) checkSubpathUpstreams(ctx context.Context, spec *resourcev1.Website) error {
+	for _, sp := range spec.GetRules().GetSubpathProxies() {
+		raw := strings.TrimSpace(sp.GetUrl())
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		if err := netguard.CheckResolved(ctx, u.Hostname(), netguard.Options{}, h.lookupIP); err != nil {
+			return fmt.Errorf("sub-path proxy %s upstream %q refused: %w", sp.GetPath(), u.Hostname(), err)
+		}
+	}
+	return nil
+}
 
 // validateCustomCaddyOnServer validates a website's custom Caddy directives using Caddy's
 // own adapter on the server that runs (or will run) the website.
@@ -448,6 +470,9 @@ func (h *Handler) BatchUpdateWebsites(ctx context.Context, req *connect.Request[
 			next.GetPhp().Version = phpVersion
 		}
 		if err := website.Check(next); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		if err := h.checkSubpathUpstreams(ctx, next); err != nil {
 			return nil, authapi.Invalid(err)
 		}
 		// Run Caddy's adapter check on every site with custom_caddy before applying or resuming (M2).

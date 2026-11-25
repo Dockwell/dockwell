@@ -67,6 +67,22 @@ type CertificateReader interface {
 	ReadCertificate(ctx context.Context, domain string, includeKey bool) (*CertificateRead, error)
 }
 
+// ACMEAccountKeeper seals and opens the agent's per-CA ACME account keys on disk
+// so forced renewals reuse one ACME account per CA instead of registering a new one
+// on every call.
+type ACMEAccountKeeper interface {
+	KeepACMEAccounts(plain []byte) error
+	KeptACMEAccounts() ([]byte, error)
+}
+
+// RenewedCertPruner is an optional Proxy capability called on the watch tick to drop
+// temporary forced-renewal certificate pins once Caddy's own certificate has renewed,
+// a route has been removed, a custom/DNS-01 certificate has taken over, or the pinned
+// certificate approaches its renewal window.
+type RenewedCertPruner interface {
+	PruneRenewedCerts(ctx context.Context, activeHTTPS []string) error
+}
+
 // KeyFingerprint returns the canonical SHA-256 fingerprint of a PEM private key so
 // Observe can report key identity without transmitting the private key itself.
 func KeyFingerprint(key []byte) string {

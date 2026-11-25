@@ -549,6 +549,15 @@ func Config(w *resourcev1.Website) string {
 	return ""
 }
 
+// writeWellKnown writes the /.well-known/ handler indented by baseIndent.
+func writeWellKnown(b *strings.Builder, baseIndent string) {
+	fmt.Fprintf(b, "%s@hidden path_regexp ^/\\.well-known/(.*/)?\\.\n", baseIndent)
+	fmt.Fprintf(b, "%shandle /.well-known/* {\n", baseIndent)
+	fmt.Fprintf(b, "%s\trespond @hidden 404\n", baseIndent)
+	fmt.Fprintf(b, "%s\tfile_server {\n%s\t\thide %s\n%s\t}\n", baseIndent, baseIndent, strings.Join(Hidden, " "), baseIndent)
+	fmt.Fprintf(b, "%s}\n", baseIndent)
+}
+
 // folderConfig serves the folder as it is, with its index for a folder, and for a
 // single-page app, the top index for a path with no file.
 func folderConfig(w *resourcev1.Website) string {
@@ -559,15 +568,21 @@ func folderConfig(w *resourcev1.Website) string {
 	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
 	fmt.Fprintf(&b, "\troot * %s\n", FolderTarget)
 	b.WriteString("\tencode zstd gzip\n")
-	writeRules(&b, w.GetRules())
-	b.WriteString(wellKnown)
-	b.WriteString("\thandle {\n")
+	ordered := needsOrderedAuthRoute(w.GetRules())
+	baseIndent := "\t"
+	if ordered {
+		b.WriteString("\troute {\n")
+		baseIndent = "\t\t"
+	}
+	writeRules(&b, w.GetRules(), baseIndent)
+	writeWellKnown(&b, baseIndent)
+	fmt.Fprintf(&b, "%shandle {\n", baseIndent)
 	custom := strings.TrimSpace(w.GetCustomCaddy()) != ""
-	indent := "\t\t"
+	indent := baseIndent + "\t"
 	if custom {
-		b.WriteString("\t\troute {\n")
-		writeCustomCaddy(&b, w.GetCustomCaddy(), "\t\t\t")
-		indent = "\t\t\t"
+		fmt.Fprintf(&b, "%s\troute {\n", baseIndent)
+		writeCustomCaddy(&b, w.GetCustomCaddy(), baseIndent+"\t\t")
+		indent = baseIndent + "\t\t"
 	}
 	index := Index(f)
 	if f.GetSinglePageApp() {
@@ -575,9 +590,13 @@ func folderConfig(w *resourcev1.Website) string {
 	}
 	fmt.Fprintf(&b, "%sfile_server {\n%s\tindex %s\n%s\thide .* %s\n%s}\n", indent, indent, strings.Join(index, " "), indent, strings.Join(Hidden, " "), indent)
 	if custom {
-		b.WriteString("\t\t}\n")
+		fmt.Fprintf(&b, "%s\t}\n", baseIndent)
 	}
-	b.WriteString("\t}\n}\n")
+	fmt.Fprintf(&b, "%s}\n", baseIndent)
+	if ordered {
+		b.WriteString("\t}\n")
+	}
+	b.WriteString("}\n")
 	return b.String()
 }
 
@@ -586,15 +605,6 @@ func folderConfig(w *resourcev1.Website) string {
 // visitors, such as wp-config.php's password, and the copies editors and tools leave
 // of them. A PHP website runs its scripts, and hides the rest.
 var Hidden = []string{"*.php", "*.phtml", "*.phar", "*.php~", "*.php.*", "*.bak", "*.save", "*.orig", "*.swp"}
-
-// wellKnown serves /.well-known/ from the folder, for what looks for a site's own
-// files there, such as a security.txt or a domain's proof, though it starts with a
-// dot. What starts with a dot below it is still hidden, as are scripts.
-var wellKnown = "\t@hidden path_regexp ^/\\.well-known/(.*/)?\\.\n" +
-	"\thandle /.well-known/* {\n" +
-	"\t\trespond @hidden 404\n" +
-	"\t\tfile_server {\n\t\t\thide " + strings.Join(Hidden, " ") + "\n\t\t}\n" +
-	"\t}\n"
 
 // globals is what every website's web server says first: no admin API, as nothing
 // changes it but a deploy; no automatic HTTPS, as TLS ends at the ingress; and the
@@ -623,18 +633,24 @@ func proxyConfig(w *resourcev1.Website) string {
 	b.WriteString(globals)
 	fmt.Fprintf(&b, "\n:%d {\n", Port)
 	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
-	writeRules(&b, w.GetRules())
+	ordered := needsOrderedAuthRoute(w.GetRules())
+	baseIndent := "\t"
+	if ordered {
+		b.WriteString("\troute {\n")
+		baseIndent = "\t\t"
+	}
+	writeRules(&b, w.GetRules(), baseIndent)
 	custom := strings.TrimSpace(w.GetCustomCaddy()) != ""
-	wrap := len(w.GetRules().GetSubpathProxies()) > 0 || w.GetRules().GetCors().GetEnabled() || custom
-	indent := "\t"
+	wrap := ordered || len(w.GetRules().GetSubpathProxies()) > 0 || w.GetRules().GetCors().GetEnabled() || custom
+	indent := baseIndent
 	if wrap {
-		b.WriteString("\thandle {\n")
-		indent = "\t\t"
+		fmt.Fprintf(&b, "%shandle {\n", baseIndent)
+		indent = baseIndent + "\t"
 	}
 	if custom {
-		b.WriteString("\t\troute {\n")
-		writeCustomCaddy(&b, w.GetCustomCaddy(), "\t\t\t")
-		indent = "\t\t\t"
+		fmt.Fprintf(&b, "%s\troute {\n", baseIndent)
+		writeCustomCaddy(&b, w.GetCustomCaddy(), baseIndent+"\t\t")
+		indent = baseIndent + "\t\t"
 	}
 	if prefix != "" {
 		fmt.Fprintf(&b, "%srewrite * %s{uri}\n", indent, prefix)
@@ -646,9 +662,12 @@ func proxyConfig(w *resourcev1.Website) string {
 		b.WriteString("\n")
 	}
 	if custom {
-		b.WriteString("\t\t}\n")
+		fmt.Fprintf(&b, "%s\t}\n", baseIndent)
 	}
 	if wrap {
+		fmt.Fprintf(&b, "%s}\n", baseIndent)
+	}
+	if ordered {
 		b.WriteString("\t}\n")
 	}
 	b.WriteString("}\n")

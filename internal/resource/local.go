@@ -1101,6 +1101,10 @@ func AppOwnerRef(environment string) Ref {
 // values, and to in the agent's keeping (ADR 0088).
 var CertificatesRef = Ref{Kind: "certificate", Name: "put"}
 
+// ACMEAccountsRef is what the agent's per-CA ACME account private keys for forced
+// HTTP-01 renewals are sealed to in the agent's keeping.
+var ACMEAccountsRef = Ref{Kind: "acme.account", Name: "keys"}
+
 // BuildLoginRef is what the registry logins sent with ref's build are sealed to,
 // apart from its pull's login and its values (ADR 0086).
 func BuildLoginRef(ref Ref) Ref {

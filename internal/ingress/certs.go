@@ -569,6 +569,13 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		m.watchNow()
 	}
 	m.reportPanel(ctx)
+	if pruner, ok := m.Proxy.(RenewedCertPruner); ok && m.mu.lock(ctx) == nil {
+		err := pruner.PruneRenewedCerts(ctx, names)
+		m.mu.unlock()
+		if err != nil && ctx.Err() == nil {
+			m.logger().WarnContext(ctx, "can't clean up temporary forced-renewal certificate pins; it tries again", slog.String("error", err.Error()))
+		}
+	}
 	if retry {
 		m.logger().InfoContext(ctx, "a domain's DNS now points here, so the ingress tries for its certificate at once")
 		if err := m.Proxy.Retry(ctx); err != nil && ctx.Err() == nil {

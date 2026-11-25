@@ -3996,13 +3996,16 @@ type DownloadCertificateResponse struct {
 	// Full PEM certificate chain.
 	CertPem string `protobuf:"bytes,1,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
 	// PEM private key, populated only when include_key is true and step-up succeeds.
-	KeyPem        string                 `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
-	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
-	Issuer        string                 `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
-	Sans          []string               `protobuf:"bytes,5,rep,name=sans,proto3" json:"sans,omitempty"`
-	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
-	NotAfter      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
-	Custom        bool                   `protobuf:"varint,8,opt,name=custom,proto3" json:"custom,omitempty"`
+	KeyPem    string                 `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	Subject   string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
+	Issuer    string                 `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Sans      []string               `protobuf:"bytes,5,rep,name=sans,proto3" json:"sans,omitempty"`
+	NotBefore *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
+	NotAfter  *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	Custom    bool                   `protobuf:"varint,8,opt,name=custom,proto3" json:"custom,omitempty"`
+	// Every name covered by this certificate as evaluated by the server (SANs plus
+	// DNS-01 certificate names, served domains, and manager standings).
+	CoveredNames  []string `protobuf:"bytes,9,rep,name=covered_names,json=coveredNames,proto3" json:"covered_names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4091,6 +4094,13 @@ func (x *DownloadCertificateResponse) GetCustom() bool {
 		return x.Custom
 	}
 	return false
+}
+
+func (x *DownloadCertificateResponse) GetCoveredNames() []string {
+	if x != nil {
+		return x.CoveredNames
+	}
+	return nil
 }
 
 var File_dockwell_v1_domain_proto protoreflect.FileDescriptor
@@ -4359,7 +4369,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\tserver_id\x18\x02 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vinclude_key\x18\x03 \x01(\bR\n" +
 	"includeKey\x12\x14\n" +
-	"\x05proof\x18\x04 \x01(\tR\x05proof\"\xa9\x02\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"\xce\x02\n" +
 	"\x1bDownloadCertificateResponse\x12\x19\n" +
 	"\bcert_pem\x18\x01 \x01(\tR\acertPem\x12\x1d\n" +
 	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12\x18\n" +
@@ -4369,7 +4379,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\n" +
 	"not_before\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
 	"\tnot_after\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x12\x16\n" +
-	"\x06custom\x18\b \x01(\bR\x06custom*\xa8\x01\n" +
+	"\x06custom\x18\b \x01(\bR\x06custom\x12#\n" +
+	"\rcovered_names\x18\t \x03(\tR\fcoveredNames*\xa8\x01\n" +
 	"\x13SigninProviderState\x12%\n" +
 	"!SIGNIN_PROVIDER_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bSIGNIN_PROVIDER_STATE_FOUND\x10\x01\x12%\n" +

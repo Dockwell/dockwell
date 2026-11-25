@@ -473,7 +473,8 @@ describe("Websites everyday depth", () => {
             downloads.push(req);
             return {
               certPem: "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n",
-              keyPem: "-----BEGIN PRIVATE KEY-----\nSHARED\n-----END PRIVATE KEY-----\n",
+              keyPem: req.includeKey ? "-----BEGIN PRIVATE KEY-----\nSHARED\n-----END PRIVATE KEY-----\n" : "",
+              coveredNames: ["*.example.com", "shop.example.com", "billing.example.com", "admin.example.com"],
             };
           },
         },
@@ -483,15 +484,17 @@ describe("Websites everyday depth", () => {
     expect(await screen.findByText("Let's Encrypt")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Download key" }));
 
-    // Confirmation sheet must appear BEFORE any downloadCertificate(includeKey=true) call.
-    expect(downloads).toHaveLength(0);
+    // Confirmation sheet reads the server's authoritative coveredNames via a key-less read
+    // BEFORE any downloadCertificate(includeKey=true) call (N6).
     const confirmDialog = await screen.findByRole("dialog", { name: /Download shared certificate key/i });
+    expect(downloads.filter((d) => d.includeKey)).toHaveLength(0);
+    expect(within(confirmDialog).getByText("It also works for every name below.")).toBeVisible();
     expect(within(confirmDialog).getByText("*.example.com")).toBeVisible();
     expect(within(confirmDialog).getByText("shop.example.com")).toBeVisible();
     expect(within(confirmDialog).getByText("billing.example.com")).toBeVisible();
+    expect(within(confirmDialog).getByText("admin.example.com")).toBeVisible();
 
     await user.click(within(confirmDialog).getByRole("button", { name: /Continue to passkey/i }));
-    await waitFor(() => expect(downloads).toHaveLength(1));
-    expect(downloads[0]?.includeKey).toBe(true);
+    await waitFor(() => expect(downloads.filter((d) => d.includeKey)).toHaveLength(1));
   });
 });

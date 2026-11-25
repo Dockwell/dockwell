@@ -1032,4 +1032,7 @@ message DownloadCertificateResponse {
   google.protobuf.Timestamp not_before = 6;
   google.protobuf.Timestamp not_after = 7;
   bool custom = 8;
+  // Every name covered by this certificate as evaluated by the server (SANs plus
+  // DNS-01 certificate names, served domains, and manager standings).
+  repeated string covered_names = 9;
 }

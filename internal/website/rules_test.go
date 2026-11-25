@@ -103,15 +103,24 @@ func TestRulesValidation(t *testing.T) {
 		t.Errorf("wildcard CORS with credentials = %v, want refusal", err)
 	}
 
-	// Sub-path proxy SSRF refused.
-	badSubpath := &resourcev1.Website{
-		Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/site"}},
-		Rules: &resourcev1.WebsiteRules{
-			SubpathProxies: []*resourcev1.WebsiteSubpathProxy{{Path: "/meta", Url: "http://169.254.169.254/latest"}},
-		},
-	}
-	if err := Check(badSubpath); err == nil || !strings.Contains(err.Error(), "metadata") {
-		t.Errorf("sub-path proxy to metadata = %v, want refusal", err)
+	// Sub-path proxy SSRF refused (metadata, private IP, ip6-localhost).
+	for _, tc := range []struct {
+		url  string
+		says string
+	}{
+		{"http://169.254.169.254/latest", "metadata"},
+		{"http://10.0.0.5:8080", "private"},
+		{"http://ip6-localhost:8080", "own address"},
+	} {
+		badSubpath := &resourcev1.Website{
+			Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/site"}},
+			Rules: &resourcev1.WebsiteRules{
+				SubpathProxies: []*resourcev1.WebsiteSubpathProxy{{Path: "/meta", Url: tc.url}},
+			},
+		}
+		if err := Check(badSubpath); err == nil || !strings.Contains(err.Error(), tc.says) {
+			t.Errorf("sub-path proxy to %s = %v, want %q", tc.url, err, tc.says)
+		}
 	}
 
 	// Header placeholder injection refused.
@@ -198,11 +207,17 @@ func TestCustomCaddyGuards(t *testing.T) {
 		{"root * /srv/../etc", FolderTarget, "must stay inside /srv"},
 		{"@other host evil.example.com", FolderTarget, "host matchers"},
 		{"header X-Secret {$DW_BASIC_AUTH_HASH_0}", FolderTarget, "environment"},
-		{"respond \"{file./proc/self/environ}\"", FolderTarget, "file placeholders"},
+		{"respond \"{file./proc/self/environ}\"", FolderTarget, "file or query placeholders"},
 		{"respond <<EOF\n{\nEOF", FolderTarget, "heredocs"},
 		{"root * /srv/{http.request.uri.query.p}", FolderTarget, "placeholders"},
 		{"log {\n\toutput stderr\n}", FolderTarget, "log isn't allowed"},
 		{"log_append foo bar", FolderTarget, "log_append isn't allowed"},
+		{"file_server browse", FolderTarget, "browse isn't allowed"},
+		{"file_server {\n\tbrowse /proc/self/environ\n}", FolderTarget, "browse isn't allowed"},
+		{"templates", FolderTarget, "templates isn't allowed"},
+		{"map {path} {v} {\n\tdefault /\n}", FolderTarget, "map isn't allowed"},
+		{"vars {http.request.uri.query.k} {http.request.uri.query.v}", FolderTarget, "query placeholders"},
+		{"vars root \"\"", FolderTarget, "vars isn't allowed"},
 		{"respond \"ok\" {\n", FolderTarget, "unclosed '{'"},
 	} {
 		_, err := CheckCustomCaddy(tc.raw, tc.root)
@@ -523,14 +538,39 @@ func TestBasicAuthCannotBeBypassedByRewriteOnRealCaddy(t *testing.T) {
 		return res.StatusCode, b.String()
 	}
 
-	if code, _ := hit("/admin/panel/page.html", "", ""); code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated /admin/panel/page.html (rewritten to /panel/page.html) = %d, want 401", code)
+	// L5: raw path tricks (//, ///, /./, /foo/../, /%61, /ADMIN) must all return 401 before rewrite.
+	for _, rawPath := range []string{
+		"/admin/panel/page.html",
+		"//admin/panel/page.html",
+		"///admin/panel/page.html",
+		"/./admin/panel/page.html",
+		"/foo/../admin/panel/page.html",
+		"/admin/./panel/page.html",
+		"/%61dmin/panel/page.html",
+		"/ADMIN/panel/page.html",
+		"/open",
+		"//open",
+		"/./open",
+		"/foo/../open",
+	} {
+		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+		if err != nil {
+			t.Fatalf("dial %s: %v", rawPath, err)
+		}
+		_, _ = conn.Write([]byte("GET " + rawPath + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"))
+		rawResp := make([]byte, 1024)
+		n, _ := conn.Read(rawResp)
+		_ = conn.Close()
+		line, _, _ := strings.Cut(string(rawResp[:n]), "\r\n")
+		if !strings.Contains(line, " 401 ") {
+			t.Fatalf("unauthenticated raw GET %s = %q, want 401", rawPath, line)
+		}
 	}
 	if code, body := hit("/admin/panel/page.html", "alice", "top-secret"); code != http.StatusOK || body != "panel page" {
 		t.Fatalf("authenticated /admin/panel/page.html = %d %q, want 200 %q", code, body, "panel page")
 	}
-	if code, _ := hit("/open", "", ""); code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated /open (rewritten to /admin/secret.html) = %d, want 401", code)
+	if code, body := hit("//admin/panel/page.html", "alice", "top-secret"); code != http.StatusOK || body != "panel page" {
+		t.Fatalf("authenticated //admin/panel/page.html = %d %q, want 200 %q", code, body, "panel page")
 	}
 	if code, body := hit("/open", "alice", "top-secret"); code != http.StatusOK || body != "admin secret" {
 		t.Fatalf("authenticated /open = %d %q, want 200 %q", code, body, "admin secret")

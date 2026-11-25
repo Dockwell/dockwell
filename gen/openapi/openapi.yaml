@@ -20193,6 +20193,13 @@ components:
                     format: date-time
                 custom:
                     type: boolean
+                coveredNames:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Every name covered by this certificate as evaluated by the server (SANs plus
+                         DNS-01 certificate names, served domains, and manager standings).
             description: DownloadCertificateResponse holds the certificate PEM and, if authorized, the private key PEM.
         DownloadDockerArtifactResponse:
             type: object

@@ -26954,6 +26954,9 @@ msgstr "无法下载证书"
 msgid "Could not download private key"
 msgstr "无法下载私钥"
 
+msgid "Could not read certificate names"
+msgstr "无法读取证书域名"
+
 msgid "Could not renew certificate"
 msgstr "无法续期证书"
 
@@ -26972,9 +26975,6 @@ msgstr "下载私钥"
 msgid "Download shared certificate key?"
 msgstr "下载共享证书私钥？"
 
-msgid "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
-msgstr "下载此密钥将授予下方列出的所有域名的 TLS 凭据，其中可能包含此服务器上的其他网站或项目。接下来将进行通行密钥验证。"
-
 msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
 msgstr "强制续期会计入证书颁发机构的重复证书速率限制。仅在更换泄露的密钥或测试续期时使用。"
 
@@ -26986,6 +26986,9 @@ msgstr "已签发"
 
 msgid "Issued (custom)"
 msgstr "已签发（自定义）"
+
+msgid "It also works for every name below."
+msgstr "它也适用于下方列出的所有域名。"
 
 msgid "It says"
 msgstr "它说"

@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
@@ -60,6 +61,8 @@ type Handler struct {
 	// DNS are the connected DNS providers, which a website's domain is published
 	// through (ADR 0104); nil publishes nothing.
 	DNS *dnsproviders.Providers
+	// lookupIP overrides DNS resolution for sub-path upstream checks in tests.
+	lookupIP netguard.LookupFunc
 
 	// What each server last found of what its websites send to, by server and
 	// target, so a list asks no server more than once in reachFresh.
@@ -403,6 +406,9 @@ func (h *Handler) PreviewWebsite(ctx context.Context, req *connect.Request[dockw
 	if err := website.Check(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	caddyValidated := false
 	serverID := strings.TrimSpace(req.Msg.GetServerId())
 	if strings.TrimSpace(spec.GetCustomCaddy()) != "" && serverID != "" {
@@ -476,6 +482,9 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}
 	spec := proto.CloneOf(m.GetWebsite())
 	if err := website.Check(spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	if err := website.CheckRedirects(spec, domain); err != nil {
@@ -658,6 +667,9 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	m := req.Msg
 	spec := proto.CloneOf(m.GetWebsite())
 	if err := website.Check(spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	s, err := h.find(ctx, m.GetId())
