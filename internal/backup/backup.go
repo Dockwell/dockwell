@@ -139,6 +139,9 @@ type Runner struct {
 	// server's free memory, for a test.
 	DrillDisk   func() drillDisk
 	DrillMemory DrillMemory
+
+	importMu   sync.Mutex
+	importBusy map[string]bool
 }
 
 func (r *Runner) now() time.Time {

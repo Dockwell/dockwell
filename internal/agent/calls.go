@@ -569,7 +569,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
 			}
 			if r := d.GetRestore(); r != nil {
-				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
+				want.Restore = &resource.RestoreSource{
+					Backup:         r.GetBackupId(),
+					Undoes:         r.GetUndoes(),
+					Change:         r.GetChangeId(),
+					ImportID:       r.GetImportId(),
+					ImportDatabase: r.GetImportDatabase(),
+					ImportFilename: r.GetImportFilename(),
+					ImportFormat:   r.GetImportFormat(),
+				}
 				if r.GetFrom() != nil {
 					want.Restore.From = resourcepb.FromRef(r.GetFrom())
 				}
@@ -668,9 +676,20 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
 		// A restore into a new database reads its backup from the volume the call
-		// names (ADR 0106).
-		if r := call.GetApply().GetDesired().GetRestore(); r != nil && r.GetFrom() != nil && step.Restore != nil && step.Restore.IntoNew {
-			step.Restore.From = resourcepb.FromRef(r.GetFrom())
+		// names (ADR 0106). A staged dump import carries its import source through ctx.
+		if r := call.GetApply().GetDesired().GetRestore(); r != nil {
+			if r.GetFrom() != nil && step.Restore != nil && step.Restore.IntoNew {
+				step.Restore.From = resourcepb.FromRef(r.GetFrom())
+			}
+			if r.GetImportId() != "" {
+				ctx = resource.WithRestore(ctx, resource.RestoreSource{
+					Change:         r.GetChangeId(),
+					ImportID:       r.GetImportId(),
+					ImportDatabase: r.GetImportDatabase(),
+					ImportFilename: r.GetImportFilename(),
+					ImportFormat:   r.GetImportFormat(),
+				})
+			}
 		}
 		// An upgrade of the agent runs the script its call carries, which only an
 		// apply does (ADR 0094).
@@ -884,6 +903,8 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return callFailed(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerLifecyclePreview{DockerLifecyclePreview: out}}
+	case call.GetDatabaseImport() != nil:
+		return c.databaseImport(ctx, call.GetDatabaseImport())
 	case call.GetDockerMaintenancePreview() != nil:
 		out, err := c.dockerCleanupPreview(ctx, call.GetDockerMaintenancePreview())
 		if err != nil {

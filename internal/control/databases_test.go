@@ -3,6 +3,7 @@
 package control
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/sha256"
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -252,7 +254,11 @@ func (s *pgState) image() dockertest.Image {
 				s.mu.Lock()
 				defer s.mu.Unlock()
 				s.said = append(s.said, script)
-				_, _ = io.WriteString(x.Stdout, "CREATE TABLE posts (id int);\n--\n-- PostgreSQL database dump complete\n--\n")
+				cur := "CREATE TABLE posts (id int);\n"
+				if s.loaded["shop"] != "" {
+					cur = s.loaded["shop"] + "\n"
+				}
+				_, _ = io.WriteString(x.Stdout, cur+"--\n-- PostgreSQL database dump complete\n--\n")
 				return 0
 			}
 			b, _ := io.ReadAll(x.Stdin)
@@ -265,6 +271,32 @@ func (s *pgState) image() dockertest.Image {
 					s.loaded = map[string]string{}
 				}
 				s.loaded[x.Cmd[5]] = sql
+				return 0
+			}
+			if strings.HasPrefix(strings.TrimSpace(sql), "SELECT pg_terminate_backend") && !strings.Contains(sql, "DROP DATABASE") {
+				return 0
+			}
+			if m := regexp.MustCompile(`^SELECT 1 FROM pg_database WHERE datname = '([a-z0-9_]+)'`).FindStringSubmatch(strings.TrimSpace(sql)); m != nil {
+				if _, ok := s.databases[m[1]]; ok {
+					_, _ = io.WriteString(x.Stdout, "1\n")
+				}
+				return 0
+			}
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, `-d "$DW_DB"`) {
+				if strings.Contains(sql, "BROKEN_DUMP") {
+					_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"BROKEN_DUMP\"\n")
+					return 3
+				}
+				if s.loaded == nil {
+					s.loaded = map[string]string{}
+				}
+				dbName := "shop"
+				for _, arg := range x.Cmd {
+					if v, ok := strings.CutPrefix(arg, "DW_DB="); ok {
+						dbName = v
+					}
+				}
+				s.loaded[dbName] = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sql), "--\n-- PostgreSQL database dump complete\n--"))
 				return 0
 			}
 			if m := askLockout.FindStringSubmatch(sql); m != nil {
@@ -910,5 +942,62 @@ func testLogicalDatabasesInOneEngine(t *testing.T, backend store.Backend) {
 	}
 	if !ownerStillThere {
 		t.Error("deleting logical database staging dropped its owner role analytics")
+	}
+
+	// 6. Import a dump via BeginDatabaseImport + REST chunked PUT + PlanDatabaseImport + Apply + Undo.
+	dumpPayload := []byte("INSERT INTO analytics_events VALUES (42);\n")
+	began, err := dc.BeginDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.BeginDatabaseImportRequest{
+		Id:        "db",
+		Database:  "analytics",
+		Filename:  "events.sql",
+		SizeBytes: uint64(len(dumpPayload)),
+	}))
+	if err != nil {
+		t.Fatalf("BeginDatabaseImport: %v", err)
+	}
+	// Stream in two chunks over the REST PUT streaming route.
+	half := len(dumpPayload) / 2
+	for _, part := range []struct {
+		offset int
+		data   []byte
+	}{
+		{0, dumpPayload[:half]},
+		{half, dumpPayload[half:]},
+	} {
+		url := fmt.Sprintf("%s/v1/databases/db/imports/%s?offset=%d", b.origin, began.Msg.GetImportId(), part.offset)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPut, url, bytes.NewReader(part.data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Origin", b.origin)
+		resp, err := b.client.Do(req)
+		if err != nil {
+			t.Fatalf("PUT chunk at %d: %v", part.offset, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("PUT chunk at %d returned %d: %s", part.offset, resp.StatusCode, string(body))
+		}
+	}
+
+	plannedImport, err := dc.PlanDatabaseImport(t.Context(), connect.NewRequest(&dockwellv1.PlanDatabaseImportRequest{
+		Id:       "db",
+		ImportId: began.Msg.GetImportId(),
+	}))
+	if err != nil {
+		t.Fatalf("PlanDatabaseImport: %v", err)
+	}
+	restorePlan := plannedImport.Msg.GetChange().GetPlan().GetServers()[0].GetSteps()[0].GetRestore()
+	if restorePlan.GetImportFile() != "events.sql" || restorePlan.GetDatabaseName() != "analytics" {
+		t.Fatalf("import RestorePlan = %v, want import_file=events.sql database_name=analytics", restorePlan)
+	}
+	applyDestructive(t, ch, plannedImport.Msg.GetChange())
+	pg.mu.Lock()
+	gotLoaded := pg.loaded["analytics"]
+	pg.mu.Unlock()
+	if !strings.Contains(gotLoaded, "INSERT INTO analytics_events VALUES (42);") {
+		t.Errorf("analytics loaded = %q, want imported SQL", gotLoaded)
 	}
 }

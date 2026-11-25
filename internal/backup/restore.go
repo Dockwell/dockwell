@@ -57,6 +57,9 @@ type state struct {
 	// One is who a restore of one database alone keeps out of it, and how to let them
 	// back in, kept from before the first thing it changes (ADR 0084).
 	One *engines.Lockout `json:"one,omitempty"`
+	// Imported is true when this restore was a staged dump import (so undoing it
+	// restores its pre-import dump using the admin import-undo path).
+	Imported bool `json:"imported,omitempty"`
 }
 
 func readState(path string) (*state, error) {
@@ -295,6 +298,18 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 	} else if s.Stage == stageFinished {
 		return resource.Decision{}, false, nil
 	}
+	if src.ImportID != "" {
+		return r.judgeImport(ctx, ref, src)
+	}
+	if src.Undoes != "" {
+		if prev, err := readState(r.statePath(ref, src.Undoes)); err == nil && prev.Imported {
+			m, _, err := r.source(ref, src)
+			if err != nil {
+				return resource.Decision{}, false, err
+			}
+			return r.judgeUndoImport(ctx, ref, src, m)
+		}
+	}
 	m, _, err := r.source(ref, src)
 	if err != nil {
 		return resource.Decision{}, false, err
@@ -366,6 +381,24 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	undone := st.Stage == stageUndone
 	if undone {
 		st.Stage = stageCopied
+	}
+	if src.ImportID != "" {
+		if undone {
+			st.Stage = ""
+		}
+		return r.applyImport(ctx, ref, t, st, src)
+	}
+	if src.Undoes != "" {
+		if prev, err := readState(r.statePath(ref, src.Undoes)); err == nil && prev.Imported {
+			m, file, err := r.source(ref, src)
+			if err != nil {
+				return err
+			}
+			if undone {
+				st.Stage = ""
+			}
+			return r.applyUndoImport(ctx, ref, t, st, m, file)
+		}
 	}
 	run := "restore-" + src.Change
 	began, err := r.began(st, run)

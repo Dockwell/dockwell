@@ -124,6 +124,8 @@ ConnectionService.DisconnectStorage            plan         developer  developer
 ConnectionService.ListConnections              read         viewer     viewer     named
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+DatabaseService.BeginDatabaseImport            apply        developer  admin      project  session
+DatabaseService.CancelDatabaseImport           apply        developer  admin      project  session
 DatabaseService.ChangeDatabasePassword         plan         developer  developer  project
 DatabaseService.CheckDatabaseSignIn            read         developer  admin      project
 DatabaseService.ConnectDatabase                plan         developer  developer  project
@@ -132,7 +134,9 @@ DatabaseService.CreateLogicalDatabase          plan         developer  developer
 DatabaseService.DeleteLogicalDatabase          plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
+DatabaseService.PlanDatabaseImport             plan         developer  developer  project  session
 DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project
+DatabaseService.UploadDatabaseImport           apply        developer  admin      project  session
 DockerService.AbortDockerArtifact              apply        admin      admin      install  session
 DockerService.BeginDockerArtifactUpload        apply        admin      admin      install  session
 DockerService.CancelDockerImageBuild           apply        admin      admin      install  session

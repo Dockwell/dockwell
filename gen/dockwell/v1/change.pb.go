@@ -9739,7 +9739,11 @@ type RestorePlan struct {
 	// It fills a new database's volume, made in the same change, so it replaces
 	// nothing and nothing that runs stops, but that new database's own service while
 	// the backup loads (ADR 0106).
-	IntoNew       bool `protobuf:"varint,11,opt,name=into_new,json=intoNew,proto3" json:"into_new,omitempty"`
+	IntoNew bool `protobuf:"varint,11,opt,name=into_new,json=intoNew,proto3" json:"into_new,omitempty"`
+	// Original filename when importing an uploaded dump file into database_name.
+	ImportFile string `protobuf:"bytes,12,opt,name=import_file,json=importFile,proto3" json:"import_file,omitempty"`
+	// Normalized dump format (sql, sql.gz, dump, or tar) when importing a dump.
+	ImportFormat  string `protobuf:"bytes,13,opt,name=import_format,json=importFormat,proto3" json:"import_format,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9856,6 +9860,20 @@ func (x *RestorePlan) GetIntoNew() bool {
 		return x.IntoNew
 	}
 	return false
+}
+
+func (x *RestorePlan) GetImportFile() string {
+	if x != nil {
+		return x.ImportFile
+	}
+	return ""
+}
+
+func (x *RestorePlan) GetImportFormat() string {
+	if x != nil {
+		return x.ImportFormat
+	}
+	return ""
 }
 
 // RouteRedirects is a route that answers every request with a redirect.
@@ -13902,7 +13920,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\amanager\x18\x01 \x01(\tR\amanager\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06folder\x18\x04 \x01(\tR\x06folder\"\x8f\x03\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xd5\x03\n" +
 	"\vRestorePlan\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x121\n" +
@@ -13918,7 +13936,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\areached\x18\n" +
 	" \x03(\tR\areached\x12#\n" +
 	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\x12\x19\n" +
-	"\binto_new\x18\v \x01(\bR\aintoNew\"\xff\x01\n" +
+	"\binto_new\x18\v \x01(\bR\aintoNew\x12\x1f\n" +
+	"\vimport_file\x18\f \x01(\tR\n" +
+	"importFile\x12#\n" +
+	"\rimport_format\x18\r \x01(\tR\fimportFormat\"\xff\x01\n" +
 	"\x0eRouteRedirects\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x0e\n" +
 	"\x02to\x18\x02 \x01(\tR\x02to\x12\x1c\n" +

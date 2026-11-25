@@ -22,6 +22,8 @@ import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { useThisDatabase } from "./DatabaseLayout";
+import { backsUp } from "./DatabaseOverview";
+import { ImportDumpSheet } from "./ImportDumpSheet";
 import { NewDatabaseSheet } from "./NewDatabaseSheet";
 import { consoleTarget, engineName, firstReading, readOf } from "./useDatabases";
 
@@ -58,18 +60,30 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
   const sheet = useChangeSheet();
   const health = useHealth().of({ id: db.id });
   const [creating, setCreating] = useState(false);
+  const [importingFor, setImportingFor] = useState<string | null>(null);
 
   const may = useMay();
   const environment = db.resource?.scope ?? "";
   const mayCreate = may(DatabaseService.method.createLogicalDatabase, { environment });
   const mayDelete = may(DatabaseService.method.deleteLogicalDatabase, { environment });
+  const mayImport = may(DatabaseService.method.beginDatabaseImport, { environment });
   const mayConsole = may(TerminalService.method.openTerminal);
   const consoleAt = consoleTarget(db, health);
+  const canBackUp = backsUp(db);
 
   const name = useShownName()(db, "database").title;
   const rows = read.databases.map((d) => ({ ...d, id: d.name }));
   const count = read.databases.filter((d) => !d.system).length;
   const numberFormat = new Intl.NumberFormat(i18n.locale);
+  const importOff = !canBackUp
+    ? db.volumeExternal
+      ? t`Its volume isn't one Dockwell backs up`
+      : t`It needs a managed volume so Dockwell can back it up first`
+    : count === 0
+      ? t`Create a database first before importing a dump`
+      : mayImport.allowed
+        ? undefined
+        : mayImport.reason;
 
   const planDelete = (d: InnerDatabase) => {
     sheet.open({
@@ -94,6 +108,15 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
             search: { container: consoleAt.container, console: true, database: d.name },
           });
         },
+      });
+    }
+    if (!d.system) {
+      actions.push({
+        id: "import",
+        icon: "upload",
+        label: t`Import dump`,
+        off: importOff,
+        onSelect: () => setImportingFor(d.name),
       });
     }
     const linked = d.linkedBy.join(", ");
@@ -182,6 +205,16 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
           {plural(count, { one: `# of your own in ${name}`, other: `# of your own in ${name}` })}
         </span>
         <div className="database-section-action">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="upload"
+            disabled={Boolean(importOff)}
+            title={importOff}
+            onClick={() => setImportingFor("")}
+          >
+            <Trans>Import dump</Trans>
+          </Button>
           <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)} {...mayCreate.off}>
             <Trans>New database</Trans>
           </Button>
@@ -222,6 +255,14 @@ function LogicalDatabasesSection({ db, read }: { db: Database; read: DatabaseRea
         </p>
       ) : null}
       {creating ? <NewDatabaseSheet db={db} read={read} onClose={() => setCreating(false)} /> : null}
+      {importingFor !== null ? (
+        <ImportDumpSheet
+          db={db}
+          read={read}
+          initialDatabase={importingFor || undefined}
+          onClose={() => setImportingFor(null)}
+        />
+      ) : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@
 package agentapi
 
 import (
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -41,5 +42,22 @@ func TestDatabaseConsoleNeverSendsToAnOldAgent(t *testing.T) {
 	})
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("an older agent must refuse database console, got %v", err)
+	}
+}
+
+func TestDatabaseImportNeverSendsToAnOldAgent(t *testing.T) {
+	a := NewAgents(nil, slog.New(slog.DiscardHandler))
+	s := a.open("srv_1", "fixture-server", &agentv1.Hello{
+		TransfersFiles: true,
+	}, func(*agentv1.ConnectResponse) error {
+		t.Fatal("sent database import to an agent that does not support it")
+		return nil
+	})
+	if s.DatabaseImports() {
+		t.Fatal("DatabaseImports reported true for older agent")
+	}
+	_, err := s.DatabaseImport(t.Context(), &agentv1.DatabaseImportControlCall{}, TransferTimeout)
+	if !errors.Is(err, ErrOlderAgent) {
+		t.Fatalf("older agent database import = %v, want ErrOlderAgent", err)
 	}
 }

@@ -5209,9 +5209,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		last, guarded := lastAccess[q.server]
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
-		// A restore into a new database reads its backup from the volume the change
-		// names, which the step's plan doesn't carry (ADR 0106).
-		if src := it.restoreOn(q.server); src != nil && src.IntoNew() {
+		// A restore into a new database or from a staged dump upload passes its
+		// source through ctx, as the step's plan doesn't carry From or ImportID.
+		if src := it.restoreOn(q.server); src != nil && (src.IntoNew() || src.ImportID != "") {
 			callCtx = resource.WithRestore(callCtx, *src)
 		}
 		// The call to its agent is what a wave's servers wait on side by side. What

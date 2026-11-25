@@ -2944,6 +2944,181 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/imports:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
+                 for a database on its server, or reports how far an existing upload got so
+                 the client can resume it. No API token can call it.
+            operationId: DatabaseService_BeginDatabaseImport
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginDatabaseImportRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginDatabaseImportResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/imports/{importId}:
+        put:
+            tags:
+                - DatabaseService
+            description: |-
+                UploadDatabaseImport streams bounded chunks of a staged dump upload from
+                 offset to the database's server. Over REST it is a PUT whose body is the
+                 raw bytes of that chunk. No API token can call it.
+            operationId: DatabaseService_UploadDatabaseImport
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: importId
+                  in: path
+                  description: The staged upload's identifier from BeginDatabaseImport.
+                  required: true
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  description: Byte offset where this chunk starts; must match the server's offset.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project of a service named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment of a service named by name, by name or ID.
+                  schema:
+                    type: string
+            requestBody:
+                description: 'The bytes, from offset, as they come: not JSON. Send a large file as several requests, each from where the last ended.'
+                required: true
+                content:
+                    application/octet-stream:
+                        schema:
+                            type: string
+                            format: binary
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UploadDatabaseImportResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: request
+        delete:
+            tags:
+                - DatabaseService
+            description: CancelDatabaseImport discards a staged dump upload on the server.
+            operationId: DatabaseService_CancelDatabaseImport
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: importId
+                  in: path
+                  description: The staged upload's identifier.
+                  required: true
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: The project of a service named by name, by name or ID.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: The environment of a service named by name, by name or ID.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelDatabaseImportResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/imports/{importId}:plan:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                PlanDatabaseImport plans importing a completed staged dump into the chosen
+                 logical database, backing up that database first (as restores do).
+            operationId: DatabaseService_PlanDatabaseImport
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs the database server, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: importId
+                  in: path
+                  description: The staged upload's identifier.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanDatabaseImportRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanDatabaseImportResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/databases/{id}/users:
         post:
             tags:
@@ -12327,6 +12502,59 @@ components:
                     type: string
                     description: PublicKeyCredentialCreationOptionsJSON.
             description: BeginClaimResponse carries the options for creating the passkey.
+        BeginDatabaseImportRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs the database server, by ID or by name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                database:
+                    type: string
+                    description: The logical database inside the server to import into.
+                filename:
+                    type: string
+                    description: 'The dump filename (used to pick format: .sql, .sql.gz, .dump, .tar).'
+                sizeBytes:
+                    type: string
+                    description: Total size of the dump file in bytes.
+                server:
+                    type: string
+                    description: The server to stage the upload on when the database runs on more than one.
+                importId:
+                    type: string
+                    description: An existing staged upload ID to inspect for resume.
+            description: |-
+                BeginDatabaseImportRequest begins staging a dump file to import into a
+                 logical database on a PostgreSQL, MySQL or MariaDB server, or asks how far an
+                 existing upload got when import_id is set.
+        BeginDatabaseImportResponse:
+            type: object
+            properties:
+                importId:
+                    type: string
+                    description: The staged upload's identifier.
+                offset:
+                    type: string
+                    description: How many bytes the server already holds.
+                partBytes:
+                    type: string
+                    description: Suggested chunk size in bytes for each PUT request.
+                maxBytes:
+                    type: string
+                    description: Maximum accepted dump size in bytes.
+                serverId:
+                    type: string
+                    description: The server holding this staged upload.
+                format:
+                    type: string
+                    description: 'Normalized dump format: sql, sql.gz, dump, or tar.'
+            description: BeginDatabaseImportResponse reports the staged upload state and chunk sizing.
         BeginDockerArtifactUploadRequest:
             type: object
             properties:
@@ -12839,6 +13067,10 @@ components:
                         - $ref: '#/components/schemas/Build'
                     description: The build.
             description: CancelBuildResponse is the build, as it stands once its server was asked.
+        CancelDatabaseImportResponse:
+            type: object
+            properties: {}
+            description: CancelDatabaseImportResponse is empty.
         CancelDockerImageBuildRequest:
             type: object
             properties:
@@ -27296,6 +27528,33 @@ components:
                         $ref: '#/components/schemas/ComposeWorkspaceRemoval'
                     description: A draft that omits resources must confirm these exact removals.
             description: A reviewed change, a source-line refusal, or removals to confirm.
+        PlanDatabaseImportRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs the database server, by ID or by name.
+                importId:
+                    type: string
+                    description: The staged upload's identifier.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                summary:
+                    type: string
+                    description: Optional custom change summary.
+            description: PlanDatabaseImportRequest plans importing a completed staged dump upload.
+        PlanDatabaseImportResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanDatabaseImportResponse carries the planned import change.
         PlanDockerContainerLoggingRequest:
             type: object
             properties:
@@ -29613,6 +29872,12 @@ components:
                         It fills a new database's volume, made in the same change, so it replaces
                          nothing and nothing that runs stops, but that new database's own service while
                          the backup loads (ADR 0106).
+                importFile:
+                    type: string
+                    description: Original filename when importing an uploaded dump file into database_name.
+                importFormat:
+                    type: string
+                    description: Normalized dump format (sql, sql.gz, dump, or tar) when importing a dump.
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the
@@ -34896,6 +35161,22 @@ components:
                     type: boolean
                     description: True when it's a way back onto the server, which took a passkey.
             description: Upload is an upload as it stands.
+        UploadDatabaseImportResponse:
+            type: object
+            properties:
+                importId:
+                    type: string
+                    description: The staged upload's identifier.
+                offset:
+                    type: string
+                    description: Total bytes received by the server so far.
+                sizeBytes:
+                    type: string
+                    description: Expected total size in bytes.
+                complete:
+                    type: boolean
+                    description: True once all size_bytes have been received.
+            description: UploadDatabaseImportResponse reports how far the staged upload has progressed.
         UploadFileResponse:
             type: object
             properties:

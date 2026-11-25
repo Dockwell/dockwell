@@ -80,6 +80,25 @@ func postgres(x dockertest.Exec) int {
 		}
 		_, _ = x.Stdout.Write(data)
 		_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database cluster dump complete\n")
+	case strings.Contains(script, "pg_dump "):
+		data, err := os.ReadFile(file) //nolint:gosec // a directory of this fake's own
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return 1
+		}
+		_, _ = x.Stdout.Write(data)
+		_, _ = io.WriteString(x.Stdout, "\n-- PostgreSQL database dump complete\n")
+	case strings.Contains(script, "pg_restore"):
+		data, err := io.ReadAll(x.Stdin)
+		if err != nil {
+			return 1
+		}
+		if strings.Contains(string(data), "FAIL_IMPORT") {
+			_, _ = io.WriteString(x.Stderr, "pg_restore: error: could not execute query: ERROR: syntax error at or near \"FAIL_IMPORT\"\n")
+			return 1
+		}
+		if os.WriteFile(file, data, 0o600) != nil {
+			return 1
+		}
 	case len(x.Cmd) > 0 && x.Cmd[0] == "psql" && slices.Contains(x.Cmd, "-c"):
 		// A question a restore drill asks, psql itself with -c, which comes with nothing
 		// on stdin (ADR 0068). A reading runs psql under sh -c, with its SQL on stdin.
@@ -93,6 +112,14 @@ func postgres(x dockertest.Exec) int {
 			return 1
 		}
 		switch sql := string(data); {
+		case strings.HasPrefix(strings.TrimSpace(sql), "SELECT pg_terminate_backend") && !strings.Contains(sql, "DROP DATABASE"):
+			return 0
+		case strings.HasPrefix(strings.TrimSpace(sql), "SELECT 1 FROM pg_database WHERE datname ="):
+			_, _ = io.WriteString(x.Stdout, "1\n")
+			return 0
+		case strings.Contains(sql, "FAIL_IMPORT"):
+			_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"FAIL_IMPORT\"\nLINE 1: FAIL_IMPORT;\n")
+			return 3
 		case askedRole.MatchString(sql):
 			return postgresUserThere(x, filepath.Dir(file), sql)
 		case askedLogical.MatchString(sql):

@@ -878,6 +878,12 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return cantApply(ctx, step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
 		}
 		source := RestoreSource{Backup: step.Restore.Backup, Undoes: step.Restore.Undoes, Change: DeployOf(ctx).Change}
+		if r, ok := RestoreOf(ctx); ok && r.ImportID != "" {
+			source.ImportID = r.ImportID
+			source.ImportDatabase = r.ImportDatabase
+			source.ImportFilename = r.ImportFilename
+			source.ImportFormat = r.ImportFormat
+		}
 		if err := r.ApplyRestore(ctx, step, source); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't restore %s: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't restore %s: %w", step.Ref, err))
 		}

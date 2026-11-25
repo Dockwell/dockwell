@@ -9,6 +9,10 @@
 
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 
+import {
+  type UploadDatabaseImportResponse,
+  UploadDatabaseImportResponseSchema,
+} from "./gen/dockwell/v1/database_pb";
 import { type DockerArtifactInfo, DockerArtifactInfoSchema } from "./gen/dockwell/v1/docker_pb";
 import { type UploadFileResponse, UploadFileResponseSchema } from "./gen/dockwell/v1/file_pb";
 import { type StreamRoute, streamRoutes } from "./gen/streams";
@@ -138,6 +142,32 @@ export function uploadFilePart(p: UploadPart): Promise<UploadFileResponse> {
   const route: StreamRoute = streamRoutes.FileService_UploadFile;
   const url = routeURL(route, { serverId: p.serverId, uploadId: p.uploadId }, { offset: p.offset }, p.baseUrl);
   return sendPart(route, url, p, (value) => fromJson(UploadFileResponseSchema, value, { ignoreUnknownFields: true }));
+}
+
+/** One chunk of a database dump import upload, sent to DatabaseService.UploadDatabaseImport. */
+export interface DatabaseImportPart {
+  id: string;
+  importId: string;
+  offset: number;
+  part: Blob;
+  project?: string;
+  environment?: string;
+  onSent?: (bytes: number) => void;
+  signal?: AbortSignal;
+  baseUrl?: string;
+}
+
+export function uploadDatabaseImportPart(p: DatabaseImportPart): Promise<UploadDatabaseImportResponse> {
+  const route: StreamRoute = streamRoutes.DatabaseService_UploadDatabaseImport;
+  const url = routeURL(
+    route,
+    { id: p.id, importId: p.importId },
+    { offset: p.offset, project: p.project, environment: p.environment },
+    p.baseUrl,
+  );
+  return sendPart(route, url, p, (value) =>
+    fromJson(UploadDatabaseImportResponseSchema, value, { ignoreUnknownFields: true }),
+  );
 }
 
 export type ArtifactPart = Omit<UploadPart, "uploadId"> & { artifactId: string; prefixSHA256: string };

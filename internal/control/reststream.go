@@ -38,8 +38,9 @@ import (
 // treat Vanguard's, and its bytes go through a frame at a time.
 
 const (
-	uploadPath   = "PUT /v1/servers/{server_id}/uploads/{upload_id}"
-	downloadPath = "GET /v1/servers/{server_id}/files:download"
+	uploadPath         = "PUT /v1/servers/{server_id}/uploads/{upload_id}"
+	downloadPath       = "GET /v1/servers/{server_id}/files:download"
+	databaseImportPath = "PUT /v1/databases/{id}/imports/{import_id}"
 	// stallStep is how much of a download goes out at a time, each with
 	// transferStall to go.
 	stallStep = 64 << 10
@@ -69,6 +70,20 @@ func streamTransfers(mux *http.ServeMux, h http.Handler, guard func(http.Handler
 	}
 	mux.Handle(uploadPath, guard(admitted(dockwellv1connect.FileServiceUploadFileProcedure, uploadREST(h))))
 	mux.Handle(downloadPath, guard(admitted(dockwellv1connect.FileServiceDownloadFileProcedure, downloadREST(h))))
+}
+
+// streamDatabaseImports serves UploadDatabaseImport's streaming REST PUT path
+// on mux through guard, ahead of Vanguard, reusing the bounded upload frame path.
+func streamDatabaseImports(mux *http.ServeMux, h http.Handler, guard func(http.Handler) http.Handler, authorize func(ctx context.Context, procedure string) error) {
+	mux.Handle(databaseImportPath, guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if authorize != nil {
+			if err := authorize(r.Context(), dockwellv1connect.DatabaseServiceUploadDatabaseImportProcedure); err != nil {
+				restRefuse(w, err)
+				return
+			}
+		}
+		uploadDatabaseImportREST(h).ServeHTTP(w, r)
+	})))
 }
 
 // Connect's envelope: a byte of flags, then the message's length.
@@ -105,7 +120,12 @@ func uploadREST(h http.Handler) http.Handler {
 		}
 		control := http.NewResponseController(w)
 		defer func() { _ = control.SetReadDeadline(time.Time{}) }()
-		body := &uploadBody{r: r.Body, contentType: r.Header.Get("Content-Type"), buf: make([]byte, files.FrameBytes), control: control}
+		body := &uploadBody{
+			r: r.Body, contentType: r.Header.Get("Content-Type"), buf: make([]byte, files.FrameBytes), control: control,
+			makeChunk: func(ct string, data []byte) proto.Message {
+				return &dockwellv1.UploadFileRequest{Content: &httpbody.HttpBody{ContentType: ct, Data: data}}
+			},
+		}
 		body.frame(&dockwellv1.UploadFileRequest{ServerId: r.PathValue("server_id"), UploadId: r.PathValue("upload_id"), Offset: offset})
 		var reply []byte
 		out := &connectStream{header: http.Header{}, each: func(msg []byte) error {
@@ -128,12 +148,59 @@ func uploadREST(h http.Handler) http.Handler {
 	})
 }
 
+// uploadDatabaseImportREST serves UploadDatabaseImport's REST PUT path, streaming
+// bounded frames to DatabaseService.UploadDatabaseImport without buffering the body.
+func uploadDatabaseImportREST(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offset, err := strconv.ParseUint(cmp.Or(r.URL.Query().Get("offset"), "0"), 10, 64)
+		if err != nil {
+			authapi.RESTError(w, http.StatusBadRequest, connect.CodeInvalidArgument, "invalid",
+				"The offset has to be a number of bytes, such as 0. BeginDatabaseImport says how far an upload got.")
+			return
+		}
+		control := http.NewResponseController(w)
+		defer func() { _ = control.SetReadDeadline(time.Time{}) }()
+		body := &uploadBody{
+			r: r.Body, contentType: r.Header.Get("Content-Type"), buf: make([]byte, files.FrameBytes), control: control,
+			makeChunk: func(ct string, data []byte) proto.Message {
+				return &dockwellv1.UploadDatabaseImportRequest{Content: &httpbody.HttpBody{ContentType: ct, Data: data}}
+			},
+		}
+		body.frame(&dockwellv1.UploadDatabaseImportRequest{
+			Id:          r.PathValue("id"),
+			ImportId:    r.PathValue("import_id"),
+			Offset:      offset,
+			Project:     r.URL.Query().Get("project"),
+			Environment: r.URL.Query().Get("environment"),
+		})
+		var reply []byte
+		out := &connectStream{header: http.Header{}, each: func(msg []byte) error {
+			reply = append(reply[:0], msg...)
+			return nil
+		}}
+		h.ServeHTTP(out, connectCall(r, dockwellv1connect.DatabaseServiceUploadDatabaseImportProcedure, body))
+		if out.answeredREST(w) {
+			return
+		}
+		var up dockwellv1.UploadDatabaseImportResponse
+		if err := proto.Unmarshal(reply, &up); err != nil {
+			authapi.RESTError(w, http.StatusBadGateway, connect.CodeInternal, "", "The upload answered with an unreadable response. Ask BeginDatabaseImport how far it got.")
+			return
+		}
+		text, _ := protojson.Marshal(&up)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(text)
+	})
+}
+
 // uploadBody is a PUT's body as Connect messages, a frame of it in each, read as the
 // handler reads, so nothing reads the PUT once the handler is done.
 type uploadBody struct {
 	r           io.Reader
 	contentType string
 	buf         []byte
+	makeChunk   func(contentType string, data []byte) proto.Message
 	// control gives each frame's read transferStall.
 	control *http.ResponseController
 	// framed is the frame last made, and pending what of it isn't read yet.
@@ -158,7 +225,7 @@ func (u *uploadBody) Read(p []byte) (int, error) {
 		_ = u.control.SetReadDeadline(time.Now().Add(transferStall))
 		n, err := io.ReadFull(u.r, u.buf)
 		if n > 0 {
-			u.frame(&dockwellv1.UploadFileRequest{Content: &httpbody.HttpBody{ContentType: u.contentType, Data: u.buf[:n]}})
+			u.frame(u.makeChunk(u.contentType, u.buf[:n]))
 		}
 		if err != nil {
 			u.done = true

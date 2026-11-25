@@ -11,6 +11,7 @@ package dockwellv1
 import (
 	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
+	httpbody "google.golang.org/genproto/googleapis/api/httpbody"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -2082,11 +2083,615 @@ func (x *DeleteLogicalDatabaseResponse) GetChange() *Change {
 	return nil
 }
 
+// BeginDatabaseImportRequest begins staging a dump file to import into a
+// logical database on a PostgreSQL, MySQL or MariaDB server, or asks how far an
+// existing upload got when import_id is set.
+type BeginDatabaseImportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service that runs the database server, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The logical database inside the server to import into.
+	Database string `protobuf:"bytes,4,opt,name=database,proto3" json:"database,omitempty"`
+	// The dump filename (used to pick format: .sql, .sql.gz, .dump, .tar).
+	Filename string `protobuf:"bytes,5,opt,name=filename,proto3" json:"filename,omitempty"`
+	// Total size of the dump file in bytes.
+	SizeBytes uint64 `protobuf:"varint,6,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// The server to stage the upload on when the database runs on more than one.
+	Server string `protobuf:"bytes,7,opt,name=server,proto3" json:"server,omitempty"`
+	// An existing staged upload ID to inspect for resume.
+	ImportId      string `protobuf:"bytes,8,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BeginDatabaseImportRequest) Reset() {
+	*x = BeginDatabaseImportRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeginDatabaseImportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeginDatabaseImportRequest) ProtoMessage() {}
+
+func (x *BeginDatabaseImportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeginDatabaseImportRequest.ProtoReflect.Descriptor instead.
+func (*BeginDatabaseImportRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *BeginDatabaseImportRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetFilename() string {
+	if x != nil {
+		return x.Filename
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *BeginDatabaseImportRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportRequest) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+// BeginDatabaseImportResponse reports the staged upload state and chunk sizing.
+type BeginDatabaseImportResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The staged upload's identifier.
+	ImportId string `protobuf:"bytes,1,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	// How many bytes the server already holds.
+	Offset uint64 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Suggested chunk size in bytes for each PUT request.
+	PartBytes uint64 `protobuf:"varint,3,opt,name=part_bytes,json=partBytes,proto3" json:"part_bytes,omitempty"`
+	// Maximum accepted dump size in bytes.
+	MaxBytes uint64 `protobuf:"varint,4,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
+	// The server holding this staged upload.
+	ServerId string `protobuf:"bytes,5,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Normalized dump format: sql, sql.gz, dump, or tar.
+	Format        string `protobuf:"bytes,6,opt,name=format,proto3" json:"format,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BeginDatabaseImportResponse) Reset() {
+	*x = BeginDatabaseImportResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeginDatabaseImportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeginDatabaseImportResponse) ProtoMessage() {}
+
+func (x *BeginDatabaseImportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeginDatabaseImportResponse.ProtoReflect.Descriptor instead.
+func (*BeginDatabaseImportResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *BeginDatabaseImportResponse) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportResponse) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *BeginDatabaseImportResponse) GetPartBytes() uint64 {
+	if x != nil {
+		return x.PartBytes
+	}
+	return 0
+}
+
+func (x *BeginDatabaseImportResponse) GetMaxBytes() uint64 {
+	if x != nil {
+		return x.MaxBytes
+	}
+	return 0
+}
+
+func (x *BeginDatabaseImportResponse) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *BeginDatabaseImportResponse) GetFormat() string {
+	if x != nil {
+		return x.Format
+	}
+	return ""
+}
+
+// UploadDatabaseImportRequest carries a chunk of a staged dump upload.
+type UploadDatabaseImportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service that runs the database server, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The staged upload's identifier from BeginDatabaseImport.
+	ImportId string `protobuf:"bytes,2,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	// Byte offset where this chunk starts; must match the server's offset.
+	Offset uint64 `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Raw bytes of this chunk.
+	Content *httpbody.HttpBody `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,5,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment   string `protobuf:"bytes,6,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadDatabaseImportRequest) Reset() {
+	*x = UploadDatabaseImportRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadDatabaseImportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadDatabaseImportRequest) ProtoMessage() {}
+
+func (x *UploadDatabaseImportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadDatabaseImportRequest.ProtoReflect.Descriptor instead.
+func (*UploadDatabaseImportRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *UploadDatabaseImportRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UploadDatabaseImportRequest) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+func (x *UploadDatabaseImportRequest) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *UploadDatabaseImportRequest) GetContent() *httpbody.HttpBody {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *UploadDatabaseImportRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *UploadDatabaseImportRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// UploadDatabaseImportResponse reports how far the staged upload has progressed.
+type UploadDatabaseImportResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The staged upload's identifier.
+	ImportId string `protobuf:"bytes,1,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	// Total bytes received by the server so far.
+	Offset uint64 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Expected total size in bytes.
+	SizeBytes uint64 `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// True once all size_bytes have been received.
+	Complete      bool `protobuf:"varint,4,opt,name=complete,proto3" json:"complete,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadDatabaseImportResponse) Reset() {
+	*x = UploadDatabaseImportResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadDatabaseImportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadDatabaseImportResponse) ProtoMessage() {}
+
+func (x *UploadDatabaseImportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadDatabaseImportResponse.ProtoReflect.Descriptor instead.
+func (*UploadDatabaseImportResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *UploadDatabaseImportResponse) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+func (x *UploadDatabaseImportResponse) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *UploadDatabaseImportResponse) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *UploadDatabaseImportResponse) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
+}
+
+// PlanDatabaseImportRequest plans importing a completed staged dump upload.
+type PlanDatabaseImportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service that runs the database server, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The staged upload's identifier.
+	ImportId string `protobuf:"bytes,2,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	// Optional custom change summary.
+	Summary       string `protobuf:"bytes,5,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanDatabaseImportRequest) Reset() {
+	*x = PlanDatabaseImportRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanDatabaseImportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanDatabaseImportRequest) ProtoMessage() {}
+
+func (x *PlanDatabaseImportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanDatabaseImportRequest.ProtoReflect.Descriptor instead.
+func (*PlanDatabaseImportRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *PlanDatabaseImportRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PlanDatabaseImportRequest) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+func (x *PlanDatabaseImportRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *PlanDatabaseImportRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *PlanDatabaseImportRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+// PlanDatabaseImportResponse carries the planned import change.
+type PlanDatabaseImportResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanDatabaseImportResponse) Reset() {
+	*x = PlanDatabaseImportResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanDatabaseImportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanDatabaseImportResponse) ProtoMessage() {}
+
+func (x *PlanDatabaseImportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanDatabaseImportResponse.ProtoReflect.Descriptor instead.
+func (*PlanDatabaseImportResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *PlanDatabaseImportResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+// CancelDatabaseImportRequest discards a staged dump upload on its server.
+type CancelDatabaseImportRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service that runs the database server, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The staged upload's identifier.
+	ImportId string `protobuf:"bytes,2,opt,name=import_id,json=importId,proto3" json:"import_id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment   string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelDatabaseImportRequest) Reset() {
+	*x = CancelDatabaseImportRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelDatabaseImportRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelDatabaseImportRequest) ProtoMessage() {}
+
+func (x *CancelDatabaseImportRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelDatabaseImportRequest.ProtoReflect.Descriptor instead.
+func (*CancelDatabaseImportRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *CancelDatabaseImportRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CancelDatabaseImportRequest) GetImportId() string {
+	if x != nil {
+		return x.ImportId
+	}
+	return ""
+}
+
+func (x *CancelDatabaseImportRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *CancelDatabaseImportRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// CancelDatabaseImportResponse is empty.
+type CancelDatabaseImportResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelDatabaseImportResponse) Reset() {
+	*x = CancelDatabaseImportResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelDatabaseImportResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelDatabaseImportResponse) ProtoMessage() {}
+
+func (x *CancelDatabaseImportResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelDatabaseImportResponse.ProtoReflect.Descriptor instead.
+func (*CancelDatabaseImportResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{30}
+}
+
 var File_dockwell_v1_database_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/database.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9d\x05\n" +
+	"\x1adockwell/v1/database.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x19google/api/httpbody.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9d\x05\n" +
 	"\bDatabase\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x123\n" +
@@ -2250,7 +2855,52 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\"L\n" +
 	"\x1dDeleteLogicalDatabaseResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change*\xa9\x02\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x87\x02\n" +
+	"\x1aBeginDatabaseImportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12-\n" +
+	"\bdatabase\x18\x04 \x01(\tB\x11\xa2\xbb\x18\rdatabase-nameR\bdatabase\x12\x1a\n" +
+	"\bfilename\x18\x05 \x01(\tR\bfilename\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x06 \x01(\x04R\tsizeBytes\x12\x16\n" +
+	"\x06server\x18\a \x01(\tR\x06server\x12\x1b\n" +
+	"\timport_id\x18\b \x01(\tR\bimportId\"\xc3\x01\n" +
+	"\x1bBeginDatabaseImportResponse\x12\x1b\n" +
+	"\timport_id\x18\x01 \x01(\tR\bimportId\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x1d\n" +
+	"\n" +
+	"part_bytes\x18\x03 \x01(\x04R\tpartBytes\x12\x1b\n" +
+	"\tmax_bytes\x18\x04 \x01(\x04R\bmaxBytes\x12\x1b\n" +
+	"\tserver_id\x18\x05 \x01(\tR\bserverId\x12\x16\n" +
+	"\x06format\x18\x06 \x01(\tR\x06format\"\xce\x01\n" +
+	"\x1bUploadDatabaseImportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\timport_id\x18\x02 \x01(\tR\bimportId\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x04R\x06offset\x12.\n" +
+	"\acontent\x18\x04 \x01(\v2\x14.google.api.HttpBodyR\acontent\x12\x18\n" +
+	"\aproject\x18\x05 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x06 \x01(\tR\venvironment\"\x8e\x01\n" +
+	"\x1cUploadDatabaseImportResponse\x12\x1b\n" +
+	"\timport_id\x18\x01 \x01(\tR\bimportId\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12\x1a\n" +
+	"\bcomplete\x18\x04 \x01(\bR\bcomplete\"\x9e\x01\n" +
+	"\x19PlanDatabaseImportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\timport_id\x18\x02 \x01(\tR\bimportId\x12\x18\n" +
+	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x18\n" +
+	"\asummary\x18\x05 \x01(\tR\asummary\"I\n" +
+	"\x1aPlanDatabaseImportResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x86\x01\n" +
+	"\x1bCancelDatabaseImportRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
+	"\timport_id\x18\x02 \x01(\tR\bimportId\x12\x18\n" +
+	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\"\x1e\n" +
+	"\x1cCancelDatabaseImportResponse*\xa9\x02\n" +
 	"\x0eDatabaseEngine\x12\x1f\n" +
 	"\x1bDATABASE_ENGINE_UNSPECIFIED\x10\x00\x12.\n" +
 	"\x1aDATABASE_ENGINE_POSTGRESQL\x10\x01\x1a\x0e\xa2\xbb\x18\n" +
@@ -2260,7 +2910,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x15DATABASE_ENGINE_REDIS\x10\x04\x1a\t\xa2\xbb\x18\x05Redis\x12&\n" +
 	"\x16DATABASE_ENGINE_VALKEY\x10\x05\x1a\n" +
 	"\xa2\xbb\x18\x06Valkey\x12(\n" +
-	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\xb6\f\n" +
+	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\xc8\x12\n" +
 	"\x0fDatabaseService\x12\x80\x01\n" +
 	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12\x7f\n" +
 	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01\x12\xa8\x01\n" +
@@ -2271,7 +2921,11 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x13CheckDatabaseSignIn\x12'.dockwell.v1.CheckDatabaseSignInRequest\x1a(.dockwell.v1.CheckDatabaseSignInResponse\"L\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\x12\rcheck-sign-in\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02 \x12\x1e/v1/databases/{id}:checkSignIn\x90\x02\x01\x12\xa0\x01\n" +
 	"\x0fConnectDatabase\x12#.dockwell.v1.ConnectDatabaseRequest\x1a$.dockwell.v1.ConnectDatabaseResponse\"B\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\aconnect\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/databases/{id}:connect\x12\xb9\x01\n" +
 	"\x15CreateLogicalDatabase\x12).dockwell.v1.CreateLogicalDatabaseRequest\x1a*.dockwell.v1.CreateLogicalDatabaseResponse\"I\xa0\xbb\x18\x02\xaa\xbb\x18\x0e\x12\fadd-database\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/databases/{id}/databases\x12\xc4\x01\n" +
-	"\x15DeleteLogicalDatabase\x12).dockwell.v1.DeleteLogicalDatabaseRequest\x1a*.dockwell.v1.DeleteLogicalDatabaseResponse\"T\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fdelete-database\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02)*'/v1/databases/{id}/databases/{database}B\xa6\x01\n" +
+	"\x15DeleteLogicalDatabase\x12).dockwell.v1.DeleteLogicalDatabaseRequest\x1a*.dockwell.v1.DeleteLogicalDatabaseResponse\"T\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fdelete-database\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02)*'/v1/databases/{id}/databases/{database}\x12\xb5\x01\n" +
+	"\x13BeginDatabaseImport\x12'.dockwell.v1.BeginDatabaseImportRequest\x1a(.dockwell.v1.BeginDatabaseImportResponse\"K\xa0\xbb\x18\x03\xaa\xbb\x18\x0e\x12\fbegin-import\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/databases/{id}/imports\x12\xcd\x01\n" +
+	"\x14UploadDatabaseImport\x12(.dockwell.v1.UploadDatabaseImportRequest\x1a).dockwell.v1.UploadDatabaseImportResponse\"^\xa0\xbb\x18\x03\xaa\xbb\x18\x0f\x12\rupload-import\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x021:\acontent\x1a&/v1/databases/{id}/imports/{import_id}(\x01\x12\xc2\x01\n" +
+	"\x12PlanDatabaseImport\x12&.dockwell.v1.PlanDatabaseImportRequest\x1a'.dockwell.v1.PlanDatabaseImportResponse\"[\xa0\xbb\x18\x02\xaa\xbb\x18\r\x12\vplan-import\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x020:\x01*\"+/v1/databases/{id}/imports/{import_id}:plan\x12\xc2\x01\n" +
+	"\x14CancelDatabaseImport\x12(.dockwell.v1.CancelDatabaseImportRequest\x1a).dockwell.v1.CancelDatabaseImportResponse\"U\xa0\xbb\x18\x03\xaa\xbb\x18\x0f\x12\rcancel-import\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02(*&/v1/databases/{id}/imports/{import_id}B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rDatabaseProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -2287,7 +2941,7 @@ func file_dockwell_v1_database_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_database_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_dockwell_v1_database_proto_goTypes = []any{
 	(DatabaseEngine)(0),                       // 0: dockwell.v1.DatabaseEngine
 	(*Database)(nil),                          // 1: dockwell.v1.Database
@@ -2313,58 +2967,77 @@ var file_dockwell_v1_database_proto_goTypes = []any{
 	(*CreateLogicalDatabaseResponse)(nil),     // 21: dockwell.v1.CreateLogicalDatabaseResponse
 	(*DeleteLogicalDatabaseRequest)(nil),      // 22: dockwell.v1.DeleteLogicalDatabaseRequest
 	(*DeleteLogicalDatabaseResponse)(nil),     // 23: dockwell.v1.DeleteLogicalDatabaseResponse
-	nil,                                       // 24: dockwell.v1.ConnectDatabaseRequest.SetsEntry
-	nil,                                       // 25: dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
-	(*ResourceRef)(nil),                       // 26: dockwell.v1.ResourceRef
-	(*Backup)(nil),                            // 27: dockwell.v1.Backup
-	(*timestamppb.Timestamp)(nil),             // 28: google.protobuf.Timestamp
-	(*Change)(nil),                            // 29: dockwell.v1.Change
-	(v1alpha1.LinkPart)(0),                    // 30: dockwell.resource.v1alpha1.LinkPart
+	(*BeginDatabaseImportRequest)(nil),        // 24: dockwell.v1.BeginDatabaseImportRequest
+	(*BeginDatabaseImportResponse)(nil),       // 25: dockwell.v1.BeginDatabaseImportResponse
+	(*UploadDatabaseImportRequest)(nil),       // 26: dockwell.v1.UploadDatabaseImportRequest
+	(*UploadDatabaseImportResponse)(nil),      // 27: dockwell.v1.UploadDatabaseImportResponse
+	(*PlanDatabaseImportRequest)(nil),         // 28: dockwell.v1.PlanDatabaseImportRequest
+	(*PlanDatabaseImportResponse)(nil),        // 29: dockwell.v1.PlanDatabaseImportResponse
+	(*CancelDatabaseImportRequest)(nil),       // 30: dockwell.v1.CancelDatabaseImportRequest
+	(*CancelDatabaseImportResponse)(nil),      // 31: dockwell.v1.CancelDatabaseImportResponse
+	nil,                                       // 32: dockwell.v1.ConnectDatabaseRequest.SetsEntry
+	nil,                                       // 33: dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
+	(*ResourceRef)(nil),                       // 34: dockwell.v1.ResourceRef
+	(*Backup)(nil),                            // 35: dockwell.v1.Backup
+	(*timestamppb.Timestamp)(nil),             // 36: google.protobuf.Timestamp
+	(*Change)(nil),                            // 37: dockwell.v1.Change
+	(*httpbody.HttpBody)(nil),                 // 38: google.api.HttpBody
+	(v1alpha1.LinkPart)(0),                    // 39: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_database_proto_depIdxs = []int32{
-	26, // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
+	34, // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
 	0,  // 1: dockwell.v1.Database.engine:type_name -> dockwell.v1.DatabaseEngine
 	3,  // 2: dockwell.v1.Database.readings:type_name -> dockwell.v1.DatabaseReading
-	27, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
-	27, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
+	35, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
+	35, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
 	2,  // 5: dockwell.v1.Database.external_access:type_name -> dockwell.v1.DatabaseExternalAccess
-	28, // 6: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
+	36, // 6: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
 	4,  // 7: dockwell.v1.DatabaseReading.databases:type_name -> dockwell.v1.InnerDatabase
 	5,  // 8: dockwell.v1.DatabaseReading.users:type_name -> dockwell.v1.DatabaseAccount
 	1,  // 9: dockwell.v1.ListDatabasesResponse.databases:type_name -> dockwell.v1.Database
-	24, // 10: dockwell.v1.ConnectDatabaseRequest.sets:type_name -> dockwell.v1.ConnectDatabaseRequest.SetsEntry
-	25, // 11: dockwell.v1.ConnectDatabaseRequest.templates:type_name -> dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
-	29, // 12: dockwell.v1.ConnectDatabaseResponse.change:type_name -> dockwell.v1.Change
-	29, // 13: dockwell.v1.CreateDatabaseUserResponse.change:type_name -> dockwell.v1.Change
-	29, // 14: dockwell.v1.ChangeDatabasePasswordResponse.change:type_name -> dockwell.v1.Change
-	29, // 15: dockwell.v1.SetDatabaseExternalAccessResponse.change:type_name -> dockwell.v1.Change
+	32, // 10: dockwell.v1.ConnectDatabaseRequest.sets:type_name -> dockwell.v1.ConnectDatabaseRequest.SetsEntry
+	33, // 11: dockwell.v1.ConnectDatabaseRequest.templates:type_name -> dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
+	37, // 12: dockwell.v1.ConnectDatabaseResponse.change:type_name -> dockwell.v1.Change
+	37, // 13: dockwell.v1.CreateDatabaseUserResponse.change:type_name -> dockwell.v1.Change
+	37, // 14: dockwell.v1.ChangeDatabasePasswordResponse.change:type_name -> dockwell.v1.Change
+	37, // 15: dockwell.v1.SetDatabaseExternalAccessResponse.change:type_name -> dockwell.v1.Change
 	1,  // 16: dockwell.v1.GetDatabaseResponse.database:type_name -> dockwell.v1.Database
-	29, // 17: dockwell.v1.CreateLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
-	29, // 18: dockwell.v1.DeleteLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
-	30, // 19: dockwell.v1.ConnectDatabaseRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	6,  // 20: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
-	8,  // 21: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
-	13, // 22: dockwell.v1.DatabaseService.CreateDatabaseUser:input_type -> dockwell.v1.CreateDatabaseUserRequest
-	15, // 23: dockwell.v1.DatabaseService.ChangeDatabasePassword:input_type -> dockwell.v1.ChangeDatabasePasswordRequest
-	17, // 24: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:input_type -> dockwell.v1.SetDatabaseExternalAccessRequest
-	9,  // 25: dockwell.v1.DatabaseService.CheckDatabaseSignIn:input_type -> dockwell.v1.CheckDatabaseSignInRequest
-	11, // 26: dockwell.v1.DatabaseService.ConnectDatabase:input_type -> dockwell.v1.ConnectDatabaseRequest
-	20, // 27: dockwell.v1.DatabaseService.CreateLogicalDatabase:input_type -> dockwell.v1.CreateLogicalDatabaseRequest
-	22, // 28: dockwell.v1.DatabaseService.DeleteLogicalDatabase:input_type -> dockwell.v1.DeleteLogicalDatabaseRequest
-	7,  // 29: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
-	19, // 30: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
-	14, // 31: dockwell.v1.DatabaseService.CreateDatabaseUser:output_type -> dockwell.v1.CreateDatabaseUserResponse
-	16, // 32: dockwell.v1.DatabaseService.ChangeDatabasePassword:output_type -> dockwell.v1.ChangeDatabasePasswordResponse
-	18, // 33: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:output_type -> dockwell.v1.SetDatabaseExternalAccessResponse
-	10, // 34: dockwell.v1.DatabaseService.CheckDatabaseSignIn:output_type -> dockwell.v1.CheckDatabaseSignInResponse
-	12, // 35: dockwell.v1.DatabaseService.ConnectDatabase:output_type -> dockwell.v1.ConnectDatabaseResponse
-	21, // 36: dockwell.v1.DatabaseService.CreateLogicalDatabase:output_type -> dockwell.v1.CreateLogicalDatabaseResponse
-	23, // 37: dockwell.v1.DatabaseService.DeleteLogicalDatabase:output_type -> dockwell.v1.DeleteLogicalDatabaseResponse
-	29, // [29:38] is the sub-list for method output_type
-	20, // [20:29] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	37, // 17: dockwell.v1.CreateLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
+	37, // 18: dockwell.v1.DeleteLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
+	38, // 19: dockwell.v1.UploadDatabaseImportRequest.content:type_name -> google.api.HttpBody
+	37, // 20: dockwell.v1.PlanDatabaseImportResponse.change:type_name -> dockwell.v1.Change
+	39, // 21: dockwell.v1.ConnectDatabaseRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	6,  // 22: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
+	8,  // 23: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
+	13, // 24: dockwell.v1.DatabaseService.CreateDatabaseUser:input_type -> dockwell.v1.CreateDatabaseUserRequest
+	15, // 25: dockwell.v1.DatabaseService.ChangeDatabasePassword:input_type -> dockwell.v1.ChangeDatabasePasswordRequest
+	17, // 26: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:input_type -> dockwell.v1.SetDatabaseExternalAccessRequest
+	9,  // 27: dockwell.v1.DatabaseService.CheckDatabaseSignIn:input_type -> dockwell.v1.CheckDatabaseSignInRequest
+	11, // 28: dockwell.v1.DatabaseService.ConnectDatabase:input_type -> dockwell.v1.ConnectDatabaseRequest
+	20, // 29: dockwell.v1.DatabaseService.CreateLogicalDatabase:input_type -> dockwell.v1.CreateLogicalDatabaseRequest
+	22, // 30: dockwell.v1.DatabaseService.DeleteLogicalDatabase:input_type -> dockwell.v1.DeleteLogicalDatabaseRequest
+	24, // 31: dockwell.v1.DatabaseService.BeginDatabaseImport:input_type -> dockwell.v1.BeginDatabaseImportRequest
+	26, // 32: dockwell.v1.DatabaseService.UploadDatabaseImport:input_type -> dockwell.v1.UploadDatabaseImportRequest
+	28, // 33: dockwell.v1.DatabaseService.PlanDatabaseImport:input_type -> dockwell.v1.PlanDatabaseImportRequest
+	30, // 34: dockwell.v1.DatabaseService.CancelDatabaseImport:input_type -> dockwell.v1.CancelDatabaseImportRequest
+	7,  // 35: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
+	19, // 36: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
+	14, // 37: dockwell.v1.DatabaseService.CreateDatabaseUser:output_type -> dockwell.v1.CreateDatabaseUserResponse
+	16, // 38: dockwell.v1.DatabaseService.ChangeDatabasePassword:output_type -> dockwell.v1.ChangeDatabasePasswordResponse
+	18, // 39: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:output_type -> dockwell.v1.SetDatabaseExternalAccessResponse
+	10, // 40: dockwell.v1.DatabaseService.CheckDatabaseSignIn:output_type -> dockwell.v1.CheckDatabaseSignInResponse
+	12, // 41: dockwell.v1.DatabaseService.ConnectDatabase:output_type -> dockwell.v1.ConnectDatabaseResponse
+	21, // 42: dockwell.v1.DatabaseService.CreateLogicalDatabase:output_type -> dockwell.v1.CreateLogicalDatabaseResponse
+	23, // 43: dockwell.v1.DatabaseService.DeleteLogicalDatabase:output_type -> dockwell.v1.DeleteLogicalDatabaseResponse
+	25, // 44: dockwell.v1.DatabaseService.BeginDatabaseImport:output_type -> dockwell.v1.BeginDatabaseImportResponse
+	27, // 45: dockwell.v1.DatabaseService.UploadDatabaseImport:output_type -> dockwell.v1.UploadDatabaseImportResponse
+	29, // 46: dockwell.v1.DatabaseService.PlanDatabaseImport:output_type -> dockwell.v1.PlanDatabaseImportResponse
+	31, // 47: dockwell.v1.DatabaseService.CancelDatabaseImport:output_type -> dockwell.v1.CancelDatabaseImportResponse
+	35, // [35:48] is the sub-list for method output_type
+	22, // [22:35] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_database_proto_init() }
@@ -2382,7 +3055,7 @@ func file_dockwell_v1_database_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_database_proto_rawDesc), len(file_dockwell_v1_database_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   25,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

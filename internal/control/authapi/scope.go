@@ -34,7 +34,7 @@ import (
 var idLike = regexp.MustCompile(`^[a-z]{3}_[0-9A-Za-z]{10,}$`)
 
 // notObjects are fields named like IDs that name no object of a project.
-var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session_id": true, "rp_id": true}
+var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session_id": true, "rp_id": true, "import_id": true}
 
 // boundToID are a call's fields that name an object of what its id names, which the
 // handler checks is that one's, so the scope check reads the id alone: a backup of an
@@ -81,6 +81,10 @@ var idNames = map[string]string{
 	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:               "service",
 	dockwellv1connect.DatabaseServiceCreateLogicalDatabaseProcedure:            "service",
 	dockwellv1connect.DatabaseServiceDeleteLogicalDatabaseProcedure:            "service",
+	dockwellv1connect.DatabaseServiceBeginDatabaseImportProcedure:              "service",
+	dockwellv1connect.DatabaseServiceUploadDatabaseImportProcedure:             "service",
+	dockwellv1connect.DatabaseServicePlanDatabaseImportProcedure:               "service",
+	dockwellv1connect.DatabaseServiceCancelDatabaseImportProcedure:             "service",
 	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure:           "service",
 	dockwellv1connect.DatabaseServiceSetDatabaseExternalAccessProcedure:        "service",
 	dockwellv1connect.DatabaseServiceConnectDatabaseProcedure:                  "service",

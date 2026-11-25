@@ -11998,6 +11998,9 @@ msgstr "Developers can publish names in {zones} and prove the names they publish
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker cleanup permanently removes the selected Docker artifacts"
 
+msgid "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
+msgstr "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
+
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell couldn't list the repository's branches and tags"
 
@@ -12069,6 +12072,9 @@ msgstr "If your address isn't one of these, or stops being one, SSH closes to yo
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
+
+msgid "Imports {file} into {target} on {server}"
+msgstr "Imports {file} into {target} on {server}"
 
 msgid "Installed apps don't change. An upgrade is a plan you apply."
 msgstr "Installed apps don't change. An upgrade is a plan you apply."
@@ -12864,6 +12870,9 @@ msgstr "{project} already runs {names}, and this deletes {deleted}"
 
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} is offline, so what it kept of {name} stays on its disk until it's back"
+
+msgid "{target} is backed up first ({size} to import); undoing puts back what was there."
+msgstr "{target} is backed up first ({size} to import); undoing puts back what was there."
 
 msgid "{tool} still manages {container}"
 msgstr "{tool} still manages {container}"
@@ -14709,12 +14718,21 @@ msgstr "{servers}, unencrypted"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, one {# user} other {# users}}"
 
+msgid "Create a database first before importing a dump"
+msgstr "Create a database first before importing a dump"
+
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
 
 #. placeholder {0}: d.name
 msgid "Dockwell didn't make {0}, so it doesn't delete it"
 msgstr "Dockwell didn't make {0}, so it doesn't delete it"
+
+msgid "Import dump"
+msgstr "Import dump"
+
+msgid "It needs a managed volume so Dockwell can back it up first"
+msgstr "It needs a managed volume so Dockwell can back it up first"
 
 msgid "Its databases show again once it does."
 msgstr "Its databases show again once it does."
@@ -14725,6 +14743,9 @@ msgstr "Its own"
 #. placeholder {0}: d.name
 msgid "Its server keeps {0} for itself"
 msgstr "Its server keeps {0} for itself"
+
+msgid "Its volume isn't one Dockwell backs up"
+msgstr "Its volume isn't one Dockwell backs up"
 
 msgid "Linked by {linked}. Disconnect first"
 msgstr "Linked by {linked}. Disconnect first"
@@ -14874,9 +14895,6 @@ msgstr "In a volume Dockwell didn't make"
 msgid "It has no volume to back up"
 msgstr "It has no volume to back up"
 
-msgid "Its volume isn't one Dockwell backs up"
-msgstr "Its volume isn't one Dockwell backs up"
-
 msgid "Last run"
 msgstr "Last run"
 
@@ -15000,6 +15018,64 @@ msgstr "Unencrypted over the network"
 
 msgid "Use an SSH tunnel"
 msgstr "Use an SSH tunnel"
+
+#. placeholder {0}: extensions.join(", ")
+msgid "Accepts {0}. Streamed in chunks to the server."
+msgstr "Accepts {0}. Streamed in chunks to the server."
+
+msgid "Backed up automatically before the dump loads."
+msgstr "Backed up automatically before the dump loads."
+
+msgid "Backs up the chosen database first, then restores with {engine}'s own tool"
+msgstr "Backs up the chosen database first, then restores with {engine}'s own tool"
+
+msgid "Choose a dump file to import."
+msgstr "Choose a dump file to import."
+
+msgid "Choose another file"
+msgstr "Choose another file"
+
+msgid "Create a database first before importing a dump."
+msgstr "Create a database first before importing a dump."
+
+msgid "Dump file"
+msgstr "Dump file"
+
+msgid "Import dump into {name}"
+msgstr "Import dump into {name}"
+
+msgid "Nothing changes in the database until you apply the plan"
+msgstr "Nothing changes in the database until you apply the plan"
+
+msgid "Target database"
+msgstr "Target database"
+
+msgid "That dump file is empty. Choose a non-empty file."
+msgstr "That dump file is empty. Choose a non-empty file."
+
+msgid "The upload was interrupted. Try again."
+msgstr "The upload was interrupted. Try again."
+
+msgid "This dump can't be imported"
+msgstr "This dump can't be imported"
+
+msgid "Upload and review plan"
+msgstr "Upload and review plan"
+
+#. placeholder {0}: file.name
+msgid "Uploading {0}"
+msgstr "Uploading {0}"
+
+msgid "Uploading…"
+msgstr "Uploading…"
+
+#. placeholder {0}: file.name
+#. placeholder {1}: formatBytes(BigInt(file.size), i18n.locale)
+msgid "{0} ({1})"
+msgstr "{0} ({1})"
+
+msgid "{engine} accepts {list} dumps. Choose a matching file."
+msgstr "{engine} accepts {list} dumps. Choose a matching file."
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"

@@ -62,6 +62,18 @@ const (
 	// DatabaseServiceDeleteLogicalDatabaseProcedure is the fully-qualified name of the
 	// DatabaseService's DeleteLogicalDatabase RPC.
 	DatabaseServiceDeleteLogicalDatabaseProcedure = "/dockwell.v1.DatabaseService/DeleteLogicalDatabase"
+	// DatabaseServiceBeginDatabaseImportProcedure is the fully-qualified name of the DatabaseService's
+	// BeginDatabaseImport RPC.
+	DatabaseServiceBeginDatabaseImportProcedure = "/dockwell.v1.DatabaseService/BeginDatabaseImport"
+	// DatabaseServiceUploadDatabaseImportProcedure is the fully-qualified name of the DatabaseService's
+	// UploadDatabaseImport RPC.
+	DatabaseServiceUploadDatabaseImportProcedure = "/dockwell.v1.DatabaseService/UploadDatabaseImport"
+	// DatabaseServicePlanDatabaseImportProcedure is the fully-qualified name of the DatabaseService's
+	// PlanDatabaseImport RPC.
+	DatabaseServicePlanDatabaseImportProcedure = "/dockwell.v1.DatabaseService/PlanDatabaseImport"
+	// DatabaseServiceCancelDatabaseImportProcedure is the fully-qualified name of the DatabaseService's
+	// CancelDatabaseImport RPC.
+	DatabaseServiceCancelDatabaseImportProcedure = "/dockwell.v1.DatabaseService/CancelDatabaseImport"
 )
 
 // DatabaseServiceClient is a client for the dockwell.v1.DatabaseService service.
@@ -131,6 +143,19 @@ type DatabaseServiceClient interface {
 	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
 	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
 	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
+	// BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
+	// for a database on its server, or reports how far an existing upload got so
+	// the client can resume it. No API token can call it.
+	BeginDatabaseImport(context.Context, *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error)
+	// UploadDatabaseImport streams bounded chunks of a staged dump upload from
+	// offset to the database's server. Over REST it is a PUT whose body is the
+	// raw bytes of that chunk. No API token can call it.
+	UploadDatabaseImport(context.Context) *connect.ClientStreamForClient[v1.UploadDatabaseImportRequest, v1.UploadDatabaseImportResponse]
+	// PlanDatabaseImport plans importing a completed staged dump into the chosen
+	// logical database, backing up that database first (as restores do).
+	PlanDatabaseImport(context.Context, *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error)
+	// CancelDatabaseImport discards a staged dump upload on the server.
+	CancelDatabaseImport(context.Context, *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the dockwell.v1.DatabaseService service. By
@@ -201,6 +226,30 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("DeleteLogicalDatabase")),
 			connect.WithClientOptions(opts...),
 		),
+		beginDatabaseImport: connect.NewClient[v1.BeginDatabaseImportRequest, v1.BeginDatabaseImportResponse](
+			httpClient,
+			baseURL+DatabaseServiceBeginDatabaseImportProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("BeginDatabaseImport")),
+			connect.WithClientOptions(opts...),
+		),
+		uploadDatabaseImport: connect.NewClient[v1.UploadDatabaseImportRequest, v1.UploadDatabaseImportResponse](
+			httpClient,
+			baseURL+DatabaseServiceUploadDatabaseImportProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("UploadDatabaseImport")),
+			connect.WithClientOptions(opts...),
+		),
+		planDatabaseImport: connect.NewClient[v1.PlanDatabaseImportRequest, v1.PlanDatabaseImportResponse](
+			httpClient,
+			baseURL+DatabaseServicePlanDatabaseImportProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("PlanDatabaseImport")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelDatabaseImport: connect.NewClient[v1.CancelDatabaseImportRequest, v1.CancelDatabaseImportResponse](
+			httpClient,
+			baseURL+DatabaseServiceCancelDatabaseImportProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("CancelDatabaseImport")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -215,6 +264,10 @@ type databaseServiceClient struct {
 	connectDatabase           *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
 	createLogicalDatabase     *connect.Client[v1.CreateLogicalDatabaseRequest, v1.CreateLogicalDatabaseResponse]
 	deleteLogicalDatabase     *connect.Client[v1.DeleteLogicalDatabaseRequest, v1.DeleteLogicalDatabaseResponse]
+	beginDatabaseImport       *connect.Client[v1.BeginDatabaseImportRequest, v1.BeginDatabaseImportResponse]
+	uploadDatabaseImport      *connect.Client[v1.UploadDatabaseImportRequest, v1.UploadDatabaseImportResponse]
+	planDatabaseImport        *connect.Client[v1.PlanDatabaseImportRequest, v1.PlanDatabaseImportResponse]
+	cancelDatabaseImport      *connect.Client[v1.CancelDatabaseImportRequest, v1.CancelDatabaseImportResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -260,6 +313,26 @@ func (c *databaseServiceClient) CreateLogicalDatabase(ctx context.Context, req *
 // DeleteLogicalDatabase calls dockwell.v1.DatabaseService.DeleteLogicalDatabase.
 func (c *databaseServiceClient) DeleteLogicalDatabase(ctx context.Context, req *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error) {
 	return c.deleteLogicalDatabase.CallUnary(ctx, req)
+}
+
+// BeginDatabaseImport calls dockwell.v1.DatabaseService.BeginDatabaseImport.
+func (c *databaseServiceClient) BeginDatabaseImport(ctx context.Context, req *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error) {
+	return c.beginDatabaseImport.CallUnary(ctx, req)
+}
+
+// UploadDatabaseImport calls dockwell.v1.DatabaseService.UploadDatabaseImport.
+func (c *databaseServiceClient) UploadDatabaseImport(ctx context.Context) *connect.ClientStreamForClient[v1.UploadDatabaseImportRequest, v1.UploadDatabaseImportResponse] {
+	return c.uploadDatabaseImport.CallClientStream(ctx)
+}
+
+// PlanDatabaseImport calls dockwell.v1.DatabaseService.PlanDatabaseImport.
+func (c *databaseServiceClient) PlanDatabaseImport(ctx context.Context, req *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error) {
+	return c.planDatabaseImport.CallUnary(ctx, req)
+}
+
+// CancelDatabaseImport calls dockwell.v1.DatabaseService.CancelDatabaseImport.
+func (c *databaseServiceClient) CancelDatabaseImport(ctx context.Context, req *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error) {
+	return c.cancelDatabaseImport.CallUnary(ctx, req)
 }
 
 // DatabaseServiceHandler is an implementation of the dockwell.v1.DatabaseService service.
@@ -329,6 +402,19 @@ type DatabaseServiceHandler interface {
 	// DeleteLogicalDatabase plans dropping a logical database Dockwell manages on a
 	// PostgreSQL, MySQL or MariaDB server. Refused while any app links to it.
 	DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error)
+	// BeginDatabaseImport starts a staged dump upload (.sql, .sql.gz, .dump, .tar)
+	// for a database on its server, or reports how far an existing upload got so
+	// the client can resume it. No API token can call it.
+	BeginDatabaseImport(context.Context, *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error)
+	// UploadDatabaseImport streams bounded chunks of a staged dump upload from
+	// offset to the database's server. Over REST it is a PUT whose body is the
+	// raw bytes of that chunk. No API token can call it.
+	UploadDatabaseImport(context.Context, *connect.ClientStream[v1.UploadDatabaseImportRequest]) (*connect.Response[v1.UploadDatabaseImportResponse], error)
+	// PlanDatabaseImport plans importing a completed staged dump into the chosen
+	// logical database, backing up that database first (as restores do).
+	PlanDatabaseImport(context.Context, *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error)
+	// CancelDatabaseImport discards a staged dump upload on the server.
+	CancelDatabaseImport(context.Context, *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -395,6 +481,30 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("DeleteLogicalDatabase")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceBeginDatabaseImportHandler := connect.NewUnaryHandler(
+		DatabaseServiceBeginDatabaseImportProcedure,
+		svc.BeginDatabaseImport,
+		connect.WithSchema(databaseServiceMethods.ByName("BeginDatabaseImport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceUploadDatabaseImportHandler := connect.NewClientStreamHandler(
+		DatabaseServiceUploadDatabaseImportProcedure,
+		svc.UploadDatabaseImport,
+		connect.WithSchema(databaseServiceMethods.ByName("UploadDatabaseImport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServicePlanDatabaseImportHandler := connect.NewUnaryHandler(
+		DatabaseServicePlanDatabaseImportProcedure,
+		svc.PlanDatabaseImport,
+		connect.WithSchema(databaseServiceMethods.ByName("PlanDatabaseImport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceCancelDatabaseImportHandler := connect.NewUnaryHandler(
+		DatabaseServiceCancelDatabaseImportProcedure,
+		svc.CancelDatabaseImport,
+		connect.WithSchema(databaseServiceMethods.ByName("CancelDatabaseImport")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceListDatabasesProcedure:
@@ -415,6 +525,14 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCreateLogicalDatabaseHandler.ServeHTTP(w, r)
 		case DatabaseServiceDeleteLogicalDatabaseProcedure:
 			databaseServiceDeleteLogicalDatabaseHandler.ServeHTTP(w, r)
+		case DatabaseServiceBeginDatabaseImportProcedure:
+			databaseServiceBeginDatabaseImportHandler.ServeHTTP(w, r)
+		case DatabaseServiceUploadDatabaseImportProcedure:
+			databaseServiceUploadDatabaseImportHandler.ServeHTTP(w, r)
+		case DatabaseServicePlanDatabaseImportProcedure:
+			databaseServicePlanDatabaseImportHandler.ServeHTTP(w, r)
+		case DatabaseServiceCancelDatabaseImportProcedure:
+			databaseServiceCancelDatabaseImportHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -458,4 +576,20 @@ func (UnimplementedDatabaseServiceHandler) CreateLogicalDatabase(context.Context
 
 func (UnimplementedDatabaseServiceHandler) DeleteLogicalDatabase(context.Context, *connect.Request[v1.DeleteLogicalDatabaseRequest]) (*connect.Response[v1.DeleteLogicalDatabaseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.DeleteLogicalDatabase is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) BeginDatabaseImport(context.Context, *connect.Request[v1.BeginDatabaseImportRequest]) (*connect.Response[v1.BeginDatabaseImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.BeginDatabaseImport is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) UploadDatabaseImport(context.Context, *connect.ClientStream[v1.UploadDatabaseImportRequest]) (*connect.Response[v1.UploadDatabaseImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.UploadDatabaseImport is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) PlanDatabaseImport(context.Context, *connect.Request[v1.PlanDatabaseImportRequest]) (*connect.Response[v1.PlanDatabaseImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.PlanDatabaseImport is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) CancelDatabaseImport(context.Context, *connect.Request[v1.CancelDatabaseImportRequest]) (*connect.Response[v1.CancelDatabaseImportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.CancelDatabaseImport is not implemented"))
 }

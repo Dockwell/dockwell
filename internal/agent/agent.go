@@ -757,6 +757,8 @@ func session(ctx context.Context, cfg Config) (err error) {
 		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals, hello.ReadsTerminalCwd = true, cfg.Terminals.Known(), true, true
 		hello.DatabaseConsole = cfg.Docker != nil
 	}
+	_, hasImports := cfg.Backups.(databaseImporter)
+	hello.DatabaseImports = hasImports
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}

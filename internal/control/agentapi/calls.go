@@ -530,7 +530,7 @@ type sessionPeer struct {
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, peers ...sessionPeer) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
@@ -723,6 +723,8 @@ type Session struct {
 	managedContainerPause     bool
 	// databaseConsole says the agent opens database clients inside containers.
 	databaseConsole bool
+	// databaseImports says the agent stages and imports uploaded database dumps.
+	databaseImports bool
 	// registryLogins says the agent signs in to registries with the logins it's
 	// sent (ADR 0086).
 	registryLogins bool
@@ -1705,9 +1707,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	dr.ExactRestartId = step.ExactRestart
 	dr.ScopeName = s.scopeName(ctx, step.Ref)
-	// A restore into a new database reads its backup from the volume the change
-	// names, which the step's plan doesn't carry (ADR 0106).
-	if r, ok := resource.RestoreOf(ctx); ok && step.Restore != nil && step.Restore.IntoNew {
+	// A restore into a new database or from a staged dump upload passes its source
+	// alongside the step, as the step's plan doesn't carry From or ImportID.
+	if r, ok := resource.RestoreOf(ctx); ok && step.Restore != nil && (step.Restore.IntoNew || r.ImportID != "") {
 		dr.Restore = restoreProto(r)
 	}
 	values, uses, err := s.values(ctx, step.Ref, desired)
@@ -2324,7 +2326,15 @@ func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Mes
 
 // restoreProto is what a restore brings back, as the agent is told it.
 func restoreProto(r resource.RestoreSource) *agentv1.RestoreSource {
-	out := &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
+	out := &agentv1.RestoreSource{
+		BackupId:       r.Backup,
+		Undoes:         r.Undoes,
+		ChangeId:       r.Change,
+		ImportId:       r.ImportID,
+		ImportDatabase: r.ImportDatabase,
+		ImportFilename: r.ImportFilename,
+		ImportFormat:   r.ImportFormat,
+	}
 	if r.IntoNew() {
 		out.From = resourcepb.Ref(r.From)
 	}

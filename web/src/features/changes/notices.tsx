@@ -732,7 +732,16 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
     const database = restore.database;
     const list = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(restore.stops);
     const out: Notice[] = [];
-    if (restore.intoNew) {
+    if (restore.importFile !== "") {
+      const target = restore.databaseName || name;
+      const file = restore.importFile;
+      out.push({
+        key: `restore-${key}`,
+        title: t`Imports ${file} into ${target} on ${server}`,
+        detail: t`${target} is backed up first (${size} to import); undoing puts back what was there.`,
+        more: t`Dockwell backs up ${target} before streaming ${file} into ${database}. If the import fails, what was in ${target} goes back automatically. The pre-import backup stays on ${server} for 7 days.`,
+      });
+    } else if (restore.intoNew) {
       // A new database, filled before it first starts: nothing that runs is touched (ADR 0106).
       const dump = restore.method === BackupMethod.DUMP;
       out.push({

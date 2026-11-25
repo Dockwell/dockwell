@@ -94,6 +94,9 @@ type Handler struct {
 	// signInsBy are when each person's last checks reached an agent, by user ID, which
 	// signInsPerMinute holds them to.
 	signInsBy map[string][]time.Time
+
+	// planImport plans a volume restore from a staged dump upload.
+	planImport func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error)
 }
 
 // signInsPerMinute is how many sign-in checks one person makes reach an agent in a
@@ -122,6 +125,11 @@ type keptReading struct {
 // database says, and backups for what's kept of each.
 func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
 	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}, signIns: map[string]signInAnswer{}, signInsBy: map[string][]time.Time{}}
+}
+
+// ImportWith sets how PlanDatabaseImport plans a restore from a staged dump upload.
+func (h *Handler) ImportWith(fn func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error)) {
+	h.planImport = fn
 }
 
 // placed is a database with where it runs.

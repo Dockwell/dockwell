@@ -11998,6 +11998,9 @@ msgstr "开发者可以在 {zones} 发布域名，并通过 DNS 验证自己在�
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker 清理将永久删除所选 Docker 对象"
 
+msgid "Dockwell backs up {target} before streaming {file} into {database}. If the import fails, what was in {target} goes back automatically. The pre-import backup stays on {server} for 7 days."
+msgstr "Dockwell 会在将 {file} 流式导入 {database} 之前先备份 {target}。如果导入失败，{target} 原有的数据会自动恢复。导入前的备份会在 {server} 上保留 7 天。"
+
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell 无法列出该仓库的分支和标签"
 
@@ -12069,6 +12072,9 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
+
+msgid "Imports {file} into {target} on {server}"
+msgstr "将 {file} 导入 {server} 上的 {target}"
 
 msgid "Installed apps don't change. An upgrade is a plan you apply."
 msgstr "已安装的应用不会变。升级是由你应用的计划。"
@@ -12864,6 +12870,9 @@ msgstr "{project} 已在运行 {names}，此计划会删除 {deleted}"
 
 msgid "{server} is offline, so what it kept of {name} stays on its disk until it's back"
 msgstr "{server} 已离线，它保留的 {name} 日志会留在磁盘上，直到它恢复连接"
+
+msgid "{target} is backed up first ({size} to import); undoing puts back what was there."
+msgstr "会先备份 {target}（待导入 {size}）；撤销可还原到导入前的状态。"
 
 msgid "{tool} still manages {container}"
 msgstr "{tool} 仍在管理 {container}"
@@ -14709,12 +14718,21 @@ msgstr "{servers}，未加密"
 msgid "{users, plural, one {# user} other {# users}}"
 msgstr "{users, plural, other {# 个用户}}"
 
+msgid "Create a database first before importing a dump"
+msgstr "导入转储文件前请先创建一个数据库"
+
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
 
 #. placeholder {0}: d.name
 msgid "Dockwell didn't make {0}, so it doesn't delete it"
 msgstr "Dockwell 没有创建 {0}，因此不会删除它"
+
+msgid "Import dump"
+msgstr "导入转储"
+
+msgid "It needs a managed volume so Dockwell can back it up first"
+msgstr "需要由 Dockwell 管理的卷，以便导入前先备份"
 
 msgid "Its databases show again once it does."
 msgstr "一旦报告，这里的数据库就会再次显示。"
@@ -14725,6 +14743,9 @@ msgstr "系统自带"
 #. placeholder {0}: d.name
 msgid "Its server keeps {0} for itself"
 msgstr "数据库服务器自身保留了 {0}"
+
+msgid "Its volume isn't one Dockwell backs up"
+msgstr "Dockwell 不会备份此数据卷"
 
 msgid "Linked by {linked}. Disconnect first"
 msgstr "正被 {linked} 关联，请先断开连接"
@@ -14874,9 +14895,6 @@ msgstr "在非 Dockwell 创建的卷中"
 msgid "It has no volume to back up"
 msgstr "此数据库没有可备份的数据卷"
 
-msgid "Its volume isn't one Dockwell backs up"
-msgstr "Dockwell 不会备份此数据卷"
-
 msgid "Last run"
 msgstr "最近运行"
 
@@ -15000,6 +15018,64 @@ msgstr "网络传输未加密"
 
 msgid "Use an SSH tunnel"
 msgstr "使用 SSH 隧道"
+
+#. placeholder {0}: extensions.join(", ")
+msgid "Accepts {0}. Streamed in chunks to the server."
+msgstr "支持 {0}，将分块流式上传到服务器。"
+
+msgid "Backed up automatically before the dump loads."
+msgstr "加载转储前会自动备份。"
+
+msgid "Backs up the chosen database first, then restores with {engine}'s own tool"
+msgstr "先备份所选数据库，再用 {engine} 自带工具还原"
+
+msgid "Choose a dump file to import."
+msgstr "请选择要导入的转储文件。"
+
+msgid "Choose another file"
+msgstr "另选文件"
+
+msgid "Create a database first before importing a dump."
+msgstr "导入转储文件前请先创建一个数据库。"
+
+msgid "Dump file"
+msgstr "转储文件"
+
+msgid "Import dump into {name}"
+msgstr "将转储导入 {name}"
+
+msgid "Nothing changes in the database until you apply the plan"
+msgstr "在应用计划前，数据库不会发生任何更改"
+
+msgid "Target database"
+msgstr "目标数据库"
+
+msgid "That dump file is empty. Choose a non-empty file."
+msgstr "该转储文件为空。请选择非空文件。"
+
+msgid "The upload was interrupted. Try again."
+msgstr "上传已中断，请重试。"
+
+msgid "This dump can't be imported"
+msgstr "无法导入此转储文件"
+
+msgid "Upload and review plan"
+msgstr "上传并查看计划"
+
+#. placeholder {0}: file.name
+msgid "Uploading {0}"
+msgstr "正在上传 {0}"
+
+msgid "Uploading…"
+msgstr "正在上传…"
+
+#. placeholder {0}: file.name
+#. placeholder {1}: formatBytes(BigInt(file.size), i18n.locale)
+msgid "{0} ({1})"
+msgstr "{0} ({1})"
+
+msgid "{engine} accepts {list} dumps. Choose a matching file."
+msgstr "{engine} 仅支持 {list} 转储文件。请选择对应格式的文件。"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} / {ofWords}"

@@ -2291,4 +2291,104 @@ describe("how a database is backed up (#793)", () => {
       expect(created).toEqual([{ id: "svc_db", database: "billing", owner: "shop", user: "", secret: "" }]),
     );
   });
+
+  it("opens Import dump, validates formats, and streams chunks before planning", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const beganCalls: { id: string; database: string; filename: string; sizeBytes: bigint }[] = [];
+    const plannedCalls: { id: string; importId: string }[] = [];
+
+    // Stub XMLHttpRequest for uploadDatabaseImportPart in jsdom.
+    const sentUrls: string[] = [];
+    const OrigXHR = globalThis.XMLHttpRequest;
+    class FakeXHR {
+      status = 200;
+      responseText = "";
+      upload: { onprogress?: (e: { loaded: number }) => void } = {};
+      onload?: () => void;
+      onerror?: () => void;
+      onabort?: () => void;
+      private url = "";
+      open(_method: string, url: string) {
+        this.url = url;
+      }
+      setRequestHeader() {}
+      getResponseHeader() {
+        return null;
+      }
+      abort() {
+        this.onabort?.();
+      }
+      send(body: Blob) {
+        sentUrls.push(this.url);
+        this.upload.onprogress?.({ loaded: body.size });
+        this.responseText = JSON.stringify({
+          importId: "imp_01TESTIMPORT12345",
+          offset: String(body.size),
+          sizeBytes: String(body.size),
+          complete: true,
+        });
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    globalThis.XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest;
+
+    try {
+      const db = aDatabase();
+      const base = api([db]);
+      renderAt("/databases/svc_db/databases", {
+        ...base,
+        databases: {
+          ...base.databases,
+          beginDatabaseImport: (req) => {
+            beganCalls.push({
+              id: req.id,
+              database: req.database,
+              filename: req.filename,
+              sizeBytes: req.sizeBytes,
+            });
+            return {
+              importId: "imp_01TESTIMPORT12345",
+              offset: 0n,
+              partBytes: 8_388_608n,
+              maxBytes: 17_179_869_184n,
+              serverId: SERVER,
+              format: "sql",
+            };
+          },
+          planDatabaseImport: (req) => {
+            plannedCalls.push({ id: req.id, importId: req.importId });
+            return { change: webPlanned() };
+          },
+          cancelDatabaseImport: () => ({}),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+      });
+
+      await user.click(await screen.findByRole("button", { name: "Import dump" }));
+      const dialog = await screen.findByRole("dialog", { name: "Import dump into db" });
+      const fileInput = within(dialog).getByLabelText("Dump file") as HTMLInputElement;
+
+      // Rejects unsupported file extension.
+      const badFile = new File(["hello"], "notes.txt", { type: "text/plain" });
+      await user.upload(fileInput, badFile);
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(".sql, .sql.gz, .dump, .tar");
+
+      // Accepts a .sql dump, streams chunk, and transitions into PlanView.
+      const sqlFile = new File(["CREATE TABLE t(id int);"], "seed.sql", { type: "application/sql" });
+      await user.upload(fileInput, sqlFile);
+      await user.click(within(dialog).getByRole("button", { name: "Upload and review plan" }));
+
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(beganCalls).toEqual([
+        { id: "svc_db", database: "shop", filename: "seed.sql", sizeBytes: BigInt(sqlFile.size) },
+      ]);
+      expect(sentUrls).toEqual(["/v1/databases/svc_db/imports/imp_01TESTIMPORT12345?offset=0"]);
+      expect(plannedCalls).toEqual([{ id: "svc_db", importId: "imp_01TESTIMPORT12345" }]);
+    } finally {
+      globalThis.XMLHttpRequest = OrigXHR;
+    }
+  });
 });
