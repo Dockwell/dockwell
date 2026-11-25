@@ -287,7 +287,7 @@ message OpenTerminalRequest {
   bool database_console = 6;
   // The database inside the container to connect to when database_console is
   // set. Empty uses the engine's default.
-  string database = 7;
+  string database = 7 [(dockwell.v1.flag) = "database-name"];
   // Full Engine ID in place of container. The passkey target includes this ID.
   string container_id = 400;
   // Run an executable directly in the container, with no shell expansion.

@@ -120,10 +120,10 @@ func postgres(x dockertest.Exec) int {
 		case strings.Contains(sql, "FAIL_IMPORT"):
 			_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"FAIL_IMPORT\"\nLINE 1: FAIL_IMPORT;\n")
 			return 3
-		case askedRole.MatchString(sql):
-			return postgresUserThere(x, filepath.Dir(file), sql)
 		case askedLogical.MatchString(sql):
 			return postgresLogicalThere(x, filepath.Dir(file), sql)
+		case askedRole.MatchString(sql):
+			return postgresUserThere(x, filepath.Dir(file), sql)
 		case strings.Contains(sql, "pg_has_role("):
 			// What one user reaches: postgres past every database, and app its own,
 			// as postgresReading lists them.

@@ -281,7 +281,7 @@ export function ImportDumpSheet({
                 {formatBytes(BigInt(sentBytes), i18n.locale)} / {formatBytes(BigInt(file.size), i18n.locale)} ({pct}%)
               </span>
             </div>
-            <progress max={file.size} value={sentBytes} style={{ width: "100%" }} />
+            <progress max={file.size} value={sentBytes} className="database-import-progress" />
           </div>
         ) : null}
         {failure ? (

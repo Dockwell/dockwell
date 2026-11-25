@@ -4581,7 +4581,7 @@ func Methods() []*apicli.Method {
 				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for opening a terminal on this server, as the target \"srv_…\", or in this container, as \"srv_…:container\". Call without it first: it checks everything else, then refuses with the reason needs_step_up where it takes one."},
 				{Path: "container", Help: "A container on the server, by name or full ID, to open a shell in, in place of the server's own."},
 				{Path: "database_console", Help: "Open the container's database client (psql, mysql, mariadb, redis-cli, valkey-cli, or mongosh) as its admin user, signing in with what its environment holds so no password appears on a command line. Needs container or container_id, and cannot be combined with argv."},
-				{Path: "database", Help: "The database inside the container to connect to when database_console is set. Empty uses the engine's default."},
+				{Path: "database", Flag: "database-name", Help: "The database inside the container to connect to when database_console is set. Empty uses the engine's default."},
 				{Path: "container_id", Help: "Full Engine ID in place of container. The passkey target includes this ID."},
 				{Path: "argv", Help: "Run an executable directly in the container, with no shell expansion. Empty selects an available shell. The arguments are not audited."},
 			},

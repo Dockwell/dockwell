@@ -977,7 +977,7 @@ func testLogicalDatabasesInOneEngine(t *testing.T, backend store.Backend) {
 		}
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
-		if resp.StatusCode != 200 {
+		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("PUT chunk at %d returned %d: %s", part.offset, resp.StatusCode, string(body))
 		}
 	}

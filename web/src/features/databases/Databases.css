@@ -756,3 +756,7 @@ a.databases-engine:hover .databases-engine-plus {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.database-import-progress {
+  width: 100%;
+}

@@ -26,7 +26,7 @@ async function fitsItsWidth(page: Page, what: string) {
 
 async function applyPlan(page: Page) {
   const dialog = onTop(page.getByRole("dialog", { name: "Review plan" }));
-  const apply = dialog.getByRole("button", { name: /Apply plan/ });
+  const apply = dialog.getByRole("button", { name: /Apply plan|^Delete / });
   await apply.waitFor({ timeout: 30_000 });
   const gate = dialog.locator(".plan-gate");
   if ((await gate.count()) > 0 && (await gate.isVisible())) {
@@ -79,6 +79,13 @@ export async function dbToolsFlow(page: Page, { origin, step, shoot }: FlowRun) 
   await row.getByRole("button", { name: /^Actions for / }).click();
   await page.getByRole("menuitem", { name: "Open console" }).click();
   await page.waitForURL(/\/servers\/[^/]+\/terminal\?.*console=true/, { timeout: 20_000 });
+  const confirm = page.getByRole("button", { name: "Confirm with your passkey" });
+  const consoleTab = page.getByRole("tab", { name: /^psql/ });
+  await Promise.race([
+    consoleTab.waitFor({ timeout: 20_000 }),
+    confirm.waitFor({ timeout: 20_000 }).then(() => confirm.click()),
+  ]);
+  await consoleTab.waitFor({ timeout: 20_000 });
   await snap("database-console-terminal-1440");
 
   step(
@@ -151,14 +158,7 @@ export async function dbToolsFlow(page: Page, { origin, step, shoot }: FlowRun) 
     .click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await applyPlan(page);
-  await page.waitForFunction(
-    () => {
-      const t = document.querySelector('table[aria-label^="Databases in "]');
-      return t !== null && !t.textContent?.includes("reports");
-    },
-    null,
-    { timeout: 30_000 },
-  );
+  await schemasTable.getByText("reports", { exact: true }).waitFor({ state: "detached", timeout: 30_000 });
   await schemasTable.getByText("analytics", { exact: true }).first().waitFor();
 
   step("db-tools: phone layout fits without sideways scroll");
