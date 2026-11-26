@@ -49,9 +49,9 @@ import { useFleetView } from "../servers/useFleet";
 import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import {
-  type BatchAction,
   BatchBar,
   cardContextMenu,
+  combineBatchActions,
   ListPager,
   type ListPlace,
   ListSearchField,
@@ -143,84 +143,85 @@ export function WebsitesPage({
     useMay()(ChangeService.method.proposeChange).allowed,
   );
   const selected = page.rows.filter((row) => selection.has(row.id));
-  const deleteBatch = useBatchAction<Row>()(
-    selected,
-    (row) => {
-      const permission = canDelete(row);
-      return permission.allowed ? undefined : { permission };
-    },
-    {
-      id: "delete",
-      icon: "trash",
-      danger: true,
-      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
-      onSelect: (targets) => remove(targets, selection.clear),
-    },
-  );
+  const batchAction = useBatchAction<Row>();
   const batchPerm = canBatch();
-  const selectedActive = selected.filter((r) => !r.site.spec?.paused);
-  const selectedPaused = selected.filter((r) => r.site.spec?.paused);
-  const selectedPhp = selected.filter((r) => kindOf(r.site.spec) === "php");
-  const batchActions: BatchAction[] = [
-    ...(batchPerm.allowed && selectedActive.length > 0
-      ? [
-          {
-            id: "pause",
-            icon: "pause" as const,
-            label: t`Pause`,
-            onSelect: () =>
-              openPause(
-                selectedActive.map((r) => r.site),
-                selection.clear,
-              ),
-          },
-        ]
-      : []),
-    ...(batchPerm.allowed && selectedPaused.length > 0
-      ? [
-          {
-            id: "resume",
-            icon: "play" as const,
-            label: t`Resume`,
-            onSelect: () =>
-              resumeSites(
-                selectedPaused.map((r) => r.site),
-                selection.clear,
-              ),
-          },
-        ]
-      : []),
-    ...(batchPerm.allowed && selectedPhp.length > 0
-      ? [
-          {
-            id: "php",
-            icon: "settings" as const,
-            label: t`Switch PHP`,
-            onSelect: () =>
-              batchPhp(
-                selectedPhp.map((r) => r.site),
-                selection.clear,
-              ),
-          },
-        ]
-      : []),
-    ...(batchPerm.allowed && selected.length > 0
-      ? [
-          {
-            id: "https",
-            icon: "lock" as const,
-            label: t`HTTPS`,
-            onSelect: () =>
-              batchHttps(
-                selected.map((r) => r.site),
-                selection.clear,
-              ),
-          },
-        ]
-      : []),
-    ...deleteBatch.actions,
-  ];
-  const batch = { actions: batchActions, notes: deleteBatch.notes };
+  const batch = combineBatchActions(
+    batchAction(
+      selected,
+      (row) => {
+        if (row.site.spec?.paused) return { reason: t`Already paused` };
+        return batchPerm.allowed ? undefined : { permission: batchPerm };
+      },
+      {
+        id: "pause",
+        icon: "pause",
+        label: (count) => (count ? t`Pause ${count}` : t`Pause`),
+        onSelect: (targets) =>
+          openPause(
+            targets.map((r) => r.site),
+            selection.clear,
+          ),
+      },
+    ),
+    batchAction(
+      selected,
+      (row) => {
+        if (!row.site.spec?.paused) return { reason: t`Not paused` };
+        return batchPerm.allowed ? undefined : { permission: batchPerm };
+      },
+      {
+        id: "resume",
+        icon: "play",
+        label: (count) => (count ? t`Resume ${count}` : t`Resume`),
+        onSelect: (targets) =>
+          resumeSites(
+            targets.map((r) => r.site),
+            selection.clear,
+          ),
+      },
+    ),
+    batchAction(
+      selected,
+      (row) => {
+        if (kindOf(row.site.spec) !== "php") return { reason: t`Not a PHP website` };
+        return batchPerm.allowed ? undefined : { permission: batchPerm };
+      },
+      {
+        id: "php",
+        icon: "settings",
+        label: (count) => (count ? t`Switch PHP ${count}` : t`Switch PHP`),
+        onSelect: (targets) =>
+          batchPhp(
+            targets.map((r) => r.site),
+            selection.clear,
+          ),
+      },
+    ),
+    batchAction(selected, () => (batchPerm.allowed ? undefined : { permission: batchPerm }), {
+      id: "https",
+      icon: "lock",
+      label: (count) => (count ? t`Set HTTPS ${count}` : t`Set HTTPS`),
+      onSelect: (targets) =>
+        batchHttps(
+          targets.map((r) => r.site),
+          selection.clear,
+        ),
+    }),
+    batchAction(
+      selected,
+      (row) => {
+        const permission = canDelete(row);
+        return permission.allowed ? undefined : { permission };
+      },
+      {
+        id: "delete",
+        icon: "trash",
+        danger: true,
+        label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+        onSelect: (targets) => remove(targets, selection.clear),
+      },
+    ),
+  );
   const lead = only
     ? plural(count, { one: `# site on ${only.name}`, other: `# sites on ${only.name}` })
     : plural(count, { one: "# site", other: "# sites" });

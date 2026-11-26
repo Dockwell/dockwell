@@ -344,7 +344,7 @@ func (d *Docker) pauseInstance(ctx context.Context, t Target, c *instance) error
 		}
 	}
 	if d.Ingress != nil && t.Scoped {
-		return d.Ingress.RemoveUpstream(ctx, t.instance(c.number))
+		return d.Ingress.PauseUpstream(ctx, t.instance(c.number))
 	}
 	return nil
 }

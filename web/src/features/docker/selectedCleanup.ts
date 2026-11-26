@@ -41,7 +41,19 @@ export function useSelectedCleanup(kind: DockerCleanupKind, selected: readonly T
   const missing =
     kind === DockerCleanupKind.VOLUME
       ? t`This volume is gone or has been replaced`
-      : t`This Docker item is no longer in the cleanup inventory`;
+      : kind === DockerCleanupKind.IMAGE
+        ? t`This image is gone. Refresh the list`
+        : kind === DockerCleanupKind.NETWORK
+          ? t`This network is gone. Refresh the list`
+          : t`This item is gone. Refresh the list`;
+  const updateAgent =
+    kind === DockerCleanupKind.VOLUME
+      ? t`Update the agent to delete this volume`
+      : kind === DockerCleanupKind.IMAGE
+        ? t`Update the agent to delete this image`
+        : kind === DockerCleanupKind.NETWORK
+          ? t`Update the agent to delete this network`
+          : t`Update the agent to delete this item`;
   const exclusion = (target: DockerCleanupTarget) => {
     if (target.reason === DockerCleanupReason.SWARM_MANAGER) return t`Docker Swarm manages volumes on this server`;
     if (target.reason === DockerCleanupReason.EXACT_REMOVAL_UNAVAILABLE) {
@@ -80,12 +92,20 @@ export function useSelectedCleanup(kind: DockerCleanupKind, selected: readonly T
   const whyMissing = (preview: Preview, row: Target) => {
     if (preview.unavailable.some((server) => server.serverId === row.serverId)) return unread;
     const limit = preview.serverLimits.find((server) => server.serverId === row.serverId);
-    if (limit && !limit.supportedKinds.includes(kind)) return t`Update the agent to delete this Docker item`;
+    if (limit && !limit.supportedKinds.includes(kind)) return updateAgent;
     return missing;
+  };
+  const isTransientOmission = (preview: Preview, row: Target): boolean => {
+    const excluded = preview.excluded.get(keyOf(row));
+    if (excluded) return excluded.reason === DockerCleanupReason.RECENTLY_CREATED;
+    const limit = preview.serverLimits.find((server) => server.serverId === row.serverId);
+    if (limit && !limit.supportedKinds.includes(kind)) return false;
+    return true;
   };
   const select = (preview: Preview, rows: readonly Target[]) => {
     const targets: DockerCleanupTarget[] = [];
     const omitted = new Map<string, string>();
+    let transient = false;
     const countByServer = new Map<string, number>();
     const limits = new Map(preview.serverLimits.map((server) => [server.serverId, server.maxTargets]));
     for (const row of rows) {
@@ -95,15 +115,17 @@ export function useSelectedCleanup(kind: DockerCleanupKind, selected: readonly T
       const excluded = preview.excluded.get(key);
       const count = countByServer.get(row.serverId) ?? 0;
       const limit = limits.get(row.serverId);
-      if (!target) omitted.set(key, excluded ? exclusion(excluded) : whyMissing(preview, row));
-      else if ((limit && count >= limit) || (preview.maxTargetsTotal && targets.length >= preview.maxTargetsTotal))
+      if (!target) {
+        omitted.set(key, excluded ? exclusion(excluded) : whyMissing(preview, row));
+        if (isTransientOmission(preview, row)) transient = true;
+      } else if ((limit && count >= limit) || (preview.maxTargetsTotal && targets.length >= preview.maxTargetsTotal))
         omitted.set(key, t`This plan reached the cleanup limit`);
       else {
         targets.push(target);
         countByServer.set(row.serverId, count + 1);
       }
     }
-    return { targets, omitted };
+    return { targets, omitted, transient };
   };
   const rows = menuTarget ? [...selected, menuTarget] : selected;
   const lookup = useQuery({
@@ -152,13 +174,15 @@ export function useSelectedCleanup(kind: DockerCleanupKind, selected: readonly T
       make: async () => {
         try {
           const preview = await read(rows);
-          const { targets, omitted } = select(preview, rows);
+          const { targets, omitted, transient } = select(preview, rows);
           const skipped = new Map<string, number>();
           for (const reason of omitted.values()) skipped.set(reason, (skipped.get(reason) ?? 0) + 1);
           const notes = [...priorNotes, ...[...skipped].map(([reason, count]) => t`${count} skipped (${reason})`)];
           if (targets.length === 0) {
             const detail = notes.join(" · ");
-            throw new Error(t`${detail}. Nothing was deleted. Review again.`);
+            throw new Error(
+              transient ? t`${detail}. Nothing was deleted. Review again.` : t`${detail}. Nothing was deleted.`,
+            );
           }
           const result = await client.planDockerMaintenance({
             serverIds: preview.serverIds,

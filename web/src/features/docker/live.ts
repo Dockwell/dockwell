@@ -22,6 +22,17 @@ export function dockerKey(server: string, id: string): string {
   return `${server}/${id}`;
 }
 
+/** Whether a previous Connect-Query entry queried the same server selection. */
+export function sameServerIds(
+  previousQuery: { queryKey: readonly [string, { input?: Record<string, unknown> | "skipped" }] } | undefined,
+  serverIds: readonly string[],
+): boolean {
+  const input = previousQuery?.queryKey[1]?.input;
+  if (!input || input === "skipped") return false;
+  const previous = Array.isArray(input["serverIds"]) ? input["serverIds"] : [];
+  return previous.length === serverIds.length && previous.every((id, index) => id === serverIds[index]);
+}
+
 export function rowWithHealth(row: DockerObject, updates: ReadonlyMap<string, DockerHealthUpdate>): DockerObject {
   const key = row.key;
   const update = key && updates.get(dockerKey(key.serverId, key.engineId));

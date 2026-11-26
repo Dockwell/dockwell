@@ -1162,7 +1162,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`Pauses on every placed server`,
-          detail: t`Health checks pause and routes lose their backend. Existing connections may stall.`,
+          detail: t`Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall.`,
         };
       case "workload_unpauses":
         return {

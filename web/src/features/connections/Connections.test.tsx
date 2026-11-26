@@ -1079,4 +1079,44 @@ describe("a connection used by backups (#831)", () => {
     expect(remove).toHaveAttribute("aria-disabled", "true");
     expect(sheet).toHaveTextContent("Backup destination offsite uses it. Remove it on Backups first.");
   });
+
+  it("caps long Used by lists at three names with an inline toggle and caps Remove reason (#914 N6)", async () => {
+    const user = userEvent.setup();
+    const busy = create(ConnectionInfoSchema, {
+      id: "con_busy",
+      name: "shared-r2",
+      kind: LinkKind.S3,
+      endpoint: `https://${R2}.r2.cloudflarestorage.com`,
+      bucket: "media",
+      reach: ConnectionReach.EVERY,
+      shared: true,
+      uses: [
+        {
+          link: "media",
+          environment: "env_1",
+          appIds: ["svc_1", "svc_2", "svc_3", "svc_4", "svc_5"],
+          apps: ["alpha", "bravo", "charlie", "delta", "echo"],
+        },
+      ],
+    });
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [busy] }) },
+    });
+    const row = await screen.findByRole("row", { name: /shared-r2/ });
+    expect(row).toHaveTextContent("alpha, bravo, charlie");
+    expect(row).not.toHaveTextContent("delta");
+    const more = within(row).getByRole("button", { name: "and 2 more" });
+    await user.click(more);
+    expect(row).toHaveTextContent("alpha, bravo, charlie, delta, echo");
+    await user.click(within(row).getByRole("button", { name: "Show fewer" }));
+    expect(row).not.toHaveTextContent("delta");
+
+    await user.click(within(row).getByRole("button", { name: "Actions for shared-r2" }));
+    const menu = await screen.findByRole("menu", { name: "Actions for shared-r2" });
+    const remove = within(menu).getByRole("menuitem", { name: /Remove/ });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).toHaveTextContent("Used by alpha, bravo, charlie and 2 more. Disconnect it there first.");
+  });
 });

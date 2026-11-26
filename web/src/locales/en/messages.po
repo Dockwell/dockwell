@@ -6613,11 +6613,32 @@ msgstr "Also delete the project {label}"
 msgid "Delete the project {label}"
 msgstr "Delete the project {label}"
 
+msgid "Delete {appPart} and {projectPart}"
+msgstr "Delete {appPart} and {projectPart}"
+
 msgid "Delete {name} and the project {label}"
 msgstr "Delete {name} and the project {label}"
 
+msgid "Leaves {described}"
+msgstr "Leaves {described}"
+
+msgid "Leaves {described}."
+msgstr "Leaves {described}."
+
+msgid "Leaves {labels} empty"
+msgstr "Leaves {labels} empty"
+
+msgid "Leaves {labels} empty."
+msgstr "Leaves {labels} empty."
+
 msgid "Leaves {leftWords} in it"
 msgstr "Leaves {leftWords} in it"
+
+msgid "Leaves {name} empty."
+msgstr "Leaves {name} empty."
+
+msgid "Leaves {name} with {leftWords}."
+msgstr "Leaves {name} with {leftWords}."
 
 msgid "Nothing else is in it"
 msgstr "Nothing else is in it"
@@ -6625,11 +6646,38 @@ msgstr "Nothing else is in it"
 msgid "Review again"
 msgstr "Review again"
 
+msgid "Takes {described}"
+msgstr "Takes {described}"
+
 msgid "Takes {leftWords} with it"
 msgstr "Takes {leftWords} with it"
 
+msgid "{labels} · Nothing else is in them"
+msgstr "{labels} · Nothing else is in them"
+
+msgid "{n, plural, one {# app} other {# apps}}"
+msgstr "{n, plural, one {# app} other {# apps}}"
+
 msgid "{n, plural, one {Delete # app} other {Delete # apps}}"
 msgstr "{n, plural, one {Delete # app} other {Delete # apps}}"
+
+msgid "{name} (nothing else)"
+msgstr "{name} (nothing else)"
+
+msgid "{name} ({leftWords})"
+msgstr "{name} ({leftWords})"
+
+msgid "{name} · Leaves {leftWords} in it"
+msgstr "{name} · Leaves {leftWords} in it"
+
+msgid "{name} · Nothing else is in it"
+msgstr "{name} · Nothing else is in it"
+
+msgid "{name} · Takes {leftWords} with it"
+msgstr "{name} · Takes {leftWords} with it"
+
+msgid "{projectCount, plural, one {# project} other {# projects}}"
+msgstr "{projectCount, plural, one {# project} other {# projects}}"
 
 msgid "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
 msgstr "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
@@ -8194,9 +8242,6 @@ msgstr "Failed {ago}"
 msgid "Fetch this backup of {0}"
 msgstr "Fetch this backup of {0}"
 
-msgid "Filter and sort use loaded backups."
-msgstr "Filter and sort use loaded backups."
-
 msgid "Filter backups"
 msgstr "Filter backups"
 
@@ -8278,6 +8323,9 @@ msgstr "Sealed with an earlier passphrase"
 msgid "Search all backups"
 msgstr "Search all backups"
 
+msgid "Searching older backups"
+msgstr "Searching older backups"
+
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "Sending to {0}"
@@ -8331,6 +8379,12 @@ msgstr "{0, plural, one {Test a restore of # schedule's backups weekly} other {T
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
 
+msgid "{shown, plural, one {Matches from the newest # backup.} other {Matches from the newest # backups.}}"
+msgstr "{shown, plural, one {Matches from the newest # backup.} other {Matches from the newest # backups.}}"
+
+msgid "{shown, plural, one {Sorted within the newest # backup.} other {Sorted within the newest # backups.}}"
+msgstr "{shown, plural, one {Sorted within the newest # backup.} other {Sorted within the newest # backups.}}"
+
 msgid "{shown} newest"
 msgstr "{shown} newest"
 
@@ -8346,6 +8400,12 @@ msgstr "Destinations"
 msgid "Encrypted on each server before upload"
 msgstr "Encrypted on each server before upload"
 
+msgid "Filter by name or bucket"
+msgstr "Filter by name or bucket"
+
+msgid "Filter destinations"
+msgstr "Filter destinations"
+
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "Last upload {0}"
@@ -8355,6 +8415,9 @@ msgstr "Loading destinations"
 
 msgid "Manage"
 msgstr "Manage"
+
+msgid "No destinations match"
+msgstr "No destinations match"
 
 msgid "Only on each server's disk, unencrypted"
 msgstr "Only on each server's disk, unencrypted"
@@ -12167,8 +12230,8 @@ msgstr "For {what}."
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 
-msgid "Health checks pause and routes lose their backend. Existing connections may stall."
-msgstr "Health checks pause and routes lose their backend. Existing connections may stall."
+msgid "Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall."
+msgstr "Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall."
 
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
@@ -14133,6 +14196,9 @@ msgstr "No connections yet"
 msgid "Object storage"
 msgstr "Object storage"
 
+msgid "Show fewer"
+msgstr "Show fewer"
+
 msgid "The page tries again by itself."
 msgstr "The page tries again by itself."
 
@@ -14144,6 +14210,9 @@ msgstr "Use as a connection"
 
 msgid "Used by {usedBy}. Disconnect it there first."
 msgstr "Used by {usedBy}. Disconnect it there first."
+
+msgid "and {extra} more"
+msgstr "and {extra} more"
 
 msgid "no app uses them yet"
 msgstr "no app uses them yet"
@@ -14188,6 +14257,9 @@ msgstr "{linkedBackupDests, plural, one {# backup destination} other {# backup d
 
 msgid "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
 msgstr "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
+
+msgid "{shown} and {extra} more"
+msgstr "{shown} and {extra} more"
 
 msgid "Fails from {server}"
 msgstr "Fails from {server}"
@@ -16447,6 +16519,12 @@ msgstr "Containers couldn't be read"
 msgid "Docker is slow to answer on these servers"
 msgstr "Docker is slow to answer on these servers"
 
+msgid "Dockwell couldn't read where this service runs. Refresh to try again."
+msgstr "Dockwell couldn't read where this service runs. Refresh to try again."
+
+msgid "Dockwell doesn't manage this container"
+msgstr "Dockwell doesn't manage this container"
+
 msgid "Filter by this Compose project"
 msgstr "Filter by this Compose project"
 
@@ -16472,11 +16550,20 @@ msgstr "No containers here"
 msgid "No containers match"
 msgstr "No containers match"
 
-msgid "No managed run state"
-msgstr "No managed run state"
-
 msgid "No sample"
 msgstr "No sample"
+
+msgid "Not paused"
+msgstr "Not paused"
+
+msgid "Not running or already paused"
+msgstr "Not running or already paused"
+
+msgid "Open Apps"
+msgstr "Open Apps"
+
+msgid "Open {serviceName}"
+msgstr "Open {serviceName}"
 
 #. placeholder {0}: pages.length
 msgid "Page {0}"
@@ -16491,17 +16578,14 @@ msgstr "Refresh containers"
 msgid "Refresh list"
 msgstr "Refresh list"
 
+msgid "Replicas are in different states"
+msgstr "Replicas are in different states"
+
 msgid "Restart this container"
 msgstr "Restart this container"
 
 msgid "Search containers"
 msgstr "Search containers"
-
-msgid "Select a matching replica on every server"
-msgstr "Select a matching replica on every server"
-
-msgid "Service placement is unavailable"
-msgstr "Service placement is unavailable"
 
 msgid "Start {name} on all {workloadServers} servers"
 msgstr "Start {name} on all {workloadServers} servers"
@@ -16525,11 +16609,11 @@ msgstr "Uptime"
 msgid "Usage"
 msgstr "Usage"
 
-msgid "Workload state doesn't match"
-msgstr "Workload state doesn't match"
-
 msgid "memory"
 msgstr "memory"
+
+msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
+msgstr "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
 
 msgid "{label} {count}"
 msgstr "{label} {count}"
@@ -16751,6 +16835,9 @@ msgstr "Unused"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, one {and # more tag} other {and # more tags}}"
 
+msgid "A paused container takes only SIGKILL, or SIGTERM then SIGKILL."
+msgstr "A paused container takes only SIGKILL, or SIGTERM then SIGKILL."
+
 msgid "Already running or unavailable"
 msgstr "Already running or unavailable"
 
@@ -16774,12 +16861,6 @@ msgstr "Managed or system container"
 
 msgid "New container name"
 msgstr "New container name"
-
-msgid "Not paused"
-msgstr "Not paused"
-
-msgid "Not running or already paused"
-msgstr "Not running or already paused"
 
 msgid "Not running or paused"
 msgstr "Not running or paused"
@@ -17671,8 +17752,14 @@ msgstr "Only local networks can be deleted"
 msgid "Only local volumes with a verified identity can be deleted"
 msgstr "Only local volumes with a verified identity can be deleted"
 
-msgid "This Docker item is no longer in the cleanup inventory"
-msgstr "This Docker item is no longer in the cleanup inventory"
+msgid "This image is gone. Refresh the list"
+msgstr "This image is gone. Refresh the list"
+
+msgid "This item is gone. Refresh the list"
+msgstr "This item is gone. Refresh the list"
+
+msgid "This network is gone. Refresh the list"
+msgstr "This network is gone. Refresh the list"
 
 msgid "This plan reached the cleanup limit"
 msgstr "This plan reached the cleanup limit"
@@ -17680,11 +17767,23 @@ msgstr "This plan reached the cleanup limit"
 msgid "This volume is gone or has been replaced"
 msgstr "This volume is gone or has been replaced"
 
-msgid "Update the agent to delete this Docker item"
-msgstr "Update the agent to delete this Docker item"
+msgid "Update the agent to delete this image"
+msgstr "Update the agent to delete this image"
+
+msgid "Update the agent to delete this item"
+msgstr "Update the agent to delete this item"
+
+msgid "Update the agent to delete this network"
+msgstr "Update the agent to delete this network"
+
+msgid "Update the agent to delete this volume"
+msgstr "Update the agent to delete this volume"
 
 msgid "{count} skipped ({reason})"
 msgstr "{count} skipped ({reason})"
+
+msgid "{detail}. Nothing was deleted."
+msgstr "{detail}. Nothing was deleted."
 
 msgid "{detail}. Nothing was deleted. Review again."
 msgstr "{detail}. Nothing was deleted. Review again."
@@ -27792,6 +27891,9 @@ msgstr "No website of this kind here."
 msgid "No websites yet"
 msgstr "No websites yet"
 
+msgid "Not a PHP website"
+msgstr "Not a PHP website"
+
 msgid "Off (TLS ends in front)"
 msgstr "Off (TLS ends in front)"
 
@@ -27810,11 +27912,20 @@ msgstr "Reverse proxy"
 msgid "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 msgstr "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 
+msgid "Set HTTPS"
+msgstr "Set HTTPS"
+
+msgid "Set HTTPS {count}"
+msgstr "Set HTTPS {count}"
+
 msgid "Static files"
 msgstr "Static files"
 
 msgid "Switch PHP"
 msgstr "Switch PHP"
+
+msgid "Switch PHP {count}"
+msgstr "Switch PHP {count}"
 
 #. placeholder {0}: target.sites.length
 msgid "Switch {0} websites to PHP {phpChoice}"

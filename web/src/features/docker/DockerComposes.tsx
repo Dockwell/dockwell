@@ -26,7 +26,6 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
@@ -40,7 +39,7 @@ import { BatchBar, SelectBox, selectionColumn, useListSearchShortcut, useRowSele
 import { ComposeOperations } from "./ComposeOperations";
 import { type ComposeSource, ComposeSourceSheet } from "./ComposeSourceSheet";
 import { useDockerLifecycle } from "./DockerLifecycle";
-import { useDockerWatch } from "./live";
+import { sameServerIds, useDockerWatch } from "./live";
 import { LiveUpdates } from "./parts";
 
 import "./Compose.css";
@@ -111,24 +110,25 @@ export function DockerComposes({
   const [source, setSource] = useState<"folder" | "new">();
   const upload = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<ComposeSource & { server?: string | undefined }>();
+  const serverIds = servers.map((server) => server.id);
   const query = useQuery(
     DockerService.method.listDockerObjects,
     {
-      serverIds: servers.map((server) => server.id),
+      serverIds,
       kind: DockerObjectKind.COMPOSE,
       filter: { search, ownership: outside ? DockerOwnership.EXTERNAL : DockerOwnership.UNSPECIFIED },
       pageSize: 20,
       pageToken: tokens.at(-1) ?? "",
     },
-    // A new search, filter or page keeps the last list in place until its answer lands.
-    { retry: false, refetchOnWindowFocus: false, placeholderData: keepPreviousData },
+    // A new search, filter or page on the same server selection keeps the last list in place until its answer lands.
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      placeholderData: (previous, previousQuery) =>
+        previous && sameServerIds(previousQuery, serverIds) ? previous : undefined,
+    },
   );
-  const watch = useDockerWatch(
-    servers.map((server) => server.id),
-    [],
-    () => void query.refetch(),
-    DockerObjectKind.COMPOSE,
-  );
+  const watch = useDockerWatch(serverIds, [], () => void query.refetch(), DockerObjectKind.COMPOSE);
   const rows = query.data?.objects.filter((row) => row.key !== undefined) ?? [];
   const tableRows = rows.map((row) => ({ ...row, tableId: `${row.key?.serverId}/${row.key?.engineId}` }));
   const selection = useRowSelection(

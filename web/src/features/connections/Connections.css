@@ -28,6 +28,32 @@ a.connections-name:hover {
   white-space: nowrap;
 }
 
+.connections-apps.is-expanded {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.connections-more-btn {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cobalt);
+  font-family: var(--font-sans);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.connections-more-btn:hover {
+  text-decoration: underline;
+}
+
+.connections-more-btn:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .connections-cell-name {
   display: flex;
   align-items: center;

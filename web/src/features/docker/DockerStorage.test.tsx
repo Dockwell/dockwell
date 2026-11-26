@@ -6,15 +6,19 @@ import {
   DockerObjectKind,
   DockerOwnership,
   type PlanDockerMaintenanceRequest,
+  Role,
   type WatchServersResponse,
 } from "@dockwell/api";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
+import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
-import { feed, quietWatch, renderAt } from "../../test/render";
+import { feed, quietWatch, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { DockerStorage } from "./DockerStorage";
 
 it("explains a backup hold and leaves out a volume that was replaced before the plan", async () => {
   const server = aServer({ id: "srv_1" });
@@ -73,4 +77,58 @@ it("explains a backup hold and leaves out a volume that was replaced before the 
   const sheet = await screen.findByRole("dialog", { name: "Review plan" });
   expect(sheet).toHaveTextContent("1 skipped (This volume is gone or has been replaced)");
   expect(sheet).toHaveTextContent("1 skipped (Held by a backup or backup schedule)");
+});
+
+it("keeps matching selected volumes while searching and hides checkboxes for viewers (#919 N3/N4)", async () => {
+  const server = aServer({ id: "srv_1" });
+  const makeServers = () => {
+    const s = feed<WatchServersResponse>();
+    s.push(changed(server), snapshotComplete);
+    return s.stream;
+  };
+  const objects = [
+    {
+      key: { serverId: server.id, engineId: "alpha.gen", kind: DockerObjectKind.VOLUME },
+      name: "alpha",
+      ownership: DockerOwnership.EXTERNAL,
+      detail: { case: "volume" as const, value: { driver: "local", attachmentCount: 0 } },
+    },
+    {
+      key: { serverId: server.id, engineId: "beta.gen", kind: DockerObjectKind.VOLUME },
+      name: "beta",
+      ownership: DockerOwnership.EXTERNAL,
+      detail: { case: "volume" as const, value: { driver: "local", attachmentCount: 0 } },
+    },
+  ];
+  const { unmount } = renderAt("/servers/srv_1/docker/volumes", {
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: ({ filter }) => ({
+        objects: objects.filter((o) => !filter?.search || o.name.includes(filter.search)),
+      }),
+      previewDockerCleanup: () => ({ snapshot: "f".repeat(64), candidates: [], exclusions: [] }),
+    },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select alpha" }));
+  await user.type(screen.getByRole("textbox", { name: "Find a volume" }), "alpha");
+  await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Select beta" })).toBeNull());
+  expect(screen.getByRole("checkbox", { name: "Select alpha" })).toBeChecked();
+  unmount();
+
+  const viewerRoute = createRootRoute({
+    component: () => <DockerStorage volumes servers={[server]} fleet={false} />,
+  });
+  const viewerRouter = createRouter({
+    routeTree: viewerRoute,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+  renderWithApi(<RouterProvider router={viewerRouter} />, {
+    auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    servers: { watchServers: makeServers() },
+    docker: { watchDockerObjects: quietWatch, listDockerObjects: () => ({ objects }) },
+  });
+  expect(await screen.findByText("alpha")).toBeVisible();
+  expect(screen.queryByRole("checkbox")).toBeNull();
 });

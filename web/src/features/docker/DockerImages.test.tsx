@@ -2,18 +2,24 @@
 
 import {
   DockerCleanupKind,
+  DockerCleanupReason,
   DockerImageState,
   DockerObjectKind,
   type PlanDockerMaintenanceRequest,
+  Role,
   type WatchServersResponse,
 } from "@dockwell/api";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { expect, it, vi } from "vitest";
 
+import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
-import { feed, quietWatch, renderAt } from "../../test/render";
+import { feed, quietWatch, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { DockerImages } from "./DockerImages";
 
 it("requests a fresh first page for the chosen state and shows usage still being measured", async () => {
   const server = aServer({ id: "srv_1", name: "example-server" });
@@ -103,4 +109,110 @@ it("mounts 50 image menus without requesting cleanup, then reviews only the imag
       value: { targets: [{ engineId: objects[0]?.key.engineId, evidence: "chosen evidence" }] },
     },
   });
+});
+
+it("hides image checkboxes for viewers and drops Review again on lasting refusals (#919 N4/N5)", async () => {
+  const server = aServer({ id: "srv_1", name: "example-server" });
+  const makeServers = () => {
+    const s = feed<WatchServersResponse>();
+    s.push(changed(server), snapshotComplete);
+    return s.stream;
+  };
+  const imgId = `sha256:${"b".repeat(64)}`;
+  const objects = [
+    {
+      key: { kind: DockerObjectKind.IMAGE, serverId: server.id, engineId: imgId },
+      observedAt: { seconds: 1n },
+      detail: { case: "image" as const, value: { tags: ["fixture/in-use:1"], state: DockerImageState.USED } },
+    },
+  ];
+  const viewerRoute = createRootRoute({ component: () => <DockerImages servers={[server]} fleet={false} /> });
+  const viewerRouter = createRouter({
+    routeTree: viewerRoute,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+  const { unmount } = renderWithApi(<RouterProvider router={viewerRouter} />, {
+    auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    servers: { watchServers: makeServers() },
+    docker: { watchDockerObjects: quietWatch, listDockerObjects: () => ({ objects }) },
+  });
+  expect(await screen.findByText("fixture/in-use:1")).toBeVisible();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  unmount();
+
+  // Admin clicking Delete on an image that becomes IN_USE gets a lasting error without "Review again."
+  let inUse = false;
+  renderAt("/servers/srv_1/docker/images", {
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({ objects }),
+      previewDockerCleanup: () => ({
+        snapshot: "e".repeat(64),
+        candidates: inUse
+          ? []
+          : [{ serverId: server.id, kind: DockerCleanupKind.IMAGE, engineId: imgId, evidence: "ev" }],
+        exclusions: inUse
+          ? [
+              {
+                serverId: server.id,
+                kind: DockerCleanupKind.IMAGE,
+                engineId: imgId,
+                reason: DockerCleanupReason.IN_USE,
+              },
+            ]
+          : [],
+      }),
+    },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Actions for fixture/in-use:1" }));
+  const del = await screen.findByRole("menuitem", { name: "Delete" });
+  inUse = true;
+  await user.click(del);
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toHaveTextContent("Containers still use this image");
+  expect(dialog).not.toHaveTextContent("Review again");
+});
+
+it("drops placeholder rows when switching to another server", async () => {
+  const first = aServer({ id: "srv_1", name: "first" });
+  const second = aServer({ id: "srv_2", name: "second" });
+  const pendingSecond = new Promise<never>(() => {});
+  const asked: string[][] = [];
+  function Switcher() {
+    const [current, setCurrent] = useState(first);
+    return (
+      <>
+        <button type="button" onClick={() => setCurrent(second)}>
+          Switch server
+        </button>
+        <DockerImages servers={[current]} fleet={false} />
+      </>
+    );
+  }
+  const route = createRootRoute({ component: Switcher });
+  const router = createRouter({ routeTree: route, history: createMemoryHistory({ initialEntries: ["/"] }) });
+  renderWithApi(<RouterProvider router={router} />, {
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: (ask) => {
+        asked.push([...ask.serverIds]);
+        if (ask.serverIds.includes("srv_2")) return pendingSecond;
+        return {
+          objects: [
+            {
+              key: { kind: DockerObjectKind.IMAGE, serverId: first.id, engineId: `sha256:${"c".repeat(64)}` },
+              observedAt: { seconds: 1n },
+              detail: { case: "image", value: { tags: ["server-one/app:1"], state: DockerImageState.USED } },
+            },
+          ],
+        };
+      },
+    },
+  });
+  expect(await screen.findByText("server-one/app:1")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Switch server" }));
+  await waitFor(() => expect(asked).toContainEqual(["srv_2"]));
+  expect(screen.queryByText("server-one/app:1")).toBeNull();
 });

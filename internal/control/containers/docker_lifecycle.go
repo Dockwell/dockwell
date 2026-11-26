@@ -69,12 +69,17 @@ func (h *Handler) planDockerLifecycle(ctx context.Context, selection *v1.DockerL
 		if len(targets) == 0 {
 			continue
 		}
+		signal := strings.ToUpper(strings.TrimSpace(selection.GetSignal()))
+		if action == v1.DockerContainerAction_DOCKER_CONTAINER_ACTION_KILL && !docker.AllowedPausedKillSignal(signal) &&
+			slices.ContainsFunc(targets, func(target *v1.DockerContainerTarget) bool { return target.GetState() == "paused" }) {
+			return nil, authapi.Invalid(errors.New("a paused container takes only SIGKILL or the default kill. Choose one of those"))
+		}
 		total += len(targets)
 		if total > 128 {
 			return nil, authapi.Invalid(errors.New("select up to 128 container targets across the fleet"))
 		}
 		plans[server.ID] = &v1.DockerMaintenance{Lifecycle: &v1.DockerContainerLifecycle{
-			Action: action, Signal: strings.ToUpper(strings.TrimSpace(selection.GetSignal())),
+			Action: action, Signal: signal,
 			TimeoutSeconds: selection.GetTimeoutSeconds(), RemoveAnonymousVolumes: selection.GetRemoveAnonymousVolumes(), Targets: targets,
 		}}
 	}

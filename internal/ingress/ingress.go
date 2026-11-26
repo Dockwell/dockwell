@@ -153,6 +153,11 @@ type Route struct {
 	// Held is true when it answers that the app isn't open yet and sends nothing
 	// on, until a person opens it (ADR 0084).
 	Held bool
+	// Paused is true when every container of the route's service on this server
+	// is paused, so the proxy answers a short 503 page immediately instead of
+	// dialing a frozen container until it times out. Runtime state, not part of
+	// the route's spec.
+	Paused bool
 	// Setup is where a held route asks its agent whether a visitor came through its
 	// setup link, as an address it dials, in place of answering everyone that it
 	// isn't open; empty for none. The key's hash is the agent's to keep (SignIns), as
@@ -1094,6 +1099,10 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 		Allow: allow, Users: users, Redirect: RedirectOf(spec),
 	}
+	if spec.GetHostPort() == 0 && spec.GetRedirect() == nil {
+		// Docker not answering reads as running: the next reconcile puts the page up.
+		r.Paused, _ = m.servicePaused(ctx, serviceOf(ref, spec))
+	}
 	if rl := spec.GetRateLimit(); rl != nil && rl.GetRequestsPerMinute() > 0 {
 		dial, err := m.rateLimitDial()
 		if err != nil {
@@ -1533,11 +1542,17 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	if err := m.settle(ctx); err != nil {
 		return err
 	}
+	// A paused page that couldn't be brought up to date is no reason to keep
+	// every route closed, so the routes open first and the failure is said after.
+	pausedErr := m.syncPaused(ctx)
 	// Each instance is back at its own address, so a route may dial it again.
 	if err := m.Proxy.SetClosed(ctx, false); err != nil {
-		return err
+		return errors.Join(err, pausedErr)
 	}
 	m.ensureKeeper(ctx, false)
+	if pausedErr != nil {
+		return pausedErr
+	}
 	m.report(nil)
 	return nil
 }

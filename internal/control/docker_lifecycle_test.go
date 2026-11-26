@@ -235,3 +235,35 @@ func TestManagedPausedRedeployPlansAndKeepsPause(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanDockerLifecycleRefusesNonSIGKILLOnPausedContainer(t *testing.T) {
+	f := storageControl(t, store.SQLite, nil, "")
+	item := f.engine.AddContainer(docker.Container{
+		Name: "/frozen-ext", Config: docker.Config{Image: "busybox:1"},
+		State: docker.State{Status: "paused", Running: true, Paused: true},
+	})
+	key := &v1.DockerObjectKey{
+		ServerId: f.server.id.ServerID,
+		Kind:     v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER,
+		EngineId: item.ID,
+	}
+	_, err := f.api.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{
+		Operation: &v1.PlanDockerMaintenanceRequest_Lifecycle{Lifecycle: &v1.DockerLifecycleSelection{
+			Keys:   []*v1.DockerObjectKey{key},
+			Action: v1.DockerContainerAction_DOCKER_CONTAINER_ACTION_KILL,
+			Signal: "SIGHUP",
+		}},
+	}))
+	if err == nil || !strings.Contains(err.Error(), "SIGKILL or the default kill") {
+		t.Fatalf("expected paused SIGHUP refusal, got %v", err)
+	}
+	if _, err := f.api.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{
+		Operation: &v1.PlanDockerMaintenanceRequest_Lifecycle{Lifecycle: &v1.DockerLifecycleSelection{
+			Keys:   []*v1.DockerObjectKey{key},
+			Action: v1.DockerContainerAction_DOCKER_CONTAINER_ACTION_KILL,
+			Signal: "SIGKILL",
+		}},
+	})); err != nil {
+		t.Fatalf("expected paused SIGKILL to plan, got %v", err)
+	}
+}

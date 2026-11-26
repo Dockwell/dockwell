@@ -95,12 +95,12 @@ export function BackupsPage({
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const volumes = useVolumes();
-  const query = useBackupPages();
+  const [searchingAll, setSearchingAll] = useState(false);
+  const query = useBackupPages(searchingAll);
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
   const place = useListPlace(search, onSearch, SORT_KEYS);
   const { backups, fetchNextPage, hasNextPage, isFetching, isFetchNextPageError } = query;
-  const [searchingAll, setSearchingAll] = useState(false);
   const [nextPage, setNextPage] = useState<number>();
   const filtered = !!(place.query || place.sort || search.state);
   const states = hasNextPage ? ["done", "failed", "running"] : [...new Set(backups.map((b) => stateKey(b.state)))];
@@ -228,7 +228,12 @@ export function BackupsPage({
       {filtered && hasNextPage ? (
         <div className="list-bar">
           <span className="backups-runs-lead">
-            <Trans>Filter and sort use loaded backups.</Trans>
+            {place.query || search.state
+              ? plural(shown, { one: "Matches from the newest # backup.", other: "Matches from the newest # backups." })
+              : plural(shown, {
+                  one: "Sorted within the newest # backup.",
+                  other: "Sorted within the newest # backups.",
+                })}
           </span>
           <Button
             size="sm"
@@ -250,6 +255,12 @@ export function BackupsPage({
             </Panel>
           </Loading>
         ) : null
+      ) : searchingAll && hasNextPage && !isFetchNextPageError && listed.length === 0 ? (
+        <Loading label={t`Searching older backups`}>
+          <Panel flush>
+            <SkeletonRows rows={4} lead="icon" end="pill" />
+          </Panel>
+        </Loading>
       ) : listed.length === 0 ? (
         <EmptyState
           icon="search"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeState,
   ContainerState,
@@ -13,7 +13,7 @@ import {
 } from "@dockwell/api";
 import { Button, SelectField, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import lifecycleSignals from "../../../../internal/docker/lifecycle-signals.json";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -189,6 +189,47 @@ function LifecycleOptions({
   const [volumes, setVolumes] = useState(false);
   const rename = request.action === DockerContainerAction.RENAME;
   const kill = request.action === DockerContainerAction.KILL;
+  const composeRows = kill ? request.rows.filter((row) => row.key?.kind === DockerObjectKind.COMPOSE) : [];
+  const composeServerIds = [...new Set(composeRows.flatMap((row) => (row.key?.serverId ? [row.key.serverId] : [])))];
+  const composeName = (row: DockerObject) =>
+    row.detail.case === "compose" ? row.detail.value.engineProject || row.name : row.name;
+  const composeNames = new Set(composeRows.map(composeName));
+  const composeTargets = new Set(composeRows.map((row) => `${row.key?.serverId ?? ""}\0${composeName(row)}`));
+  const composePaused = useQuery(
+    DockerService.method.listDockerObjects,
+    {
+      serverIds: composeServerIds,
+      kind: DockerObjectKind.CONTAINER,
+      filter: {
+        state: ContainerState.PAUSED,
+        ...(composeNames.size === 1 ? { composeProject: [...composeNames][0] } : {}),
+      },
+    },
+    { enabled: composeRows.length > 0 && composeServerIds.length > 0, retry: false, refetchOnWindowFocus: false },
+  );
+  const composeHasPaused =
+    composeRows.length > 0 &&
+    (composePaused.isError ||
+      Boolean(composePaused.data?.nextPageToken) ||
+      Boolean(
+        composePaused.data?.objects.some(
+          (item) =>
+            item.state === ContainerState.PAUSED &&
+            item.detail.case === "container" &&
+            composeTargets.has(`${item.key?.serverId ?? ""}\0${item.detail.value.composeProject}`),
+        ),
+      ));
+  const hasPaused = kill && (request.rows.some((row) => row.state === ContainerState.PAUSED) || composeHasPaused);
+  const restrictSignals = hasPaused || (composeRows.length > 0 && composePaused.isPending);
+  useEffect(() => {
+    if (restrictSignals && value !== "" && value !== "SIGKILL") setValue("");
+  }, [restrictSignals, value]);
+  const signalOptions = restrictSignals
+    ? [
+        { value: "", label: t`SIGTERM, then SIGKILL` },
+        { value: "SIGKILL", label: "SIGKILL" },
+      ]
+    : [{ value: "", label: t`SIGTERM, then SIGKILL` }, ...customSignals];
   const prefix = request.rows.length > 1 || request.rows[0]?.key?.kind === DockerObjectKind.COMPOSE;
   const valid = rename
     ? /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(value)
@@ -235,7 +276,8 @@ function LifecycleOptions({
               mono
               label={t`Signal`}
               value={value}
-              options={[{ value: "", label: t`SIGTERM, then SIGKILL` }, ...customSignals]}
+              options={signalOptions}
+              hint={hasPaused ? t`A paused container takes only SIGKILL, or SIGTERM then SIGKILL.` : undefined}
               onChange={(e) => setValue(e.target.value)}
             />
             {!value ? (

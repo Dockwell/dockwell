@@ -56,7 +56,7 @@ import {
 import { useImageActions } from "./DockerImageActions";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { shortImageId } from "./imageIdentity";
-import { useDockerWatch } from "./live";
+import { sameServerIds, useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
 import { useSelectedCleanup } from "./selectedCleanup";
 import "./Docker.css";
@@ -168,6 +168,22 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     {
       retry: false,
       refetchOnWindowFocus: false,
+      placeholderData: (previous, previousQuery) =>
+        !pageToken && previous && sameServerIds(previousQuery, serverIds)
+          ? {
+              ...previous,
+              objects: previous.objects.filter((row) => {
+                if (row.detail.case !== "image") return false;
+                const img = row.detail.value;
+                const wanted = imageStates[filter];
+                if (wanted !== DockerImageState.UNSPECIFIED && img.state !== wanted) return false;
+                if (!search) return true;
+                const q = search.toLowerCase();
+                return [row.key?.engineId, ...img.tags, ...img.digests].join(" ").toLowerCase().includes(q);
+              }),
+              nextPageToken: "",
+            }
+          : undefined,
       refetchInterval: (query) =>
         query.state.data?.objects.some(
           (row) => row.detail.case === "image" && row.detail.value.state === DockerImageState.UNSPECIFIED,
@@ -196,7 +212,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
   );
   const chosenRows = useRowSelection(
     rows.map((row) => row.id),
-    true,
+    mayPrune,
     searchInput,
   );
   const selected = rows.filter((row) => chosenRows.has(row.id));
@@ -274,13 +290,17 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
       </span>
     ) : null;
   const columns: TableColumn<ImageRow>[] = [
-    selectionColumn({
-      selection: chosenRows,
-      rows,
-      idOf: (row) => row.id,
-      labelOf: (row) => t`Select ${selection(row).alias || shortImageId(row.engineId)}`,
-      allLabel: t`Select all rows on this page`,
-    }),
+    ...(chosenRows.enabled
+      ? [
+          selectionColumn({
+            selection: chosenRows,
+            rows,
+            idOf: (row) => row.id,
+            labelOf: (row) => t`Select ${selection(row).alias || shortImageId(row.engineId)}`,
+            allLabel: t`Select all rows on this page`,
+          }),
+        ]
+      : []),
     {
       key: "image",
       header: t`Image`,
@@ -505,11 +525,13 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
                   onContextMenu={(event) => cardContextMenu(event, (at, el) => openContext(row, at, el))}
                 >
                   <div className="docker-artifact-name">
-                    <SelectBox
-                      label={t`Select ${selection(row).alias || shortImageId(row.engineId)}`}
-                      checked={chosenRows.has(row.id)}
-                      onPick={(on, range) => chosenRows.toggle(row.id, on, range)}
-                    />
+                    {chosenRows.enabled ? (
+                      <SelectBox
+                        label={t`Select ${selection(row).alias || shortImageId(row.engineId)}`}
+                        checked={chosenRows.has(row.id)}
+                        onPick={(on, range) => chosenRows.toggle(row.id, on, range)}
+                      />
+                    ) : null}
                     <Icon name="archive" />
                     <div>
                       {link(row)}

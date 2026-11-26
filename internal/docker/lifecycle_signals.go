@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // The panel imports the same list of Linux signals accepted by Docker.
@@ -34,4 +35,12 @@ func ValidLifecycleSignal(signal string) bool {
 		return number >= 1 && number <= lifecycleSignals.MaxNumber && strconv.Itoa(number) == signal
 	}
 	return slices.Contains(lifecycleSignals.Names, signal)
+}
+
+// AllowedPausedKillSignal reports whether Kill may send signal to a paused
+// container: empty means the default SIGTERM-then-SIGKILL escalation, and
+// SIGKILL (or 9) terminates without resuming the process. Other signals can
+// resume a paused container or sit pending instead of killing it.
+func AllowedPausedKillSignal(signal string) bool {
+	return signal == "" || strings.EqualFold(signal, "SIGKILL") || strings.EqualFold(signal, "KILL") || signal == "9"
 }

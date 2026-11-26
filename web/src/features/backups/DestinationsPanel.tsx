@@ -3,10 +3,10 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService, ChangeService } from "@dockwell/api";
-import { Button, Loading, Panel, SkeletonRows } from "@dockwell/ui";
+import { Button, Loading, Panel, SkeletonRows, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { StateLine } from "../apps/DomainStep";
@@ -14,8 +14,16 @@ import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
+import { ListPager } from "../shell/ListTools";
+import { pagedRows } from "../shell/list";
 import { pickerStatus, useStorage } from "./storage";
 import "./Backups.css";
+
+/** Destinations per page in the side panel, keeping Recent runs close to the top. */
+const DESTINATIONS_PAGE_SIZE = 8;
+
+/** Show the search box once there are more destinations than fit at a glance. */
+const DESTINATIONS_FILTER_FROM = 6;
 
 /** The storage backups can go to. */
 export function useDestinations() {
@@ -35,13 +43,29 @@ export function DestinationsPanel({
   const sheet = useChangeSheet();
   const storage = useStorage(destinations);
   const [adding, setAdding] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [pageNumber, setPageNumber] = useState(0);
   // Storage belongs to no project, so adding or removing it is an admin's: off, with why, otherwise (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   // Leave out connections that can't take backups (app-serving, shared, or key-held); the picker shows them disabled with the way out.
-  const usable = storage.items.filter((item) => {
-    const state = pickerStatus(item).state;
-    return state === "ready" || state === "available";
-  });
+  const usable = useMemo(
+    () =>
+      storage.items.filter((item) => {
+        const state = pickerStatus(item).state;
+        return state === "ready" || state === "available";
+      }),
+    [storage.items],
+  );
+  const query = typed.trim().toLowerCase();
+  const matched = useMemo(
+    () =>
+      query === ""
+        ? usable
+        : usable.filter((item) => item.name.toLowerCase().includes(query) || item.bucket.toLowerCase().includes(query)),
+    [usable, query],
+  );
+  const page = pagedRows(matched, pageNumber, DESTINATIONS_PAGE_SIZE);
+  const showSearch = usable.length >= DESTINATIONS_FILTER_FROM || typed !== "";
 
   return (
     <Panel
@@ -81,64 +105,115 @@ export function DestinationsPanel({
           </StateLine>
         </div>
       ) : (
-        <ul className="backup-policies">
-          {usable.map((item) => {
-            const d = item.destination;
-            const c = item.connection;
-            return (
-              <li key={item.key} className="backup-policy">
-                <div className="backup-dest-head">
-                  {c ? <ConnectionMark connection={c} /> : d ? <DestinationMark destination={d} /> : null}
-                  <div className="backup-state">
-                    {c ? (
-                      <Link to="/connections/$name" params={{ name: c.name }} className="backup-dest-link">
-                        {c.name}
-                      </Link>
-                    ) : (
-                      <span>{item.name}</span>
-                    )}
-                    {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
-                  </div>
-                </div>
-                <div className="backup-state">
-                  {d ? (
-                    <>
-                      <span className="backup-why">{t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`}</span>
-                      {d.lastUpload ? (
-                        <span className="backup-why">
-                          {t`Last upload ${formatDateTime(timestampDate(d.lastUpload), i18n.locale)}`}
-                        </span>
+        <>
+          {showSearch ? (
+            <div className="backup-destinations-search">
+              <TextField
+                icon="search"
+                type="search"
+                size="sm"
+                aria-label={t`Filter destinations`}
+                placeholder={t`Filter by name or bucket`}
+                value={typed}
+                onChange={(event) => {
+                  setTyped(event.target.value);
+                  setPageNumber(0);
+                }}
+              />
+            </div>
+          ) : null}
+          {matched.length === 0 ? (
+            <div className="backup-destinations-none">
+              <StateLine
+                status="unknown"
+                action={
+                  <button
+                    type="button"
+                    className="domain-step-act"
+                    onClick={() => {
+                      setTyped("");
+                      setPageNumber(0);
+                    }}
+                  >
+                    <Trans>Clear the filter</Trans>
+                  </button>
+                }
+              >
+                {t`No destinations match`}
+              </StateLine>
+            </div>
+          ) : (
+            <>
+              <ul className="backup-policies">
+                {page.rows.map((item) => {
+                  const d = item.destination;
+                  const c = item.connection;
+                  return (
+                    <li key={item.key} className="backup-policy">
+                      <div className="backup-dest-head">
+                        {c ? <ConnectionMark connection={c} /> : d ? <DestinationMark destination={d} /> : null}
+                        <div className="backup-state">
+                          {c ? (
+                            <Link to="/connections/$name" params={{ name: c.name }} className="backup-dest-link">
+                              {c.name}
+                            </Link>
+                          ) : (
+                            <span>{item.name}</span>
+                          )}
+                          {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
+                        </div>
+                      </div>
+                      <div className="backup-state">
+                        {d ? (
+                          <>
+                            <span className="backup-why">{t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`}</span>
+                            {d.lastUpload ? (
+                              <span className="backup-why">
+                                {t`Last upload ${formatDateTime(timestampDate(d.lastUpload), i18n.locale)}`}
+                              </span>
+                            ) : null}
+                            <span className="backup-why">{t`Encrypted on each server before upload`}</span>
+                          </>
+                        ) : (
+                          <span className="backup-why">{t`Connection · pick in a schedule or Back up now`}</span>
+                        )}
+                      </div>
+                      {d ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon="trash"
+                          aria-label={t`Remove this destination`}
+                          {...mayPlan.off}
+                          onClick={() =>
+                            sheet.open({
+                              kind: "propose",
+                              summary: t`Stop sending backups to ${d.name}`,
+                              edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
+                            })
+                          }
+                        />
+                      ) : c ? (
+                        <Link
+                          to="/connections/$name"
+                          params={{ name: c.name }}
+                          className="dw-btn dw-btn-ghost dw-btn-sm"
+                        >
+                          <Trans>Manage</Trans>
+                        </Link>
                       ) : null}
-                      <span className="backup-why">{t`Encrypted on each server before upload`}</span>
-                    </>
-                  ) : (
-                    <span className="backup-why">{t`Connection · pick in a schedule or Back up now`}</span>
-                  )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {page.pages > 1 ? (
+                <div className="backup-destinations-pager">
+                  <ListPager page={page} onPage={setPageNumber} />
                 </div>
-                {d ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon="trash"
-                    aria-label={t`Remove this destination`}
-                    {...mayPlan.off}
-                    onClick={() =>
-                      sheet.open({
-                        kind: "propose",
-                        summary: t`Stop sending backups to ${d.name}`,
-                        edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
-                      })
-                    }
-                  />
-                ) : c ? (
-                  <Link to="/connections/$name" params={{ name: c.name }} className="dw-btn dw-btn-ghost dw-btn-sm">
-                    <Trans>Manage</Trans>
-                  </Link>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+              ) : null}
+            </>
+          )}
+        </>
       )}
       {adding ? (
         <ConnectionSheet

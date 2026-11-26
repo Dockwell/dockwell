@@ -107,6 +107,11 @@ func (r *recorder) RemoveUpstream(_ context.Context, i ingress.Instance) error {
 	return nil
 }
 
+func (r *recorder) PauseUpstream(_ context.Context, i ingress.Instance) error {
+	r.note("pause", i)
+	return nil
+}
+
 func (r *recorder) Reachable(context.Context, ingress.Instance) error { return r.unreachable }
 
 func (r *recorder) Routing(context.Context, ingress.Service) (ingress.Routing, error) {

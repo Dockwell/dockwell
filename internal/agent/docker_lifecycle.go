@@ -265,6 +265,9 @@ func (c *calls) checkDockerLifecycle(ref resource.Ref, plan *v1.DockerMaintenanc
 			!life.GetRemoveAnonymousVolumes() && len(target.GetAnonymousVolumes()) != 0 {
 			return errors.New("the reviewed Docker lifecycle plan has an invalid target")
 		}
+		if life.GetAction() == lifecycleKill && target.GetState() == "paused" && !docker.AllowedPausedKillSignal(life.GetSignal()) {
+			return errors.New("a paused container takes only SIGKILL or the default kill")
+		}
 		seen[id] = true
 	}
 	return nil
@@ -397,6 +400,9 @@ func (c *calls) applyContainerAction(ctx context.Context, life *v1.DockerContain
 		return d.UnpauseContainer(ctx, id)
 	case lifecycleKill:
 		if life.GetSignal() != "" {
+			if target.GetState() == "paused" && !docker.AllowedPausedKillSignal(life.GetSignal()) {
+				return errors.New("a paused container takes only SIGKILL or the default kill")
+			}
 			return d.SignalContainer(ctx, id, life.GetSignal())
 		}
 		grace := time.Duration(life.GetTimeoutSeconds()) * time.Second

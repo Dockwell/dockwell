@@ -1805,4 +1805,106 @@ describe("the backups page, laid out as its mock (#793)", () => {
     await user.click(within(schedules).getByRole("button", { name: "Edit this schedule" }));
     expect(await screen.findByRole("dialog", { name: "Change the schedule" })).toBeVisible();
   });
+
+  it("refreshes loaded older pages when a running backup finishes and shows searching feedback (#914 N3/N4/N6)", async () => {
+    const user = userEvent.setup();
+    let running = true;
+    let pruned = false;
+    const newest = () =>
+      Array.from({ length: 50 }, (_, i) =>
+        aBackup({
+          id: `bkp_${i}`,
+          volume: `vol-${i}`,
+          state: i === 0 && running ? BackupState.RUNNING : BackupState.DONE,
+        }),
+      );
+    const listBackups = vi.fn(async ({ pageToken }: { pageToken: string; pageSize?: number }) => {
+      if (pageToken === "older") {
+        return {
+          backups: pruned
+            ? []
+            : [
+                aBackup({
+                  id: "bkp_older",
+                  volume: "pruned-soon",
+                  startedAt: timestampFromDate(new Date("2026-11-05T03:00:00Z")),
+                }),
+              ],
+          nextPageToken: "",
+        };
+      }
+      return { backups: newest(), nextPageToken: "older" };
+    });
+    renderAt("/backups", api([], { backups: { listBackups } }));
+    const runs = await screen.findByRole("region", { name: "Recent runs" });
+    // Partial window wording says "Matches from the newest 50 backups." when filtering.
+    const search = within(runs).getByRole("searchbox", { name: "Filter backups" });
+    await user.type(search, "no-hit-yet");
+    expect(await within(runs).findByText("Matches from the newest 50 backups.")).toBeVisible();
+    // Clicking Search all backups shows loading state while older page is pending, not Nothing matches.
+    let unblock!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    const sizesByToken: { pageToken: string; pageSize: number }[] = [];
+    listBackups.mockImplementation(async ({ pageToken, pageSize }: { pageToken: string; pageSize?: number }) => {
+      sizesByToken.push({ pageToken, pageSize: pageSize ?? 0 });
+      if (pageToken === "older") {
+        if (!pruned) await hold;
+        return {
+          backups: pruned
+            ? []
+            : [
+                aBackup({
+                  id: "bkp_older",
+                  volume: "pruned-soon",
+                  startedAt: timestampFromDate(new Date("2026-11-05T03:00:00Z")),
+                }),
+              ],
+          nextPageToken: "",
+        };
+      }
+      return { backups: newest(), nextPageToken: "older" };
+    });
+    await user.click(within(runs).getByRole("button", { name: "Search all backups" }));
+    expect(await within(runs).findByText("Searching older backups")).toBeVisible();
+    // Refocusing the tab while searching all backups does not re-read the newest page.
+    const callsWhileSearching = sizesByToken.length;
+    window.dispatchEvent(new Event("focus"));
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(sizesByToken.length).toBe(callsWhileSearching);
+    unblock();
+    await waitFor(() => expect(within(runs).queryByText("Searching older backups")).toBeNull());
+    // Clear search and verify older backup is loaded on page 2, then finish the running backup with pruned=true.
+    await user.clear(search);
+    await user.click(within(runs).getByRole("button", { name: "Next" }));
+    expect(await within(runs).findByText("pruned-soon")).toBeVisible();
+    running = false;
+    pruned = true;
+    await waitFor(() => expect(within(runs).queryByText("pruned-soon")).toBeNull(), { timeout: 5000 });
+    // The older page originally fetched at 200 rows is re-read at 200 rows after search ends.
+    expect(sizesByToken.filter((call) => call.pageToken === "older").every((call) => call.pageSize === 200)).toBe(true);
+  });
+
+  it("filters and pages backup destinations when there are many (#914 Destinations)", async () => {
+    const user = userEvent.setup();
+    const destinations = Array.from({ length: 10 }, (_, i) =>
+      create(BackupDestinationInfoSchema, {
+        id: `dst_${i}`,
+        name: `dest-${String(i).padStart(2, "0")}`,
+        bucket: `bucket-${i}`,
+        endpoint: "https://s3.example.com",
+      }),
+    );
+    renderAt("/backups", api([aBackup()], { backups: { listBackupDestinations: () => ({ destinations }) } }));
+    const section = await screen.findByRole("region", { name: "Destinations" });
+    expect(await within(section).findByText("1-8 of 10")).toBeVisible();
+    expect(within(section).getByText("dest-00")).toBeVisible();
+    expect(within(section).queryByText("dest-09")).toBeNull();
+    await user.click(within(section).getByRole("button", { name: "Next" }));
+    expect(await within(section).findByText("dest-09")).toBeVisible();
+    await user.type(within(section).getByRole("searchbox", { name: "Filter destinations" }), "dest-03");
+    expect(await within(section).findByText("dest-03")).toBeVisible();
+    expect(within(section).queryByText("dest-09")).toBeNull();
+  });
 });
