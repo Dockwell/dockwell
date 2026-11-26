@@ -121,7 +121,8 @@ describe("the apps list", () => {
     await user.click(within(bar).getByRole("button", { name: "Delete 5" }));
     const toggle = await screen.findByRole("switch", { name: "Also delete 2 projects" });
     expect(toggle).toBeChecked();
-    expect(toggle).toHaveAccessibleDescription("shop and blog");
+    expect(toggle).toHaveAccessibleDescription("shop and blog · Nothing else is in them");
+    expect(propose.mock.calls[0]?.[0].summary).toBe("Delete 5 apps and 2 projects");
     const edits = propose.mock.calls[0]?.[0].edits ?? [];
     expect(edits.filter((edit) => edit.withContents).map((edit) => edit.resource?.name)).toEqual(["shop", "blog"]);
     expect(
@@ -132,6 +133,7 @@ describe("the apps list", () => {
     ).toEqual(["buyer", "default-app", "editor", "seller", "worker"]);
     await user.click(toggle);
     await waitFor(() => expect(propose).toHaveBeenCalledTimes(2));
+    expect(propose.mock.calls[1]?.[0].summary).toBe("Delete 5 apps");
     expect(propose.mock.calls[1]?.[0].edits).toEqual(edits.filter((edit) => !edit.withContents));
   });
 
@@ -883,6 +885,115 @@ describe("the apps list", () => {
     await expectAccessible(container);
     await user.click(link);
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx"));
+  });
+
+  it("counts a collapsed stack as one row on the page and spills onto page 2 when unfolded (#914 N2)", async () => {
+    const stack = aProject("bigstack", ...Array.from({ length: 30 }, (_, i) => `svc-${String(i).padStart(2, "0")}`));
+    const standalone = Array.from({ length: 25 }, (_, i) => anApp(`solo-${String(i).padStart(2, "0")}`, "nginx"));
+    const user = userEvent.setup();
+    renderAt("/apps", api([...stack, ...standalone]));
+    const table = await screen.findByRole("table", { name: "Apps" });
+    // Expanded: 30 stack rows + 25 standalone = 55 visible slots -> 2 pages.
+    expect(screen.getByText("1-50 of 55")).toBeVisible();
+    await user.click(within(table).getByRole("button", { name: "Fold bigstack" }));
+    // Collapsed: 1 stack row + 25 standalone = 26 visible slots -> fits on 1 page, pager disappears.
+    expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
+    expect(within(table).getByRole("link", { name: "solo-24" })).toBeVisible();
+    await user.click(within(table).getByRole("button", { name: "Unfold bigstack" }));
+    expect(screen.getByText("1-50 of 55")).toBeVisible();
+  });
+
+  it("waits for catalog installs before opening row Delete so catalog projects keep their label (#914 N5)", async () => {
+    let finishInstalls!: () => void;
+    const installsReady = new Promise<void>((resolve) => {
+      finishInstalls = resolve;
+    });
+    const wikiApps = aProject("wiki", "wiki");
+    const app = wikiApps[0];
+    if (!app) throw new Error("expected wiki app");
+    const projects = projectPlaces("wiki");
+    const propose = vi.fn((_req: ProposeChangeRequest) => ({ change: webPlanned() }));
+    renderAt("/apps", {
+      ...api([app]),
+      resources: {
+        listResources: (req) => {
+          if (req.kind === "project") {
+            const base = projects.listResources(req);
+            return {
+              resources: base.resources.map((r) => (r.id === "prj_wiki" ? { ...r, displayName: "Outline" } : r)),
+            };
+          }
+          if (req.kind) return projects.listResources(req);
+          return { resources: [resource(app.id, "service", "env_wiki", "wiki")] };
+        },
+      },
+      catalog: {
+        listCatalogInstalls: async () => {
+          await installsReady;
+          return {
+            installs: [
+              {
+                projectId: "prj_wiki",
+                projectName: "wiki",
+              },
+            ],
+          };
+        },
+      },
+      changes: { proposeChange: propose, discardChange: () => ({}) },
+    });
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Apps" });
+    await user.click(within(table).getByRole("button", { name: "Actions for wiki" }));
+    const menu = await screen.findByRole("menu", { name: "Actions for wiki" });
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete" }));
+    // Still waiting on catalog installs, so proposeChange has not been called yet.
+    expect(propose).not.toHaveBeenCalled();
+    finishInstalls();
+    expect(await screen.findByRole("switch", { name: "Also delete the project wiki" })).toBeVisible();
+    expect(propose).toHaveBeenCalledTimes(1);
+  });
+
+  it("names each project's leftover resources in the batch delete switch (#919 N2)", async () => {
+    const apps = [...aProject("shop", "buyer"), ...aProject("blog", "editor")];
+    const projects = projectPlaces("shop", "blog");
+    const propose = vi.fn((_req: ProposeChangeRequest) => ({ change: webPlanned() }));
+    renderAt("/apps", {
+      ...api(apps),
+      resources: {
+        listResources: (req) => {
+          if (req.kind) return projects.listResources(req);
+          if (req.scope === "env_shop") {
+            return {
+              resources: [
+                resource("svc_buyer", "service", "env_shop", "buyer"),
+                resource("sec_1", "secret", "env_shop", "stripe"),
+                resource("sec_2", "secret", "env_shop", "webhook"),
+              ],
+            };
+          }
+          if (req.scope === "env_blog") {
+            return { resources: [resource("svc_editor", "service", "env_blog", "editor")] };
+          }
+          return { resources: [] };
+        },
+      },
+      changes: { proposeChange: propose, discardChange: () => ({}) },
+    });
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Apps" });
+    await user.click(within(table).getByRole("checkbox", { name: "Select buyer" }));
+    await user.click(within(table).getByRole("checkbox", { name: "Select editor" }));
+    const bar = screen.getByRole("toolbar", { name: "Actions for the rows selected" });
+    await user.click(within(bar).getByRole("button", { name: "Delete 2" }));
+    const toggle = await screen.findByRole("switch", { name: "Also delete 2 projects" });
+    expect(toggle).toHaveAccessibleDescription("Takes shop (2 secrets) and blog (nothing else)");
+    await user.click(toggle);
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Also delete 2 projects" })).toHaveAccessibleDescription(
+        "Leaves shop (2 secrets) and blog (nothing else)",
+      ),
+    );
   });
 
   it("speaks Chinese", async () => {

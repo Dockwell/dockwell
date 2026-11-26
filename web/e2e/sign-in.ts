@@ -144,7 +144,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   // Docker's data, as /info says it, is on the disk this checkout is on, which is a
   // data disk here and in CI where a container's / isn't, so a server's Overview
   // adds up that disk part by part. Nothing is written there.
-  const dockerRoot = join(process.cwd(), "bin", "fakedocker-root");
+  const dockerRoot = process.env["FAKEDOCKER_ROOT"] || join(process.cwd(), "bin", "fakedocker-root");
   await mkdir(dockerRoot, { recursive: true });
   // A registry of a few images beside it, for the agent to read images from (ADR 0062),
   // on a port of its own past the panel's range.

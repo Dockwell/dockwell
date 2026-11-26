@@ -28,7 +28,6 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { sentence } from "../../lib/errors";
@@ -148,7 +147,26 @@ export function DockerStorage({
       pageToken: token,
       filter: { search: search.trim(), driver, ownership },
     },
-    { retry: false, refetchOnWindowFocus: false, placeholderData: keepPreviousData },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      placeholderData: (previous) =>
+        !token && previous
+          ? {
+              ...previous,
+              objects: previous.objects.filter((row) => {
+                if (ownership !== DockerOwnership.UNSPECIFIED && row.ownership !== ownership) return false;
+                const rowDriver =
+                  row.detail.case === "network" || row.detail.case === "volume" ? row.detail.value.driver : "";
+                if (driver && rowDriver !== driver) return false;
+                const q = search.trim().toLowerCase();
+                if (!q) return true;
+                return [row.name, row.key?.engineId, rowDriver].join(" ").toLowerCase().includes(q);
+              }),
+              nextPageToken: "",
+            }
+          : undefined,
+    },
   );
   const refresh = () => {
     if (token) setPages([""]);
@@ -159,7 +177,11 @@ export function DockerStorage({
       ? [{ ...row, key: row.key, id: `${row.key.serverId}/${row.key.engineId}` }]
       : [],
   );
-  const selection = useRowSelection(query.isPlaceholderData ? [] : rows.map((row) => row.id), true, searchInput);
+  const selection = useRowSelection(
+    rows.map((row) => row.id),
+    maintenance.allowed,
+    searchInput,
+  );
   const selected = rows.filter((row) => selection.selected.includes(row.id));
   const cleanup = useSelectedCleanup(
     volumes ? DockerCleanupKind.VOLUME : DockerCleanupKind.NETWORK,
@@ -368,13 +390,17 @@ export function DockerStorage({
         : facts.attachmentCount;
   };
   const columns: TableColumn<StorageRow>[] = [
-    selectionColumn({
-      selection,
-      rows,
-      idOf: (row) => (query.isPlaceholderData ? undefined : row.id),
-      labelOf: (row) => t`Select ${row.name}`,
-      allLabel: t`Select all rows on this page`,
-    }),
+    ...(selection.enabled
+      ? [
+          selectionColumn({
+            selection,
+            rows,
+            idOf: (row) => row.id,
+            labelOf: (row) => t`Select ${row.name}`,
+            allLabel: t`Select all rows on this page`,
+          }),
+        ]
+      : []),
     { key: "name", header: volumes ? t`Volume` : t`Network`, width: "25%", skeleton: "titled", render: nameOf },
     { key: "driver", header: t`Driver`, width: 88, render: (row) => <code>{driverOf(row)}</code> },
     { key: "location", header: mountOrPools, render: locationOf },
@@ -537,11 +563,13 @@ export function DockerStorage({
                     onContextMenu={(event) => cardContextMenu(event, (at, el) => openContext(row, at, el))}
                   >
                     <div className="docker-card-head">
-                      <SelectBox
-                        label={t`Select ${row.name}`}
-                        checked={selection.has(row.id)}
-                        onPick={(on, range) => !query.isPlaceholderData && selection.toggle(row.id, on, range)}
-                      />
+                      {selection.enabled ? (
+                        <SelectBox
+                          label={t`Select ${row.name}`}
+                          checked={selection.has(row.id)}
+                          onPick={(on, range) => selection.toggle(row.id, on, range)}
+                        />
+                      ) : null}
                       {nameOf(row)}
                       {dots(row)}
                     </div>

@@ -350,7 +350,7 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
         icon: start ? "play" : "stop",
         ...mayPlan.off,
         ...(mayPlan.allowed && service && requireServicePlacement && !workloadServers
-          ? { off: t`Service placement is unavailable` }
+          ? { off: t`Dockwell couldn't read where this service runs. Refresh to try again.` }
           : {}),
         onSelect: () =>
           fleetAction
@@ -627,7 +627,9 @@ export function DockerContainers({
         revision: service.revision,
         servers: new Set(
           service.deployments
-            .filter((deployment) => deployment.state !== DeploymentState.SUPERSEDED)
+            .filter(
+              (deployment) => deployment.state === DeploymentState.LIVE || deployment.state === DeploymentState.PENDING,
+            )
             .map((deployment) => deployment.serverId),
         ),
       },
@@ -762,7 +764,13 @@ export function DockerContainers({
       },
     ];
   });
-  const selection = useRowSelection(query.isPlaceholderData ? [] : list.map((row) => row.id), true, searchInput);
+  const canAct =
+    may(ChangeService.method.proposeChange).allowed || may(DockerService.method.planDockerMaintenance).allowed;
+  const selection = useRowSelection(
+    list.map((row) => row.id),
+    canAct,
+    searchInput,
+  );
   const selected = list.filter((row) => selection.has(row.id));
   const candidates = selected.flatMap((row) => {
     const target = runTarget(row.object);
@@ -770,6 +778,7 @@ export function DockerContainers({
   });
   const byId = new Map(candidates.map((target) => [target.row.id, target]));
   const batchAction = useBatchAction<Row>();
+  const skippedServices = new Map<string, string>();
   const runBatch = (mode: "start" | "stop" | "pause" | "unpause") => {
     const start = mode === "start";
     const pause = mode === "pause";
@@ -777,16 +786,23 @@ export function DockerContainers({
     const matches = (row: Row, starts: boolean) =>
       togglePause ? row.object.state === (pause ? ContainerState.RUNNING : ContainerState.PAUSED) : starts === start;
     const label = start ? t`Start` : pause ? t`Pause` : togglePause ? t`Unpause` : t`Stop`;
+    const wrongState = start
+      ? t`Already running`
+      : pause
+        ? t`Not running or already paused`
+        : togglePause
+          ? t`Not paused`
+          : t`Already stopped`;
     return batchAction(
       selected,
       (row) => {
         const target = byId.get(row.id);
-        if (!target) return { reason: t`No managed run state` };
-        if (!matches(row, target.start)) return { reason: t`Workload state doesn't match` };
+        if (!target) return { reason: t`Dockwell doesn't manage this container` };
+        if (!matches(row, target.start)) return { reason: wrongState };
         if (!target.permission.allowed) return { permission: target.permission };
         if (target.resource.kind === "service") {
           const placement = placementFor(row);
-          if (!placement) return { reason: t`Service placement is unavailable` };
+          if (!placement) return { reason: t`Dockwell couldn't read where this service runs. Refresh to try again.` };
           const selectedServers = new Set(
             candidates
               .filter(
@@ -798,8 +814,20 @@ export function DockerContainers({
               )
               .map((candidate) => candidate.row.serverId),
           );
-          if ([...placement].some((server) => !selectedServers.has(server)))
-            return { reason: t`Select a matching replica on every server` };
+          const missing = [...placement].filter((server) => !selectedServers.has(server));
+          if (missing.length > 0) {
+            if (row.object.managedResourceId) skippedServices.set(row.object.managedResourceId, target.resource.name);
+            const selectedAnyState = new Set(
+              selected
+                .filter((item) => item.object.managedResourceId === row.object.managedResourceId)
+                .map((item) => item.serverId),
+            );
+            const extra = [...placement].filter((server) => !selectedAnyState.has(server)).length;
+            if (extra > 0) {
+              return { reason: plural(extra, { one: "Runs on # more server", other: "Runs on # more servers" }) };
+            }
+            return { reason: t`Replicas are in different states` };
+          }
         }
         return undefined;
       },
@@ -830,19 +858,45 @@ export function DockerContainers({
       },
     );
   };
-  const batch = combineBatchActions(
-    runBatch("start"),
-    runBatch("stop"),
-    runBatch("pause"),
-    runBatch("unpause"),
-    lifecycle.batch(
-      selected.map((row) => row.object),
-      () => {
-        selection.clear();
-        refresh();
-      },
-    ),
+  const managedBatches = [runBatch("start"), runBatch("stop"), runBatch("pause"), runBatch("unpause")];
+  const externalBatch = lifecycle.batch(
+    selected.map((row) => row.object),
+    () => {
+      selection.clear();
+      refresh();
+    },
   );
+  const openSkipped = (() => {
+    if (skippedServices.size === 0) return { actions: [], notes: [] };
+    const entries = [...skippedServices.entries()];
+    const multiServerNotes = managedBatches.flatMap((item) => item.notes);
+    if (entries.length === 1 && entries[0]) {
+      const [serviceId, serviceName] = entries[0];
+      return {
+        actions: [
+          {
+            id: "open-app",
+            icon: "service" as const,
+            label: t`Open ${serviceName}`,
+            onSelect: () => void navigate({ to: "/apps/$serviceId", params: { serviceId } }),
+          },
+        ],
+        notes: multiServerNotes,
+      };
+    }
+    return {
+      actions: [
+        {
+          id: "open-apps",
+          icon: "service" as const,
+          label: t`Open Apps`,
+          onSelect: () => void navigate({ to: "/apps" }),
+        },
+      ],
+      notes: multiServerNotes,
+    };
+  })();
+  const batch = combineBatchActions(...managedBatches, externalBatch, openSkipped);
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;
@@ -1064,11 +1118,13 @@ export function DockerContainers({
                     }
                   >
                     <div className="docker-card-head">
-                      <SelectBox
-                        label={t`Select ${row.object.name}`}
-                        checked={selection.has(row.id)}
-                        onPick={(on, range) => selection.toggle(row.id, on, range)}
-                      />
+                      {selection.enabled ? (
+                        <SelectBox
+                          label={t`Select ${row.object.name}`}
+                          checked={selection.has(row.id)}
+                          onPick={(on, range) => selection.toggle(row.id, on, range)}
+                        />
+                      ) : null}
                       {name(row)}
                       <ContainerStatus row={row.object} />
                     </div>
@@ -1103,13 +1159,17 @@ export function DockerContainers({
                 rowHasContextMenu={(row) => !!row.object.key}
                 onRowContextMenu={(row, at, element) => menu.open(row, at, element, rowActions(row))}
                 columns={[
-                  selectionColumn({
-                    selection,
-                    rows: list,
-                    idOf: (row) => row.id,
-                    labelOf: (row) => t`Select ${row.object.name}`,
-                    allLabel: t`Select all rows on this page`,
-                  }),
+                  ...(selection.enabled
+                    ? [
+                        selectionColumn({
+                          selection,
+                          rows: list,
+                          idOf: (row) => row.id,
+                          labelOf: (row) => t`Select ${row.object.name}`,
+                          allLabel: t`Select all rows on this page`,
+                        }),
+                      ]
+                    : []),
                   ...columns,
                 ]}
               />

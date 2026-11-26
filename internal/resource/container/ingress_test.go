@@ -24,8 +24,8 @@ type fakeIngress struct {
 	asked   []ingress.Instance
 	routed  bool
 	// What a rollout did, in order, and what Reachable answers.
-	added, drained, removed []ingress.Instance
-	unreachable             error
+	added, drained, removed, paused []ingress.Instance
+	unreachable                     error
 }
 
 // Endpoint gives each instance an address of its own, counting up from address.
@@ -66,6 +66,11 @@ func (f *fakeIngress) Drain(_ context.Context, i ingress.Instance) error {
 
 func (f *fakeIngress) RemoveUpstream(_ context.Context, i ingress.Instance) error {
 	f.removed = append(f.removed, i)
+	return nil
+}
+
+func (f *fakeIngress) PauseUpstream(_ context.Context, i ingress.Instance) error {
+	f.paused = append(f.paused, i)
 	return nil
 }
 

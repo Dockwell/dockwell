@@ -48,6 +48,7 @@ export function useDeleteApps() {
   const transport = useTransport();
   const sheet = useChangeSheet();
   const mayProject = useMay()(ChangeService.method.proposeChange, { install: true });
+  const words = useResourceWords();
   return (apps: readonly ServiceInfo[], onApplied: () => void) => {
     if (apps.length === 0) return;
     const n = apps.length;
@@ -96,20 +97,51 @@ export function useDeleteApps() {
                 )
               )
                 return undefined;
-              return { project, scopes };
+              const left = contents.filter(
+                ({ resource }) => resource && resource.kind !== "environment" && !deleting.has(refKey(resource)),
+              );
+              return { project, scopes, left };
             }),
           )
         ).filter((item) => item !== undefined);
         if (empty.length === 0) return client.proposeChange({ summary, edits });
 
-        const labels = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(
-          empty.map(({ project }) => projectLabel(project, installs)),
+        const listFormat = new Intl.ListFormat(i18n.locale, { type: "conjunction" });
+        const entries = empty.map(({ project, left }) => ({
+          name: projectLabel(project, installs),
+          leftWords: left.length > 0 ? words(left) : "",
+        }));
+        const labels = listFormat.format(entries.map((entry) => entry.name));
+        const hasExtras = entries.some((entry) => entry.leftWords !== "");
+        const described = listFormat.format(
+          entries.map(({ name, leftWords }) => (leftWords ? t`${name} (${leftWords})` : t`${name} (nothing else)`)),
         );
         const projectCount = empty.length;
+        const appPart = plural(n, { one: "# app", other: "# apps" });
+        const projectPart = plural(projectCount, { one: "# project", other: "# projects" });
+        const summaryWithProjects = t`Delete ${appPart} and ${projectPart}`;
         const label = plural(projectCount, {
           one: "Also delete # project",
           other: "Also delete # projects",
         });
+        const describeChoice = (on: boolean) => {
+          if (entries.length === 1 && entries[0]) {
+            const { name, leftWords } = entries[0];
+            if (!leftWords) return t`${name} · Nothing else is in it`;
+            return on ? t`${name} · Takes ${leftWords} with it` : t`${name} · Leaves ${leftWords} in it`;
+          }
+          if (!hasExtras) {
+            return on ? t`${labels} · Nothing else is in them` : t`Leaves ${labels} empty`;
+          }
+          return on ? t`Takes ${described}` : t`Leaves ${described}`;
+        };
+        const nonAdminNote = (() => {
+          if (entries.length === 1 && entries[0]) {
+            const { name, leftWords } = entries[0];
+            return leftWords ? t`Leaves ${name} with ${leftWords}.` : t`Leaves ${name} empty.`;
+          }
+          return hasExtras ? t`Leaves ${described}.` : t`Leaves ${labels} empty.`;
+        })();
         const covered = new Set(empty.flatMap(({ project, scopes }) => [project.id, ...scopes]));
         const projectEdits = empty.map(({ project }) => ({
           ...deletingProjectEdit(project),
@@ -117,7 +149,7 @@ export function useDeleteApps() {
         }));
         const make = async (on: boolean) => {
           const result = await client.proposeChange({
-            summary,
+            summary: on ? summaryWithProjects : summary,
             edits: on ? [...edits, ...projectEdits] : edits,
           });
           // The server expands projects within the proposal. Catch an app or route added since the list read.
@@ -147,11 +179,11 @@ export function useDeleteApps() {
         const choice = (on: boolean): PlanChoice => ({
           label,
           on,
-          ...(mayProject.allowed ? { description: labels } : { off: mayProject.reason }),
+          ...(mayProject.allowed ? { description: describeChoice(on) } : { off: mayProject.reason }),
           flip: () => ({ kind: "plan", make: () => make(!on), choice: choice(!on), onClose }),
         });
         const on = mayProject.allowed;
-        return { ...(await make(on)), choice: choice(on), ...(on ? {} : { notes: [labels] }) };
+        return { ...(await make(on)), choice: choice(on), ...(on ? {} : { notes: [nonAdminNote] }) };
       },
     });
   };
@@ -293,10 +325,14 @@ export function useDeleteAppPlan(
   return {
     routes: routes.length,
     open,
-    pending: places.isPending || (project !== undefined && environments.length > 0 && contents.isPending),
-    error: projects.error ?? contents.error,
+    pending:
+      places.isPending ||
+      projects.isPending ||
+      (project !== undefined && (installs.isPending || (environments.length > 0 && contents.isPending))),
+    error: projects.error ?? (project !== undefined ? installs.error : null) ?? contents.error,
     retry: () => {
       if (projects.error) void projects.refetch();
+      if (installs.error) void installs.refetch();
       if (contents.error) void contents.refetch();
     },
     project: project

@@ -780,6 +780,12 @@ func routeJSON(r ingress.Route) route {
 		match = append(match, variant)
 	}
 	handle = append(handle, h)
+	if r.Paused {
+		// Its answer comes ahead of the upstream so requests don't hang on a frozen
+		// container; the steps after it stay so reading the route back still knows
+		// where it sends, and unpausing restores it with no route drift.
+		handle = append([]handler{pausedHandler()}, handle...)
+	}
 	if r.Held {
 		// Its answer comes first, and ends the request, so nothing goes on; the steps
 		// after it stay, so reading the route back reads where it sends. With a setup
@@ -1073,9 +1079,18 @@ func guarded(h *headers, r ingress.Route) *headers {
 // heldBody is what a held route answers (ADR 0084).
 const heldBody = "This app isn't open yet: its owner is setting it up. Try again later.\n"
 
+// pausedBody is what a route answers while every container of its service on
+// this server is paused (ADR 0107).
+const pausedBody = "This app is paused. Try again later.\n"
+
 // heldHandler is a held route's answer, ahead of what it would send on.
 func heldHandler() handler {
 	return handler{Handler: "static_response", StatusCode: http.StatusServiceUnavailable, Body: heldBody}
+}
+
+// pausedHandler is a paused service route's answer, ahead of what it would send on.
+func pausedHandler() handler {
+	return handler{Handler: "static_response", StatusCode: http.StatusServiceUnavailable, Body: pausedBody}
 }
 
 // setupAsk asks a held route's agent whether a visitor came through its setup link,
@@ -1144,6 +1159,16 @@ func withoutSetup(raw json.RawMessage) (json.RawMessage, string, bool) {
 // unheldStatic is a route's JSON without the answer a held route with no setup link
 // gives first, and whether it had one.
 func unheldStatic(raw json.RawMessage) (json.RawMessage, bool) {
+	return stripStaticResponse(raw, heldBody)
+}
+
+// unpaused is a route's JSON without the answer a paused service's route gives
+// first, and whether it had one.
+func unpaused(raw json.RawMessage) (json.RawMessage, bool) {
+	return stripStaticResponse(raw, pausedBody)
+}
+
+func stripStaticResponse(raw json.RawMessage, body string) (json.RawMessage, bool) {
 	var top map[string]json.RawMessage
 	var r struct {
 		Handle []json.RawMessage `json:"handle"`
@@ -1152,7 +1177,7 @@ func unheldStatic(raw json.RawMessage) (json.RawMessage, bool) {
 		return raw, false
 	}
 	var first map[string]any
-	if json.Unmarshal(r.Handle[0], &first) != nil || first["handler"] != "static_response" || first["body"] != heldBody ||
+	if json.Unmarshal(r.Handle[0], &first) != nil || first["handler"] != "static_response" || first["body"] != body ||
 		first["status_code"] != float64(http.StatusServiceUnavailable) || len(first) != 3 {
 		return raw, false
 	}
@@ -1838,6 +1863,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	}
 	out := ingress.Route{ID: id}
 	raw, out.Held, out.Setup = unheld(raw)
+	raw, out.Paused = unpaused(raw)
 	var r route
 	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 6 {
 		out.Edited = true
@@ -1933,8 +1959,8 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 // otherwise read as nothing. Each step is compared as Caddy has it, so a key Dockwell
 // doesn't write is a difference too.
 func beliefAndReachAreOurs(raw json.RawMessage, r route, read ingress.Route) bool {
-	// What's read is the route without a held route's answer, which is compared apart.
-	read.Held = false
+	// What's read is the route without a held or paused route's answer, which are compared apart.
+	read.Held, read.Paused = false, false
 	want := routeJSON(read)
 	wantMatch, err1 := json.Marshal(want.Match[0].RemoteIP)
 	haveMatch, err2 := json.Marshal(r.Match[0].RemoteIP)

@@ -85,10 +85,12 @@ function behind(backup: Backup, tail: Backup) {
 }
 
 /** The fleet reads older pages on demand. Only the newest page polls while work is under way. */
-export function useBackupPages() {
+export function useBackupPages(searchingAll = false) {
   const transport = useTransport();
   const cache = useQueryClient();
   const historyKey = useHistoryKey();
+  const searchingAllRef = useRef(searchingAll);
+  searchingAllRef.current = searchingAll;
   const newest = useQuery(
     BackupService.method.listBackups,
     { pageSize: LIST_PAGE_SIZE },
@@ -96,19 +98,24 @@ export function useBackupPages() {
       refetchInterval: (query) => (query.state.data?.backups.some(underWay) ? WHILE_RUNNING : false),
     },
   );
+  const firstRef = useRef(newest.data);
+  firstRef.current = newest.data;
   const history = useInfiniteQuery({
     queryKey: historyKey,
-    queryFn: ({ pageParam, signal }) =>
-      createClient(BackupService, transport).listBackups(
-        { pageSize: LIST_PAGE_SIZE, pageToken: pageParam },
+    queryFn: ({ pageParam, signal }) => {
+      if (pageParam === "" && firstRef.current) return Promise.resolve(firstRef.current);
+      return createClient(BackupService, transport).listBackups(
+        { pageSize: searchingAllRef.current ? PAGE_SIZE : LIST_PAGE_SIZE, pageToken: pageParam },
         { signal },
-      ),
+      );
+    },
     initialPageParam: "",
     getNextPageParam: (page, _pages, _param, params) =>
       page.nextPageToken && !params.includes(page.nextPageToken) ? page.nextPageToken : undefined,
     enabled: false,
   });
   const fetchOlder = history.fetchNextPage;
+  const refetchHistory = history.refetch;
   const first = newest.data;
   const fetchNextPage = useCallback(() => {
     if (!first?.nextPageToken) return;
@@ -118,22 +125,44 @@ export function useBackupPages() {
     return fetchOlder({ cancelRefetch: false });
   }, [cache, first, fetchOlder, historyKey]);
   const previous = useRef(first);
+  const previousUpdatedAt = useRef(newest.dataUpdatedAt);
   useEffect(() => {
     const before = previous.current;
+    const beforeUpdatedAt = previousUpdatedAt.current;
     previous.current = first;
-    const tail = first?.backups.at(-1);
-    if (!before || !tail || !first?.nextPageToken) return;
-    const shifted = before.backups.filter((b) => behind(b, tail));
-    if (!shifted.length) return;
-    cache.setQueryData<History>(historyKey, (data) => {
-      const anchor = data?.pages[0];
-      if (!data || !anchor) return data;
-      const seen = new Set(anchor.backups.map((b) => b.id));
-      const added = shifted.filter((b) => !seen.has(b.id));
-      if (!added.length) return data;
-      return { ...data, pages: [{ ...anchor, backups: [...added, ...anchor.backups] }, ...data.pages.slice(1)] };
-    });
-  }, [cache, first, historyKey]);
+    previousUpdatedAt.current = newest.dataUpdatedAt;
+    if (!before || !first || newest.dataUpdatedAt === beforeUpdatedAt) return;
+    const existing = cache.getQueryData<History>(historyKey);
+    if (!existing) return;
+    const wasRunning = before.backups.some(underWay);
+    const stillRunning = first.backups.some(underWay);
+    // Keep polling lightweight while a backup is actively running: only shift
+    // displaced page-1 rows into the anchor without re-reading older pages on
+    // every 2-second poll tick.
+    if (wasRunning && stillRunning) {
+      const tail = first.backups.at(-1);
+      if (!tail || !first.nextPageToken) return;
+      const shifted = before.backups.filter((b) => behind(b, tail));
+      if (!shifted.length) return;
+      cache.setQueryData<History>(historyKey, (data) => {
+        const anchor = data?.pages[0];
+        if (!data || !anchor) return data;
+        const seen = new Set(anchor.backups.map((b) => b.id));
+        const added = shifted.filter((b) => !seen.has(b.id));
+        if (!added.length) return data;
+        return { ...data, pages: [{ ...anchor, backups: [...added, ...anchor.backups] }, ...data.pages.slice(1)] };
+      });
+      return;
+    }
+    // Outside active polling (invalidation, manual refresh, refocus, or a
+    // running backup finishing and potentially pruning old backups), refresh
+    // loaded older pages so pruned or changed backups update on screen.
+    if (!first.nextPageToken) {
+      cache.removeQueries({ queryKey: historyKey, exact: true });
+      return;
+    }
+    void refetchHistory();
+  }, [cache, first, historyKey, newest.dataUpdatedAt, refetchHistory]);
   const backups = useMemo(() => {
     if (!first) return [];
     const tail = first.backups.at(-1);
@@ -153,6 +182,11 @@ export function useBackupPages() {
     }
     return all;
   }, [first, history.data]);
+  const refetch = useCallback(async () => {
+    const res = await newest.refetch();
+    if (cache.getQueryData<History>(historyKey)) await refetchHistory();
+    return res;
+  }, [cache, historyKey, newest, refetchHistory]);
   return {
     backups,
     fetchNextPage,
@@ -162,7 +196,7 @@ export function useBackupPages() {
     isFetchingNextPage: history.isFetchingNextPage,
     isFetchNextPageError: history.isFetchNextPageError,
     error: history.error ?? newest.error,
-    refetch: newest.refetch,
+    refetch,
   };
 }
 

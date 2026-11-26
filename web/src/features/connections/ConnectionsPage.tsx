@@ -77,6 +77,9 @@ function rowKind(row: ListRow): NonNullable<ConnectionsSearch["kind"]> {
 /** The columns the list sorts by, as its address names them. */
 const SORT_KEYS = ["name"] as const;
 
+/** Maximum consumer names shown inline before collapsing into "and N more". */
+const USED_BY_PREVIEW = 3;
+
 /** A row's name, and where it is, as the list filters and sorts by them. */
 function rowWords(row: ListRow): string {
   return row.kind === "connection"
@@ -201,7 +204,7 @@ export function ConnectionsPage({
       // biome-ignore lint/correctness/useHookAtTopLevel: Connect RPC method name begins with "use", not a React hook
       make: () => backupClient.useDestinationAsConnection({ destination: d.name }),
     });
-  // A row's menu: open it, and for a destination with keys of its own, use it as a connection.
+  /** A row's menu: open it, and for a destination with keys of its own, use it as a connection. */
   const removeOff = (connection: ConnectionInfo) => {
     if (!mayAdd.allowed) return mayAdd.off;
     const apps = connection.uses.flatMap((use) => (use.apps.length ? use.apps : [use.link]));
@@ -210,8 +213,12 @@ export function ConnectionsPage({
       ...destinationsOn(connection.name, destinations).map((d) => d.name),
       ...channelsOn(connection.name, channels).map((c) => c.name),
     ].filter(Boolean);
-    const usedBy = [...new Set(names)].join(", ");
-    return usedBy ? { off: t`Used by ${usedBy}. Disconnect it there first.` } : {};
+    const unique = [...new Set(names)];
+    if (unique.length === 0) return {};
+    const shown = unique.slice(0, USED_BY_PREVIEW).join(", ");
+    const extra = unique.length - USED_BY_PREVIEW;
+    const usedBy = extra > 0 ? t`${shown} and ${extra} more` : shown;
+    return { off: t`Used by ${usedBy}. Disconnect it there first.` };
   };
   const actionsFor = (row: ListRow): MenuAction[] => [
     { id: "open", icon: "network", label: t`Open`, onSelect: () => openRow(row) },
@@ -393,7 +400,7 @@ export function ConnectionsPage({
                     <span className="connections-phone-text">
                       <span className="connections-mono connections-name">{row.connection.name}</span>
                       <span className="connections-meta">
-                        <UsedBy connection={row.connection} destinations={destinations} channels={channels} />
+                        <UsedBy connection={row.connection} destinations={destinations} channels={channels} plain />
                       </span>
                       <PhoneCheck connection={row.connection} />
                     </span>
@@ -642,15 +649,63 @@ function PhoneCheck({ connection }: { connection: ConnectionInfo }) {
   return <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />;
 }
 
+function UsedByNames({ names, plain = false }: { names: readonly string[]; plain?: boolean }) {
+  const { t } = useLingui();
+  const [expanded, setExpanded] = useState(false);
+  const full = names.join(", ");
+  if (names.length <= USED_BY_PREVIEW) {
+    return (
+      <span className="connections-mono connections-meta connections-apps" title={full}>
+        {full || t`none`}
+      </span>
+    );
+  }
+  const extra = names.length - USED_BY_PREVIEW;
+  const shown = names.slice(0, USED_BY_PREVIEW).join(", ");
+  if (plain) {
+    return (
+      <span className="connections-mono connections-meta connections-apps" title={full}>
+        {t`${shown} and ${extra} more`}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={
+        expanded
+          ? "connections-mono connections-meta connections-apps is-expanded"
+          : "connections-mono connections-meta connections-apps"
+      }
+      title={full}
+    >
+      {expanded ? full : shown}{" "}
+      <button
+        type="button"
+        className="connections-more-btn"
+        aria-expanded={expanded}
+        onClick={(event) => {
+          event.stopPropagation();
+          event.preventDefault();
+          setExpanded((was) => !was);
+        }}
+      >
+        {expanded ? t`Show fewer` : t`and ${extra} more`}
+      </button>
+    </span>
+  );
+}
+
 /** How many apps, backup destinations, or alert channels use it, with their names. */
 function UsedBy({
   connection,
   destinations,
   channels,
+  plain = false,
 }: {
   connection: ConnectionInfo;
   destinations: readonly BackupDestinationInfo[];
   channels: readonly AlertChannelInfo[];
+  plain?: boolean;
 }) {
   const { t } = useLingui();
   const places = usePlaces();
@@ -674,7 +729,7 @@ function UsedBy({
         </span>
       );
     }
-    const names = backups.map((d) => d.name).join(", ");
+    const names = backups.map((d) => d.name);
     return (
       <div className="dw-cell">
         <span>
@@ -683,9 +738,7 @@ function UsedBy({
             other: "# backup destinations",
           })}
         </span>
-        <span className="connections-mono connections-meta connections-apps" title={names}>
-          {names}
-        </span>
+        <UsedByNames names={names} plain={plain} />
       </div>
     );
   }
@@ -698,7 +751,7 @@ function UsedBy({
         </span>
       );
     }
-    const names = alertChannels.map((ch) => ch.name).join(", ");
+    const names = alertChannels.map((ch) => ch.name);
     return (
       <div className="dw-cell">
         <span>
@@ -707,9 +760,7 @@ function UsedBy({
             other: "# alert channels",
           })}
         </span>
-        <span className="connections-mono connections-meta connections-apps" title={names}>
-          {names}
-        </span>
+        <UsedByNames names={names} plain={plain} />
       </div>
     );
   }
@@ -727,9 +778,7 @@ function UsedBy({
         {plural(apps.length, { one: "# app", other: "# apps" })}
         {shared}
       </span>
-      <span className="connections-mono connections-meta connections-apps" title={apps.join(", ")}>
-        {apps.join(", ") || t`none`}
-      </span>
+      <UsedByNames names={apps} plain={plain} />
     </div>
   );
 }

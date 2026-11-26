@@ -6613,11 +6613,32 @@ msgstr "同时删除项目 {label}"
 msgid "Delete the project {label}"
 msgstr "删除项目 {label}"
 
+msgid "Delete {appPart} and {projectPart}"
+msgstr "删除 {appPart} 和 {projectPart}"
+
 msgid "Delete {name} and the project {label}"
 msgstr "删除 {name} 和项目 {label}"
 
+msgid "Leaves {described}"
+msgstr "保留 {described}"
+
+msgid "Leaves {described}."
+msgstr "会保留 {described}。"
+
+msgid "Leaves {labels} empty"
+msgstr "使 {labels} 变为空项目"
+
+msgid "Leaves {labels} empty."
+msgstr "会使 {labels} 变为空项目。"
+
 msgid "Leaves {leftWords} in it"
 msgstr "{leftWords} 会留在其中"
+
+msgid "Leaves {name} empty."
+msgstr "会使 {name} 变为空项目。"
+
+msgid "Leaves {name} with {leftWords}."
+msgstr "会保留 {name} 中的 {leftWords}。"
 
 msgid "Nothing else is in it"
 msgstr "其中没有别的内容"
@@ -6625,11 +6646,38 @@ msgstr "其中没有别的内容"
 msgid "Review again"
 msgstr "重新审查"
 
+msgid "Takes {described}"
+msgstr "连同删除 {described}"
+
 msgid "Takes {leftWords} with it"
 msgstr "连同 {leftWords} 一并删除"
 
+msgid "{labels} · Nothing else is in them"
+msgstr "{labels} · 其中没有其他内容"
+
+msgid "{n, plural, one {# app} other {# apps}}"
+msgstr "{n, plural, other {# 个应用}}"
+
 msgid "{n, plural, one {Delete # app} other {Delete # apps}}"
 msgstr "{n, plural, other {删除 # 个应用}}"
+
+msgid "{name} (nothing else)"
+msgstr "{name}（无其他内容）"
+
+msgid "{name} ({leftWords})"
+msgstr "{name}（{leftWords}）"
+
+msgid "{name} · Leaves {leftWords} in it"
+msgstr "{name} · {leftWords} 会留在其中"
+
+msgid "{name} · Nothing else is in it"
+msgstr "{name} · 其中没有其他内容"
+
+msgid "{name} · Takes {leftWords} with it"
+msgstr "{name} · 连同 {leftWords} 一并删除"
+
+msgid "{projectCount, plural, one {# project} other {# projects}}"
+msgstr "{projectCount, plural, other {# 个项目}}"
 
 msgid "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
 msgstr "{projectCount, plural, other {同时删除 # 个项目}}"
@@ -8194,9 +8242,6 @@ msgstr "{ago}失败"
 msgid "Fetch this backup of {0}"
 msgstr "取回 {0} 的这个备份"
 
-msgid "Filter and sort use loaded backups."
-msgstr "筛选和排序只针对已加载的备份。"
-
 msgid "Filter backups"
 msgstr "筛选备份"
 
@@ -8278,6 +8323,9 @@ msgstr "使用较早的密码短语加密"
 msgid "Search all backups"
 msgstr "搜索所有备份"
 
+msgid "Searching older backups"
+msgstr "正在搜索更早的备份"
+
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
@@ -8331,6 +8379,12 @@ msgstr "{0, plural, other {每周测试 # 个计划的备份能否恢复}}"
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
 
+msgid "{shown, plural, one {Searching the newest # backup.} other {Searching the newest # backups.}}"
+msgstr "{shown, plural, other {正在搜索最新的 # 个备份。}}"
+
+msgid "{shown, plural, one {Sorting the newest # backup.} other {Sorting the newest # backups.}}"
+msgstr "{shown, plural, other {正在排序最新的 # 个备份。}}"
+
 msgid "{shown} newest"
 msgstr "最新的 {shown} 个"
 
@@ -8346,6 +8400,12 @@ msgstr "目的地"
 msgid "Encrypted on each server before upload"
 msgstr "上传前在各服务器上加密"
 
+msgid "Filter by name or bucket"
+msgstr "按名称或存储桶筛选"
+
+msgid "Filter destinations"
+msgstr "筛选目标"
+
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
@@ -8355,6 +8415,9 @@ msgstr "正在加载备份去向"
 
 msgid "Manage"
 msgstr "管理"
+
+msgid "No destinations match"
+msgstr "没有匹配的目标"
 
 msgid "Only on each server's disk, unencrypted"
 msgstr "仅在各服务器的磁盘上，未加密"
@@ -12167,8 +12230,8 @@ msgstr "用于 {what}。"
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
 
-msgid "Health checks pause and routes lose their backend. Existing connections may stall."
-msgstr "健康检查暂停，路由失去后端。已有连接可能会停滞。"
+msgid "Health checks pause and its routes answer 503 while it is paused. Existing connections may stall."
+msgstr "暂停期间健康检查会暂停，其路由会返回 503。现有连接可能会停滞。"
 
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "健康检查将暂停，路由将没有可用的后端。依赖此工作负载的应用可能无法访问它。"
@@ -14133,6 +14196,9 @@ msgstr "尚无连接"
 msgid "Object storage"
 msgstr "对象存储"
 
+msgid "Show fewer"
+msgstr "收起"
+
 msgid "The page tries again by itself."
 msgstr "页面会自动重试。"
 
@@ -14144,6 +14210,9 @@ msgstr "作为连接使用"
 
 msgid "Used by {usedBy}. Disconnect it there first."
 msgstr "{usedBy} 正在使用此连接。请先在那里断开连接。"
+
+msgid "and {extra} more"
+msgstr "以及另外 {extra} 个"
 
 msgid "no app uses them yet"
 msgstr "尚无应用使用"
@@ -14188,6 +14257,9 @@ msgstr "{linkedBackupDests, plural, other {# 个备份目的地}}"
 
 msgid "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
 msgstr "{linkedBackupDests, plural, other {被 # 个备份目标使用}}"
+
+msgid "{shown} and {extra} more"
+msgstr "{shown} 以及另外 {extra} 个"
 
 msgid "Fails from {server}"
 msgstr "从 {server} 检查失败"
@@ -16447,6 +16519,12 @@ msgstr "无法读取容器"
 msgid "Docker is slow to answer on these servers"
 msgstr "这些服务器上的 Docker 响应较慢"
 
+msgid "Dockwell couldn't read where this service runs. Refresh to try again."
+msgstr "Dockwell 无法读取此服务的运行位置。请刷新重试。"
+
+msgid "Dockwell doesn't manage this container"
+msgstr "此容器不由 Dockwell 管理"
+
 msgid "Filter by this Compose project"
 msgstr "按此 Compose 项目筛选"
 
@@ -16472,11 +16550,20 @@ msgstr "没有容器"
 msgid "No containers match"
 msgstr "没有符合条件的容器"
 
-msgid "No managed run state"
-msgstr "未由 Dockwell 管理运行状态"
-
 msgid "No sample"
 msgstr "暂无采样"
+
+msgid "Not paused"
+msgstr "未暂停"
+
+msgid "Not running or already paused"
+msgstr "未运行或已暂停"
+
+msgid "Open Apps"
+msgstr "打开应用列表"
+
+msgid "Open {serviceName}"
+msgstr "打开 {serviceName}"
 
 #. placeholder {0}: pages.length
 msgid "Page {0}"
@@ -16491,17 +16578,14 @@ msgstr "刷新容器"
 msgid "Refresh list"
 msgstr "刷新列表"
 
+msgid "Replicas are in different states"
+msgstr "副本处于不同状态"
+
 msgid "Restart this container"
 msgstr "重启此容器"
 
 msgid "Search containers"
 msgstr "搜索容器"
-
-msgid "Select a matching replica on every server"
-msgstr "请选中每台服务器上状态匹配的副本"
-
-msgid "Service placement is unavailable"
-msgstr "无法读取服务所在的服务器"
 
 msgid "Start {name} on all {workloadServers} servers"
 msgstr "在全部 {workloadServers} 台服务器上启动 {name}"
@@ -16525,11 +16609,11 @@ msgstr "运行时长"
 msgid "Usage"
 msgstr "用量"
 
-msgid "Workload state doesn't match"
-msgstr "工作负载状态不适用"
-
 msgid "memory"
 msgstr "内存"
+
+msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
+msgstr "{extra, plural, other {还在另外 # 台服务器上运行}}"
 
 msgid "{label} {count}"
 msgstr "{label} {count} 个"
@@ -16775,14 +16859,11 @@ msgstr "受管理的容器或系统容器"
 msgid "New container name"
 msgstr "新容器名称"
 
-msgid "Not paused"
-msgstr "未暂停"
-
-msgid "Not running or already paused"
-msgstr "未运行或已暂停"
-
 msgid "Not running or paused"
 msgstr "未运行或已暂停"
+
+msgid "Paused containers accept only the default escalation or SIGKILL."
+msgstr "已暂停的容器仅接受默认升级终止或 SIGKILL。"
 
 msgid "Remove container and its anonymous volumes"
 msgstr "删除容器及其匿名卷"
@@ -17671,8 +17752,14 @@ msgstr "只能删除本地网络"
 msgid "Only local volumes with a verified identity can be deleted"
 msgstr "只能删除已验证身份的本地卷"
 
-msgid "This Docker item is no longer in the cleanup inventory"
-msgstr "此 Docker 项已不在清理清单中"
+msgid "This image is gone. Refresh the list"
+msgstr "此镜像已不存在。请刷新列表"
+
+msgid "This item is gone. Refresh the list"
+msgstr "此项已不存在。请刷新列表"
+
+msgid "This network is gone. Refresh the list"
+msgstr "此网络已不存在。请刷新列表"
 
 msgid "This plan reached the cleanup limit"
 msgstr "此计划已达到清理数量上限"
@@ -17680,11 +17767,23 @@ msgstr "此计划已达到清理数量上限"
 msgid "This volume is gone or has been replaced"
 msgstr "此卷已不存在或已被替换"
 
-msgid "Update the agent to delete this Docker item"
-msgstr "更新代理后即可删除此 Docker 项"
+msgid "Update the agent to delete this image"
+msgstr "请更新代理以删除此镜像"
+
+msgid "Update the agent to delete this item"
+msgstr "请更新代理以删除此项"
+
+msgid "Update the agent to delete this network"
+msgstr "请更新代理以删除此网络"
+
+msgid "Update the agent to delete this volume"
+msgstr "请更新代理以删除此卷"
 
 msgid "{count} skipped ({reason})"
 msgstr "已跳过 {count} 项（{reason}）"
+
+msgid "{detail}. Nothing was deleted."
+msgstr "{detail}。未删除任何内容。"
 
 msgid "{detail}. Nothing was deleted. Review again."
 msgstr "{detail}。未删除任何内容。请重新审阅。"
@@ -27779,6 +27878,9 @@ msgstr "按域名筛选"
 msgid "Filter websites"
 msgstr "筛选网站"
 
+msgid "HTTPS {count}"
+msgstr "HTTPS {count}"
+
 msgid "Loading websites"
 msgstr "正在加载网站"
 
@@ -27791,6 +27893,9 @@ msgstr "没有此类型的网站。"
 
 msgid "No websites yet"
 msgstr "还没有网站"
+
+msgid "Not a PHP website"
+msgstr "不是 PHP 网站"
 
 msgid "Off (TLS ends in front)"
 msgstr "关闭（TLS 在前端终止）"
@@ -27815,6 +27920,9 @@ msgstr "静态文件"
 
 msgid "Switch PHP"
 msgstr "切换 PHP"
+
+msgid "Switch PHP {count}"
+msgstr "切换 PHP {count}"
 
 #. placeholder {0}: target.sites.length
 msgid "Switch {0} websites to PHP {phpChoice}"

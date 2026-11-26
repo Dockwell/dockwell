@@ -62,7 +62,7 @@ func (e *Engine) workloadNotes(ctx context.Context, items []item, notes []Note) 
 			message = "Stops this workload on all its placed servers and pauses its container health checks. Its routes have no running backend. Dependent workloads stay up and may lose access to it."
 		case after == paused:
 			reason = "workload_pauses"
-			message = "Pauses this workload on all its placed servers. Existing connections may stall and its routes have no running backend."
+			message = "Pauses this workload on all its placed servers. Its routes answer 503 while it is paused, and existing connections may stall."
 		case before == paused:
 			reason = "workload_unpauses"
 			message = "Unpauses this workload on all its placed servers and resumes its health checks. Existing routes can serve it again."

@@ -189,6 +189,13 @@ function LifecycleOptions({
   const [volumes, setVolumes] = useState(false);
   const rename = request.action === DockerContainerAction.RENAME;
   const kill = request.action === DockerContainerAction.KILL;
+  const hasPaused = kill && request.rows.some((row) => row.state === ContainerState.PAUSED);
+  const signalOptions = hasPaused
+    ? [
+        { value: "", label: t`SIGTERM, then SIGKILL` },
+        { value: "SIGKILL", label: "SIGKILL" },
+      ]
+    : [{ value: "", label: t`SIGTERM, then SIGKILL` }, ...customSignals];
   const prefix = request.rows.length > 1 || request.rows[0]?.key?.kind === DockerObjectKind.COMPOSE;
   const valid = rename
     ? /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,254}$/.test(value)
@@ -235,7 +242,8 @@ function LifecycleOptions({
               mono
               label={t`Signal`}
               value={value}
-              options={[{ value: "", label: t`SIGTERM, then SIGKILL` }, ...customSignals]}
+              options={signalOptions}
+              hint={hasPaused ? t`Paused containers accept only the default escalation or SIGKILL.` : undefined}
               onChange={(e) => setValue(e.target.value)}
             />
             {!value ? (

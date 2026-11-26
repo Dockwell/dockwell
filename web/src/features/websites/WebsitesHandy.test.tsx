@@ -13,6 +13,7 @@ import {
   HealthState,
   PlanAction,
   type RenewCertificateRequest,
+  Role,
   type SetCustomCertificateRequest,
   type UpdateWebsiteRequest,
   type WatchChangeResponse,
@@ -26,6 +27,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { aHealth, anApp, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -430,7 +432,7 @@ describe("Websites everyday depth", () => {
     const checkboxes = screen.getAllByRole("checkbox");
     await user.click(checkboxes[1] as HTMLElement);
     await user.click(checkboxes[2] as HTMLElement);
-    await user.click(await screen.findByRole("button", { name: "HTTPS" }));
+    await user.click(await screen.findByRole("button", { name: "HTTPS 2" }));
     const httpsDialog = await screen.findByRole("dialog", { name: /HTTPS for 2 websites/i });
     await user.click(within(httpsDialog).getByRole("button", { name: /Review plan/ }));
 
@@ -496,5 +498,49 @@ describe("Websites everyday depth", () => {
 
     await user.click(within(confirmDialog).getByRole("button", { name: /Continue to passkey/i }));
     await waitFor(() => expect(downloads.filter((d) => d.includeKey)).toHaveLength(1));
+  });
+
+  it("shows batch counts, skip notes, and greyed viewer state on the Websites batch bar (#919)", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    const pausedDocs = create(WebsiteInfoSchema, {
+      id: docs.id,
+      name: docs.name,
+      domain: docs.domain,
+      spec: {
+        serves: { case: "folder", value: { root: "/var/www/docs", index: [], singlePageApp: false } },
+        paused: true,
+        pauseMode: WebsitePauseMode.MAINTENANCE,
+      },
+      environmentId: docs.environmentId,
+      serviceId: docs.serviceId,
+      routeId: docs.routeId,
+      updateTime: docs.updateTime,
+      serverId: docs.serverId,
+      serverName: docs.serverName,
+    });
+    const { unmount } = renderAt("/websites", api([shop, pausedDocs]));
+    const shopRow = await screen.findByRole("row", { name: /shop\.example\.com/ });
+    const docsRow = await screen.findByRole("row", { name: /docs\.example\.com/ });
+    await user.click(within(shopRow).getByRole("checkbox"));
+    await user.click(within(docsRow).getByRole("checkbox"));
+    const bar = screen.getByRole("toolbar", { name: "Actions for the rows selected" });
+    expect(within(bar).getByRole("button", { name: "Pause 1" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Resume 1" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Switch PHP 1" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "HTTPS 2" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Delete 2" })).toBeVisible();
+    expect(bar).toHaveTextContent(/Already paused/);
+    unmount();
+
+    // Viewer sees no selection checkboxes on Websites.
+    renderAt(
+      "/websites",
+      api([shop], {
+        auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 });

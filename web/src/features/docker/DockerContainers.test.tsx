@@ -5,17 +5,22 @@ import {
   DeploymentState,
   DockerObjectKind,
   DockerOwnership,
+  type PlanDockerMaintenanceRequest,
   type ProposeChangeRequest,
+  Role,
   type WatchServersResponse,
 } from "@dockwell/api";
+import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
 import { anApp, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
-import { feed, quietWatch, renderAt } from "../../test/render";
+import { feed, quietWatch, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { DockerContainers } from "./DockerContainers";
 
 it("skips a partial service in a batch and names the whole service and server count in its row action", async () => {
   const second = "srv_2";
@@ -61,7 +66,8 @@ it("skips a partial service in a batch and names the whole service and server co
   await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
   const bar = screen.getByRole("toolbar");
   expect(within(bar).queryByRole("button", { name: /^Stop/ })).toBeNull();
-  expect(await within(bar).findByText(/Select a matching replica on every server/)).toBeVisible();
+  expect(await within(bar).findByText(/Runs on 1 more server/)).toBeVisible();
+  expect(within(bar).getByRole("button", { name: "Open shop" })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Actions for shop-1" }));
   await user.click(await screen.findByRole("menuitem", { name: "Stop shop on all 2 servers" }));
   await waitFor(() => expect(propose).toHaveBeenCalledOnce());
@@ -69,4 +75,103 @@ it("skips a partial service in a batch and names the whole service and server co
     summary: "Stop shop on all 2 servers",
     edits: [{ resource: app.resource, baseRevision: app.revision }],
   });
+});
+
+it("ignores failed deployments on other servers, keeps matching selections while searching, hides checkboxes for viewers, and restricts Kill signals on paused containers (#919 N1/N3/N4, #925 N1)", async () => {
+  const second = "srv_2";
+  const app = anApp(
+    "shop",
+    "nginx",
+    {},
+    {
+      deployments: [
+        { serverId: SERVER, state: DeploymentState.LIVE },
+        { serverId: second, state: DeploymentState.FAILED },
+      ],
+    },
+  );
+  const objects = [
+    {
+      key: { serverId: SERVER, engineId: "shop-1", kind: DockerObjectKind.CONTAINER },
+      name: "shop-1",
+      state: ContainerState.RUNNING,
+      ownership: DockerOwnership.MANAGED,
+      managedResource: app.resource,
+      managedResourceId: app.id,
+      managedRevision: app.revision,
+      detail: { case: "container" as const, value: { image: "nginx" } },
+    },
+    {
+      key: { serverId: SERVER, engineId: "paused-ext", kind: DockerObjectKind.CONTAINER },
+      name: "paused-ext",
+      state: ContainerState.PAUSED,
+      ownership: DockerOwnership.EXTERNAL,
+      detail: { case: "container" as const, value: { image: "alpine" } },
+    },
+  ];
+  const makeServers = () => {
+    const s = feed<WatchServersResponse>();
+    s.push(
+      changed(aServer({ id: SERVER, name: "first" })),
+      changed(aServer({ id: second, name: "second" })),
+      snapshotComplete,
+    );
+    return s.stream;
+  };
+  const plan = vi.fn((_req: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  const { unmount } = renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: ({ filter }) => ({
+        objects: objects.filter((o) => !filter?.search || o.name.includes(filter.search)),
+      }),
+      planDockerMaintenance: plan,
+    },
+  });
+  const user = userEvent.setup();
+  // Failed deployment on srv_2 does NOT block batch Stop on shop-1.
+  await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
+  const bar = screen.getByRole("toolbar");
+  expect(within(bar).getByRole("button", { name: "Stop 1" })).toBeVisible();
+  // Typing in search keeps shop-1 selected while it still matches.
+  await user.type(screen.getByRole("textbox", { name: "Search containers" }), "shop");
+  await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Select paused-ext" })).toBeNull());
+  expect(screen.getByRole("checkbox", { name: "Select shop-1" })).toBeChecked();
+  await user.clear(screen.getByRole("textbox", { name: "Search containers" }));
+
+  // Kill on a paused external container offers only default + SIGKILL with explanation.
+  await user.click(await screen.findByRole("button", { name: "Actions for paused-ext" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Kill" }));
+  const dialog = await screen.findByRole("dialog", { name: /Kill/ });
+  const select = within(dialog).getByRole("combobox", { name: "Signal" });
+  const options = within(select)
+    .getAllByRole("option")
+    .map((o) => o.textContent);
+  expect(options).toEqual(["SIGTERM, then SIGKILL", "SIGKILL"]);
+  expect(within(dialog).getByText(/Paused containers accept only the default escalation or SIGKILL/)).toBeVisible();
+  unmount();
+
+  // Viewer sees no selection checkboxes on Containers.
+  const viewerRoute = createRootRoute({
+    component: () => <DockerContainers servers={[aServer({ id: SERVER, name: "first" })]} fleet={false} />,
+  });
+  const viewerRouter = createRouter({
+    routeTree: viewerRoute,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+  renderWithApi(<RouterProvider router={viewerRouter} />, {
+    auth: { getAuthState: () => authState({ user: { ...mira, role: Role.VIEWER } }) },
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({ objects }),
+    },
+  });
+  expect(await screen.findByText("paused-ext")).toBeVisible();
+  expect(screen.queryByRole("checkbox")).toBeNull();
 });

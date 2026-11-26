@@ -1194,7 +1194,17 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			}
 		}
 		if d.Ingress != nil && t.Scoped {
-			return d.Ingress.RemoveUpstream(ctx, t.instance(number))
+			if err := d.Ingress.PauseUpstream(ctx, t.instance(number)); err != nil {
+				return err
+			}
+			for _, o := range others {
+				if o.number != number && !o.temp {
+					if err := d.Ingress.RemoveUpstream(ctx, t.instance(o.number)); err != nil {
+						d.logger().WarnContext(ctx, "can't forget an address of a container that has gone; the agent tries again",
+							slog.String("container", o.name()), slog.String("error", err.Error()))
+					}
+				}
+			}
 		}
 		return nil
 	}

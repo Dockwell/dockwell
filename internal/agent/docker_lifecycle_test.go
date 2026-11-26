@@ -232,6 +232,33 @@ func TestExternalLifecycleSignalPickerValues(t *testing.T) {
 	}
 }
 
+func TestPausedKillRefusesNonSIGKILLSignal(t *testing.T) {
+	e := dockertest.New(t)
+	c := cleanupCalls(t, e.Client())
+	item := e.AddContainer(docker.Container{
+		Name: "/frozen", Config: docker.Config{Image: "busybox:1"},
+		State: docker.State{Status: "paused", Running: true, Paused: true},
+	})
+	for _, signal := range []string{"SIGHUP", "SIGUSR1", "SIGTERM", "15"} {
+		plan := lifecyclePlan(t, c, lifecycleKey(item.ID), lifecycleKill, "", false)
+		plan.GetLifecycle().Signal = signal
+		plan.GetLifecycle().TimeoutSeconds = 0
+		if err := c.checkDockerLifecycle(externalHost, plan); err == nil || !strings.Contains(err.Error(), "default kill or SIGKILL") {
+			t.Errorf("signal %q on paused target: got %v, want refusal", signal, err)
+		}
+	}
+	for _, allowed := range []string{"", "SIGKILL", "9"} {
+		plan := lifecyclePlan(t, c, lifecycleKey(item.ID), lifecycleKill, "", false)
+		plan.GetLifecycle().Signal = allowed
+		if allowed != "" {
+			plan.GetLifecycle().TimeoutSeconds = 0
+		}
+		if err := c.checkDockerLifecycle(externalHost, plan); err != nil {
+			t.Errorf("signal %q on paused target: unexpected error %v", allowed, err)
+		}
+	}
+}
+
 func TestExternalContainerLifecycleOnRealDocker(t *testing.T) {
 	d := dockertest.Real(t)
 	c := cleanupCalls(t, d)

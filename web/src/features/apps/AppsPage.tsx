@@ -63,7 +63,7 @@ import {
   useRowMenu,
   useRowSelection,
 } from "../shell/ListTools";
-import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
+import { LIST_PAGE_SIZE, type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { useRuntimes } from "../websites/website";
 import {
@@ -323,14 +323,50 @@ export function AppsPage({
     }
     return out;
   }, [orderedGroups, query, domainNames]);
-  const appsInOrder = useMemo(
-    () => matching.flatMap(({ group, members }) => members.map((service) => ({ group, service }))),
-    [matching],
+  // Page over what shows on screen: a collapsed stack takes one row, so collapsing
+  // a large stack never leaves a page half empty, and expanding fills the page.
+  type PageSlot =
+    | { kind: "collapsed"; group: AppGroup; members: ServiceInfo[] }
+    | { kind: "service"; group: AppGroup; service: ServiceInfo };
+  const visibleSlots = useMemo<PageSlot[]>(
+    () =>
+      matching.flatMap<PageSlot>(({ group, members }) =>
+        group.stack && collapsed.has(group.key) && !filtering
+          ? [{ kind: "collapsed", group, members }]
+          : members.map((service) => ({ kind: "service", group, service })),
+      ),
+    [matching, collapsed, filtering],
   );
-  const listPage = pagedRows(appsInOrder, place.page);
+  const slotPage = pagedRows(visibleSlots, place.page);
+  const totalApps = useMemo(() => matching.reduce((sum, item) => sum + item.members.length, 0), [matching]);
+  const beforeApps = useMemo(
+    () =>
+      visibleSlots
+        .slice(0, slotPage.page * LIST_PAGE_SIZE)
+        .reduce((sum, slot) => sum + (slot.kind === "collapsed" ? slot.members.length : 1), 0),
+    [visibleSlots, slotPage.page],
+  );
+  const pageApps = useMemo(
+    () => slotPage.rows.reduce((sum, slot) => sum + (slot.kind === "collapsed" ? slot.members.length : 1), 0),
+    [slotPage.rows],
+  );
+  const listPage = {
+    rows: slotPage.rows,
+    page: slotPage.page,
+    pages: slotPage.pages,
+    from: totalApps === 0 ? 0 : beforeApps + 1,
+    to: beforeApps + pageApps,
+    total: totalApps,
+  };
   const rows: Row[] = [];
   let previous: AppGroup | undefined;
-  for (const { group, service } of listPage.rows) {
+  for (const slot of slotPage.rows) {
+    if (slot.kind === "collapsed") {
+      rows.push({ id: `stack:${slot.group.key}`, kind: "stack", group: slot.group, last: false });
+      previous = slot.group;
+      continue;
+    }
+    const { group, service } = slot;
     if (!group.stack) {
       rows.push({ id: service.id, kind: "app", group, service, last: true });
       continue;
@@ -339,8 +375,7 @@ export function AppsPage({
       rows.push({ id: `stack:${group.key}`, kind: "stack", group, last: false });
       previous = group;
     }
-    if (!collapsed.has(group.key) || filtering)
-      rows.push({ id: service.id, kind: "member", group, service, last: false });
+    rows.push({ id: service.id, kind: "member", group, service, last: false });
   }
   rows.forEach((row, index) => {
     if (row.kind === "member") row.last = rows[index + 1]?.group !== row.group;

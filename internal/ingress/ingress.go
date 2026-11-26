@@ -153,6 +153,11 @@ type Route struct {
 	// Held is true when it answers that the app isn't open yet and sends nothing
 	// on, until a person opens it (ADR 0084).
 	Held bool
+	// Paused is true when every container of the route's service on this server
+	// is paused, so the proxy answers a short 503 page immediately instead of
+	// dialing a frozen container until it times out. Runtime state, not part of
+	// the route's spec.
+	Paused bool
 	// Setup is where a held route asks its agent whether a visitor came through its
 	// setup link, as an address it dials, in place of answering everyone that it
 	// isn't open; empty for none. The key's hash is the agent's to keep (SignIns), as
@@ -1093,6 +1098,9 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: dials,
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 		Allow: allow, Users: users, Redirect: RedirectOf(spec),
+	}
+	if spec.GetHostPort() == 0 && spec.GetRedirect() == nil && m.servicePaused(ctx, serviceOf(ref, spec)) {
+		r.Paused = true
 	}
 	if rl := spec.GetRateLimit(); rl != nil && rl.GetRequestsPerMinute() > 0 {
 		dial, err := m.rateLimitDial()

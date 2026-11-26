@@ -73,6 +73,9 @@ type Upstreams interface {
 	Move(ctx context.Context, to Instance, from []Instance) error
 	// RemoveUpstream forgets the instance and frees its address.
 	RemoveUpstream(ctx context.Context, instance Instance) error
+	// PauseUpstream stops routing traffic to a paused instance, answering 503
+	// immediately when no other running instance remains on the server.
+	PauseUpstream(ctx context.Context, instance Instance) error
 	// Reachable says why a new instance can't take a route's traffic yet: a
 	// port a route of its service sends to that doesn't take a connection on
 	// its address. It answers nil for a service with no routes.
@@ -1203,7 +1206,10 @@ func (m *Manager) AddUpstream(ctx context.Context, i Instance) error {
 	if err := m.attach(ctx, i); err != nil {
 		return err
 	}
-	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) { dial(r, a, port) })
+	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
+		dial(r, a, port)
+		r.Paused = false
+	})
 }
 
 // Move sends new requests to an instance in place of others. A route that sends
@@ -1240,6 +1246,7 @@ func (m *Manager) Move(ctx context.Context, to Instance, from []Instance) error 
 			stopDialing(r, old)
 		}
 		dial(r, a, port)
+		r.Paused = false
 	})
 }
 
@@ -1259,8 +1266,9 @@ func (m *Manager) editUpstreams(ctx context.Context, s Service, edit func(r *Rou
 			return err
 		}
 		before := slices.Clone(r.Upstreams)
+		beforePaused := r.Paused
 		edit(r, port)
-		if !slices.Equal(before, r.Upstreams) {
+		if !slices.Equal(before, r.Upstreams) || r.Paused != beforePaused {
 			changed = append(changed, *r)
 		}
 	}
@@ -1358,4 +1366,60 @@ func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
 		return err
 	}
 	return m.table.free(m.Dir, i)
+}
+
+// PauseUpstream withdraws a paused instance from serving traffic. When another
+// instance of the service still serves the route, it stops dialing i alone;
+// when no other upstream remains, it keeps the address reserved for unpause
+// and marks the route paused so the proxy answers 503 immediately instead of
+// hanging on a frozen process.
+func (m *Manager) PauseUpstream(ctx context.Context, i Instance) error {
+	if err := m.mu.lock(ctx); err != nil {
+		return err
+	}
+	defer m.mu.unlock()
+	if err := m.table.load(m.Dir); err != nil {
+		return err
+	}
+	if len(m.table.instancesOf(i.service())) == 0 {
+		return nil
+	}
+	a, err := m.give(ctx, i)
+	if err != nil {
+		return err
+	}
+	return m.editUpstreams(ctx, i.service(), func(r *Route, port uint32) {
+		hasSelf := slices.ContainsFunc(r.Upstreams, func(u string) bool { return dials(u, a) })
+		if hasSelf && len(r.Upstreams) > 1 {
+			stopDialing(r, a)
+			return
+		}
+		if !hasSelf {
+			r.Upstreams = []string{a + ":" + strconv.Itoa(int(port))}
+		}
+		r.Paused = true
+	})
+}
+
+// servicePaused reports whether the service has at least one container on this
+// server and every non-one-off container of it is paused.
+func (m *Manager) servicePaused(ctx context.Context, s Service) bool {
+	if m.Client == nil {
+		return false
+	}
+	list, err := m.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + s.Project, docker.LabelService + "=" + s.Name}})
+	if err != nil {
+		return false
+	}
+	found := false
+	for i := range list {
+		if list[i].Labels[docker.LabelOneoff] == "True" {
+			continue
+		}
+		found = true
+		if list[i].State != "paused" {
+			return false
+		}
+	}
+	return found
 }
