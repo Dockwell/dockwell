@@ -2615,12 +2615,13 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
   text-underline-offset: 2px;
 }
 .git-check-again:hover,
 .git-check-again:focus-visible {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 .git-check-again:focus-visible {
   outline: none;
@@ -2950,13 +2951,14 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
   text-underline-offset: 2px;
 }
 
 .app-inline-action:hover,
 .app-inline-action:focus-visible {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .app-inline-action:focus-visible {

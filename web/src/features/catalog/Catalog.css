@@ -1127,13 +1127,14 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
   text-underline-offset: 2px;
 }
 
 .catalog-inline-action:hover,
 .catalog-inline-action:focus-visible {
-  text-decoration: underline;
+  text-decoration-color: currentColor;
 }
 
 .catalog-inline-action:focus-visible {

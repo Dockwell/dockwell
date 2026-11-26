@@ -60,6 +60,15 @@ describe("CommandBar inline", () => {
     expect(screen.queryByRole("group")).toBeNull();
   });
 
+  it("shows only the best 50 matches of a query that matches thousands", () => {
+    const many: CommandItem[] = Array.from({ length: 5000 }, (_, i) => ({ id: `s${i}`, label: `Terminal on hz-${i}` }));
+    render(<CommandBar inline items={many} />);
+    fireEvent.change(combobox(), { target: { value: "h" } });
+    expect(screen.getAllByRole("option")).toHaveLength(50);
+    fireEvent.change(combobox(), { target: { value: "hz-4999" } });
+    expect(screen.getByRole("option", { name: /hz-4999/ })).toBeVisible();
+  });
+
   it("ranks better matches first", async () => {
     const user = userEvent.setup();
     render(<CommandBar inline items={items} />);
