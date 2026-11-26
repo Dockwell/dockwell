@@ -117,7 +117,13 @@ function Updates({ server }: { server: Server }) {
   if (query.error && !updates) {
     return (
       // A role that doesn't cover a server's updates is told so as everywhere else.
-      <ReadFailed error={query.error} tone="warning" title={t`Dockwell couldn't ask ${server.name} for its updates`} />
+      <ReadFailed
+        error={query.error}
+        tone="warning"
+        title={t`Dockwell couldn't ask ${server.name} for its updates`}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+      />
     );
   }
   if (!updates) return null;

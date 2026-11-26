@@ -47,7 +47,7 @@
   gap: var(--space-3);
   min-height: 32px;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* ---------- The inspector ---------- */
@@ -97,7 +97,7 @@
 
 .servers-inspector-why {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 20px;
 }
 
@@ -125,7 +125,7 @@
 }
 
 .servers-inspector-facts code {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .servers-inspector-agent {
@@ -333,7 +333,7 @@
 }
 
 .servers-phone-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 550;
   line-height: 20px;
 }
@@ -341,7 +341,7 @@
 .servers-phone-sub {
   overflow: hidden;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -391,7 +391,7 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 550;
   line-height: 20px;
 }
@@ -466,7 +466,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   color: var(--ink-muted);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 /* What's picked for a fleet action, above the table, as Servers-List's bar: how many, their names, Clear, then the action. */

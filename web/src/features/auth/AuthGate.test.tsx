@@ -26,6 +26,18 @@ function refocus() {
 }
 
 describe("the sign-in gate", () => {
+  it("mounts the shell skeleton immediately while session auth is pending on a shell route", async () => {
+    renderAt("/apps", {
+      system,
+      auth: {
+        getAuthState: () => new Promise(() => {}),
+      },
+    });
+    await waitFor(() => expect(document.querySelector(".shell-pending-rail")).not.toBeNull());
+    expect(document.querySelector(".shell")).not.toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+  });
+
   it("shows the overview to someone signed in, in the shell", async () => {
     renderAt("/", { system, auth: { getAuthState: () => authState() } });
     expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();

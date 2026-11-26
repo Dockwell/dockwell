@@ -139,7 +139,12 @@ function FirewallRead({
     // it doesn't cover SSH and fail2ban either, so they aren't asked. Otherwise each card reads on its own.
     return (
       <>
-        <ReadFailed error={read.error} title={t`Dockwell can't read ${server.name}'s firewall`} />
+        <ReadFailed
+          error={read.error}
+          title={t`Dockwell can't read ${server.name}'s firewall`}
+          onRetry={() => void read.refetch()}
+          retrying={read.isFetching}
+        />
         {reasonOf(read.error) === "needs_role" ? null : ssh}
       </>
     );

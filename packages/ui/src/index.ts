@@ -41,6 +41,7 @@ export {
   type LogStreamProps,
 } from "./components/LogStream/LogStream";
 export { Metric, type MetricProps } from "./components/Metric/Metric";
+export { PaginationBar, type PaginationBarProps } from "./components/PaginationBar/PaginationBar";
 export { Panel, type PanelProps } from "./components/Panel/Panel";
 export {
   DigestValue,

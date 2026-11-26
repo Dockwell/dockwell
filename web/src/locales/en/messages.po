@@ -15593,6 +15593,9 @@ msgstr "Loading services"
 msgid "Loading the stack"
 msgstr "Loading the stack"
 
+msgid "Next"
+msgstr "Next"
+
 msgid "No completed backup"
 msgstr "No completed backup"
 
@@ -15620,11 +15623,16 @@ msgstr "Open Files"
 msgid "Open environment"
 msgstr "Open environment"
 
+#. placeholder {0}: pages.length
+#. placeholder {0}: tokens.length
+msgid "Page {0}"
+msgstr "Page {0}"
+
 msgid "Preview backup"
 msgstr "Preview backup"
 
-msgid "Previous page"
-msgstr "Previous page"
+msgid "Previous"
+msgstr "Previous"
 
 msgid "Published ports"
 msgstr "Published ports"
@@ -15802,9 +15810,6 @@ msgstr "New environment"
 msgid "New template"
 msgstr "New template"
 
-msgid "Next"
-msgstr "Next"
-
 msgid "No connected server can read Docker"
 msgstr "No connected server can read Docker"
 
@@ -15832,9 +15837,6 @@ msgstr "Open template library"
 
 msgid "Prepared Compose file"
 msgstr "Prepared Compose file"
-
-msgid "Previous"
-msgstr "Previous"
 
 msgid "Read file"
 msgstr "Read file"
@@ -16565,10 +16567,6 @@ msgstr "Open Apps"
 msgid "Open {serviceName}"
 msgstr "Open {serviceName}"
 
-#. placeholder {0}: pages.length
-msgid "Page {0}"
-msgstr "Page {0}"
-
 msgid "Paste docker run"
 msgstr "Paste docker run"
 
@@ -16733,6 +16731,9 @@ msgstr "Image details"
 
 msgid "Image is gone"
 msgstr "Image is gone"
+
+msgid "Image pages"
+msgstr "Image pages"
 
 msgid "Image state"
 msgstr "Image state"
@@ -23541,6 +23542,9 @@ msgstr "Apps made already keep their own."
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 
+msgid "Dockwell can't read the settings"
+msgstr "Dockwell can't read the settings"
+
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
 
@@ -24848,8 +24852,8 @@ msgstr "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes 
 msgid "Pushes come through the GitHub App."
 msgstr "Pushes come through the GitHub App."
 
-msgid "Check the control plane's status"
-msgstr "Check the control plane's status"
+msgid "Activity on {name}"
+msgstr "Activity on {name}"
 
 msgid "Create a project"
 msgstr "Create a project"
@@ -24869,11 +24873,17 @@ msgstr "Delete a project"
 msgid "Delete the project {projectName}"
 msgstr "Delete the project {projectName}"
 
+msgid "Files on {name}"
+msgstr "Files on {name}"
+
 msgid "Finding your projects"
 msgstr "Finding your projects"
 
 msgid "In {projectName}"
 msgstr "In {projectName}"
+
+msgid "Logs for {name}"
+msgstr "Logs for {name}"
 
 msgid "Match the system theme"
 msgstr "Match the system theme"
@@ -24887,50 +24897,29 @@ msgstr "Name the new project, such as shop"
 msgid "Open Variables for {name}"
 msgstr "Open Variables for {name}"
 
-msgid "Open the activity"
-msgstr "Open the activity"
-
-msgid "Open the apps"
-msgstr "Open the apps"
-
-msgid "Open the databases"
-msgstr "Open the databases"
-
-msgid "Open the domains"
-msgstr "Open the domains"
-
-msgid "Open the overview"
-msgstr "Open the overview"
-
 msgid "Open the plan: {summary}"
 msgstr "Open the plan: {summary}"
 
 msgid "Open the project {name}"
 msgstr "Open the project {name}"
 
-msgid "Open the projects"
-msgstr "Open the projects"
-
-msgid "Open the server list"
-msgstr "Open the server list"
-
-msgid "Open the websites"
-msgstr "Open the websites"
-
-msgid "Open your profile and security settings"
-msgstr "Open your profile and security settings"
-
 msgid "Pages"
 msgstr "Pages"
+
+msgid "Scheduled tasks"
+msgstr "Scheduled tasks"
 
 msgid "Show the activity of {name}"
 msgstr "Show the activity of {name}"
 
-msgid "Show what happened on {name}"
-msgstr "Show what happened on {name}"
-
 msgid "Shows the command to run on it"
 msgstr "Shows the command to run on it"
+
+msgid "Terminal on {name}"
+msgstr "Terminal on {name}"
+
+msgid "Updates on {name}"
+msgstr "Updates on {name}"
 
 msgid "Use the dark theme"
 msgstr "Use the dark theme"
@@ -25018,6 +25007,14 @@ msgstr "Machine"
 msgid "Main"
 msgstr "Main"
 
+#. placeholder {0}: alerts.count
+msgid "{0, plural, one {# alert open} other {# alerts open}}"
+msgstr "{0, plural, one {# alert open} other {# alerts open}}"
+
+#. placeholder {0}: alerts.count
+msgid "{0, plural, one {# critical alert open} other {# alerts open, including critical}}"
+msgstr "{0, plural, one {# critical alert open} other {# alerts open, including critical}}"
+
 msgid "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
 msgstr "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
 
@@ -25029,10 +25026,6 @@ msgstr "This network is slow to bring the page"
 
 msgid "Skip to content"
 msgstr "Skip to content"
-
-#. placeholder {0}: alerts.count
-msgid "{0, plural, one {# alert open} other {# alerts open}}"
-msgstr "{0, plural, one {# alert open} other {# alerts open}}"
 
 msgid "All healthy"
 msgstr "All healthy"
@@ -25048,9 +25041,6 @@ msgstr "{waiting} waiting for an agent"
 
 msgid "Fleet actions"
 msgstr "Fleet actions"
-
-msgid "Scheduled tasks"
-msgstr "Scheduled tasks"
 
 msgid "A route may then let in anyone who signs in."
 msgstr "A route may then let in anyone who signs in."

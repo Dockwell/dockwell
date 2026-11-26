@@ -193,3 +193,72 @@ p {
 h1[tabindex="-1"]:focus {
   outline: none;
 }
+
+/* Inline links: cobalt, underline on hover; focus uses the shared focus ring. */
+:where(a:not([class]), .dw-link) {
+  color: var(--link);
+  text-decoration: none;
+  text-underline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+:where(a:not([class]), .dw-link):hover {
+  text-decoration: underline;
+}
+:where(a:not([class]), .dw-link):focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Shared row and list checkbox: visibly bordered at rest (3:1 via --line-strong),
+   checked in --action, and focused with the shared ring. */
+.dw-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  vertical-align: middle;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+.dw-checkbox::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform var(--motion-fast) var(--ease-out);
+  background: var(--on-action);
+}
+.dw-checkbox:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.dw-checkbox:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.dw-checkbox:checked,
+.dw-checkbox:indeterminate {
+  border-color: var(--action);
+  background: var(--action);
+}
+.dw-checkbox:checked::before {
+  transform: scale(1);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.dw-checkbox:indeterminate::before {
+  transform: scale(1);
+  height: 2px;
+  border-radius: 1px;
+}
+.dw-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

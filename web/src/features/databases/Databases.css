@@ -507,7 +507,7 @@ a.databases-engine:hover .databases-engine-plus {
 
 .databases-phone-name {
   overflow: hidden;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 20px;
   font-weight: 550;
   text-overflow: ellipsis;
@@ -563,12 +563,12 @@ a.databases-engine:hover .databases-engine-plus {
 }
 
 .database-crumb-name {
-  font: 400 12.5px / 18px var(--font-mono);
+  font: 400 12px / 18px var(--font-mono);
   color: var(--ink);
 }
 
 .database-page .page-title.is-machine {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 550;
   letter-spacing: -0.02em;
 }
@@ -679,7 +679,7 @@ a.databases-engine:hover .databases-engine-plus {
 /* What a database or Docker said in full, on asking, under the line that says what it comes to. */
 .database-details {
   margin-top: var(--space-1);
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-muted);
 }
 .database-details summary {

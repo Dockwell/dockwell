@@ -369,7 +369,13 @@ function DomainField({
         </Callout>
       ) : (
         <div className="panel-domain-actions">
-          <Button variant="primary" disabled={!ready} onClick={() => setConfirming(true)} {...maySet.off}>
+          <Button
+            size="sm"
+            variant={ready ? "primary" : "secondary"}
+            disabled={!ready}
+            onClick={() => setConfirming(true)}
+            {...maySet.off}
+          >
             <Trans>Serve the panel there</Trans>
           </Button>
           {owner ? null : <span className="settings-sub">{t`Only the owner sets it.`}</span>}

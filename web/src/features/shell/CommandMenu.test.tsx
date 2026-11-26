@@ -44,12 +44,12 @@ async function openBar(api: Api, path = "/", cache?: CacheOptions) {
 describe("the command bar", () => {
   it("reaches Activity, and what happened on a server", async () => {
     const { user, bar, router } = await openBar({});
-    await user.click(within(bar).getByRole("option", { name: "Open the activity" }));
+    await user.click(within(bar).getByRole("option", { name: "Activity" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/activity"));
 
     await user.keyboard("{Control>}k{/Control}");
     const again = await screen.findByRole("dialog", { name: "Command bar" });
-    await user.click(within(again).getByRole("option", { name: "Show what happened on hz-1" }));
+    await user.click(within(again).getByRole("option", { name: "Activity on hz-1" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ server: "srv_1" }));
   });
 
@@ -401,5 +401,36 @@ describe("the command bar", () => {
     await user.keyboard("{Control>}k{/Control}");
     const again = await screen.findByRole("dialog", { name: "Command bar" });
     expect(within(again).queryByRole("option", { name: /Deploy storefront/ })).toBeNull();
+  });
+
+  it("offers global operational verbs for apps and servers, opening plans for state changes", async () => {
+    const restarted: string[] = [];
+    const { user, bar, router } = await openBar({
+      services: {
+        listServices: () => ({ services: [anApp("storefront", "ghcr.io/acme/storefront:1")] }),
+        listServiceRevisions: () => ({}),
+      },
+      changes: {
+        restartService: (req) => {
+          restarted.push(req.id);
+          return { change: shopPlanned() };
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    expect(await within(bar).findByRole("option", { name: "Terminal on hz-1" })).toBeVisible();
+    expect(within(bar).getByRole("option", { name: "Files on hz-1" })).toBeVisible();
+    expect(within(bar).getByRole("option", { name: "Updates on hz-1" })).toBeVisible();
+    expect(within(bar).getByRole("option", { name: "Logs for storefront" })).toBeVisible();
+
+    await user.click(within(bar).getByRole("option", { name: "Restart storefront Opens a plan" }));
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(restarted).toEqual(["svc_storefront"]);
+    await user.click(screen.getByRole("button", { name: "Close" }));
+
+    await user.keyboard("{Control>}k{/Control}");
+    const again = await screen.findByRole("dialog", { name: "Command bar" });
+    await user.click(within(again).getByRole("option", { name: "Terminal on hz-1" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1/terminal"));
   });
 });

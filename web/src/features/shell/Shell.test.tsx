@@ -234,6 +234,30 @@ describe("the shell on wide screens", () => {
     expect(activity.querySelector(".rail-count")).toHaveTextContent("2");
   });
 
+  it("shows open alerts on Alerts in the rail, in critical tone when any is critical", async () => {
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/", {
+      servers: { watchServers: watch.stream },
+      alerts: {
+        listAlerts: () => ({
+          firing: 3,
+          alerts: [
+            { id: "alt_1", state: AlertState.FIRING, severity: AlertRule_Severity.CRITICAL },
+            { id: "alt_2", state: AlertState.FIRING, severity: AlertRule_Severity.WARNING },
+            { id: "alt_3", state: AlertState.FIRING, severity: AlertRule_Severity.WARNING },
+          ],
+        }),
+      },
+    });
+    await screen.findByRole("heading", { level: 1 });
+    const alertsLink = await within(rail()).findByRole("link", {
+      name: "Alerts 3 alerts open, including critical",
+    });
+    expect(alertsLink.querySelector(".rail-count.is-critical")).toHaveTextContent("3");
+    expect(alertsLink.querySelector(".rail-dot.is-critical")).not.toBeNull();
+  });
+
   it("names each item once, keeping the narrow rail's tooltip from screen readers", async () => {
     await renderWith("/", hz1);
     const items = rail().querySelectorAll<HTMLElement>(".rail-item");
@@ -458,11 +482,17 @@ describe("the command bar", () => {
         .map((o) => o.textContent),
     ).toEqual([
       "Open hz-1 Healthy · 49.12.33.7",
-      "Show what happened on hz-1",
+      "Terminal on hz-1",
+      "Files on hz-1",
+      "Updates on hz-1",
+      "Activity on hz-1",
       "Open hz-2 Healthy",
-      "Show what happened on hz-2",
+      "Terminal on hz-2",
+      "Files on hz-2",
+      "Updates on hz-2",
+      "Activity on hz-2",
     ]);
-    expect(screen.getByRole("option", { name: "Open the server list 2" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Servers 2" })).toBeVisible();
     await expectAccessible(document.body);
   });
 
@@ -484,7 +514,7 @@ describe("the command bar", () => {
     const user = userEvent.setup();
     const { router } = await renderWith("/", hz1);
     await user.keyboard("{Control>}k{/Control}");
-    await user.click(screen.getByRole("option", { name: "Open your profile and security settings mira@acme.dev" }));
+    await user.click(screen.getByRole("option", { name: "Profile and security mira@acme.dev" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/profile"));
     expect(await screen.findByRole("heading", { level: 1, name: "Profile and security" })).toBeVisible();
@@ -541,7 +571,7 @@ describe("the shell on phones", () => {
     });
     await screen.findByRole("heading", { level: 1 });
     const tab = await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", {
-      name: "More 2 alerts open",
+      name: "More 2 alerts open, including critical",
     });
     expect(tab.querySelector(".tabbar-dot.is-critical")).not.toBeNull();
     expect(await screen.findByRole("link", { name: /^Alerts 2 open, critical/ })).toHaveAttribute("href", "/alerts");

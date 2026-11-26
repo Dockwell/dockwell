@@ -30,7 +30,7 @@
   margin: 0;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -70,7 +70,7 @@
 
 .backup-why {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -393,7 +393,7 @@
   border-top: 1px solid var(--line);
 }
 
-.backup-destinations-pager .list-pager {
+.backup-destinations-pager .dw-pager {
   margin-top: 0;
 }
 
@@ -501,7 +501,7 @@
 }
 
 .backup-storage-name {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 19px;
   overflow-wrap: anywhere;
@@ -509,7 +509,7 @@
 
 .backup-storage-why {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 17px;
   overflow-wrap: anywhere;
 }

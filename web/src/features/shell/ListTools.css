@@ -42,25 +42,6 @@
   border-radius: var(--radius-xs);
 }
 
-/* Where you are in a long list, and the way along it. */
-.list-pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.list-pager-count {
-  color: var(--ink-muted);
-  font-size: 13px;
-}
-
-.list-pager-buttons {
-  display: inline-flex;
-  gap: var(--space-1);
-}
-
 /* Placed by its point, on the left, where ActionMenu's is placed by its button's right. */
 .action-menu.list-context-menu {
   right: auto;
@@ -83,28 +64,10 @@
   gap: var(--space-1);
 }
 
-/* Picking rows to act on together: a box at a row's start, there on hover and
-   while anything is picked, and the bar of what the picked rows can be done with. */
+/* Picking rows to act on together: visibly bordered at rest via .dw-checkbox,
+   with the sticky bar of what the picked rows can be done with. */
 .list-select-box {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--action);
-  vertical-align: middle;
-  cursor: pointer;
-  opacity: 0;
-}
-
-.list-select-box:where(:checked, :focus-visible),
-:where(.has-selection, tr:hover, tr:focus-within, .list-select-card:hover, .list-select-card:focus-within)
-  .list-select-box {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .list-select-box {
-    opacity: 1;
-  }
+  flex: none;
 }
 
 .dw-table tr.is-checked td {

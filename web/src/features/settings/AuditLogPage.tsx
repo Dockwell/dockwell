@@ -436,15 +436,33 @@ function useChangeWhere(): (change: Change | undefined) => string {
 function TargetCell({ event }: { event: AuditEvent }) {
   const where = useChangeWhere()(event.event?.change);
   const named = useTargetNames();
-  if (where) return <span>{where}</span>;
+  if (where)
+    return (
+      <span className="audit-target" title={where}>
+        {where}
+      </span>
+    );
   const target = event.target;
   const id = target?.id || event.subject;
-  if (target?.name) return <span>{target.name}</span>;
+  if (target?.name)
+    return (
+      <span className="audit-target" title={target.name}>
+        {target.name}
+      </span>
+    );
   if (!id) return <span className="settings-muted">–</span>;
   // The name the server read for it, which a removed person keeps, as Members no longer lists them (#801's review, L3).
   const said = event.event?.subject?.id === id ? event.event.subject.name : "";
   const name = said || named(id, event.action);
-  return name ? <span title={id}>{name}</span> : <code className="audit-id">{id}</code>;
+  return name ? (
+    <span className="audit-target" title={id}>
+      {name}
+    </span>
+  ) : (
+    <code className="audit-id audit-target" title={id}>
+      {id}
+    </code>
+  );
 }
 
 /**

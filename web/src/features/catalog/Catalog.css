@@ -197,7 +197,7 @@
 
 .catalog-card-category {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
 }
 
@@ -363,7 +363,7 @@
 .catalog-sheet-source {
   margin: 0;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Under a rule, as the mock's plan is. */
@@ -392,7 +392,7 @@
 
 .catalog-parts-head span {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Limits and restarts, under a rule as what it installs is. */
@@ -652,7 +652,7 @@
 .catalog-readme h3,
 .catalog-readme h4 {
   margin: var(--space-6) 0 var(--space-2);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 22px;
 }
@@ -689,7 +689,7 @@
   border-radius: var(--radius-xs);
   background: var(--surface-sunken);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .catalog-readme pre {
@@ -877,7 +877,7 @@
 }
 
 .catalog-origin-facts code {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* A third-party entry's standing, as a state above its facts. */
@@ -1064,7 +1064,7 @@
 .catalog-domain-why {
   flex-basis: 100%;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .catalog-chosen-state {
@@ -1072,7 +1072,7 @@
   align-items: center;
   gap: 6px;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .catalog-chosen-state.is-free {
@@ -1102,7 +1102,8 @@
 }
 
 .catalog-change:focus-visible {
-  outline: 2px solid var(--cobalt);
+  outline: none;
+  box-shadow: var(--focus-ring);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -1127,7 +1128,8 @@
 }
 
 .catalog-inline-action:focus-visible {
-  outline: 2px solid var(--cobalt);
+  outline: none;
+  box-shadow: var(--focus-ring);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -1195,7 +1197,7 @@
   display: block;
   margin-top: var(--space-1);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink);
   overflow-wrap: anywhere;
@@ -1312,7 +1314,7 @@
 }
 .catalog-open-problem {
   max-width: 280px;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--critical);
   text-align: right;
@@ -1411,7 +1413,8 @@
 }
 
 .catalog-engine:has(input:focus-visible) {
-  outline: 2px solid var(--cobalt);
+  outline: none;
+  box-shadow: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -1500,7 +1503,8 @@
 }
 
 .catalog-need-server:has(input:focus-visible) {
-  outline: 2px solid var(--cobalt);
+  outline: none;
+  box-shadow: var(--focus-ring);
   outline-offset: 2px;
 }
 

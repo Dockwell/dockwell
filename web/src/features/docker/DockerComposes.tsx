@@ -16,6 +16,7 @@ import {
   cx,
   Icon,
   Loading,
+  PaginationBar,
   Panel,
   SkeletonRows,
   StatusBadge,
@@ -453,18 +454,15 @@ export function DockerComposes({
         <EmptyState icon="layers" title={outside ? t`No outside Compose projects` : t`No Compose projects found`} />
       ) : null}
       {tokens.length > 1 || query.data?.nextPageToken ? (
-        <div className="compose-actions compose-paging">
-          <Button size="sm" onClick={() => setTokens(tokens.slice(0, -1))} disabled={tokens.length === 1}>
-            <Trans>Previous page</Trans>
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => setTokens([...tokens, query.data?.nextPageToken ?? ""])}
-            disabled={!query.data?.nextPageToken}
-          >
-            <Trans>Next page</Trans>
-          </Button>
-        </div>
+        <PaginationBar
+          summary={<Trans>Page {tokens.length}</Trans>}
+          hasPrevious={tokens.length > 1}
+          hasNext={Boolean(query.data?.nextPageToken)}
+          onPrevious={() => setTokens(tokens.slice(0, -1))}
+          onNext={() => setTokens([...tokens, query.data?.nextPageToken ?? ""])}
+          previousLabel={<Trans>Previous</Trans>}
+          nextLabel={<Trans>Next</Trans>}
+        />
       ) : null}
       {source === "folder" ? (
         <ComposeSourceSheet

@@ -22,6 +22,7 @@ import {
   Callout,
   Icon,
   Loading,
+  PaginationBar,
   Panel,
   SelectField,
   Sheet,
@@ -838,18 +839,15 @@ function StackServices({
         <Table className="compose-table" columns={columns} rows={rows} caption={t`Services`} />
       )}
       {tokens.length > 1 || list.data?.nextPageToken ? (
-        <div className="compose-actions compose-paging">
-          <Button size="sm" disabled={tokens.length === 1} onClick={() => setTokens(tokens.slice(0, -1))}>
-            <Trans>Previous page</Trans>
-          </Button>
-          <Button
-            size="sm"
-            disabled={!list.data?.nextPageToken}
-            onClick={() => setTokens([...tokens, list.data?.nextPageToken ?? ""])}
-          >
-            <Trans>Next page</Trans>
-          </Button>
-        </div>
+        <PaginationBar
+          summary={<Trans>Page {tokens.length}</Trans>}
+          hasPrevious={tokens.length > 1}
+          hasNext={Boolean(list.data?.nextPageToken)}
+          onPrevious={() => setTokens(tokens.slice(0, -1))}
+          onNext={() => setTokens([...tokens, list.data?.nextPageToken ?? ""])}
+          previousLabel={<Trans>Previous</Trans>}
+          nextLabel={<Trans>Next</Trans>}
+        />
       ) : null}
     </>
   );

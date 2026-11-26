@@ -2,14 +2,19 @@
 
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  AlertService,
   ChangeService,
   EventKind,
   EventService,
+  FileService,
+  LogService,
   type Resource,
   ResourceService,
   ServerService,
   SettingsService,
   SystemService,
+  TerminalService,
+  UpdateService,
 } from "@dockwell/api";
 import {
   CommandBar,
@@ -26,9 +31,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { onApple } from "../../lib/platform";
-import { appState, imageOf, nameOf } from "../apps/app";
+import { appState, environmentOf, imageOf, nameOf, stoppedByRevision } from "../apps/app";
 import { useApps } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
+import { useWorkloadControls } from "../apps/workload";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
@@ -183,6 +189,7 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
   // A website's own services are its to show, on Websites (ADR 0039).
   const apps = useApps().data;
   const appWords = useAppWords();
+  const { restart: restartApp } = useWorkloadControls();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");
   const may = useMay();
@@ -272,33 +279,51 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
       id: "overview",
       group: pages,
       icon: "home",
-      label: t`Open the overview`,
+      label: t`Overview`,
       run: () => navigate({ to: "/" }),
     });
     list.push({
       id: "apps",
       group: pages,
       icon: "service",
-      label: t`Open the apps`,
+      label: t`Apps`,
       hint: apps ? String(apps.length) : undefined,
       run: () => navigate({ to: "/apps" }),
     });
-    if (fleet) {
-      list.push({
-        id: "servers",
-        group: pages,
-        icon: "server",
-        label: t`Open the server list`,
-        hint: String(servers?.length ?? ""),
-        run: () => navigate({ to: "/servers" }),
-      });
-    }
     list.push({
-      id: "activity",
+      id: "websites",
       group: pages,
-      icon: "activity",
-      label: t`Open the activity`,
-      run: () => navigate({ to: "/activity" }),
+      icon: "browser",
+      label: t`Websites`,
+      run: () => navigate({ to: "/websites" }),
+    });
+    list.push({
+      id: "databases",
+      group: pages,
+      icon: "database",
+      label: t`Databases`,
+      run: () => navigate({ to: "/databases" }),
+    });
+    list.push({
+      id: "connections",
+      group: pages,
+      icon: "network",
+      label: t`Connections`,
+      run: () => navigate({ to: "/connections" }),
+    });
+    list.push({
+      id: "domains",
+      group: pages,
+      icon: "link",
+      label: t`Domains`,
+      run: () => navigate({ to: "/domains" }),
+    });
+    list.push({
+      id: "backups",
+      group: pages,
+      icon: "archive",
+      label: t`Backups`,
+      run: () => navigate({ to: "/backups" }),
     });
     // Projects appear once there are two: the only one is the hidden default (ADR 0074).
     if ((projects?.length ?? 0) > 1) {
@@ -306,7 +331,7 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         id: "projects",
         group: pages,
         icon: "folder",
-        label: t`Open the projects`,
+        label: t`Projects`,
         hint: String(projects?.length ?? 0),
         run: () => navigate({ to: "/projects" }),
       });
@@ -315,29 +340,55 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
       id: "variables",
       group: pages,
       icon: "key",
-      label: t`Open Variables`,
+      label: t`Variables`,
       run: () => navigate({ to: "/variables" }),
     });
     list.push({
-      id: "websites",
+      id: "catalog",
       group: pages,
-      icon: "browser",
-      label: t`Open the websites`,
-      run: () => navigate({ to: "/websites" }),
+      icon: "grid",
+      label: t`Catalog`,
+      run: () => navigate({ to: "/catalog" }),
+    });
+    if (fleet) {
+      list.push({
+        id: "servers",
+        group: pages,
+        icon: "server",
+        label: t`Servers`,
+        hint: String(servers?.length ?? ""),
+        run: () => navigate({ to: "/servers" }),
+      });
+    }
+    list.push({
+      id: "activity",
+      group: pages,
+      icon: "activity",
+      label: t`Activity`,
+      run: () => navigate({ to: "/activity" }),
+    });
+    if (may(AlertService.method.listAlerts).allowed) {
+      list.push({
+        id: "alerts",
+        group: pages,
+        icon: "bell",
+        label: t`Alerts`,
+        run: () => navigate({ to: "/alerts" }),
+      });
+    }
+    list.push({
+      id: "scheduled-tasks",
+      group: pages,
+      icon: "calendar",
+      label: t`Scheduled tasks`,
+      run: () => navigate({ to: "/scheduled-tasks" }),
     });
     list.push({
-      id: "domains",
+      id: "settings",
       group: pages,
-      icon: "link",
-      label: t`Open the domains`,
-      run: () => navigate({ to: "/domains" }),
-    });
-    list.push({
-      id: "databases",
-      group: pages,
-      icon: "database",
-      label: t`Open the databases`,
-      run: () => navigate({ to: "/databases" }),
+      icon: "settings",
+      label: t`Settings`,
+      run: () => navigate({ to: "/settings" }),
     });
     // An entry is something to run, so one you may not run is left out (ADR 0059).
     if (may(SettingsService.method.getControlPlane).allowed) {
@@ -345,7 +396,7 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         id: "status",
         group: pages,
         icon: "gauge",
-        label: t`Check the control plane's status`,
+        label: t`Control plane`,
         hint: version ? shortVersion(version) : undefined,
         run: () => navigate({ to: "/settings/control-plane" }),
       });
@@ -354,42 +405,94 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
       id: "profile",
       group: pages,
       icon: "user",
-      label: t`Open your profile and security settings`,
+      label: t`Profile and security`,
       hint: email,
       run: () => navigate({ to: "/profile" }),
     });
 
-    // Each server after every page, so the pages are one group (#795).
+    // Each server after every page, so the pages are one group (#795), with its operational verbs.
+    const mayTerminal = may(TerminalService.method.listTerminals).allowed;
+    const mayFiles = may(FileService.method.listFiles).allowed;
+    const mayUpdates = may(UpdateService.method.getServerUpdates).allowed;
     for (const server of servers ?? []) {
       const name = server.name;
       const address = server.address;
       const where = address && isPrivateAddress(address) ? t`${address}, private` : address;
+      const serverGroup = fleet ? t`Servers` : pages;
       list.push({
         id: `server:${server.id}`,
-        group: fleet ? t`Servers` : pages,
+        group: serverGroup,
         icon: "server",
         label: t`Open ${name}`,
         hint: [strings.status[serverStatus(server)], where].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
       });
+      if (mayTerminal) {
+        list.push({
+          id: `server-terminal:${server.id}`,
+          group: serverGroup,
+          icon: "terminal",
+          label: t`Terminal on ${name}`,
+          run: () => navigate({ to: "/servers/$serverId/terminal", params: { serverId: server.id } }),
+        });
+      }
+      if (mayFiles) {
+        list.push({
+          id: `server-files:${server.id}`,
+          group: serverGroup,
+          icon: "folder",
+          label: t`Files on ${name}`,
+          run: () => navigate({ to: "/servers/$serverId/files", params: { serverId: server.id } }),
+        });
+      }
+      if (mayUpdates) {
+        list.push({
+          id: `server-updates:${server.id}`,
+          group: serverGroup,
+          icon: "arrow-up",
+          label: t`Updates on ${name}`,
+          run: () => navigate({ to: "/servers/$serverId/updates", params: { serverId: server.id } }),
+        });
+      }
       list.push({
         id: `server-activity:${server.id}`,
-        group: fleet ? t`Servers` : pages,
+        group: serverGroup,
         icon: "activity",
-        label: t`Show what happened on ${name}`,
+        label: t`Activity on ${name}`,
         run: () => navigate({ to: "/activity", search: { server: server.id } }),
       });
     }
     for (const app of apps ?? []) {
       const name = nameOf(app);
+      const state = appState(app, servers);
+      const where = { environment: environmentOf(app) };
       list.push({
         id: `app:${app.id}`,
         group: t`Apps`,
         icon: "service",
         label: t`Open ${name}`,
-        hint: [appWords.state(appState(app, servers)), imageOf(app)].join(" · "),
+        hint: [appWords.state(state), imageOf(app)].join(" · "),
         run: () => navigate({ to: "/apps/$serviceId", params: { serviceId: app.id } }),
       });
+      if (may(LogService.method.watchLogs, where).allowed) {
+        list.push({
+          id: `app-logs:${app.id}`,
+          group: t`Apps`,
+          icon: "terminal",
+          label: t`Logs for ${name}`,
+          run: () => navigate({ to: "/apps/$serviceId/logs", params: { serviceId: app.id } }),
+        });
+      }
+      if (!stoppedByRevision(app, state) && may(ChangeService.method.restartService, where).allowed) {
+        list.push({
+          id: `app-restart:${app.id}`,
+          group: t`Apps`,
+          icon: "refresh",
+          label: t`Restart ${name}`,
+          hint: t`Opens a plan`,
+          run: () => restartApp(app.id),
+        });
+      }
     }
 
     // Projects and environments, once there is a choice of them (PRD principle 4).
@@ -486,6 +589,7 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
     recent,
     apps,
     appWords,
+    restartApp,
     prompt,
     query,
     sheet,

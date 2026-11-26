@@ -29,6 +29,7 @@ import {
   Callout,
   cx,
   Loading,
+  PaginationBar,
   Panel,
   SegmentedControl,
   SelectField,
@@ -1181,32 +1182,21 @@ export function DockerContainers({
       ) : null}
       {updatingApp ? <PrepareServiceUpdate service={updatingApp} onClose={() => setUpdatingApp(undefined)} /> : null}
       {pages.length > 1 || next ? (
-        <nav className="docker-pager" aria-label={t`Container pages`}>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={pages.length <= 1}
-            onClick={() => {
-              setChanged(false);
-              setPages((all) => all.slice(0, -1));
-            }}
-          >
-            <Trans>Previous</Trans>
-          </Button>
-          <span>
-            <Trans>Page {pages.length}</Trans>
-          </span>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!next || outOfDate}
-            onClick={() => {
-              if (next) setPages((all) => [...all, next]);
-            }}
-          >
-            <Trans>Next</Trans>
-          </Button>
-        </nav>
+        <PaginationBar
+          label={t`Container pages`}
+          summary={<Trans>Page {pages.length}</Trans>}
+          hasPrevious={pages.length > 1}
+          hasNext={Boolean(next && !outOfDate)}
+          onPrevious={() => {
+            setChanged(false);
+            setPages((all) => all.slice(0, -1));
+          }}
+          onNext={() => {
+            if (next) setPages((all) => [...all, next]);
+          }}
+          previousLabel={<Trans>Previous</Trans>}
+          nextLabel={<Trans>Next</Trans>}
+        />
       ) : null}
     </>
   );

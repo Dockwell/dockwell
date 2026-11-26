@@ -10,7 +10,8 @@ import { useEffect } from "react";
  * page sets one, so none keeps the last page's.
  */
 export function useDocumentTitle(title: string): void {
-  const name = useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data?.installName;
+  const name = useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false, retryOnMount: false }).data
+    ?.installName;
   useEffect(() => {
     document.title = `${title} · ${name || "Dockwell"}`;
   }, [title, name]);

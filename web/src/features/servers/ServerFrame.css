@@ -4,7 +4,7 @@
 
 .server-address {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* The tabs sit closer to the head than the page's panels do to them, as the mocks have them. */

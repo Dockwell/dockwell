@@ -8,6 +8,7 @@ import { type ReactNode, useEffect } from "react";
 
 import { reasonOf } from "../../lib/errors";
 import { setDisplayTimeZone, syncDisplayTimeZone } from "../../lib/format";
+import { ShellPending } from "../shell/ShellPending";
 import { StandalonePage } from "../system/StandalonePage";
 import { Unreachable } from "../system/Unreachable";
 import { useAuthError } from "./messages";
@@ -32,6 +33,7 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   const { t } = useLingui();
   const state = useAuthState();
   const location = useLocation();
+  const inShell = useMatches({ select: (matches) => matches.some((m) => m.routeId === "/_shell") });
   const userTimeZone = state.data?.user?.timeZone ?? "";
 
   // Sync the person's time zone before child screens format dates on their first
@@ -42,6 +44,7 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   }, [state.data, userTimeZone]);
 
   if (state.isPending) {
+    if (inShell) return <ShellPending />;
     return (
       <StandalonePage title={t`Checking your session`}>
         <Loading

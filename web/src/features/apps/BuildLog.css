@@ -8,7 +8,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
-  font: 400 12px / 18px var(--font-mono);
+  font: 400 12px / 16px var(--font-mono);
   overscroll-behavior: contain;
 }
 
@@ -49,7 +49,7 @@
   padding: var(--space-1) var(--space-3);
   color: var(--ink-muted);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .build-log-cursor {

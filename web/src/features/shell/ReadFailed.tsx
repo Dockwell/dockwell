@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Callout } from "@dockwell/ui";
-import { useLingui } from "@lingui/react/macro";
+import { Button, Callout } from "@dockwell/ui";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type { ComponentProps, ReactNode } from "react";
 
 import { isRoleRefusal, roleRefusalSentence, sentence } from "../../lib/errors";
@@ -16,6 +16,8 @@ export function ReadFailed({
   title,
   tone = "critical",
   actions,
+  onRetry,
+  retrying = false,
   className,
   children,
 }: {
@@ -23,20 +25,33 @@ export function ReadFailed({
   /** What couldn't be read, such as "Dockwell can't read the audit log". */
   title: string;
   tone?: ComponentProps<typeof Callout>["tone"];
-  /** The way to try again. */
+  /** The way to try again. When omitted and onRetry is given, renders a standard Try again button. */
   actions?: ReactNode;
+  /** Standard retry handler rendered as a Try again button when actions is omitted. */
+  onRetry?: () => void;
+  /** True while the retry is in flight. */
+  retrying?: boolean;
   className?: string;
   /** What follows the reason, such as what isn't affected. */
   children?: ReactNode;
 }) {
   if (isRoleRefusal(error)) return <RoleRefused className={className} />;
+  const resolvedActions =
+    actions ??
+    (onRetry ? (
+      <Button size="sm" icon="refresh" loading={retrying} onClick={onRetry}>
+        <Trans>Try again</Trans>
+      </Button>
+    ) : undefined);
   return (
-    <Callout tone={tone} title={title} actions={actions} className={className}>
+    <Callout tone={tone} title={title} actions={resolvedActions} className={className}>
       {sentence(error)}
       {children ? <> {children}</> : null}
     </Callout>
   );
 }
+
+export { ReadFailed as LoadError };
 
 /**
  * Says a role doesn't cover a page, in the words a refused read gets, for a

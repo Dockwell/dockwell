@@ -123,12 +123,12 @@ export const flow: Flow = {
       );
       await atWidth(probe, { width: 1440, height: 900 });
       await probe.goto(`${origin}/websites`);
-      await probe.locator(".list-pager-count").getByText("1-50 of 55", { exact: true }).waitFor();
+      await probe.locator(".dw-pager-summary").getByText("1-50 of 55", { exact: true }).waitFor();
       await probe.getByRole("button", { name: "Next", exact: true }).click();
       await probe.waitForURL((url) => url.searchParams.get("page") === "2");
-      await probe.locator(".list-pager-count").getByText("51-55 of 55", { exact: true }).waitFor();
+      await probe.locator(".dw-pager-summary").getByText("51-55 of 55", { exact: true }).waitFor();
       await probe
-        .locator('.list-pager .dw-sr[aria-live="polite"]')
+        .locator('.dw-pager .dw-sr[aria-live="polite"]')
         .getByText("Page 2", { exact: true })
         .waitFor({ state: "attached" });
 

@@ -149,7 +149,12 @@ export function AlertPage({ alertId }: { alertId: string }) {
       className="alerts alert-page"
     >
       {alerts.error ? (
-        <ReadFailed error={alerts.error} title={t`Can't load the alerts`} />
+        <ReadFailed
+          error={alerts.error}
+          title={t`Can't load the alerts`}
+          onRetry={() => void alerts.refetch()}
+          retrying={alerts.isFetching}
+        />
       ) : !alerts.data ? (
         <Loading label={t`Loading the alert`} className="alerts-loading">
           <SkeletonCard lines={3} />
@@ -301,7 +306,12 @@ function Body({ alert }: { alert: Alert }) {
         </Panel>
 
         {around.error ? (
-          <ReadFailed error={around.error} title={t`Can't load what happened around it`} />
+          <ReadFailed
+            error={around.error}
+            title={t`Can't load what happened around it`}
+            onRetry={() => void around.refetch()}
+            retrying={around.isFetching}
+          />
         ) : (
           <>
             <Panel

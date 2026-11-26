@@ -27,7 +27,7 @@
 .dw-ts-title {
   margin: 0;
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 550;
   line-height: 20px;
 }
@@ -52,7 +52,7 @@
 .dw-ts-time {
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .dw-ts-values {
@@ -89,7 +89,7 @@
 .dw-ts-val-peak {
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .dw-ts-gap-word {
@@ -110,7 +110,7 @@
   padding: 2px 0;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 14px;
   text-align: right;
   user-select: none;
@@ -130,8 +130,8 @@
 }
 
 .dw-ts-svg:focus-visible {
-  outline: 2px solid var(--cobalt);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring);
   border-radius: var(--radius-xs);
 }
 
@@ -260,7 +260,7 @@
   padding-left: 60px;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 14px;
   user-select: none;
 }

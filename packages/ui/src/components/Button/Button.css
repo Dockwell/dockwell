@@ -32,7 +32,7 @@ a.dw-btn {
   --h: var(--control-sm);
   padding: 0 10px;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .dw-btn-lg {
   --h: var(--control-lg);

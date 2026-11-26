@@ -19,7 +19,7 @@ export function useAuthState() {
  * current.
  */
 export function useSignedIn() {
-  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data;
+  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false, retryOnMount: false }).data;
 }
 
 /**

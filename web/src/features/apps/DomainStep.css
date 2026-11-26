@@ -55,7 +55,7 @@
   overflow-wrap: anywhere;
   align-items: flex-start;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -79,7 +79,7 @@
 }
 
 .domain-step-muted {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }

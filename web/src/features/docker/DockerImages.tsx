@@ -17,6 +17,7 @@ import {
   cx,
   Icon,
   Loading,
+  PaginationBar,
   Panel,
   SegmentedControl,
   Skeleton,
@@ -585,14 +586,16 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         </section>
       ) : null}
       {next || pageToken ? (
-        <div className="docker-pager">
-          <Button variant="secondary" disabled={!pageToken} onClick={() => setPages((old) => old.slice(0, -1))}>
-            <Trans>Previous</Trans>
-          </Button>
-          <Button variant="secondary" disabled={!next} onClick={() => next && setPages((old) => [...old, next])}>
-            <Trans>Next</Trans>
-          </Button>
-        </div>
+        <PaginationBar
+          label={t`Image pages`}
+          summary={<Trans>Page {pages.length}</Trans>}
+          hasPrevious={Boolean(pageToken)}
+          hasNext={Boolean(next)}
+          onPrevious={() => setPages((old) => old.slice(0, -1))}
+          onNext={() => next && setPages((old) => [...old, next])}
+          previousLabel={<Trans>Previous</Trans>}
+          nextLabel={<Trans>Next</Trans>}
+        />
       ) : null}
     </>
   );

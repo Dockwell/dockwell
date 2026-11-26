@@ -46,7 +46,6 @@ import { useQueries } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -85,6 +84,7 @@ import {
 } from "../shell/ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
+import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { REVEALED_FOR } from "../variables/useReveal";
 import { backsUp } from "./DatabaseOverview";
@@ -170,7 +170,10 @@ export function DatabasesPage({
   const where = view.fleet
     ? plural(view.servers?.length ?? 0, { one: "# server", other: "# servers" })
     : (view.only?.name ?? "");
-  const lead = query.isPending || !where ? undefined : plural(count, { one: `# on ${where}`, other: `# on ${where}` });
+  const lead =
+    query.isPending || (query.error && count === 0) || !where
+      ? undefined
+      : plural(count, { one: `# on ${where}`, other: `# on ${where}` });
   const engines = useEngineGroups();
   // PostgreSQL first, where the catalog makes it, as the database most apps take.
   const firstEngine = (engines.groups.find((g) => g.engine === Engine.POSTGRESQL) ?? engines.groups[0])?.entries[0]?.id;
@@ -189,9 +192,14 @@ export function DatabasesPage({
       className="databases-page"
     >
       {query.error ? (
-        <Callout tone="critical" title={t`Dockwell can't read its databases`}>
-          {sentence(query.error)} <Trans>Nothing changed on the servers. The page tries again by itself.</Trans>
-        </Callout>
+        <ReadFailed
+          error={query.error}
+          title={t`Dockwell can't read its databases`}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        >
+          <Trans>Nothing changed on the servers. The page tries again by itself.</Trans>
+        </ReadFailed>
       ) : null}
       <Strangers strangers={strangers} />
       {count > 0 ? (

@@ -38,7 +38,7 @@
   outline: 0;
   background: none;
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--ink);
 }
 .dw-cmd-input::placeholder {
@@ -138,7 +138,7 @@
   background: none;
   color: var(--ink);
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 550;
   cursor: pointer;
 }
@@ -209,7 +209,7 @@
   }
   .dw-cmd-layer .dw-cmd-hint {
     overflow: hidden;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 16px;
     text-overflow: ellipsis;
   }

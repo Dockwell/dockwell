@@ -22,6 +22,7 @@ import { type FormEvent, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatDay } from "../../lib/format";
 import { Page } from "../shell/Page";
+import { ReadFailed } from "../shell/ReadFailed";
 import { PanelDomain } from "./PanelDomain";
 import "./Settings.css";
 import { useMay } from "../auth/may";
@@ -51,35 +52,34 @@ export function GeneralPage() {
       back="/settings"
       className="general"
     >
-      {settings.error ? <Callout tone="critical">{sentence(settings.error)}</Callout> : null}
+      {settings.error ? (
+        <ReadFailed
+          error={settings.error}
+          title={t`Dockwell can't read the settings`}
+          onRetry={() => void settings.refetch()}
+          retrying={settings.isFetching}
+        />
+      ) : null}
       {settings.isPending ? (
         // Its fields at their place, their values on their way, rather than empty fields that fill later.
         <Loading label={t`Loading the settings`} className="general-panels">
-          <div className="general-column">
-            <SkeletonCard title={t`This install`}>
-              <SkeletonField label={48} />
-              <SkeletonField label={72} />
-            </SkeletonCard>
-            <SkeletonCard title={t`New apps`}>
-              <SkeletonField height={72} label={96} />
-            </SkeletonCard>
-          </div>
-          <div className="general-column">
-            <SkeletonCard title={t`Panel address`}>
-              <SkeletonFacts count={2} layout="rows" />
-            </SkeletonCard>
-          </div>
+          <SkeletonCard title={t`This install`}>
+            <SkeletonField label={48} />
+            <SkeletonField label={72} />
+          </SkeletonCard>
+          <SkeletonCard title={t`Panel address`}>
+            <SkeletonFacts count={2} layout="rows" />
+          </SkeletonCard>
+          <SkeletonCard title={t`New apps`} className="general-wide">
+            <SkeletonField height={72} label={96} />
+          </SkeletonCard>
         </Loading>
       ) : (
         <div className="general-panels">
-          <div className="general-column">
-            <InstallPanel settings={s} />
-            <NewAppsPanel settings={s} />
-          </div>
-          <div className="general-column">
-            {/* The language is this browser's, so it's chosen on Profile, as the mocks have it. */}
-            <PanelServed settings={s} />
-          </div>
+          <InstallPanel settings={s} />
+          {/* The language is this browser's, so it's chosen on Profile, as the mocks have it. */}
+          <PanelServed settings={s} />
+          <NewAppsPanel settings={s} />
         </div>
       )}
     </Page>
@@ -331,7 +331,7 @@ function NewAppsPanel({ settings }: { settings: Settings | undefined }) {
     }
   };
   return (
-    <Panel title={t`New apps`} className="general-new-apps">
+    <Panel title={t`New apps`} className="general-new-apps general-wide">
       <form className="general-form" onSubmit={(event) => void save(event)} aria-busy={settings === undefined}>
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
         <SelectField

@@ -97,7 +97,12 @@ export function AlertsTab({ search, onSearch }: ListRouteProps<AlertsSearch>) {
         </ListToolbar>
       ) : null}
       {alerts.error ? (
-        <ReadFailed error={alerts.error} title={t`Can't load the alerts`} />
+        <ReadFailed
+          error={alerts.error}
+          title={t`Can't load the alerts`}
+          onRetry={() => void alerts.refetch()}
+          retrying={alerts.isFetching}
+        />
       ) : !alerts.data ? (
         <Loading label={t`Loading the alerts`} className="alerts-loading">
           <SkeletonCard lines={2} />
@@ -245,7 +250,12 @@ export function RulesTab({ search, onSearch }: ListRouteProps) {
     >
       {list.length > 0 ? <ListToolbar place={place} label={t`Filter alert rules`} /> : null}
       {rules.error ? (
-        <ReadFailed error={rules.error} title={t`Can't load the rules`} />
+        <ReadFailed
+          error={rules.error}
+          title={t`Can't load the rules`}
+          onRetry={() => void rules.refetch()}
+          retrying={rules.isFetching}
+        />
       ) : !rules.data ? (
         phone ? (
           <Loading label={t`Loading the rules`}>

@@ -12,8 +12,7 @@
 .docker-section-heading,
 .docker-row-actions,
 .docker-card-head,
-.docker-card-foot,
-.docker-pager {
+.docker-card-foot {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -109,7 +108,7 @@
 
 .docker-section-heading h2 {
   margin: 0;
-  font-size: var(--type-heading-size, 18px);
+  font-size: var(--type-heading-size, 16px);
   font-weight: 600;
 }
 
@@ -365,10 +364,6 @@
   gap: var(--space-1);
   justify-content: flex-end;
   flex: 0 0 auto;
-}
-
-.docker-pager {
-  justify-content: flex-end;
 }
 
 .docker-card {

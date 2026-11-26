@@ -100,7 +100,7 @@
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
   /* A long name with no break in it, such as a server's, wraps rather than widen the page (#797). */

@@ -16,7 +16,7 @@
 }
 
 .phone-status-line {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 550;
   line-height: 20px;
 }
@@ -114,7 +114,7 @@
 
 .phone-copy-value {
   overflow: hidden;
-  font: 400 13px / 18px var(--font-mono);
+  font: 400 13px / 16px var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -194,7 +194,7 @@ a.phone-row:hover {
   min-width: 0;
   margin-left: 2px;
   overflow: hidden;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 550;
   line-height: 20px;
   text-overflow: ellipsis;
@@ -210,7 +210,7 @@ a.phone-row:hover {
 .phone-row-rev {
   flex: none;
   padding: 0 5px;
-  font: 400 12px / 18px var(--font-mono);
+  font: 400 12px / 16px var(--font-mono);
   border-radius: 3px;
   background: var(--surface-sunken);
 }
