@@ -204,7 +204,6 @@ export function ConnectionsPage({
       // biome-ignore lint/correctness/useHookAtTopLevel: Connect RPC method name begins with "use", not a React hook
       make: () => backupClient.useDestinationAsConnection({ destination: d.name }),
     });
-  /** A row's menu: open it, and for a destination with keys of its own, use it as a connection. */
   const removeOff = (connection: ConnectionInfo) => {
     if (!mayAdd.allowed) return mayAdd.off;
     const apps = connection.uses.flatMap((use) => (use.apps.length ? use.apps : [use.link]));
@@ -220,6 +219,7 @@ export function ConnectionsPage({
     const usedBy = extra > 0 ? t`${shown} and ${extra} more` : shown;
     return { off: t`Used by ${usedBy}. Disconnect it there first.` };
   };
+  /** A row's menu: open it, and for a destination with keys of its own, use it as a connection. */
   const actionsFor = (row: ListRow): MenuAction[] => [
     { id: "open", icon: "network", label: t`Open`, onSelect: () => openRow(row) },
     ...(row.kind === "destination"

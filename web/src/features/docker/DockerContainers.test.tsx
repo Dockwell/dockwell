@@ -20,6 +20,7 @@ import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { feed, quietWatch, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { DockerComposes } from "./DockerComposes";
 import { DockerContainers } from "./DockerContainers";
 
 it("skips a partial service in a batch and names the whole service and server count in its row action", async () => {
@@ -151,7 +152,7 @@ it("ignores failed deployments on other servers, keeps matching selections while
     .getAllByRole("option")
     .map((o) => o.textContent);
   expect(options).toEqual(["SIGTERM, then SIGKILL", "SIGKILL"]);
-  expect(within(dialog).getByText(/Paused containers accept only the default escalation or SIGKILL/)).toBeVisible();
+  expect(within(dialog).getByText(/A paused container takes only SIGKILL, or SIGTERM then SIGKILL/)).toBeVisible();
   unmount();
 
   // Viewer sees no selection checkboxes on Containers.
@@ -174,4 +175,57 @@ it("ignores failed deployments on other servers, keeps matching selections while
   });
   expect(await screen.findByText("paused-ext")).toBeVisible();
   expect(screen.queryByRole("checkbox")).toBeNull();
+});
+
+it("restricts Kill signals on a Compose project row when a member container is paused", async () => {
+  const server = aServer({ id: SERVER, name: "first" });
+  const servers = feed<WatchServersResponse>();
+  servers.push(changed(server), snapshotComplete);
+  const route = createRootRoute({ component: () => <DockerComposes servers={[server]} serverId={server.id} /> });
+  const router = createRouter({ routeTree: route, history: createMemoryHistory({ initialEntries: ["/"] }) });
+  renderWithApi(<RouterProvider router={router} />, {
+    servers: { watchServers: servers.stream },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: (ask) => {
+        if (ask.kind === DockerObjectKind.COMPOSE) {
+          return {
+            objects: [
+              {
+                key: { serverId: server.id, engineId: "legacy-stack", kind: DockerObjectKind.COMPOSE },
+                name: "legacy-stack",
+                ownership: DockerOwnership.EXTERNAL,
+                detail: {
+                  case: "compose",
+                  value: { engineProject: "legacy-stack", runningServices: 1, totalServices: 2 },
+                },
+              },
+            ],
+          };
+        }
+        return {
+          objects: [
+            {
+              key: { serverId: server.id, engineId: "legacy-worker", kind: DockerObjectKind.CONTAINER },
+              name: "legacy-worker",
+              state: ContainerState.PAUSED,
+              ownership: DockerOwnership.EXTERNAL,
+              detail: { case: "container", value: { image: "alpine", composeProject: "legacy-stack" } },
+            },
+          ],
+        };
+      },
+    },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Actions for legacy-stack" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Kill" }));
+  const dialog = await screen.findByRole("dialog", { name: "Kill" });
+  expect(
+    await within(dialog).findByText(/A paused container takes only SIGKILL, or SIGTERM then SIGKILL/),
+  ).toBeVisible();
+  const options = within(within(dialog).getByRole("combobox", { name: "Signal" }))
+    .getAllByRole("option")
+    .map((o) => o.textContent);
+  expect(options).toEqual(["SIGTERM, then SIGKILL", "SIGKILL"]);
 });

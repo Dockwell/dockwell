@@ -153,7 +153,7 @@ export const flow: Flow = {
       await toolbar.getByRole("button", { name: "Pause 1", exact: true }).waitFor();
       await toolbar.getByRole("button", { name: "Resume 1", exact: true }).waitFor();
       await toolbar.getByRole("button", { name: "Switch PHP 1", exact: true }).waitFor();
-      await toolbar.getByRole("button", { name: "HTTPS 2", exact: true }).waitFor();
+      await toolbar.getByRole("button", { name: "Set HTTPS 2", exact: true }).waitFor();
       await shoot(page, "websites-handy-list");
       await atWidth(page, { width: 1440, height: 900 });
       await checkNoOverflow(page, 1440, "websites list");

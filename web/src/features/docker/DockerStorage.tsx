@@ -52,7 +52,7 @@ import {
 import { isHex64VolumeName, shortAnonymousVolumeName } from "./cleanupHelpers";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { DockerStorageCreate } from "./DockerStorageCreate";
-import { useDockerWatch } from "./live";
+import { sameServerIds, useDockerWatch } from "./live";
 import { LiveUpdates, MeasuringSize, Unread } from "./parts";
 import { useSelectedCleanup } from "./selectedCleanup";
 import { StorageOwnership } from "./storageParts";
@@ -150,8 +150,8 @@ export function DockerStorage({
     {
       retry: false,
       refetchOnWindowFocus: false,
-      placeholderData: (previous) =>
-        !token && previous
+      placeholderData: (previous, previousQuery) =>
+        !token && previous && sameServerIds(previousQuery, ids)
           ? {
               ...previous,
               objects: previous.objects.filter((row) => {

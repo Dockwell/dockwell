@@ -243,7 +243,7 @@ func TestPausedKillRefusesNonSIGKILLSignal(t *testing.T) {
 		plan := lifecyclePlan(t, c, lifecycleKey(item.ID), lifecycleKill, "", false)
 		plan.GetLifecycle().Signal = signal
 		plan.GetLifecycle().TimeoutSeconds = 0
-		if err := c.checkDockerLifecycle(externalHost, plan); err == nil || !strings.Contains(err.Error(), "default kill or SIGKILL") {
+		if err := c.checkDockerLifecycle(externalHost, plan); err == nil || !strings.Contains(err.Error(), "SIGKILL or the default kill") {
 			t.Errorf("signal %q on paused target: got %v, want refusal", signal, err)
 		}
 	}

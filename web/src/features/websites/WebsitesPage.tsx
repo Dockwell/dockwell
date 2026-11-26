@@ -200,7 +200,7 @@ export function WebsitesPage({
     batchAction(selected, () => (batchPerm.allowed ? undefined : { permission: batchPerm }), {
       id: "https",
       icon: "lock",
-      label: (count) => (count ? t`HTTPS ${count}` : t`HTTPS`),
+      label: (count) => (count ? t`Set HTTPS ${count}` : t`Set HTTPS`),
       onSelect: (targets) =>
         batchHttps(
           targets.map((r) => r.site),

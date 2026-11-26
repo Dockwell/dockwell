@@ -51,7 +51,7 @@ export const flow: Flow = {
       if (options.length !== 2 || options[0] !== "SIGTERM, then SIGKILL" || options[1] !== "SIGKILL") {
         throw new Error(`Paused Kill offered unexpected signals: ${options.join(", ")}`);
       }
-      await killDialog.getByText(/Paused containers accept only the default escalation or SIGKILL/).waitFor();
+      await killDialog.getByText(/A paused container takes only SIGKILL, or SIGTERM then SIGKILL/).waitFor();
       await killDialog.getByRole("button", { name: "Cancel" }).click();
       await killDialog.waitFor({ state: "hidden" });
     } finally {
@@ -129,7 +129,7 @@ export const flow: Flow = {
         route.fulfill({ contentType: "application/proto", body: connBody }),
       );
       await probe.goto(`${origin}/backups?q=orders`);
-      await probe.getByText("Searching the newest 50 backups.", { exact: true }).waitFor();
+      await probe.getByText("Matches from the newest 50 backups.", { exact: true }).waitFor();
       const destRegion = probe.getByRole("region", { name: "Destinations" });
       await destRegion.getByText("1-8 of 12", { exact: true }).waitFor();
       await destRegion.getByRole("button", { name: "Next", exact: true }).click();
@@ -167,7 +167,7 @@ export const flow: Flow = {
       const bar = probe.getByRole("toolbar", { name: "Actions for the rows selected" });
       await bar.getByRole("button", { name: "Pause 1", exact: true }).waitFor();
       await bar.getByRole("button", { name: "Resume 1", exact: true }).waitFor();
-      await bar.getByRole("button", { name: "HTTPS 2", exact: true }).waitFor();
+      await bar.getByRole("button", { name: "Set HTTPS 2", exact: true }).waitFor();
       await bar.getByText(/Already paused/).waitFor();
     } finally {
       await probe.close();

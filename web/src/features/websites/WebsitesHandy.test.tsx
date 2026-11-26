@@ -432,7 +432,7 @@ describe("Websites everyday depth", () => {
     const checkboxes = screen.getAllByRole("checkbox");
     await user.click(checkboxes[1] as HTMLElement);
     await user.click(checkboxes[2] as HTMLElement);
-    await user.click(await screen.findByRole("button", { name: "HTTPS 2" }));
+    await user.click(await screen.findByRole("button", { name: "Set HTTPS 2" }));
     const httpsDialog = await screen.findByRole("dialog", { name: /HTTPS for 2 websites/i });
     await user.click(within(httpsDialog).getByRole("button", { name: /Review plan/ }));
 
@@ -528,7 +528,7 @@ describe("Websites everyday depth", () => {
     expect(within(bar).getByRole("button", { name: "Pause 1" })).toBeVisible();
     expect(within(bar).getByRole("button", { name: "Resume 1" })).toBeVisible();
     expect(within(bar).getByRole("button", { name: "Switch PHP 1" })).toBeVisible();
-    expect(within(bar).getByRole("button", { name: "HTTPS 2" })).toBeVisible();
+    expect(within(bar).getByRole("button", { name: "Set HTTPS 2" })).toBeVisible();
     expect(within(bar).getByRole("button", { name: "Delete 2" })).toBeVisible();
     expect(bar).toHaveTextContent(/Already paused/);
     unmount();

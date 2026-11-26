@@ -254,7 +254,7 @@ func TestPlanDockerLifecycleRefusesNonSIGKILLOnPausedContainer(t *testing.T) {
 			Signal: "SIGHUP",
 		}},
 	}))
-	if err == nil || !strings.Contains(err.Error(), "default kill or SIGKILL") {
+	if err == nil || !strings.Contains(err.Error(), "SIGKILL or the default kill") {
 		t.Fatalf("expected paused SIGHUP refusal, got %v", err)
 	}
 	if _, err := f.api.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{

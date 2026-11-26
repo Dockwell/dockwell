@@ -12,6 +12,7 @@ import {
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { expect, it, vi } from "vitest";
 
 import { authState, mira } from "../../test/auth";
@@ -172,4 +173,46 @@ it("hides image checkboxes for viewers and drops Review again on lasting refusal
   const dialog = await screen.findByRole("dialog");
   expect(dialog).toHaveTextContent("Containers still use this image");
   expect(dialog).not.toHaveTextContent("Review again");
+});
+
+it("drops placeholder rows when switching to another server", async () => {
+  const first = aServer({ id: "srv_1", name: "first" });
+  const second = aServer({ id: "srv_2", name: "second" });
+  const pendingSecond = new Promise<never>(() => {});
+  const asked: string[][] = [];
+  function Switcher() {
+    const [current, setCurrent] = useState(first);
+    return (
+      <>
+        <button type="button" onClick={() => setCurrent(second)}>
+          Switch server
+        </button>
+        <DockerImages servers={[current]} fleet={false} />
+      </>
+    );
+  }
+  const route = createRootRoute({ component: Switcher });
+  const router = createRouter({ routeTree: route, history: createMemoryHistory({ initialEntries: ["/"] }) });
+  renderWithApi(<RouterProvider router={router} />, {
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: (ask) => {
+        asked.push([...ask.serverIds]);
+        if (ask.serverIds.includes("srv_2")) return pendingSecond;
+        return {
+          objects: [
+            {
+              key: { kind: DockerObjectKind.IMAGE, serverId: first.id, engineId: `sha256:${"c".repeat(64)}` },
+              observedAt: { seconds: 1n },
+              detail: { case: "image", value: { tags: ["server-one/app:1"], state: DockerImageState.USED } },
+            },
+          ],
+        };
+      },
+    },
+  });
+  expect(await screen.findByText("server-one/app:1")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Switch server" }));
+  await waitFor(() => expect(asked).toContainEqual(["srv_2"]));
+  expect(screen.queryByText("server-one/app:1")).toBeNull();
 });

@@ -8379,11 +8379,11 @@ msgstr "{0, plural, other {每周测试 # 个计划的备份能否恢复}}"
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
 
-msgid "{shown, plural, one {Searching the newest # backup.} other {Searching the newest # backups.}}"
-msgstr "{shown, plural, other {正在搜索最新的 # 个备份。}}"
+msgid "{shown, plural, one {Matches from the newest # backup.} other {Matches from the newest # backups.}}"
+msgstr "{shown, plural, other {仅匹配最新的 # 个备份。}}"
 
-msgid "{shown, plural, one {Sorting the newest # backup.} other {Sorting the newest # backups.}}"
-msgstr "{shown, plural, other {正在排序最新的 # 个备份。}}"
+msgid "{shown, plural, one {Sorted within the newest # backup.} other {Sorted within the newest # backups.}}"
+msgstr "{shown, plural, other {仅在最新的 # 个备份内排序。}}"
 
 msgid "{shown} newest"
 msgstr "最新的 {shown} 个"
@@ -8404,7 +8404,7 @@ msgid "Filter by name or bucket"
 msgstr "按名称或存储桶筛选"
 
 msgid "Filter destinations"
-msgstr "筛选目标"
+msgstr "筛选目的地"
 
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
@@ -8417,7 +8417,7 @@ msgid "Manage"
 msgstr "管理"
 
 msgid "No destinations match"
-msgstr "没有匹配的目标"
+msgstr "没有匹配的目的地"
 
 msgid "Only on each server's disk, unencrypted"
 msgstr "仅在各服务器的磁盘上，未加密"
@@ -12230,8 +12230,8 @@ msgstr "用于 {what}。"
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
 
-msgid "Health checks pause and its routes answer 503 while it is paused. Existing connections may stall."
-msgstr "暂停期间健康检查会暂停，其路由会返回 503。现有连接可能会停滞。"
+msgid "Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall."
+msgstr "暂停期间健康检查会暂停，其服务路由会返回 503。主机端口路由和现有连接可能会停滞。"
 
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "健康检查将暂停，路由将没有可用的后端。依赖此工作负载的应用可能无法访问它。"
@@ -16835,6 +16835,9 @@ msgstr "未使用"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, other {还有 # 个标签}}"
 
+msgid "A paused container takes only SIGKILL, or SIGTERM then SIGKILL."
+msgstr "已暂停的容器仅接受 SIGKILL，或先 SIGTERM 再 SIGKILL。"
+
 msgid "Already running or unavailable"
 msgstr "已在运行或不可用"
 
@@ -16861,9 +16864,6 @@ msgstr "新容器名称"
 
 msgid "Not running or paused"
 msgstr "未运行或已暂停"
-
-msgid "Paused containers accept only the default escalation or SIGKILL."
-msgstr "已暂停的容器仅接受默认升级终止或 SIGKILL。"
 
 msgid "Remove container and its anonymous volumes"
 msgstr "删除容器及其匿名卷"
@@ -27878,9 +27878,6 @@ msgstr "按域名筛选"
 msgid "Filter websites"
 msgstr "筛选网站"
 
-msgid "HTTPS {count}"
-msgstr "HTTPS {count}"
-
 msgid "Loading websites"
 msgstr "正在加载网站"
 
@@ -27914,6 +27911,12 @@ msgstr "反向代理"
 
 msgid "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 msgstr "托管文件夹或 PHP 应用，或将域名转发到 URL 或端口。"
+
+msgid "Set HTTPS"
+msgstr "设置 HTTPS"
+
+msgid "Set HTTPS {count}"
+msgstr "设置 HTTPS {count}"
 
 msgid "Static files"
 msgstr "静态文件"

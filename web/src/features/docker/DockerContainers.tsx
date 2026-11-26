@@ -73,7 +73,7 @@ import {
 import { useDockerLifecycle } from "./DockerLifecycle";
 import { DockerRunSheet } from "./DockerRunSheet";
 import { DockerTakeOn } from "./DockerTakeOn";
-import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
+import { dockerKey, rowWithHealth, sameServerIds, useDockerWatch } from "./live";
 import { containerOf, LiveUpdates, Unread } from "./parts";
 import { publishedPortUrl } from "./publishedPort";
 
@@ -559,8 +559,8 @@ export function DockerContainers({
       // The query key changes for filters, even when a visible container
       // still belongs to both selections. Keep its keyed row until the new
       // first page arrives so a click or keyboard focus can stay on it.
-      placeholderData: (previous) =>
-        !cursor && previous
+      placeholderData: (previous, previousQuery) =>
+        !cursor && previous && sameServerIds(previousQuery, ids)
           ? {
               ...previous,
               objects: previous.objects.filter((row) => matchesSelection(row, { search, state, ownership, project })),

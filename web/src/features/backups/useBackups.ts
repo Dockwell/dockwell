@@ -59,7 +59,8 @@ export function useWebsiteBackups(websiteId: string) {
   );
 }
 
-type History = InfiniteData<ListBackupsResponse, string>;
+type HistoryPageParam = { token: string; size: number };
+type History = InfiniteData<ListBackupsResponse, HistoryPageParam>;
 function useHistoryKey() {
   const auth = useSignedIn();
   return useMemo(
@@ -91,11 +92,13 @@ export function useBackupPages(searchingAll = false) {
   const historyKey = useHistoryKey();
   const searchingAllRef = useRef(searchingAll);
   searchingAllRef.current = searchingAll;
+  const pageSizesRef = useRef<number[]>([]);
   const newest = useQuery(
     BackupService.method.listBackups,
     { pageSize: LIST_PAGE_SIZE },
     {
       refetchInterval: (query) => (query.state.data?.backups.some(underWay) ? WHILE_RUNNING : false),
+      refetchOnWindowFocus: () => !searchingAllRef.current,
     },
   );
   const firstRef = useRef(newest.data);
@@ -103,15 +106,21 @@ export function useBackupPages(searchingAll = false) {
   const history = useInfiniteQuery({
     queryKey: historyKey,
     queryFn: ({ pageParam, signal }) => {
-      if (pageParam === "" && firstRef.current) return Promise.resolve(firstRef.current);
+      if (pageParam.token === "" && firstRef.current) return Promise.resolve(firstRef.current);
       return createClient(BackupService, transport).listBackups(
-        { pageSize: searchingAllRef.current ? PAGE_SIZE : LIST_PAGE_SIZE, pageToken: pageParam },
+        { pageSize: pageParam.size, pageToken: pageParam.token },
         { signal },
       );
     },
-    initialPageParam: "",
-    getNextPageParam: (page, _pages, _param, params) =>
-      page.nextPageToken && !params.includes(page.nextPageToken) ? page.nextPageToken : undefined,
+    initialPageParam: { token: "", size: LIST_PAGE_SIZE } as HistoryPageParam,
+    getNextPageParam: (page, pages, _param, params) => {
+      if (!page.nextPageToken || params.some((p) => p.token === page.nextPageToken)) return undefined;
+      const cachedSize = cache.getQueryData<History>(historyKey)?.pageParams[pages.length]?.size;
+      const size =
+        pageSizesRef.current[pages.length] ?? cachedSize ?? (searchingAllRef.current ? PAGE_SIZE : LIST_PAGE_SIZE);
+      pageSizesRef.current[pages.length] = size;
+      return { token: page.nextPageToken, size };
+    },
     enabled: false,
   });
   const fetchOlder = history.fetchNextPage;
@@ -121,7 +130,10 @@ export function useBackupPages(searchingAll = false) {
     if (!first?.nextPageToken) return;
     // Anchor the history on its first requested cursor. New backups can shift the
     // live first page while that cursor still points past the original boundary.
-    cache.setQueryData<History>(historyKey, (data) => data ?? { pages: [first], pageParams: [""] });
+    cache.setQueryData<History>(
+      historyKey,
+      (data) => data ?? { pages: [first], pageParams: [{ token: "", size: LIST_PAGE_SIZE }] },
+    );
     return fetchOlder({ cancelRefetch: false });
   }, [cache, first, fetchOlder, historyKey]);
   const previous = useRef(first);
@@ -136,10 +148,9 @@ export function useBackupPages(searchingAll = false) {
     if (!existing) return;
     const wasRunning = before.backups.some(underWay);
     const stillRunning = first.backups.some(underWay);
-    // Keep polling lightweight while a backup is actively running: only shift
-    // displaced page-1 rows into the anchor without re-reading older pages on
-    // every 2-second poll tick.
-    if (wasRunning && stillRunning) {
+    // Keep polling lightweight while a backup is actively running, and skip
+    // re-reading loaded 200-row pages on window refocus during Search all backups.
+    if ((wasRunning && stillRunning) || searchingAllRef.current) {
       const tail = first.backups.at(-1);
       if (!tail || !first.nextPageToken) return;
       const shifted = before.backups.filter((b) => behind(b, tail));
@@ -156,8 +167,9 @@ export function useBackupPages(searchingAll = false) {
     }
     // Outside active polling (invalidation, manual refresh, refocus, or a
     // running backup finishing and potentially pruning old backups), refresh
-    // loaded older pages so pruned or changed backups update on screen.
+    // loaded older pages at their original sizes so pruned backups leave the screen.
     if (!first.nextPageToken) {
+      pageSizesRef.current = [];
       cache.removeQueries({ queryKey: historyKey, exact: true });
       return;
     }

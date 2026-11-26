@@ -1349,7 +1349,8 @@ func (m *Manager) Drain(ctx context.Context, i Instance) error {
 }
 
 // RemoveUpstream forgets the instance and frees its address. Its service keeps
-// at least one: a route needs an upstream.
+// at least one: a route needs an upstream. Clearing Paused lets a stopped app's
+// route behave as a stopped backend instead of reporting paused.
 func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
 	if err := m.mu.lock(ctx); err != nil {
 		return err
@@ -1359,10 +1360,21 @@ func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
 		return err
 	}
 	a, ok := m.table.Addresses[i.String()]
-	if !ok || len(m.table.instancesOf(i.service())) < 2 {
+	if !ok {
 		return nil
 	}
-	if err := m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) { stopDialing(r, a) }); err != nil {
+	if len(m.table.instancesOf(i.service())) < 2 {
+		return m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) {
+			r.Paused = false
+		})
+	}
+	stillPaused := m.servicePaused(ctx, i.service())
+	if err := m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) {
+		stopDialing(r, a)
+		if !stillPaused {
+			r.Paused = false
+		}
+	}); err != nil {
 		return err
 	}
 	return m.table.free(m.Dir, i)
@@ -1422,4 +1434,29 @@ func (m *Manager) servicePaused(ctx context.Context, s Service) bool {
 		}
 	}
 	return found
+}
+
+// syncPaused brings existing service routes into line with Docker's paused
+// state during Reconcile, so workloads paused before an agent upgrade pick up
+// the 503 page on the next reconcile without touching hand-edited routes.
+func (m *Manager) syncPaused(ctx context.Context) error {
+	seen := map[Service]bool{}
+	var services []Service
+	for key := range m.table.Addresses {
+		i, ok := parseInstance(key)
+		if !ok || m.held(i.service()) || seen[i.service()] {
+			continue
+		}
+		seen[i.service()] = true
+		services = append(services, i.service())
+	}
+	slices.SortFunc(services, func(a, b Service) int { return strings.Compare(a.Project+"/"+a.Name, b.Project+"/"+b.Name) })
+	var failed error
+	for _, s := range services {
+		want := m.servicePaused(ctx, s)
+		failed = errors.Join(failed, m.editUpstreams(ctx, s, func(r *Route, _ uint32) {
+			r.Paused = want
+		}))
+	}
+	return failed
 }

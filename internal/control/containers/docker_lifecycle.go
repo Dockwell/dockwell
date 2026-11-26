@@ -72,7 +72,7 @@ func (h *Handler) planDockerLifecycle(ctx context.Context, selection *v1.DockerL
 		signal := strings.ToUpper(strings.TrimSpace(selection.GetSignal()))
 		if action == v1.DockerContainerAction_DOCKER_CONTAINER_ACTION_KILL && !docker.AllowedPausedKillSignal(signal) &&
 			slices.ContainsFunc(targets, func(target *v1.DockerContainerTarget) bool { return target.GetState() == "paused" }) {
-			return nil, authapi.Invalid(errors.New("paused containers accept only the default kill or SIGKILL. Choose SIGKILL or the default escalation"))
+			return nil, authapi.Invalid(errors.New("a paused container takes only SIGKILL or the default kill. Choose one of those"))
 		}
 		total += len(targets)
 		if total > 128 {

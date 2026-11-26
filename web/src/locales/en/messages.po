@@ -8379,11 +8379,11 @@ msgstr "{0, plural, one {Test a restore of # schedule's backups weekly} other {T
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
 
-msgid "{shown, plural, one {Searching the newest # backup.} other {Searching the newest # backups.}}"
-msgstr "{shown, plural, one {Searching the newest # backup.} other {Searching the newest # backups.}}"
+msgid "{shown, plural, one {Matches from the newest # backup.} other {Matches from the newest # backups.}}"
+msgstr "{shown, plural, one {Matches from the newest # backup.} other {Matches from the newest # backups.}}"
 
-msgid "{shown, plural, one {Sorting the newest # backup.} other {Sorting the newest # backups.}}"
-msgstr "{shown, plural, one {Sorting the newest # backup.} other {Sorting the newest # backups.}}"
+msgid "{shown, plural, one {Sorted within the newest # backup.} other {Sorted within the newest # backups.}}"
+msgstr "{shown, plural, one {Sorted within the newest # backup.} other {Sorted within the newest # backups.}}"
 
 msgid "{shown} newest"
 msgstr "{shown} newest"
@@ -12230,8 +12230,8 @@ msgstr "For {what}."
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 
-msgid "Health checks pause and its routes answer 503 while it is paused. Existing connections may stall."
-msgstr "Health checks pause and its routes answer 503 while it is paused. Existing connections may stall."
+msgid "Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall."
+msgstr "Health checks pause and its service routes answer 503 while it is paused. Host-port routes and existing connections may stall."
 
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
@@ -16835,6 +16835,9 @@ msgstr "Unused"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, one {and # more tag} other {and # more tags}}"
 
+msgid "A paused container takes only SIGKILL, or SIGTERM then SIGKILL."
+msgstr "A paused container takes only SIGKILL, or SIGTERM then SIGKILL."
+
 msgid "Already running or unavailable"
 msgstr "Already running or unavailable"
 
@@ -16861,9 +16864,6 @@ msgstr "New container name"
 
 msgid "Not running or paused"
 msgstr "Not running or paused"
-
-msgid "Paused containers accept only the default escalation or SIGKILL."
-msgstr "Paused containers accept only the default escalation or SIGKILL."
 
 msgid "Remove container and its anonymous volumes"
 msgstr "Remove container and its anonymous volumes"
@@ -27878,9 +27878,6 @@ msgstr "Filter by domain"
 msgid "Filter websites"
 msgstr "Filter websites"
 
-msgid "HTTPS {count}"
-msgstr "HTTPS {count}"
-
 msgid "Loading websites"
 msgstr "Loading websites"
 
@@ -27914,6 +27911,12 @@ msgstr "Reverse proxy"
 
 msgid "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 msgstr "Serve a folder or a PHP app, or send a domain on to a URL or a port."
+
+msgid "Set HTTPS"
+msgstr "Set HTTPS"
+
+msgid "Set HTTPS {count}"
+msgstr "Set HTTPS {count}"
 
 msgid "Static files"
 msgstr "Static files"

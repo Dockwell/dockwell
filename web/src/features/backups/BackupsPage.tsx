@@ -229,8 +229,11 @@ export function BackupsPage({
         <div className="list-bar">
           <span className="backups-runs-lead">
             {place.query || search.state
-              ? plural(shown, { one: "Searching the newest # backup.", other: "Searching the newest # backups." })
-              : plural(shown, { one: "Sorting the newest # backup.", other: "Sorting the newest # backups." })}
+              ? plural(shown, { one: "Matches from the newest # backup.", other: "Matches from the newest # backups." })
+              : plural(shown, {
+                  one: "Sorted within the newest # backup.",
+                  other: "Sorted within the newest # backups.",
+                })}
           </span>
           <Button
             size="sm"

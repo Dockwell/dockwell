@@ -5,7 +5,7 @@ import type { Flow } from "./flows.ts";
 import { listScreenshots } from "./lists-handy-shots.ts";
 import { ownServerPath } from "./own-server.ts";
 import { atWidth, onTop } from "./sheets.ts";
-import { bytes } from "./wire.ts";
+import { bytes, number } from "./wire.ts";
 
 async function expectRightClickPlacementAndFocus(page: Page, row: Locator, kind: string) {
   const cell = row.locator("td:not(:has(a, button, input))").first();
@@ -100,7 +100,7 @@ export const flow: Flow = {
     await containerRow.waitFor();
     await expectRightClickPlacementAndFocus(page, containerRow, "Docker container");
 
-    step("lists: page-count announcement and phone sort always run");
+    step("lists: page-count announcement, Members right-click, and phone sort always run");
     const probe = await page.context().newPage();
     try {
       const siteBody = Buffer.concat(
@@ -131,6 +131,32 @@ export const flow: Flow = {
         .locator('.list-pager .dw-sr[aria-live="polite"]')
         .getByText("Page 2", { exact: true })
         .waitFor({ state: "attached" });
+
+      const ownerUser = Buffer.concat([
+        bytes(1, "usr_probe_owner"),
+        bytes(2, "Owner Person"),
+        bytes(3, "owner@example.com"),
+        number(4, 1),
+      ]);
+      const secondUser = Buffer.concat([
+        bytes(1, "usr_probe_member"),
+        bytes(2, "Sam Rivera"),
+        bytes(3, "sam@example.com"),
+        number(4, 2),
+      ]);
+      const membersBody = Buffer.concat([
+        bytes(1, Buffer.concat([bytes(1, ownerUser), number(2, 1), number(3, 1), number(9, 1)])),
+        bytes(1, Buffer.concat([bytes(1, secondUser), number(9, 1)])),
+      ]);
+      await probe.route(/\/ListMembers(?:\?|$)/, (route) =>
+        route.fulfill({ contentType: "application/proto", body: membersBody }),
+      );
+      await probe.goto(`${origin}/settings/members`);
+      const memberRow = probe
+        .getByRole("table", { name: "Who signs in to this install" })
+        .getByRole("row", { name: /Sam Rivera/ });
+      await memberRow.waitFor();
+      await expectRightClickPlacementAndFocus(probe, memberRow, "member");
 
       await atWidth(probe, { width: 390, height: 844 });
       await probe.goto(`${origin}/websites`);

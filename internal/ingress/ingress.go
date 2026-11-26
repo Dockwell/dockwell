@@ -1541,6 +1541,9 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	if err := m.settle(ctx); err != nil {
 		return err
 	}
+	if err := m.syncPaused(ctx); err != nil {
+		return err
+	}
 	// Each instance is back at its own address, so a route may dial it again.
 	if err := m.Proxy.SetClosed(ctx, false); err != nil {
 		return err

@@ -56,7 +56,7 @@ import {
 import { useImageActions } from "./DockerImageActions";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { shortImageId } from "./imageIdentity";
-import { useDockerWatch } from "./live";
+import { sameServerIds, useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
 import { useSelectedCleanup } from "./selectedCleanup";
 import "./Docker.css";
@@ -168,8 +168,8 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     {
       retry: false,
       refetchOnWindowFocus: false,
-      placeholderData: (previous) =>
-        !pageToken && previous
+      placeholderData: (previous, previousQuery) =>
+        !pageToken && previous && sameServerIds(previousQuery, serverIds)
           ? {
               ...previous,
               objects: previous.objects.filter((row) => {

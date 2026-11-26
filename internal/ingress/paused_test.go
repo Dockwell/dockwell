@@ -122,3 +122,150 @@ func TestPauseUpstreamRedeployWhilePausedAndNewRoute(t *testing.T) {
 		t.Fatalf("new route app2.example.com not found in %+v", routes)
 	}
 }
+
+func TestPauseThenStopThenStartClearsPaused(t *testing.T) {
+	t.Run("single container", func(t *testing.T) {
+		s := newSetup(t)
+		s.apply(t, "web", spec("app.example.com", "", "web", 8080))
+		project := docker.Project(envID)
+		first := Instance{Project: project, Service: "web", Number: 1}
+
+		if err := s.PauseUpstream(t.Context(), first); err != nil {
+			t.Fatalf("PauseUpstream: %v", err)
+		}
+		routes, _ := s.proxy.Routes(t.Context())
+		if len(routes) != 1 || !routes[0].Paused {
+			t.Fatalf("after pause, routes = %+v, want Paused=true", routes)
+		}
+
+		// Stop unpauses and stops the container, then calls RemoveUpstream.
+		if err := s.engine.Client().StopContainer(t.Context(), project+"-web-1", 0); err != nil {
+			t.Fatalf("StopContainer: %v", err)
+		}
+		if err := s.RemoveUpstream(t.Context(), first); err != nil {
+			t.Fatalf("RemoveUpstream: %v", err)
+		}
+		routes, _ = s.proxy.Routes(t.Context())
+		if len(routes) != 1 || routes[0].Paused || len(routes[0].Upstreams) != 1 {
+			t.Fatalf("after stop on paused single container, routes = %+v, want Paused=false with reserved upstream", routes)
+		}
+
+		// Start restores normal routing cleanly.
+		if err := s.engine.Client().StartContainer(t.Context(), project+"-web-1"); err != nil {
+			t.Fatalf("StartContainer: %v", err)
+		}
+		if err := s.AddUpstream(t.Context(), first); err != nil {
+			t.Fatalf("AddUpstream: %v", err)
+		}
+		routes, _ = s.proxy.Routes(t.Context())
+		if len(routes) != 1 || routes[0].Paused {
+			t.Fatalf("after start, routes = %+v, want Paused=false", routes)
+		}
+	})
+
+	t.Run("several containers", func(t *testing.T) {
+		s := newSetup(t)
+		project := docker.Project(envID)
+		s.engine.AddContainer(docker.Container{
+			Name: "/" + project + "-web-2",
+			Config: docker.Config{Labels: map[string]string{
+				docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2", docker.LabelOneoff: "False",
+			}},
+			State:           docker.State{Running: true, Status: "running"},
+			NetworkSettings: docker.ContainerNetworkSettings{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+		})
+		s.apply(t, "web", spec("app.example.com", "", "web", 8080))
+		first := Instance{Project: project, Service: "web", Number: 1}
+		second := Instance{Project: project, Service: "web", Number: 2}
+		if _, _, ok, err := s.Endpoint(t.Context(), second); err != nil || !ok {
+			t.Fatalf("Endpoint(second) = ok:%v err:%v", ok, err)
+		}
+		if err := s.AddUpstream(t.Context(), second); err != nil {
+			t.Fatalf("AddUpstream(second): %v", err)
+		}
+
+		// Pause both containers: route becomes Paused=true after the second pauses.
+		if err := s.engine.Client().PauseContainer(t.Context(), project+"-web-1"); err != nil {
+			t.Fatalf("PauseContainer(1): %v", err)
+		}
+		if err := s.PauseUpstream(t.Context(), first); err != nil {
+			t.Fatalf("PauseUpstream(1): %v", err)
+		}
+		if err := s.engine.Client().PauseContainer(t.Context(), project+"-web-2"); err != nil {
+			t.Fatalf("PauseContainer(2): %v", err)
+		}
+		if err := s.PauseUpstream(t.Context(), second); err != nil {
+			t.Fatalf("PauseUpstream(2): %v", err)
+		}
+		routes, _ := s.proxy.Routes(t.Context())
+		if len(routes) != 1 || !routes[0].Paused {
+			t.Fatalf("after pausing both, routes = %+v, want Paused=true", routes)
+		}
+
+		// Stop both containers: unpause+stop, then RemoveUpstream clears Paused.
+		for _, n := range []int{1, 2} {
+			name := project + "-web-" + string(rune('0'+n))
+			if err := s.engine.Client().UnpauseContainer(t.Context(), name); err != nil {
+				t.Fatalf("UnpauseContainer(%d): %v", n, err)
+			}
+			if err := s.engine.Client().StopContainer(t.Context(), name, 0); err != nil {
+				t.Fatalf("StopContainer(%d): %v", n, err)
+			}
+			if err := s.RemoveUpstream(t.Context(), Instance{Project: project, Service: "web", Number: n}); err != nil {
+				t.Fatalf("RemoveUpstream(%d): %v", n, err)
+			}
+		}
+		routes, _ = s.proxy.Routes(t.Context())
+		if len(routes) != 1 || routes[0].Paused {
+			t.Fatalf("after stopping both, routes = %+v, want Paused=false", routes)
+		}
+
+		// Starting back keeps Paused=false.
+		if err := s.engine.Client().StartContainer(t.Context(), project+"-web-2"); err != nil {
+			t.Fatalf("StartContainer(2): %v", err)
+		}
+		if err := s.AddUpstream(t.Context(), second); err != nil {
+			t.Fatalf("AddUpstream(2): %v", err)
+		}
+		routes, _ = s.proxy.Routes(t.Context())
+		if len(routes) != 1 || routes[0].Paused {
+			t.Fatalf("after starting back, routes = %+v, want Paused=false", routes)
+		}
+	})
+}
+
+func TestReconcileMarksPreExistingPausedServiceRoute(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "web", spec("app.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+
+	// Simulate a workload already paused before this agent version landed:
+	// Docker container is paused, but the proxy route does not yet have Paused=true.
+	if err := s.engine.Client().PauseContainer(t.Context(), project+"-web-1"); err != nil {
+		t.Fatalf("PauseContainer: %v", err)
+	}
+	routes, _ := s.proxy.Routes(t.Context())
+	if len(routes) != 1 || routes[0].Paused {
+		t.Fatalf("before Reconcile, routes = %+v, want Paused=false", routes)
+	}
+
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	routes, _ = s.proxy.Routes(t.Context())
+	if len(routes) != 1 || !routes[0].Paused {
+		t.Fatalf("after Reconcile on paused workload, routes = %+v, want Paused=true", routes)
+	}
+
+	// Unpausing externally and reconciling clears Paused back to false.
+	if err := s.engine.Client().UnpauseContainer(t.Context(), project+"-web-1"); err != nil {
+		t.Fatalf("UnpauseContainer: %v", err)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatalf("Reconcile after unpause: %v", err)
+	}
+	routes, _ = s.proxy.Routes(t.Context())
+	if len(routes) != 1 || routes[0].Paused {
+		t.Fatalf("after Reconcile on unpaused workload, routes = %+v, want Paused=false", routes)
+	}
+}
