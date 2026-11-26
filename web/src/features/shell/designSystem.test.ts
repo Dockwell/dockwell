@@ -5,11 +5,39 @@ import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Design-system guard rails (design/system/README.md + tokens.json).
-// Prevents drift back into raw hex colours, off-scale font sizes, custom focus
-// outlines, forbidden italics or hand-rolled pagination footers.
+// The colour, font-size, focus-outline and italic checks inspect CSS files only
+// (legitimate hex values in TSX such as xterm themes, TOTP QR codes and Logo
+// live outside CSS). The pagination guard inspects CSS and TSX.
 
 const roots = [resolve("src"), resolve("../packages/ui/src")];
 const ALLOWED_FONT_SIZES = new Set(["12px", "13px", "14px", "16px", "22px", "28px", "32px"]);
+
+/** Detects hand-rolled pagination CSS classes and Previous/Next button footers in TSX. */
+function findHandRolledPagers(files: readonly { name: string; text: string }[]): string[] {
+  const handRolled: string[] = [];
+  for (const { name, text } of files) {
+    if (name.endsWith(".css")) {
+      if (/\.(docker-pager|list-pager)\b/.test(stripComments(text))) handRolled.push(name);
+      continue;
+    }
+    if (
+      name === "web/src/features/shell/ListTools.tsx" ||
+      name.endsWith("/PaginationBar.tsx") ||
+      !name.endsWith(".tsx")
+    ) {
+      continue;
+    }
+    // Match Previous button labels across arrow-function props (which contain `>`) and both <Trans> and t`` forms.
+    const hasPreviousButton =
+      /<Button\b[\s\S]{0,400}?(?:<Trans>Previous(?: page)?<\/Trans>|t`Previous(?: page)?`|>Previous(?: page)?<)/.test(
+        text,
+      );
+    const hasNextButton =
+      /<Button\b[\s\S]{0,400}?(?:<Trans>Next(?: page)?<\/Trans>|t`Next(?: page)?`|>Next(?: page)?<)/.test(text);
+    if (hasPreviousButton && hasNextButton) handRolled.push(name);
+  }
+  return handRolled;
+}
 
 function sources(dir: string, ending: string): string[] {
   const out: string[] = [];
@@ -93,20 +121,53 @@ describe("design system guards", () => {
   });
 
   it("leaves page-flipping footers to PaginationBar and ListPager", () => {
-    const handRolled: string[] = [];
-    for (const path of sources(resolve("src"), ".css")) {
-      const name = relative(resolve(".."), path);
-      const text = stripComments(readFileSync(path, "utf8"));
-      if (/\.(docker-pager|list-pager)\b/.test(text)) handRolled.push(name);
-    }
-    for (const path of sources(resolve("src"), ".tsx")) {
-      const name = relative(resolve(".."), path);
-      if (name === "web/src/features/shell/ListTools.tsx") continue;
-      const text = readFileSync(path, "utf8");
-      if (/<Button\b[^>]*>\s*<Trans>Previous(?: page)?<\/Trans>\s*<\/Button>/.test(text)) {
-        handRolled.push(name);
-      }
-    }
-    expect(handRolled, "use PaginationBar from @dockwell/ui or ListPager from ListTools").toEqual([]);
+    const files = [...sources(resolve("src"), ".css"), ...sources(resolve("src"), ".tsx")].map((path) => ({
+      name: relative(resolve(".."), path),
+      text: readFileSync(path, "utf8"),
+    }));
+    expect(findHandRolledPagers(files), "use PaginationBar from @dockwell/ui or ListPager from ListTools").toEqual([]);
+  });
+
+  it("flags main's old hand-rolled Docker pagers (negative fixture)", () => {
+    const oldDockerImages = `
+      <div className="docker-pager">
+        <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+          <Trans>Previous</Trans>
+        </Button>
+        <Button size="sm" variant="secondary" disabled={!nextToken} onClick={() => setPage((p) => p + 1)}>
+          <Trans>Next</Trans>
+        </Button>
+      </div>
+    `;
+    const oldDockerStorage = `
+      <nav aria-label={t\`Volume pages\`}>
+        <Button size="sm" onClick={() => onStep(-1)}>{t\`Previous\`}</Button>
+        <Button size="sm" onClick={() => onStep(1)}>{t\`Next\`}</Button>
+      </nav>
+    `;
+    const oldDockerContainers = `
+      <div className="pager">
+        <Button size="sm" onClick={() => go(page - 1)}>
+          <Trans>Previous page</Trans>
+        </Button>
+        <Button size="sm" onClick={() => go(page + 1)}>
+          <Trans>Next page</Trans>
+        </Button>
+      </div>
+    `;
+    const oldCss = `.docker-pager { display: flex; }`;
+    expect(
+      findHandRolledPagers([
+        { name: "web/src/features/docker/DockerImages.tsx", text: oldDockerImages },
+        { name: "web/src/features/docker/DockerStorage.tsx", text: oldDockerStorage },
+        { name: "web/src/features/docker/DockerContainers.tsx", text: oldDockerContainers },
+        { name: "web/src/features/docker/Docker.css", text: oldCss },
+      ]),
+    ).toEqual([
+      "web/src/features/docker/DockerImages.tsx",
+      "web/src/features/docker/DockerStorage.tsx",
+      "web/src/features/docker/DockerContainers.tsx",
+      "web/src/features/docker/Docker.css",
+    ]);
   });
 });

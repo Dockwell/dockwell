@@ -277,7 +277,6 @@
 .procs-link-cell:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
 

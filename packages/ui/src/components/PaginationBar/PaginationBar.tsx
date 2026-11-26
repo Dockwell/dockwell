@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { cx } from "../../lib/cx";
+import { useUIStrings } from "../../lib/strings";
 import { Button } from "../Button/Button";
 import "./PaginationBar.css";
 
@@ -37,13 +38,18 @@ export function PaginationBar({
   hasNext,
   onPrevious,
   onNext,
-  previousLabel = "Previous",
-  nextLabel = "Next",
+  previousLabel,
+  nextLabel,
   busy = false,
   className,
 }: PaginationBarProps) {
-  const content = (
-    <>
+  const strings = useUIStrings();
+  const prev = previousLabel ?? strings.pagination.previous;
+  const next = nextLabel ?? strings.pagination.next;
+  const landmark = label ?? strings.pagination.label;
+
+  return (
+    <nav className={cx("dw-pager", className)} aria-label={landmark}>
       {summary ? <span className="dw-pager-summary">{summary}</span> : null}
       {announcement !== undefined ? (
         <span className="dw-sr" aria-live="polite">
@@ -52,21 +58,12 @@ export function PaginationBar({
       ) : null}
       <span className="dw-pager-buttons">
         <Button variant="ghost" size="sm" icon="arrow-left" disabled={!hasPrevious} onClick={onPrevious}>
-          {previousLabel}
+          {prev}
         </Button>
         <Button variant="ghost" size="sm" icon="arrow-right" disabled={!hasNext} loading={busy} onClick={onNext}>
-          {nextLabel}
+          {next}
         </Button>
       </span>
-    </>
+    </nav>
   );
-
-  if (label) {
-    return (
-      <nav className={cx("dw-pager", className)} aria-label={label}>
-        {content}
-      </nav>
-    );
-  }
-  return <div className={cx("dw-pager", className)}>{content}</div>;
 }

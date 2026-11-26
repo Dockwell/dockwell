@@ -142,6 +142,9 @@ msgstr "匹配的比这里显示的多。请输入更多名称。"
 msgid "New folder in {path}"
 msgstr "在 {path} 中新建文件夹"
 
+msgid "Next"
+msgstr "下一页"
+
 msgid "No folder chosen"
 msgstr "尚未选择文件夹"
 
@@ -163,6 +166,9 @@ msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操�
 msgid "Optional"
 msgstr "可选"
 
+msgid "Pagination"
+msgstr "分页"
+
 msgid "Path"
 msgstr "路径"
 
@@ -171,6 +177,9 @@ msgstr "暂停"
 
 msgid "Paused"
 msgstr "已暂停"
+
+msgid "Previous"
+msgstr "上一页"
 
 msgid "Protected environment"
 msgstr "受保护的环境"
@@ -3490,6 +3499,9 @@ msgstr "正在加载应用"
 msgid "Logs"
 msgstr "日志"
 
+msgid "Logs for {name}"
+msgstr "{name} 的日志"
+
 msgid "No app with this ID"
 msgstr "没有此 ID 的应用"
 
@@ -3529,9 +3541,6 @@ msgstr "搜索日志"
 
 msgid "Settings"
 msgstr "设置"
-
-msgid "Show the logs of {name}"
-msgstr "显示 {name} 的日志"
 
 msgid "Start"
 msgstr "启动"
@@ -15124,8 +15133,8 @@ msgstr "没有卷"
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
 
-msgid "Nothing changed on the servers. The page tries again by itself."
-msgstr "服务器上没有任何改动。页面会自动重试。"
+msgid "Nothing changed on the servers."
+msgstr "服务器上没有任何更改。"
 
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
@@ -15593,9 +15602,6 @@ msgstr "正在加载服务"
 msgid "Loading the stack"
 msgstr "正在加载堆栈"
 
-msgid "Next"
-msgstr "下一页"
-
 msgid "No completed backup"
 msgstr "没有已完成的备份"
 
@@ -15630,9 +15636,6 @@ msgstr "第 {0} 页"
 
 msgid "Preview backup"
 msgstr "预览备份"
-
-msgid "Previous"
-msgstr "上一页"
 
 msgid "Published ports"
 msgstr "已发布端口"
@@ -24882,9 +24885,6 @@ msgstr "正在查找你的项目"
 msgid "In {projectName}"
 msgstr "在 {projectName} 中"
 
-msgid "Logs for {name}"
-msgstr "{name} 的日志"
-
 msgid "Match the system theme"
 msgstr "跟随系统主题"
 
@@ -25009,11 +25009,11 @@ msgstr "主导航"
 
 #. placeholder {0}: alerts.count
 msgid "{0, plural, one {# alert open} other {# alerts open}}"
-msgstr "{0, plural, other {# 个告警未解决}}"
+msgstr "{0, plural, other {# 条告警未解决}}"
 
 #. placeholder {0}: alerts.count
 msgid "{0, plural, one {# critical alert open} other {# alerts open, including critical}}"
-msgstr "{0, plural, one {# 条严重告警未处理} other {# 条告警未处理，包含严重告警}}"
+msgstr "{0, plural, one {# 条严重告警未解决} other {# 条告警未解决，包含严重告警}}"
 
 msgid "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
 msgstr "{waiting, plural, other {# 个变更等你批准}}"

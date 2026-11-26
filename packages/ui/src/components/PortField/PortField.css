@@ -30,8 +30,12 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+.dw-port-use:hover,
+.dw-port-use:focus-visible {
+  text-decoration: underline;
 }
 .dw-port-use:focus-visible {
   outline: none;

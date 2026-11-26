@@ -57,7 +57,6 @@
 .srv-hist-select:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .srv-hist-tag {

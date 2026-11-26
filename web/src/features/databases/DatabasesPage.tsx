@@ -198,7 +198,7 @@ export function DatabasesPage({
           onRetry={() => void query.refetch()}
           retrying={query.isFetching}
         >
-          <Trans>Nothing changed on the servers. The page tries again by itself.</Trans>
+          <Trans>Nothing changed on the servers.</Trans>
         </ReadFailed>
       ) : null}
       <Strangers strangers={strangers} />

@@ -71,10 +71,17 @@ export const flow: Flow = {
         route.fulfill({ contentType: "application/proto", body: siteBody }),
       );
 
-      // One running app + restart plan response so Command Bar Restart opens Review plan.
+      // One running, placed app + restart plan response so Command Bar Restart opens Review plan.
       const appSpec = bytes(1, bytes(1, "ghcr.io/example/api:1.0.0"));
       const appRef = Buffer.concat([bytes(1, "service"), bytes(2, "env_pa"), bytes(3, "billing-api")]);
-      const serviceInfo = Buffer.concat([bytes(1, "svc_pa_api"), bytes(2, appRef), number(3, 1), bytes(5, appSpec)]);
+      const appDeployment = Buffer.concat([bytes(1, own.id), bytes(2, own.name), number(3, 2)]); // DEPLOYMENT_STATE_LIVE
+      const serviceInfo = Buffer.concat([
+        bytes(1, "svc_pa_api"),
+        bytes(2, appRef),
+        number(3, 1),
+        bytes(5, appSpec),
+        bytes(6, appDeployment),
+      ]);
       await probe.route(/\/ListServices(?:\?|$)/, (route) =>
         route.fulfill({ contentType: "application/proto", body: bytes(1, serviceInfo) }),
       );

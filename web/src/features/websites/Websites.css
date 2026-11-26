@@ -373,9 +373,14 @@
   background: none;
   color: var(--link);
   font: inherit;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.website-folder-action:hover,
+.website-folder-action:focus-visible {
+  text-decoration: underline;
 }
 
 .website-folder-action:focus-visible {

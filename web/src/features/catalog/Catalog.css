@@ -1097,14 +1097,18 @@
   font-size: 13px;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.catalog-change:hover,
+.catalog-change:focus-visible {
+  text-decoration: underline;
 }
 
 .catalog-change:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: 2px;
 }
 
@@ -1123,14 +1127,18 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.catalog-inline-action:hover,
+.catalog-inline-action:focus-visible {
+  text-decoration: underline;
 }
 
 .catalog-inline-action:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: 2px;
 }
 
@@ -1415,7 +1423,6 @@
 .catalog-engine:has(input:focus-visible) {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .catalog-engine-version {
@@ -1505,7 +1512,6 @@
 .catalog-need-server:has(input:focus-visible) {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .catalog-need-server.is-off {
@@ -1641,8 +1647,13 @@
   right: calc(var(--space-4) + 14px + var(--space-2));
   bottom: var(--space-4);
   color: var(--cobalt);
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.catalog-card-open:hover,
+.catalog-card-open:focus-visible {
+  text-decoration: underline;
 }
 
 .catalog-card-open:focus-visible {

@@ -100,6 +100,7 @@
   --shadow-float: 0 0 0 1px #191c1a14, 0 2px 4px #191c1a0d, 0 8px 24px -6px #191c1a29; /* Menus, popovers, toasts, the selected segment. */
   --shadow-sheet: 0 0 0 1px #191c1a14, 0 4px 8px #191c1a0f, 0 24px 64px -16px #191c1a4d; /* Sheets and the command bar. */
   --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #2450d6; /* Keyboard focus on every interactive element: a 2px surface gap, then 2px of solid cobalt (box-shadow, so it follows the radius). At least 3:1 on every surface. */
+  --focus-ring-inset: inset 0 0 0 2px #2450d6; /* Keyboard focus inside scroll or overflow containers where an outer box-shadow would be clipped. */
 }
 
 /* Dark: follows the system unless a theme is chosen. */
@@ -147,6 +148,7 @@
     --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
     --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;
     --focus-ring: 0 0 0 2px #161917, 0 0 0 4px #809dff;
+    --focus-ring-inset: inset 0 0 0 2px #809dff;
   }
 }
 [data-theme="dark"] {
@@ -192,6 +194,7 @@
   --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
   --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;
   --focus-ring: 0 0 0 2px #161917, 0 0 0 4px #809dff;
+  --focus-ring-inset: inset 0 0 0 2px #809dff;
 }
 
 .dw-text-display { font: var(--text-display); letter-spacing: var(--text-display-tracking); }

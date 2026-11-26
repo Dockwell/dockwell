@@ -1787,9 +1787,20 @@
   font: inherit;
   color: var(--cobalt);
   text-align: left;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.app-why-not:hover,
+.app-why-not:focus-visible {
+  text-decoration: underline;
+}
+
+.app-why-not:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 
 @media (pointer: coarse) {
@@ -2604,13 +2615,16 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+.git-check-again:hover,
+.git-check-again:focus-visible {
+  text-decoration: underline;
 }
 .git-check-again:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: 2px;
 }
 
@@ -2936,14 +2950,18 @@
   font: inherit;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.app-inline-action:hover,
+.app-inline-action:focus-visible {
+  text-decoration: underline;
 }
 
 .app-inline-action:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: 2px;
 }
 
@@ -3199,14 +3217,18 @@
   font-size: 13px;
   color: var(--cobalt);
   cursor: pointer;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
+}
+
+.app-runs-auto-change:hover,
+.app-runs-auto-change:focus-visible {
+  text-decoration: underline;
 }
 
 .app-runs-auto-change:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
   border-radius: 2px;
 }
 

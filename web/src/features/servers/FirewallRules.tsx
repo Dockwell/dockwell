@@ -355,6 +355,7 @@ export function DockwellRules({
       state === "kept" ? (
         <input
           type="checkbox"
+          className="dw-checkbox"
           checked={selected.has(id)}
           disabled={locked}
           aria-label={t`Select the rule ${id}`}

@@ -4,7 +4,7 @@ import { ConnectError } from "@connectrpc/connect";
 import { Button, Loading, Skeleton, StatusBadge, Toast } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useMatches } from "@tanstack/react-router";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { reasonOf } from "../../lib/errors";
 import { setDisplayTimeZone, syncDisplayTimeZone } from "../../lib/format";
@@ -15,7 +15,7 @@ import { useAuthError } from "./messages";
 import { PasskeyHerePrompt } from "./PasskeyHerePrompt";
 import { SignInPage } from "./SignInPage";
 import { Unclaimed } from "./Unclaimed";
-import { useAuthState } from "./useAuthState";
+import { hasSignedInHint, setSignedInHint, useAuthState } from "./useAuthState";
 import "../system/Unreachable.css";
 
 /**
@@ -35,16 +35,24 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   const location = useLocation();
   const inShell = useMatches({ select: (matches) => matches.some((m) => m.routeId === "/_shell") });
   const userTimeZone = state.data?.user?.timeZone ?? "";
+  // Keep the error page mounted (with its last error) across retries and tab focus once a first check has failed.
+  const lastError = useRef<unknown>(undefined);
+  if (state.error) lastError.current = state.error;
+  if (state.data !== undefined) lastError.current = undefined;
+  const shownError = state.error ?? lastError.current;
 
   // Sync the person's time zone before child screens format dates on their first
   // render, and notify subscribers after commit when it changes or on sign-out (#834).
   if (state.data !== undefined) syncDisplayTimeZone(userTimeZone);
   useEffect(() => {
-    if (state.data !== undefined) setDisplayTimeZone(userTimeZone);
+    if (state.data !== undefined) {
+      setDisplayTimeZone(userTimeZone);
+      setSignedInHint(Boolean(state.data.claimed && state.data.user));
+    }
   }, [state.data, userTimeZone]);
 
-  if (state.isPending) {
-    if (inShell) return <ShellPending />;
+  if (state.isPending && !state.isError && !shownError) {
+    if (inShell && hasSignedInHint()) return <ShellPending />;
     return (
       <StandalonePage title={t`Checking your session`}>
         <Loading
@@ -64,13 +72,13 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   if (!state.data) {
     // The control plane names its reason when it answers with a refusal,
     // such as for another address; with none, it didn't answer at all.
-    return reasonOf(state.error) ? (
+    return reasonOf(shownError) ? (
       <StandalonePage title={t`Can't check your session`}>
-        <Refused error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
+        <Refused error={shownError} retrying={state.isFetching} onRetry={() => void state.refetch()} />
       </StandalonePage>
     ) : (
       <StandalonePage title={t`Can't reach the control plane`}>
-        <Unreachable error={state.error} retrying={state.isFetching} onRetry={() => void state.refetch()} />
+        <Unreachable error={shownError} retrying={state.isFetching} onRetry={() => void state.refetch()} />
       </StandalonePage>
     );
   }

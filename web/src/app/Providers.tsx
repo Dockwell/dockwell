@@ -219,6 +219,11 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         use: (port) => t`Use ${port}`,
         range: t`Use a port from 1 to 65535.`,
       },
+      pagination: {
+        label: t`Pagination`,
+        previous: t`Previous`,
+        next: t`Next`,
+      },
     }),
     [t, active],
   );

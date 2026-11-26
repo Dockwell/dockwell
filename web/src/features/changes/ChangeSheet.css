@@ -378,8 +378,20 @@ a.plan-reach-at:focus-visible {
   background: none;
   color: var(--link);
   font: inherit;
-  text-decoration: underline;
+  text-decoration: none;
+  text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.plan-note-act:hover,
+.plan-note-act:focus-visible {
+  text-decoration: underline;
+}
+
+.plan-note-act:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 
 /* A note in one line, which opens to the whole of it where there's more (#821). */

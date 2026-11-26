@@ -4,9 +4,14 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ChangeState,
+  DeploymentState,
+  DesiredRunState,
   type ProposeChangeRequest,
   type Resource,
   ResourceSchema,
+  Role,
+  RoleGrantSchema,
+  UserSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -16,6 +21,7 @@ import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aWebsite } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { applied, changeEvent, moved, shopPlanned, watched } from "../../test/changes";
 import { type Api, type CacheOptions, feed, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
@@ -386,14 +392,15 @@ describe("the command bar", () => {
       .getAllByRole("option")
       .map((option) => option.textContent);
     expect(actions[0]).toMatch(/^Deploy storefront/);
-    expect(actions).toEqual(
-      expect.arrayContaining(["Show the logs of storefront", "Open the environment of storefront"]),
-    );
+    expect(actions).toEqual(expect.arrayContaining(["Logs for storefront", "Open the environment of storefront"]));
+    // No duplicate Logs or Restart options across Actions and Apps on the app's own page.
+    expect(within(bar).getAllByRole("option", { name: "Logs for storefront" })).toHaveLength(1);
+    expect(within(bar).getAllByRole("option", { name: "Restart storefront Opens a plan" })).toHaveLength(1);
     // What the page does comes before what can be made from anywhere.
     expect(actions.findIndex((a) => a?.startsWith("New app"))).toBeGreaterThan(
       actions.indexOf("Open the environment of storefront"),
     );
-    await user.click(within(bar).getByRole("option", { name: "Show the logs of storefront" }));
+    await user.click(within(bar).getByRole("option", { name: "Logs for storefront" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_storefront/logs"));
 
     // Elsewhere, the app's own are gone.
@@ -432,5 +439,120 @@ describe("the command bar", () => {
     const again = await screen.findByRole("dialog", { name: "Command bar" });
     await user.click(within(again).getByRole("option", { name: "Terminal on hz-1" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/servers/srv_1/terminal"));
+  });
+
+  it("withholds Restart for paused, stopped, moving, unplaced, or unreadable apps (same gate as pages)", async () => {
+    const paused = anApp("paused-app", "ghcr.io/acme/paused:1", { desiredRunState: DesiredRunState.PAUSED });
+    const stopped = anApp("stopped-app", "ghcr.io/acme/stopped:1", { desiredRunState: DesiredRunState.STOPPED });
+    const moving = anApp(
+      "moving-app",
+      "ghcr.io/acme/moving:1",
+      {},
+      {
+        deployments: [{ serverId: "srv_1", serverName: "hz-1", state: DeploymentState.PENDING }],
+      },
+    );
+    const unplaced = anApp("unplaced-app", "ghcr.io/acme/unplaced:1", {}, { deployments: [] });
+    const running = anApp("live-app", "ghcr.io/acme/live:1");
+    const { bar } = await openBar({
+      services: {
+        listServices: () => ({ services: [paused, stopped, moving, unplaced, running] }),
+        listServiceRevisions: () => ({}),
+      },
+    });
+    expect(await within(bar).findByRole("option", { name: "Restart live-app Opens a plan" })).toBeVisible();
+    expect(within(bar).queryByRole("option", { name: /Restart paused-app/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Restart stopped-app/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Restart moving-app/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Restart unplaced-app/ })).toBeNull();
+  });
+
+  it("gates operational verbs for a viewer role", async () => {
+    const viewer = create(UserSchema, { ...mira, role: Role.VIEWER });
+    const { bar } = await openBar({
+      auth: {
+        getAuthState: () => authState({ user: viewer, grants: [create(RoleGrantSchema, { role: Role.VIEWER })] }),
+      },
+      services: {
+        listServices: () => ({ services: [anApp("storefront", "ghcr.io/acme/storefront:1")] }),
+        listServiceRevisions: () => ({}),
+      },
+    });
+    expect(await within(bar).findByRole("option", { name: "Logs for storefront" })).toBeVisible();
+    expect(within(bar).queryByRole("option", { name: /Restart storefront/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Terminal on hz-1/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Files on hz-1/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Updates on hz-1/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: "Alerts" })).toBeNull();
+  });
+
+  it("gates Restart to projects a developer holds and omits admin-only server verbs", async () => {
+    const dev = create(UserSchema, { ...mira, role: Role.UNSPECIFIED });
+    const shopEnv = resource("env_shop", "environment", "prj_shop", "production");
+    const shopApp = anApp(
+      "shop-api",
+      "ghcr.io/acme/shop:1",
+      {},
+      {
+        resource: { kind: "service", scope: "env_shop", name: "shop-api" },
+      },
+    );
+    const defaultApp = anApp(
+      "core-api",
+      "ghcr.io/acme/core:1",
+      {},
+      {
+        resource: { kind: "service", scope: "env_prod", name: "core-api" },
+      },
+    );
+    const { bar } = await openBar({
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: dev,
+            grants: [
+              create(RoleGrantSchema, { projectId: "prj_shop", role: Role.DEVELOPER }),
+              create(RoleGrantSchema, { projectId: "prj_default", role: Role.VIEWER }),
+            ],
+          }),
+      },
+      resources: {
+        listResources: (req) => ({
+          resources: req.kind === "project" ? [defaultProject, shopProject] : [production, shopEnv],
+        }),
+      },
+      services: {
+        listServices: () => ({ services: [shopApp, defaultApp] }),
+        listServiceRevisions: () => ({}),
+      },
+    });
+    expect(await within(bar).findByRole("option", { name: "Restart shop-api Opens a plan" })).toBeVisible();
+    expect(within(bar).getByRole("option", { name: "Logs for shop-api" })).toBeVisible();
+    expect(within(bar).getByRole("option", { name: "Logs for core-api" })).toBeVisible();
+    expect(within(bar).queryByRole("option", { name: /Restart core-api/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Terminal on hz-1/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Files on hz-1/ })).toBeNull();
+    expect(within(bar).queryByRole("option", { name: /Updates on hz-1/ })).toBeNull();
+  });
+
+  it("caps empty-query options on a 1,000-server fleet and surfaces server verbs when searching", async () => {
+    const user = userEvent.setup();
+    const watch = feed<WatchServersResponse>();
+    const many = Array.from({ length: 1000 }, (_, i) =>
+      aServer({ id: `srv_${i + 1}`, name: `hz-${i + 1}`, controlServer: i === 0, stats: sample(12) }),
+    );
+    watch.push(...many.map(changed), snapshotComplete);
+    renderAt("/", { servers: { watchServers: watch.stream } });
+    await screen.findByRole("heading", { level: 1 });
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = await screen.findByRole("dialog", { name: "Command bar" });
+
+    const initialCount = within(bar).getAllByRole("option").length;
+    expect(initialCount).toBeLessThan(60);
+    expect(within(bar).queryByRole("option", { name: "Terminal on hz-999" })).toBeNull();
+
+    const input = within(bar).getByRole("combobox");
+    await user.type(input, "terminal hz-999");
+    expect(await within(bar).findByRole("option", { name: "Terminal on hz-999" })).toBeVisible();
   });
 });

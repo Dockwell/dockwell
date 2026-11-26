@@ -27,11 +27,11 @@ import {
 import type { I18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
+import { useMatch, useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { onApple } from "../../lib/platform";
-import { appState, environmentOf, imageOf, nameOf, stoppedByRevision } from "../apps/app";
+import { appState, environmentOf, imageOf, mayRestartApp, nameOf } from "../apps/app";
 import { useApps } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useWorkloadControls } from "../apps/workload";
@@ -172,12 +172,19 @@ function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): 
   return prompt.project ?? (projects?.length === 1 ? projects[0] : undefined);
 }
 
+/** Maximum servers/apps shown in their group on an empty query before typing narrows the list. */
+const EMPTY_GROUP_CAP = 8;
+/** Small fleets still surface per-server and per-app verbs right on open; large fleets wait for a query. */
+const EMPTY_SERVER_VERBS_CAP = 5;
+const EMPTY_APP_VERBS_CAP = 8;
+
 function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands: readonly PageCommand[] }) {
   const { t, i18n } = useLingui();
   const strings = useUIStrings();
   const navigate = useNavigate();
   const sheet = useChangeSheet();
   const transport = useTransport();
+  const currentAppId = useMatch({ from: "/_shell/apps/$serviceId", shouldThrow: false })?.params.serviceId;
   // The view keeps its identity between samples, so the list isn't rebuilt while you type.
   const { servers, fleet } = useFleetView();
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
@@ -192,6 +199,8 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
   const { restart: restartApp } = useWorkloadControls();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");
+  const hasQuery = query.trim() !== "";
+  const promptQuery = prompt ? query.trim() : "";
   const may = useMay();
 
   const commands = useMemo(() => {
@@ -199,7 +208,7 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
     if (prompt)
       return promptItems(
         prompt,
-        query.trim(),
+        promptQuery,
         projects,
         i18n,
         setPrompt,
@@ -411,10 +420,14 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
     });
 
     // Each server after every page, so the pages are one group (#795), with its operational verbs.
+    // On large fleets, cap the empty-query list and emit per-server verbs once typing narrows it.
     const mayTerminal = may(TerminalService.method.listTerminals).allowed;
     const mayFiles = may(FileService.method.listFiles).allowed;
     const mayUpdates = may(UpdateService.method.getServerUpdates).allowed;
-    for (const server of servers ?? []) {
+    const allServers = servers ?? [];
+    const shownServers = hasQuery ? allServers : allServers.slice(0, EMPTY_GROUP_CAP);
+    const showServerVerbs = hasQuery || allServers.length <= EMPTY_SERVER_VERBS_CAP;
+    for (const server of shownServers) {
       const name = server.name;
       const address = server.address;
       const where = address && isPrivateAddress(address) ? t`${address}, private` : address;
@@ -427,42 +440,47 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         hint: [strings.status[serverStatus(server)], where].filter(Boolean).join(" · "),
         run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
       });
-      if (mayTerminal) {
+      if (showServerVerbs) {
+        if (mayTerminal) {
+          list.push({
+            id: `server-terminal:${server.id}`,
+            group: serverGroup,
+            icon: "terminal",
+            label: t`Terminal on ${name}`,
+            run: () => navigate({ to: "/servers/$serverId/terminal", params: { serverId: server.id } }),
+          });
+        }
+        if (mayFiles) {
+          list.push({
+            id: `server-files:${server.id}`,
+            group: serverGroup,
+            icon: "folder",
+            label: t`Files on ${name}`,
+            run: () => navigate({ to: "/servers/$serverId/files", params: { serverId: server.id } }),
+          });
+        }
+        if (mayUpdates) {
+          list.push({
+            id: `server-updates:${server.id}`,
+            group: serverGroup,
+            icon: "arrow-up",
+            label: t`Updates on ${name}`,
+            run: () => navigate({ to: "/servers/$serverId/updates", params: { serverId: server.id } }),
+          });
+        }
         list.push({
-          id: `server-terminal:${server.id}`,
+          id: `server-activity:${server.id}`,
           group: serverGroup,
-          icon: "terminal",
-          label: t`Terminal on ${name}`,
-          run: () => navigate({ to: "/servers/$serverId/terminal", params: { serverId: server.id } }),
+          icon: "activity",
+          label: t`Activity on ${name}`,
+          run: () => navigate({ to: "/activity", search: { server: server.id } }),
         });
       }
-      if (mayFiles) {
-        list.push({
-          id: `server-files:${server.id}`,
-          group: serverGroup,
-          icon: "folder",
-          label: t`Files on ${name}`,
-          run: () => navigate({ to: "/servers/$serverId/files", params: { serverId: server.id } }),
-        });
-      }
-      if (mayUpdates) {
-        list.push({
-          id: `server-updates:${server.id}`,
-          group: serverGroup,
-          icon: "arrow-up",
-          label: t`Updates on ${name}`,
-          run: () => navigate({ to: "/servers/$serverId/updates", params: { serverId: server.id } }),
-        });
-      }
-      list.push({
-        id: `server-activity:${server.id}`,
-        group: serverGroup,
-        icon: "activity",
-        label: t`Activity on ${name}`,
-        run: () => navigate({ to: "/activity", search: { server: server.id } }),
-      });
     }
-    for (const app of apps ?? []) {
+    const allApps = apps ?? [];
+    const shownApps = hasQuery ? allApps : allApps.slice(0, EMPTY_GROUP_CAP);
+    const showAppVerbs = hasQuery || allApps.length <= EMPTY_APP_VERBS_CAP;
+    for (const app of shownApps) {
       const name = nameOf(app);
       const state = appState(app, servers);
       const where = { environment: environmentOf(app) };
@@ -474,24 +492,27 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         hint: [appWords.state(state), imageOf(app)].join(" · "),
         run: () => navigate({ to: "/apps/$serviceId", params: { serviceId: app.id } }),
       });
-      if (may(LogService.method.watchLogs, where).allowed) {
-        list.push({
-          id: `app-logs:${app.id}`,
-          group: t`Apps`,
-          icon: "terminal",
-          label: t`Logs for ${name}`,
-          run: () => navigate({ to: "/apps/$serviceId/logs", params: { serviceId: app.id } }),
-        });
-      }
-      if (!stoppedByRevision(app, state) && may(ChangeService.method.restartService, where).allowed) {
-        list.push({
-          id: `app-restart:${app.id}`,
-          group: t`Apps`,
-          icon: "refresh",
-          label: t`Restart ${name}`,
-          hint: t`Opens a plan`,
-          run: () => restartApp(app.id),
-        });
+      // On an app's own page, pageCommands already lists Logs and Restart first under Actions.
+      if (showAppVerbs && app.id !== currentAppId) {
+        if (may(LogService.method.watchLogs, where).allowed) {
+          list.push({
+            id: `app-logs:${app.id}`,
+            group: t`Apps`,
+            icon: "terminal",
+            label: t`Logs for ${name}`,
+            run: () => navigate({ to: "/apps/$serviceId/logs", params: { serviceId: app.id } }),
+          });
+        }
+        if (mayRestartApp(app, state, may).allowed) {
+          list.push({
+            id: `app-restart:${app.id}`,
+            group: t`Apps`,
+            icon: "refresh",
+            label: t`Restart ${name}`,
+            hint: t`Opens a plan`,
+            run: () => restartApp(app.id),
+          });
+        }
       }
     }
 
@@ -590,8 +611,10 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
     apps,
     appWords,
     restartApp,
+    currentAppId,
     prompt,
-    query,
+    hasQuery,
+    promptQuery,
     sheet,
     onClose,
     transport,

@@ -362,8 +362,20 @@
   color: var(--link);
   font: inherit;
   font-size: 12px;
-  text-decoration: underline;
+  text-decoration: none;
+  text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.domains-check-now:hover,
+.domains-check-now:focus-visible {
+  text-decoration: underline;
+}
+
+.domains-check-now:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 
 /* Where what Dockwell published at Cloudflare stands, where it isn't as written (ADR 0104). */

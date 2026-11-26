@@ -70,7 +70,27 @@ func (t *tb) Logf(format string, args ...any) { log.Printf(format, args...) }
 
 // postgres stands in for the database's tools: its data is one file of SQL.
 func postgres(x dockertest.Exec) int {
-	file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
+	dir := x.Volumes["/var/lib/postgresql/data"]
+	if dir == "" {
+		for k, v := range x.Volumes {
+			if v != "" && strings.Contains(k, "postgresql") {
+				dir = v
+				break
+			}
+		}
+	}
+	if dir == "" {
+		for _, v := range x.Volumes {
+			if v != "" {
+				dir = v
+				break
+			}
+		}
+	}
+	if dir == "" {
+		dir = os.TempDir()
+	}
+	file := filepath.Join(dir, "data.sql")
 	script := strings.Join(x.Cmd, " ")
 	switch {
 	case strings.Contains(script, "pg_dumpall"):

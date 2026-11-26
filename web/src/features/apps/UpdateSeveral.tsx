@@ -104,7 +104,7 @@ export function PickBox({
     <input
       ref={ref}
       type="checkbox"
-      className="update-pick"
+      className="dw-checkbox update-pick"
       checked={checked}
       aria-label={label}
       onChange={(e) => onPick(e.currentTarget.checked, (e.nativeEvent as MouseEvent).shiftKey === true)}

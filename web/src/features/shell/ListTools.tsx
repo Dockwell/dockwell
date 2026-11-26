@@ -298,11 +298,13 @@ export function ListPager<Row>({
   onPage,
   more = false,
   busy = false,
+  label,
 }: {
   page: ListPage<Row>;
   onPage: (page: number) => void;
   more?: boolean;
   busy?: boolean;
+  label?: string;
 }) {
   const { t } = useLingui();
   const shown = useRef(page.page);
@@ -317,14 +319,13 @@ export function ListPager<Row>({
   if (page.pages <= 1 && !more) return null;
   return (
     <PaginationBar
+      label={label ?? t`Pages`}
       summary={count}
       announcement={announcement}
       hasPrevious={page.page > 0}
       hasNext={more || page.page < page.pages - 1}
       onPrevious={() => onPage(page.page - 1)}
       onNext={() => onPage(page.page + 1)}
-      previousLabel={<Trans>Previous</Trans>}
-      nextLabel={<Trans>Next</Trans>}
       busy={busy}
     />
   );

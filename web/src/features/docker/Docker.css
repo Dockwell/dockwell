@@ -249,8 +249,13 @@
 
 .docker-fact-link {
   color: var(--cobalt);
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 0.18em;
+}
+
+.docker-fact-link:hover,
+.docker-fact-link:focus-visible {
+  text-decoration: underline;
 }
 
 .docker-fact-link:focus-visible {

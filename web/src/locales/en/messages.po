@@ -142,6 +142,9 @@ msgstr "More match than this shows. Type more of the name."
 msgid "New folder in {path}"
 msgstr "New folder in {path}"
 
+msgid "Next"
+msgstr "Next"
+
 msgid "No folder chosen"
 msgstr "No folder chosen"
 
@@ -163,6 +166,9 @@ msgstr "Nothing matches “{query}”. Try a server, app or action name."
 msgid "Optional"
 msgstr "Optional"
 
+msgid "Pagination"
+msgstr "Pagination"
+
 msgid "Path"
 msgstr "Path"
 
@@ -171,6 +177,9 @@ msgstr "Pause"
 
 msgid "Paused"
 msgstr "Paused"
+
+msgid "Previous"
+msgstr "Previous"
 
 msgid "Protected environment"
 msgstr "Protected environment"
@@ -3490,6 +3499,9 @@ msgstr "Loading the app"
 msgid "Logs"
 msgstr "Logs"
 
+msgid "Logs for {name}"
+msgstr "Logs for {name}"
+
 msgid "No app with this ID"
 msgstr "No app with this ID"
 
@@ -3529,9 +3541,6 @@ msgstr "Search logs"
 
 msgid "Settings"
 msgstr "Settings"
-
-msgid "Show the logs of {name}"
-msgstr "Show the logs of {name}"
 
 msgid "Start"
 msgstr "Start"
@@ -15124,8 +15133,8 @@ msgstr "No volume"
 msgid "No volume, so its data goes with its container"
 msgstr "No volume, so its data goes with its container"
 
-msgid "Nothing changed on the servers. The page tries again by itself."
-msgstr "Nothing changed on the servers. The page tries again by itself."
+msgid "Nothing changed on the servers."
+msgstr "Nothing changed on the servers."
 
 msgid "Nothing has happened to them lately"
 msgstr "Nothing has happened to them lately"
@@ -15593,9 +15602,6 @@ msgstr "Loading services"
 msgid "Loading the stack"
 msgstr "Loading the stack"
 
-msgid "Next"
-msgstr "Next"
-
 msgid "No completed backup"
 msgstr "No completed backup"
 
@@ -15630,9 +15636,6 @@ msgstr "Page {0}"
 
 msgid "Preview backup"
 msgstr "Preview backup"
-
-msgid "Previous"
-msgstr "Previous"
 
 msgid "Published ports"
 msgstr "Published ports"
@@ -24881,9 +24884,6 @@ msgstr "Finding your projects"
 
 msgid "In {projectName}"
 msgstr "In {projectName}"
-
-msgid "Logs for {name}"
-msgstr "Logs for {name}"
 
 msgid "Match the system theme"
 msgstr "Match the system theme"

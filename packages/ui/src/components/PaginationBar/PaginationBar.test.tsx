@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { englishStrings, UIStringsProvider } from "../../lib/strings";
 import { PaginationBar } from "./PaginationBar";
 
 describe("PaginationBar", () => {
@@ -45,5 +46,28 @@ describe("PaginationBar", () => {
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Previous" }));
     expect(onPrevious).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a default navigation landmark and translated labels from UIStringsProvider", () => {
+    render(
+      <UIStringsProvider
+        strings={{
+          ...englishStrings,
+          pagination: { label: "分页", previous: "上一页", next: "下一页" },
+        }}
+      >
+        <PaginationBar
+          summary="1-50 of 67"
+          hasPrevious={false}
+          hasNext={true}
+          onPrevious={() => {}}
+          onNext={() => {}}
+        />
+      </UIStringsProvider>,
+    );
+
+    expect(screen.getByRole("navigation", { name: "分页" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "下一页" })).toBeEnabled();
   });
 });

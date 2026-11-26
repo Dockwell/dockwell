@@ -109,9 +109,21 @@
   background: none;
   color: var(--link);
   font: inherit;
-  text-decoration: underline;
+  text-decoration: none;
   text-underline-offset: 2px;
   vertical-align: baseline;
+  cursor: pointer;
+}
+
+.backup-drill .backup-drill-action:hover,
+.backup-drill .backup-drill-action:focus-visible {
+  text-decoration: underline;
+}
+
+.backup-drill .backup-drill-action:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 
 .backup-actions {

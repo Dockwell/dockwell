@@ -103,10 +103,13 @@
 .dw-folder-crumb[aria-current] {
   color: var(--ink);
 }
-.dw-folder-crumb:focus-visible,
-.dw-folder-row:focus-visible {
+.dw-folder-crumb:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+.dw-folder-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-inset);
 }
 .dw-folder-list {
   display: flex;

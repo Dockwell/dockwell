@@ -44,6 +44,7 @@
   --shadow-float: 0 0 0 1px #191c1a14, 0 2px 4px #191c1a0d, 0 8px 24px -6px #191c1a29;
   --shadow-sheet: 0 0 0 1px #191c1a14, 0 4px 8px #191c1a0f, 0 24px 64px -16px #191c1a4d;
   --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #2450d6;
+  --focus-ring-inset: inset 0 0 0 2px #2450d6;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -88,6 +89,7 @@
   --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
   --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;
   --focus-ring: 0 0 0 2px #161917, 0 0 0 4px #809dff;
+  --focus-ring-inset: inset 0 0 0 2px #809dff;
 }
 :root {
   --space-1: 4px;

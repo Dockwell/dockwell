@@ -116,7 +116,6 @@
 .start-app:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-  outline-offset: 2px;
 }
 
 /*

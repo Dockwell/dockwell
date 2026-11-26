@@ -263,8 +263,7 @@ button.files-tree-toggle:hover {
 .files-tree-toggle:focus-visible,
 .files-tree-link:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: -2px;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .files-tree-name {
@@ -307,8 +306,7 @@ button.files-tree-toggle:hover {
 
 .files-tree-more-link:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: 1px;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .files-list {
@@ -407,8 +405,7 @@ button.files-tree-toggle:hover {
 
 .files-sort-btn:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: 1px;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .files-sort-icon {
@@ -912,8 +909,7 @@ button.files-tree-toggle:hover {
 .files-tab-btn:focus-visible,
 .files-tab-close:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: -2px;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .files-tab-panel {
