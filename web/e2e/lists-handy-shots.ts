@@ -189,7 +189,7 @@ export async function listScreenshots(page: Page, { data, origin, step }: FlowRu
         await next.click();
         await probe.waitForURL((url) => url.searchParams.get("page") === "2");
         const range = path === "backups" ? "51-100 of 120" : "51-60 of 60";
-        await probe.locator(".list-pager-count").getByText(range, { exact: true }).waitFor();
+        await probe.locator(".dw-pager-summary").getByText(range, { exact: true }).waitFor();
         await probe.evaluate(() => window.scrollTo(0, 0));
         await probe.screenshot({ path: join(directory, `${path}-${width}-page-2.png`), fullPage: true });
         if (path === "apps" && width === 1440) {

@@ -233,7 +233,12 @@ export function ChecksTab({ search, onSearch }: ListRouteProps) {
       {checks.data ? <WatchRouted checks={list} /> : null}
       {list.length > 0 ? <ListToolbar place={place} label={t`Filter uptime checks`} /> : null}
       {checks.error ? (
-        <ReadFailed error={checks.error} title={t`Can't load the checks`} />
+        <ReadFailed
+          error={checks.error}
+          title={t`Can't load the checks`}
+          onRetry={() => void checks.refetch()}
+          retrying={checks.isFetching}
+        />
       ) : !checks.data ? (
         phone ? (
           <Loading label={t`Loading the checks`}>

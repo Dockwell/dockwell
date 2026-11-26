@@ -84,7 +84,16 @@ export function TabBar({ view }: { view: FleetView }) {
           icon="menu"
           label={t`More`}
           tone={alerts.critical ? "critical" : undefined}
-          count={alerts.count > 0 ? plural(alerts.count, { one: "# alert open", other: "# alerts open" }) : undefined}
+          count={
+            alerts.count > 0
+              ? alerts.critical
+                ? plural(alerts.count, {
+                    one: "# critical alert open",
+                    other: "# alerts open, including critical",
+                  })
+                : plural(alerts.count, { one: "# alert open", other: "# alerts open" })
+              : undefined
+          }
         />
       </Link>
     </nav>

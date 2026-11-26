@@ -357,7 +357,12 @@ function RemoveSheet({ member, onClose }: { member: Member; onClose: () => void 
             </Callout>
           ) : null}
           {plan.error ? (
-            <ReadFailed error={plan.error} title={t`Dockwell can't say what removing ${name} would end`} />
+            <ReadFailed
+              error={plan.error}
+              title={t`Dockwell can't say what removing ${name} would end`}
+              onRetry={() => void plan.refetch()}
+              retrying={plan.isFetching}
+            />
           ) : !p ? (
             <Loading label={t`Reading what this would end`}>
               <SkeletonFacts count={4} layout="rows" />

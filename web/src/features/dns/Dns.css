@@ -19,7 +19,7 @@
   margin: 0;
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -43,13 +43,13 @@
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 .dns-zone-said {
   color: var(--critical);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Remove sits apart from Cancel and Review plan, at the footer's start. */

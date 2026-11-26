@@ -80,6 +80,7 @@ import {
   isMoving,
   keepOrder,
   matches,
+  mayRestartApp,
   nameOf,
   needsALook,
   recordSaysMore,
@@ -465,13 +466,13 @@ export function AppsPage({
             },
           ]
         : []),
-      ...(settled && !stopped && !paused
+      ...(mayRestartApp(service, appState(service, servers), may).offered
         ? [
             {
               id: "restart",
               icon: "refresh" as const,
               label: t`Restart`,
-              ...may(ChangeService.method.restartService, where).off,
+              ...mayRestartApp(service, appState(service, servers), may).grant.off,
               onSelect: () => restartApp(service.id),
             },
           ]

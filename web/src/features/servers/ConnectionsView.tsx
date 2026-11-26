@@ -7,6 +7,7 @@ import {
   Loading,
   Panel,
   PHONE_QUERY,
+  SelectField,
   SkeletonRows,
   Table,
   type TableColumn,
@@ -187,35 +188,30 @@ export function ConnectionsView({
   return (
     <div className="procs-conns">
       <div className="procs-conn-filters">
-        <select
-          className="srv-hist-select"
+        <SelectField
+          size="sm"
           aria-label={t`Filter by protocol`}
           value={protoFilter}
+          options={[
+            { value: "", label: t`All protocols` },
+            { value: "tcp", label: "TCP" },
+            { value: "udp", label: "UDP" },
+          ]}
           onChange={(e) => {
             setProtoFilter(e.target.value);
             setShown(PAGE);
           }}
-        >
-          <option value="">{t`All protocols`}</option>
-          <option value="tcp">TCP</option>
-          <option value="udp">UDP</option>
-        </select>
-        <select
-          className="srv-hist-select"
+        />
+        <SelectField
+          size="sm"
           aria-label={t`Filter by state`}
           value={stateFilter}
+          options={[{ value: "", label: t`All states` }, ...states.map((s) => ({ value: s, label: s }))]}
           onChange={(e) => {
             setStateFilter(e.target.value);
             setShown(PAGE);
           }}
-        >
-          <option value="">{t`All states`}</option>
-          {states.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        />
         <span className="procs-spacer" />
         <Button size="sm" variant="ghost" icon="refresh" onClick={() => void query.refetch()}>
           <Trans>Refresh</Trans>

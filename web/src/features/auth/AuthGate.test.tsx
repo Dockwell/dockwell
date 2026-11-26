@@ -10,11 +10,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authError, authState } from "../../test/auth";
 import { renderAt } from "../../test/render";
+import { setSignedInHint } from "./useAuthState";
 
 const system = { getVersion: () => create(GetVersionResponseSchema, {}) };
 
 afterEach(() => {
   focusManager.setFocused(undefined);
+  setSignedInHint(false);
 });
 
 /** What a browser does when someone comes back to the tab: queries that may be stale are read again. */
@@ -26,6 +28,68 @@ function refocus() {
 }
 
 describe("the sign-in gate", () => {
+  it("mounts the shell skeleton while session auth is pending when a signed-in hint exists", async () => {
+    setSignedInHint(true);
+    renderAt("/apps", {
+      system,
+      auth: {
+        getAuthState: () => new Promise(() => {}),
+      },
+    });
+    await waitFor(() => expect(document.querySelector(".shell-pending-rail")).not.toBeNull());
+    expect(document.querySelector(".shell")).not.toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();
+  });
+
+  it("skips the shell skeleton for a signed-out visitor with no signed-in hint", async () => {
+    renderAt("/apps", {
+      system,
+      auth: {
+        getAuthState: () => new Promise(() => {}),
+      },
+    });
+    await waitFor(() => expect(document.querySelector(".auth-reserve")).not.toBeNull());
+    expect(document.querySelector(".shell-pending-rail")).toBeNull();
+  });
+
+  it("keeps the error page mounted with Retrying on Retry and tab focus instead of flipping to ShellPending", async () => {
+    setSignedInHint(true);
+    let releaseRetry: (() => void) | undefined;
+    let calls = 0;
+    renderAt("/apps", {
+      system,
+      auth: {
+        getAuthState: async () => {
+          calls += 1;
+          if (calls === 1) throw new ConnectError("connection refused", Code.Unavailable);
+          await new Promise<void>((resolve) => {
+            releaseRetry = resolve;
+          });
+          throw new ConnectError("connection refused", Code.Unavailable);
+        },
+      },
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Can't reach the control plane" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => {
+      const btn = screen.getByRole("button", { name: "Retrying" });
+      expect(btn).toHaveAttribute("aria-busy", "true");
+      expect(btn).toHaveAttribute("aria-disabled", "true");
+    });
+    expect(document.querySelector(".shell-pending-rail")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Can't reach the control plane" })).toBeVisible();
+    expect(screen.getByText(/connection refused/)).toBeVisible();
+    releaseRetry?.();
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeEnabled();
+
+    // Tab refocus while errored keeps the error page too.
+    refocus();
+    await waitFor(() => expect(calls).toBeGreaterThanOrEqual(3));
+    expect(document.querySelector(".shell-pending-rail")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Can't reach the control plane" })).toBeVisible();
+    releaseRetry?.();
+  });
+
   it("shows the overview to someone signed in, in the shell", async () => {
     renderAt("/", { system, auth: { getAuthState: () => authState() } });
     expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeVisible();

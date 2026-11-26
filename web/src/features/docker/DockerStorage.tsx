@@ -17,6 +17,7 @@ import {
   cx,
   Icon,
   Loading,
+  PaginationBar,
   Panel,
   SegmentedControl,
   SelectField,
@@ -602,10 +603,17 @@ export function DockerStorage({
           </Panel>
         </section>
       ) : null}
-      <div className="docker-storage-actions">
-        {token ? <Button variant="secondary" onClick={() => setPages(pages.slice(0, -1))}>{t`Previous`}</Button> : null}
-        {next ? <Button variant="secondary" onClick={() => setPages([...pages, next])}>{t`Next`}</Button> : null}
-      </div>
+      {token || next ? (
+        <PaginationBar
+          summary={<Trans>Page {pages.length}</Trans>}
+          hasPrevious={Boolean(token)}
+          hasNext={Boolean(next)}
+          onPrevious={() => setPages(pages.slice(0, -1))}
+          onNext={() => next && setPages([...pages, next])}
+          previousLabel={t`Previous`}
+          nextLabel={t`Next`}
+        />
+      ) : null}
       {context.element}
       <BatchBar count={selected.length} onClear={selection.clear} {...batch} />
       {creating ? (

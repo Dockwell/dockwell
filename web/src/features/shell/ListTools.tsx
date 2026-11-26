@@ -5,6 +5,7 @@ import {
   cx,
   Icon,
   type IconName,
+  PaginationBar,
   SelectField,
   Table,
   type TableColumn,
@@ -297,11 +298,13 @@ export function ListPager<Row>({
   onPage,
   more = false,
   busy = false,
+  label,
 }: {
   page: ListPage<Row>;
   onPage: (page: number) => void;
   more?: boolean;
   busy?: boolean;
+  label?: string;
 }) {
   const { t } = useLingui();
   const shown = useRef(page.page);
@@ -315,33 +318,16 @@ export function ListPager<Row>({
   }, [page.page, t]);
   if (page.pages <= 1 && !more) return null;
   return (
-    <div className="list-pager">
-      <span className="list-pager-count">{count}</span>
-      <span className="dw-sr" aria-live="polite">
-        {announcement}
-      </span>
-      <span className="list-pager-buttons">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="arrow-left"
-          disabled={page.page === 0}
-          onClick={() => onPage(page.page - 1)}
-        >
-          <Trans>Previous</Trans>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="arrow-right"
-          disabled={!more && page.page >= page.pages - 1}
-          loading={busy}
-          onClick={() => onPage(page.page + 1)}
-        >
-          <Trans>Next</Trans>
-        </Button>
-      </span>
-    </div>
+    <PaginationBar
+      label={label ?? t`Pages`}
+      summary={count}
+      announcement={announcement}
+      hasPrevious={page.page > 0}
+      hasNext={more || page.page < page.pages - 1}
+      onPrevious={() => onPage(page.page - 1)}
+      onNext={() => onPage(page.page + 1)}
+      busy={busy}
+    />
   );
 }
 
@@ -447,7 +433,7 @@ export function SelectBox({
     <input
       ref={ref}
       type="checkbox"
-      className="list-select-box"
+      className="dw-checkbox list-select-box"
       checked={checked}
       aria-label={label}
       onChange={(event) =>

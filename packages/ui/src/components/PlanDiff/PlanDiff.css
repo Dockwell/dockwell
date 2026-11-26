@@ -39,7 +39,7 @@
   margin-top: 2px;
 }
 .dw-plan-impact code {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink);
 }
 .dw-plan-sym {
@@ -110,11 +110,11 @@ button.dw-plan-row:hover {
   text-overflow: ellipsis;
 }
 .dw-plan-kind {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-muted);
 }
 .dw-plan-act {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--ink-muted);
   white-space: nowrap;
 }
@@ -166,7 +166,7 @@ button.dw-plan-row:hover {
 }
 /* What a field means is words, not a machine value. */
 .dw-plan-label {
-  font: 400 12.5px / 20px var(--font-sans);
+  font: 400 12px / 20px var(--font-sans);
 }
 .dw-plan-label.is-critical,
 .dw-plan-path.is-critical {

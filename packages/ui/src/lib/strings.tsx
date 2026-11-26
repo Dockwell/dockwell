@@ -207,6 +207,14 @@ export interface UIStrings {
     /** Under a number that isn't a port. */
     range: string;
   };
+  pagination: {
+    /** Default accessible name for a pagination landmark. */
+    label: string;
+    /** Button that moves to the previous page. */
+    previous: string;
+    /** Button that moves to the next page. */
+    next: string;
+  };
 }
 
 /** A label as it reads inside a sentence: "Host" is "host", while "API key" and "MySQL" keep their capitals. */
@@ -378,6 +386,11 @@ export const englishStrings: UIStrings = {
     takenBy: (by) => <>{by} uses it</>,
     use: (port) => `Use ${port}`,
     range: "Use a port from 1 to 65535.",
+  },
+  pagination: {
+    label: "Pagination",
+    previous: "Previous",
+    next: "Next",
   },
 };
 

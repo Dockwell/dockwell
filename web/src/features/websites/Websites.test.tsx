@@ -434,7 +434,7 @@ describe("The websites", () => {
     const menu = await screen.findByRole("dialog");
     expect(await within(menu).findByRole("option", { name: /Open shop/ })).toBeVisible();
     expect(within(menu).queryByRole("option", { name: /^Open web\b/ })).not.toBeInTheDocument();
-    expect(within(menu).getByRole("option", { name: /Open the apps/ })).toHaveTextContent("1");
+    expect(within(menu).getByRole("option", { name: /^Apps 1$/ })).toBeVisible();
   });
 
   it("says whether what each sends to answers, and never Healthy before its server has", async () => {

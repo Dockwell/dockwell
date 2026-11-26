@@ -18,7 +18,7 @@ a.connections-name:hover {
 
 .connections-meta {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
 }
 
@@ -337,7 +337,7 @@ a.connections-name:hover {
   border-radius: var(--radius-xs);
   background: var(--surface-sunken);
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Where the bucket is and who may use it, as label and value pairs. */
@@ -350,7 +350,7 @@ a.connections-name:hover {
 
 .connection-details dt {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .connection-details dd {

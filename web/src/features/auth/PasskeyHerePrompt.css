@@ -41,7 +41,7 @@
 
 .passkey-here-facts code {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Someone with no code signs in again with their own recover command (#869's review, M2). */

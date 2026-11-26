@@ -43,6 +43,7 @@ import {
   environmentOf,
   imageOf,
   isMoving,
+  mayRestartApp,
   recordSaysMore,
   revisionName,
   shortImage,
@@ -269,7 +270,6 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const controllable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
   const pausable = controllable && !!appOf(service) && !!service.resource;
   const isPaused = appOf(service)?.desiredRunState === DesiredRunState.PAUSED;
-  const restartable = controllable && !isPaused;
   const startable = !moving && state.kind !== "unplaced" && changeable && isStopped;
   const { changeRun, changePause, restart: restartWorkload } = useWorkloadControls();
   const start = () => {
@@ -297,7 +297,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   // An action on what you can see stays where it is, off, with why (ADR 0059).
   const may = useMay();
   const here = { environment: environmentOf(service) };
-  const mayRestart = may(ChangeService.method.restartService, here);
+  const restartCheck = mayRestartApp(service, state, may);
+  const restartable = restartCheck.offered;
+  const mayRestart = restartCheck.grant;
   const mayStart = may(ChangeService.method.proposeChange, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
@@ -356,7 +358,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
     {
       id: "logs",
       icon: "terminal",
-      label: t`Show the logs of ${name}`,
+      label: t`Logs for ${name}`,
       run: () => void navigate({ to: "/apps/$serviceId/logs", params: { serviceId } }),
     },
     {

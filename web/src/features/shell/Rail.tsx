@@ -13,6 +13,7 @@ import { initials, useRoleName } from "../auth/user";
 import { useUpgrades } from "../catalog/useCatalog";
 import { useWaitingForAPerson } from "../changes/waiting";
 import type { FleetView } from "../servers/server";
+import { useOpenAlerts } from "./openAlerts";
 import {
   AFTER_DOMAINS,
   BEFORE_DOMAINS,
@@ -42,10 +43,27 @@ export function Rail({ view }: { view: FleetView }) {
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources.length ?? 0;
 
   const may = useMay();
+  const alerts = useOpenAlerts();
   const section = (id: UpcomingSection) => {
     // A way to a place you can't read is left out (ADR 0059).
     if (id === "alerts" && !may(AlertService.method.listAlerts).allowed) return null;
     const { label, icon } = UPCOMING[id];
+    const alertCount = id === "alerts" && alerts.count > 0 ? String(alerts.count) : undefined;
+    const alertWords =
+      id === "alerts" && alerts.count > 0
+        ? alerts.critical
+          ? plural(alerts.count, {
+              one: "# critical alert open",
+              other: "# alerts open, including critical",
+            })
+          : plural(alerts.count, { one: "# alert open", other: "# alerts open" })
+        : undefined;
+    const alertTone =
+      id === "alerts" && alerts.count > 0
+        ? alerts.critical
+          ? ("critical" as const)
+          : ("warning" as const)
+        : undefined;
     return (
       <Link
         key={id}
@@ -54,7 +72,7 @@ export function Rail({ view }: { view: FleetView }) {
         activeOptions={{ exact: true }}
         {...current(segment === id)}
       >
-        <ItemBody icon={icon} label={i18n._(label)} />
+        <ItemBody icon={icon} label={i18n._(label)} count={alertCount} countWords={alertWords} tone={alertTone} />
       </Link>
     );
   };
@@ -198,23 +216,36 @@ interface ItemBodyProps {
   count?: string | undefined;
   /** What the count says, for those who don't see it, in place of the bare number. */
   countWords?: string | undefined;
+  /** Emphasizes an urgent count, such as open critical or warning alerts. */
+  tone?: "critical" | "warning" | undefined;
   /** The count is a machine value, such as a server's name. */
   machineCount?: boolean;
   /** The count is a glance at what the page says in full, so screen readers hear the label alone. */
   countSeenOnly?: boolean;
 }
 
-function ItemBody({ icon, label, count, countWords, machineCount = false, countSeenOnly = false }: ItemBodyProps) {
+function ItemBody({
+  icon,
+  label,
+  count,
+  countWords,
+  tone,
+  machineCount = false,
+  countSeenOnly = false,
+}: ItemBodyProps) {
   return (
     <>
-      <Icon name={icon} size={16} />
+      <span className="rail-icon">
+        <Icon name={icon} size={16} />
+        {count && tone ? <span className={cx("rail-dot", `is-${tone}`)} aria-hidden="true" /> : null}
+      </span>
       <span className="rail-label">{label}</span>
       {/* The space keeps the name "Server hz-1" where styles don't separate the two. */}
       {count ? (
         <>
           {" "}
           <span
-            className={cx("rail-count", machineCount && "is-machine")}
+            className={cx("rail-count", machineCount && "is-machine", tone && `is-${tone}`)}
             aria-hidden={countWords || countSeenOnly ? true : undefined}
           >
             {count}

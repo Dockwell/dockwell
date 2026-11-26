@@ -21,7 +21,7 @@
   min-height: 46px;
   padding: 0 14px 0 var(--space-4);
   color: var(--ink);
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -69,7 +69,7 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 15px;
+  font-size: 16px;
   text-align: left;
   cursor: pointer;
 }

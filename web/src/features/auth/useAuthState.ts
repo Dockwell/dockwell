@@ -7,6 +7,30 @@ import { useCallback } from "react";
 
 import { authStateKey } from "../../app/api";
 
+const SIGNED_IN_HINT_KEY = "dockwell.signedIn";
+
+/**
+ * Whether this browser recently held a signed-in session, used only to decide
+ * whether a shell route should show the shell skeleton while getAuthState is
+ * in flight (signed-out visitors skip the shell skeleton and go straight to sign-in).
+ */
+export function hasSignedInHint(): boolean {
+  try {
+    return window.localStorage.getItem(SIGNED_IN_HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setSignedInHint(signedIn: boolean): void {
+  try {
+    if (signedIn) window.localStorage.setItem(SIGNED_IN_HINT_KEY, "1");
+    else window.localStorage.removeItem(SIGNED_IN_HINT_KEY);
+  } catch {
+    // Ignore storage denials in private or restricted contexts.
+  }
+}
+
 /** Whether the install has an owner, and who is signed in on this address. */
 export function useAuthState() {
   return useQuery(AuthService.method.getAuthState, {});
@@ -19,7 +43,7 @@ export function useAuthState() {
  * current.
  */
 export function useSignedIn() {
-  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false }).data;
+  return useQuery(AuthService.method.getAuthState, {}, { refetchOnMount: false, retryOnMount: false }).data;
 }
 
 /**

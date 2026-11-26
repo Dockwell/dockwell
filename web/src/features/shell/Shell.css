@@ -84,7 +84,7 @@
   overflow: hidden;
   border-radius: var(--radius-xs);
   color: var(--ink-muted);
-  font: 400 11.5px / 1 var(--font-mono);
+  font: 400 12px / 1 var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
   text-decoration: none;
@@ -116,7 +116,7 @@
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
   color: var(--ink-muted);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   text-decoration: none;
   transition:
@@ -138,6 +138,29 @@
 .rail-item:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+
+.rail-icon {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rail-dot {
+  display: none;
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--canvas);
+}
+
+.rail-dot.is-critical {
+  background: var(--critical);
 }
 
 .rail-item .dw-icon {
@@ -164,6 +187,16 @@
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rail-count.is-critical {
+  color: var(--critical);
+  font-weight: 600;
+}
+
+.rail-count.is-warning {
+  color: var(--warning);
+  font-weight: 600;
 }
 
 .rail-count.is-machine {
@@ -195,7 +228,7 @@
   border-radius: 50%;
   background: var(--surface-sunken);
   color: var(--ink);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
 }
@@ -319,8 +352,8 @@
   min-height: 50px;
   border-radius: 10px;
   color: var(--ink-muted);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 550;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
@@ -419,6 +452,10 @@
    * element hidden from screen readers rather than generated content, which
    * browsers add to the link's name, so it would read "Overview Overview".
    */
+  .rail-dot {
+    display: block;
+  }
+
   .rail-tip {
     display: block;
     position: fixed;
@@ -429,7 +466,7 @@
     background: var(--surface-raised);
     box-shadow: var(--shadow-float);
     color: var(--ink);
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 18px;
     white-space: nowrap;
     pointer-events: none;
@@ -504,4 +541,25 @@
 
 .new-menu-item.is-off:hover {
   background: none;
+}
+
+/* ---------- Shell pending skeleton ---------- */
+
+.shell-pending-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+.shell-pending-topbar-inner {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.shell-pending-tabs {
+  display: contents;
 }

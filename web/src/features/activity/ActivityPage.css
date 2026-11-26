@@ -127,7 +127,7 @@
 
 .activity-actor .is-machine {
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .activity-avatar,
@@ -136,16 +136,17 @@
   place-items: center;
   flex: none;
   box-sizing: border-box;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   background: var(--surface-sunken);
   border: 1px solid var(--line);
 }
 
 .activity-avatar {
   border-radius: 50%;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .activity-badge {
@@ -217,9 +218,9 @@
 
 .activity-facts .activity-avatar,
 .activity-facts .activity-badge {
-  width: 20px;
-  height: 20px;
-  font-size: 9.5px;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
 }
 
 .activity-code {

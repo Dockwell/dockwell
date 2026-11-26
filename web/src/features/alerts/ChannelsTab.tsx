@@ -250,7 +250,14 @@ export function ChannelsTab({ search, onSearch }: ListRouteProps<ChannelsSearch>
 
   let body: ReactNode;
   if (channels.error) {
-    body = <ReadFailed error={channels.error} title={t`Can't load the channels`} />;
+    body = (
+      <ReadFailed
+        error={channels.error}
+        title={t`Can't load the channels`}
+        onRetry={() => void channels.refetch()}
+        retrying={channels.isFetching}
+      />
+    );
   } else if (!channels.data) {
     body = (
       <Table columns={columns} rows={[]} caption={t`Alert channels`} loading loadingLabel={t`Loading the channels`} />

@@ -8,6 +8,7 @@ import {
   Callout,
   Icon,
   Loading,
+  PaginationBar,
   SelectField,
   Skeleton,
   SkeletonFacts,
@@ -372,17 +373,15 @@ export function useDockerPull(
                 ) : null}
               </div>
               {pages.length > 1 || repos.data.nextPageToken ? (
-                <div className="docker-image-link-actions">
-                  <Button disabled={pages.length === 1} onClick={() => setPages(pages.slice(0, -1))}>
-                    <Trans>Previous</Trans>
-                  </Button>
-                  <Button
-                    disabled={!repos.data.nextPageToken}
-                    onClick={() => setPages([...pages, repos.data.nextPageToken])}
-                  >
-                    <Trans>Next</Trans>
-                  </Button>
-                </div>
+                <PaginationBar
+                  summary={<Trans>Page {pages.length}</Trans>}
+                  hasPrevious={pages.length > 1}
+                  hasNext={Boolean(repos.data.nextPageToken)}
+                  onPrevious={() => setPages(pages.slice(0, -1))}
+                  onNext={() => setPages([...pages, repos.data.nextPageToken])}
+                  previousLabel={<Trans>Previous</Trans>}
+                  nextLabel={<Trans>Next</Trans>}
+                />
               ) : null}
             </>
           ) : (

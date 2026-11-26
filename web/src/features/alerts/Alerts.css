@@ -245,14 +245,14 @@
 .alerts-resolved-title {
   min-width: 0;
   font-weight: 500;
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 20px;
   overflow-wrap: anywhere;
 }
 
 .alerts-resolved-at {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 20px;
   white-space: nowrap;
 }
@@ -260,7 +260,7 @@
 .alerts-resolved-meta {
   grid-column: 2 / 4;
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   overflow-wrap: anywhere;
 }
@@ -311,7 +311,7 @@
 
 .alerts-channel-sub {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   overflow-wrap: anywhere;
 }
@@ -415,7 +415,7 @@
 }
 
 .alerts-mail-name {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 19px;
   overflow-wrap: anywhere;
@@ -423,7 +423,7 @@
 
 .alerts-mail-why {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 17px;
   overflow-wrap: anywhere;
 }
@@ -443,7 +443,7 @@
 
 .alerts-phone-conn {
   color: var(--ink-muted);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   overflow-wrap: anywhere;
 }
@@ -858,7 +858,7 @@ a.alerts-resolved-title:hover {
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--ink);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 18px;
   cursor: pointer;
   transition: border-color var(--motion-fast, 120ms) var(--ease-out, ease-out);

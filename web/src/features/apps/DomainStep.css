@@ -55,7 +55,7 @@
   overflow-wrap: anywhere;
   align-items: flex-start;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -74,12 +74,24 @@
   background: none;
   color: var(--link);
   font: inherit;
-  text-decoration: underline;
+  text-decoration: none;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 
+.domain-step-act:hover,
+.domain-step-act:focus-visible {
+  text-decoration: underline;
+}
+
+.domain-step-act:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+
 .domain-step-muted {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -190,6 +202,18 @@
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-  text-decoration: underline;
+  text-decoration: none;
+  text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.domain-step-change:hover,
+.domain-step-change:focus-visible {
+  text-decoration: underline;
+}
+
+.domain-step-change:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }

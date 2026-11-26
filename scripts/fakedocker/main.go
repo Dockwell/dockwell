@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -68,9 +69,34 @@ func (t *tb) Fatalf(format string, a ...any)  { log.Fatalf(format, a...) }
 func (t *tb) Errorf(format string, a ...any)  { log.Printf(format, a...) }
 func (t *tb) Logf(format string, args ...any) { log.Printf(format, args...) }
 
+// stateDir is the folder this fake was given, for files of its own.
+var stateDir string
+
 // postgres stands in for the database's tools: its data is one file of SQL.
 func postgres(x dockertest.Exec) int {
-	file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
+	// The database flows mount its data folder; a dump or restore run with
+	// other mounts uses the one named for postgresql, then the first by name,
+	// so a dump and the restore after it read the same file. With none it
+	// keeps to this fake's own folder, never one shared with other runs.
+	dir := x.Volumes["/var/lib/postgresql/data"]
+	if dir == "" {
+		keys := slices.Sorted(maps.Keys(x.Volumes))
+		for _, k := range keys {
+			if v := x.Volumes[k]; v != "" && strings.Contains(k, "postgresql") {
+				dir = v
+				break
+			}
+		}
+		for _, k := range keys {
+			if v := x.Volumes[k]; dir == "" && v != "" {
+				dir = v
+			}
+		}
+	}
+	if dir == "" {
+		dir = stateDir
+	}
+	file := filepath.Join(dir, "data.sql")
 	script := strings.Join(x.Cmd, " ")
 	switch {
 	case strings.Contains(script, "pg_dumpall"):
@@ -454,6 +480,7 @@ func main() {
 	if err := os.MkdirAll(dir, 0o700); err != nil { //nolint:gosec // the directory the person running it names
 		log.Fatalf("can't make that directory: %v", err)
 	}
+	stateDir = dir
 	t := &tb{dir: dir}
 	e := dockertest.New(t)
 	e.ArchiveLayer = os.Getenv("DOCKWELL_TEST_ARCHIVE_LAYER")

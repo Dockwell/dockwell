@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   type Change,
+  ChangeService,
   ChangeState,
   Connection,
   type Container,
@@ -14,6 +15,7 @@ import {
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { builtCommit } from "../../lib/built";
+import type { Offer, useMay } from "../auth/may";
 import { factAndRest, failedStep, withoutIds } from "../changes/plan";
 import type { ServerSummary } from "../servers/server";
 import type { AppHealth, HealthKind } from "./health";
@@ -166,6 +168,33 @@ export function isDockerSocket(path: string): boolean {
 /** Work going on: nothing should go back, and what runs isn't what the latest revision says yet. */
 export function isMoving(state: AppState): boolean {
   return state.kind === "deploying" || state.kind === "waiting";
+}
+
+/** Whether an app's current state allows restarting (not moving, unplaced, unreadable, stopped, or paused). */
+export function canRestartApp(service: ServiceInfo, state: AppState): boolean {
+  const desired = appOf(service)?.desiredRunState;
+  return (
+    !isMoving(state) &&
+    state.kind !== "unplaced" &&
+    state.kind !== "unreadable" &&
+    desired !== DesiredRunState.STOPPED &&
+    desired !== DesiredRunState.PAUSED
+  );
+}
+
+/**
+ * Shared restart gate for the app page, apps list, and command bar:
+ * `offered` reflects the app's state, `grant` carries the RestartService
+ * permission check, and `allowed` requires both state and grant.
+ */
+export function mayRestartApp(
+  service: ServiceInfo,
+  state: AppState,
+  may: ReturnType<typeof useMay>,
+): { offered: boolean; grant: Offer; allowed: boolean } {
+  const offered = canRestartApp(service, state);
+  const grant = may(ChangeService.method.restartService, { environment: environmentOf(service) });
+  return { offered, grant, allowed: offered && grant.allowed };
 }
 
 /** The order of concern: what needs you first, what is moving next, then the calm. */

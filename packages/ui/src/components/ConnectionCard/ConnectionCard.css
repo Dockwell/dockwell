@@ -79,7 +79,7 @@
   padding: 0;
   background: none;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
 }
 .dw-conn-action .dw-btn:hover:not(:disabled) {
@@ -91,7 +91,7 @@
   text-decoration: none;
 }
 .dw-conn-hint {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -109,7 +109,7 @@
 }
 .dw-conn-note {
   margin: var(--space-2) 0 0;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 18px;
   color: var(--ink-muted);
 }
@@ -131,7 +131,7 @@
   border-radius: var(--radius-sm);
 }
 .dw-conn-line.is-well .dw-conn-code {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 /* Narrow: the label sits above its value, as a phone's form does. */

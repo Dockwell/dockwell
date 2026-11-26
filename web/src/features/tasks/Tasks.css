@@ -40,7 +40,7 @@
 
 .tasks-sub,
 .tasks-label {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 16px;
   color: var(--ink-muted);
 }
@@ -234,7 +234,7 @@ code.tasks-sub,
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -334,7 +334,6 @@ code.tasks-sub,
 /* What Dockwell says of the run, beside what the run printed. */
 .tasks-output-line.is-own {
   color: var(--ink-muted);
-  font-style: italic;
 }
 
 .tasks-quiet {
@@ -449,7 +448,7 @@ code.tasks-sub,
 }
 
 .schedule-cron {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 @media (max-width: 639px) {

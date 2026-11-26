@@ -142,6 +142,9 @@ msgstr "匹配的比这里显示的多。请输入更多名称。"
 msgid "New folder in {path}"
 msgstr "在 {path} 中新建文件夹"
 
+msgid "Next"
+msgstr "下一页"
+
 msgid "No folder chosen"
 msgstr "尚未选择文件夹"
 
@@ -163,6 +166,9 @@ msgstr "没有与“{query}”匹配的结果。试试服务器、应用或操�
 msgid "Optional"
 msgstr "可选"
 
+msgid "Pagination"
+msgstr "分页"
+
 msgid "Path"
 msgstr "路径"
 
@@ -171,6 +177,9 @@ msgstr "暂停"
 
 msgid "Paused"
 msgstr "已暂停"
+
+msgid "Previous"
+msgstr "上一页"
 
 msgid "Protected environment"
 msgstr "受保护的环境"
@@ -3490,6 +3499,9 @@ msgstr "正在加载应用"
 msgid "Logs"
 msgstr "日志"
 
+msgid "Logs for {name}"
+msgstr "{name} 的日志"
+
 msgid "No app with this ID"
 msgstr "没有此 ID 的应用"
 
@@ -3529,9 +3541,6 @@ msgstr "搜索日志"
 
 msgid "Settings"
 msgstr "设置"
-
-msgid "Show the logs of {name}"
-msgstr "显示 {name} 的日志"
 
 msgid "Start"
 msgstr "启动"
@@ -15124,8 +15133,8 @@ msgstr "没有卷"
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
 
-msgid "Nothing changed on the servers. The page tries again by itself."
-msgstr "服务器上没有任何改动。页面会自动重试。"
+msgid "Nothing changed on the servers."
+msgstr "服务器上没有任何更改。"
 
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
@@ -15620,11 +15629,13 @@ msgstr "打开文件管理"
 msgid "Open environment"
 msgstr "打开环境变量"
 
+#. placeholder {0}: pages.length
+#. placeholder {0}: tokens.length
+msgid "Page {0}"
+msgstr "第 {0} 页"
+
 msgid "Preview backup"
 msgstr "预览备份"
-
-msgid "Previous page"
-msgstr "上一页"
 
 msgid "Published ports"
 msgstr "已发布端口"
@@ -15802,9 +15813,6 @@ msgstr "新环境"
 msgid "New template"
 msgstr "新建模板"
 
-msgid "Next"
-msgstr "下一页"
-
 msgid "No connected server can read Docker"
 msgstr "没有已连接的服务器能够读取 Docker"
 
@@ -15832,9 +15840,6 @@ msgstr "打开模板库"
 
 msgid "Prepared Compose file"
 msgstr "已准备的 Compose 文件"
-
-msgid "Previous"
-msgstr "上一页"
 
 msgid "Read file"
 msgstr "读取文件"
@@ -16565,10 +16570,6 @@ msgstr "打开应用列表"
 msgid "Open {serviceName}"
 msgstr "打开 {serviceName}"
 
-#. placeholder {0}: pages.length
-msgid "Page {0}"
-msgstr "第 {0} 页"
-
 msgid "Paste docker run"
 msgstr "粘贴 docker run 命令"
 
@@ -16733,6 +16734,9 @@ msgstr "镜像详情"
 
 msgid "Image is gone"
 msgstr "镜像已不存在"
+
+msgid "Image pages"
+msgstr "镜像分页"
 
 msgid "Image state"
 msgstr "镜像状态"
@@ -23541,6 +23545,9 @@ msgstr "已有的应用保留各自的设置。"
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和 443 端口"
 
+msgid "Dockwell can't read the settings"
+msgstr "Dockwell 无法读取设置"
+
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
 
@@ -24848,8 +24855,8 @@ msgstr "GitHub 的 Webhook 密钥与 Dockwell 的不一致，因此 Dockwell 自
 msgid "Pushes come through the GitHub App."
 msgstr "推送通过 GitHub 应用送达。"
 
-msgid "Check the control plane's status"
-msgstr "查看控制平面状态"
+msgid "Activity on {name}"
+msgstr "{name} 上的动态"
 
 msgid "Create a project"
 msgstr "创建项目"
@@ -24869,6 +24876,9 @@ msgstr "删除项目"
 msgid "Delete the project {projectName}"
 msgstr "删除项目 {projectName}"
 
+msgid "Files on {name}"
+msgstr "{name} 上的文件"
+
 msgid "Finding your projects"
 msgstr "正在查找你的项目"
 
@@ -24887,50 +24897,29 @@ msgstr "为新项目命名，例如 shop"
 msgid "Open Variables for {name}"
 msgstr "打开 {name} 的变量"
 
-msgid "Open the activity"
-msgstr "打开动态"
-
-msgid "Open the apps"
-msgstr "打开应用"
-
-msgid "Open the databases"
-msgstr "打开数据库"
-
-msgid "Open the domains"
-msgstr "打开域名"
-
-msgid "Open the overview"
-msgstr "打开概览"
-
 msgid "Open the plan: {summary}"
 msgstr "打开计划：{summary}"
 
 msgid "Open the project {name}"
 msgstr "打开项目 {name}"
 
-msgid "Open the projects"
-msgstr "打开项目列表"
-
-msgid "Open the server list"
-msgstr "打开服务器列表"
-
-msgid "Open the websites"
-msgstr "打开网站"
-
-msgid "Open your profile and security settings"
-msgstr "打开你的个人资料和安全设置"
-
 msgid "Pages"
 msgstr "页面"
+
+msgid "Scheduled tasks"
+msgstr "计划任务"
 
 msgid "Show the activity of {name}"
 msgstr "显示 {name} 的动态"
 
-msgid "Show what happened on {name}"
-msgstr "显示 {name} 上发生的事"
-
 msgid "Shows the command to run on it"
 msgstr "显示要在新服务器上运行的命令"
+
+msgid "Terminal on {name}"
+msgstr "{name} 上的终端"
+
+msgid "Updates on {name}"
+msgstr "{name} 上的更新"
 
 msgid "Use the dark theme"
 msgstr "使用深色主题"
@@ -25018,6 +25007,14 @@ msgstr "机器"
 msgid "Main"
 msgstr "主导航"
 
+#. placeholder {0}: alerts.count
+msgid "{0, plural, one {# alert open} other {# alerts open}}"
+msgstr "{0, plural, other {# 条告警未解决}}"
+
+#. placeholder {0}: alerts.count
+msgid "{0, plural, one {# critical alert open} other {# alerts open, including critical}}"
+msgstr "{0, plural, one {# 条严重告警未解决} other {# 条告警未解决，包含严重告警}}"
+
 msgid "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
 msgstr "{waiting, plural, other {# 个变更等你批准}}"
 
@@ -25029,10 +25026,6 @@ msgstr "网络较慢，页面仍在加载"
 
 msgid "Skip to content"
 msgstr "跳到主要内容"
-
-#. placeholder {0}: alerts.count
-msgid "{0, plural, one {# alert open} other {# alerts open}}"
-msgstr "{0, plural, other {# 个告警未解决}}"
 
 msgid "All healthy"
 msgstr "全部健康"
@@ -25048,9 +25041,6 @@ msgstr "{waiting} 台等待代理连接"
 
 msgid "Fleet actions"
 msgstr "集群操作"
-
-msgid "Scheduled tasks"
-msgstr "计划任务"
 
 msgid "A route may then let in anyone who signs in."
 msgstr "这样路由就可以放行任何登录的人。"

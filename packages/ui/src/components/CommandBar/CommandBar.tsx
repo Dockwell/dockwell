@@ -95,6 +95,10 @@ interface CommandPanelProps extends CommandBarProps {
   inputRef?: RefObject<HTMLInputElement | null>;
 }
 
+// The best matches a query shows. On a large fleet one letter matches thousands
+// of entries; typing more narrows past these.
+const MAX_RESULTS = 50;
+
 interface Result {
   item: CommandItem;
   indexes: readonly number[];
@@ -135,7 +139,8 @@ function CommandPanel({
         const match = fuzzyMatch(query, labels[i] ?? item.label);
         return match ? [{ item, ...match }] : [];
       })
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_RESULTS);
   }, [items, labels, query, searching]);
 
   const activeIndex = results.length === 0 ? -1 : Math.min(Math.max(active, 0), results.length - 1);
