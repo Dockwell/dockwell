@@ -2,32 +2,75 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Settings · Backups</title>
+<title>Control plane backup</title>
+<script src="./support.js"></script>
 <link rel="stylesheet" href="ds/dockwell/tokens.css">
 <link rel="stylesheet" href="ds/dockwell/components/bundle.css">
-<style>
-body { margin: 0; padding: clamp(16px, 4vw, 40px); background: var(--canvas); color: var(--ink); font: 14px/1.45 var(--font-sans); }
-main { max-width: 760px; margin: auto; }
-h1 { font-size: 26px; }
-h2, h3, p { margin: 0; }
-.head, .primary, .actions, li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.primary, .actions, li { padding: 16px; border-top: 1px solid var(--line); }
-ul { list-style: none; padding: 0; margin: 0; }
-small { display: block; color: var(--ink-muted); }
-.metric { font-size: 28px; font-weight: 600; }
-.warning { color: var(--warning); }
-</style>
+<script src="ds/dockwell/components/bundle.js"></script>
 </head>
 <body>
-<main>
-  <h1>Backups</h1>
-  <section class="dw-panel">
-    <header class="dw-panel-head head"><h2 class="dw-panel-title">Control plane</h2><button class="dw-btn dw-btn-primary dw-btn-sm">Take one now</button></header>
-    <div class="primary"><div><h3>Newest off-site copy</h3><strong class="metric">7 min ago</strong><small>Off-site storage</small></div><button class="dw-btn dw-btn-secondary dw-btn-sm">Change destination</button></div>
-    <ul><li><span>hz-1</span><span>7 min ago</span></li><li><span>hz-2<small>Server is disconnected</small></span><span class="warning">3 h ago</span></li></ul>
-    <div class="actions"><strong>Recovery passphrase</strong><div><button class="dw-btn dw-btn-secondary dw-btn-sm">Show passphrase</button> <button class="dw-btn dw-btn-secondary dw-btn-sm">Recovery sheet</button></div></div>
-  </section>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cb-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-top:1px solid var(--line)}
+.cb-muted{display:block;color:var(--ink-muted);font-size:13px}
+.cb-metric{font-size:28px;font-weight:600;line-height:32px}
+.cb-warning{color:var(--warning)}
+</style>
+</helmet>
+<div data-theme="{{theme}}" style="display: flex; flex-wrap: wrap; min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: var(--font-sans);">
+<dc-import name="Rail" active="settings" mode="fleet" hint-size="232px,100%"></dc-import>
+<main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line);">
+<dc-import name="Topbar" mode="fleet" hint-size="100%,52px"></dc-import>
+<div style="display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 1360px; width: 100%; box-sizing: border-box;">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px;">
+
+<nav aria-label="Settings" style="flex: 1 1 200px; max-width: 200px; display: flex; flex-direction: column; gap: 2px;">
+<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Organization</div>
+<a href="Settings-General.dc.html" class="dw-rail-item">General</a>
+<a href="Members.dc.html" class="dw-rail-item">Members</a>
+<a href="API-Tokens.dc.html" class="dw-rail-item">API tokens</a>
+<a href="Audit-Log.dc.html" class="dw-rail-item">Audit log</a>
+<div style="display: flex; align-items: center; height: 24px; margin-top: 16px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--ink-muted);">Platform</div>
+<a href="Settings-ControlPlane.dc.html" class="dw-rail-item">Control plane</a>
+<a href="Control-Backup.dc.html" class="dw-rail-item is-active" aria-current="page">Backups</a>
+<a href="Settings-Integrations.dc.html" class="dw-rail-item">Integrations</a>
+<a href="Alerts-Channels.dc.html" class="dw-rail-item">Notifications</a>
+</nav>
+
+<div style="flex: 999 1 520px; min-width: 0; max-width: 760px; display: flex; flex-direction: column; gap: 24px;">
+<h1 style="margin: 0; font-size: 22px; line-height: 28px; font-weight: 600;">Backups</h1>
+
+<section class="dw-panel">
+<header class="dw-panel-head" style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+<h2 class="dw-panel-title" style="margin: 0;">Control plane</h2>
+<button class="dw-btn dw-btn-primary dw-btn-sm">Take one now</button>
+</header>
+<div class="cb-row">
+<div><span class="cb-muted">Newest off-site copy</span><strong class="cb-metric">7 min ago</strong><span class="cb-muted">offsite-r2 · dockwell-control/</span></div>
+<button class="dw-btn dw-btn-secondary dw-btn-sm">Change destination</button>
+</div>
+<div class="cb-row"><span>hz-1</span><span>7 min ago</span></div>
+<div class="cb-row"><span>hz-2<span class="cb-muted">Server is disconnected</span></span><span class="cb-warning">3 h ago</span></div>
+<div class="cb-row">
+<strong>Recovery passphrase</strong>
+<div style="display: flex; gap: 8px;"><button class="dw-btn dw-btn-secondary dw-btn-sm">Show passphrase</button><button class="dw-btn dw-btn-secondary dw-btn-sm">Recovery sheet</button></div>
+</div>
+</section>
+
+</div>
+</div>
+</div>
 </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { theme: this.props.theme ?? 'light' };
+  }
+}
+</script>
 </body>
 </html>

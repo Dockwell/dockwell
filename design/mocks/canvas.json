@@ -236,6 +236,15 @@
    "x": 0,
    "y": 0
   },
+  "Control-Backup.dc.html": {
+   "expand": "fill",
+   "h": 950,
+   "page": "data",
+   "title": "Control plane backup",
+   "w": 1440,
+   "x": 3040,
+   "y": 2090
+  },
   "Database-Detail.dc.html": {
    "expand": "fill",
    "h": 1010,
@@ -967,6 +976,7 @@
   "Website-New-Domain.dc.html",
   "Backups.dc.html",
   "Backup-Restore.dc.html",
+  "Control-Backup.dc.html",
   "Connections-List.dc.html",
   "Connection-New.dc.html",
   "Connection-Detail.dc.html",
