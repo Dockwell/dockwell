@@ -1,6 +1,6 @@
 # 0073. Backing up the control plane, and restoring it
 
-- Status: Proposed
+- Status: Accepted, slice 1 built
 - Date: 2026-11-08
 
 ## Context
@@ -127,3 +127,14 @@ The agent protocol's fields for this are in 190 to 199: the welcome's generation
 - After a restore, what a server alone ran comes back on its own, and anything that reaches further, or is in a protected environment, waits for a person, so a restore can leave a list to look at.
 - It needs ADR 0033's restore to another server, the audit log's retention, and a way to rotate the CA and the install's key, which that follow-up to #34 lists.
 - It comes in four slices: bundles, taken and kept on agents and off-site by generation, with Settings → Backups and the recovery sheet; restoring, with the generation, fencing, certificates taken once, what's back confirmed, repointing, and `--replace`, proved in the Docker job; reconciling with agents' records, tombstones and conflicts included; and rebuilding from agents' records.
+
+
+## Slice 1 implementation decisions
+
+- Migration 0058 records the generation number and random ID, and advances a position in the transaction that changes managed state. Session last-seen and token last-use writes leave the position alone.
+- The destination remains an existing backup destination. The owner approves its identity and storage coordinates. Changes to those coordinates require selecting it again with a passkey. Key rotation at the same location can still use the current credentials.
+- The scheduler keeps the same two connected servers while they have room. Owners can prefer or exclude servers. Empty preferences choose by available room.
+- The initial marker is `dockwell-control/<install ID>/current.json` under the destination prefix. Conditional creation and a generation check precede an upload. A later slice can publish a new marker at that same path using its ETag.
+- Requests to take a backup and passphrase rotation use the same minimum interval as automatic runs. A rotation queues the first available run, and each place retires previous passphrase copies after its new copy completes. While an install has no place to send an automatic backup, it leaves the run pending.
+- `dockwell open-backup` opens and verifies a control plane bundle offline in the full build. The recovery sheet includes the paths and commands available in this slice.
+- The migration-time copy in ADR 0099 stays in place. Existing installations reach that upgrade before they have recovery passphrase and destination settings available for a sealed bundle.

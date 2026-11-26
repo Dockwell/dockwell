@@ -58,6 +58,7 @@ import { Route as ShellWebsitesNewRouteImport } from './routes/_shell/websites.n
 import { Route as ShellSettingsSettingsIndexRouteImport } from './routes/_shell/_settings/settings.index'
 import { Route as ShellSettingsSettingsApiTokensRouteImport } from './routes/_shell/_settings/settings.api-tokens'
 import { Route as ShellSettingsSettingsAuditLogRouteImport } from './routes/_shell/_settings/settings.audit-log'
+import { Route as ShellSettingsSettingsBackupsRouteImport } from './routes/_shell/_settings/settings.backups'
 import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/_shell/_settings/settings.control-plane'
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
 import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
@@ -346,6 +347,12 @@ const ShellSettingsSettingsAuditLogRoute =
   ShellSettingsSettingsAuditLogRouteImport.update({
     id: '/settings/audit-log',
     path: '/settings/audit-log',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellSettingsSettingsBackupsRoute =
+  ShellSettingsSettingsBackupsRouteImport.update({
+    id: '/settings/backups',
+    path: '/settings/backups',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
 const ShellSettingsSettingsControlPlaneRoute =
@@ -695,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/websites/': typeof ShellWebsitesIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/backups': typeof ShellSettingsSettingsBackupsRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
@@ -785,6 +793,7 @@ export interface FileRoutesByTo {
   '/websites': typeof ShellWebsitesIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
   '/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/settings/backups': typeof ShellSettingsSettingsBackupsRoute
   '/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
@@ -881,6 +890,7 @@ export interface FileRoutesById {
   '/_shell/websites/': typeof ShellWebsitesIndexRoute
   '/_shell/_settings/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
   '/_shell/_settings/settings/audit-log': typeof ShellSettingsSettingsAuditLogRoute
+  '/_shell/_settings/settings/backups': typeof ShellSettingsSettingsBackupsRoute
   '/_shell/_settings/settings/control-plane': typeof ShellSettingsSettingsControlPlaneRoute
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
@@ -976,6 +986,7 @@ export interface FileRouteTypes {
     | '/websites/'
     | '/settings/api-tokens'
     | '/settings/audit-log'
+    | '/settings/backups'
     | '/settings/control-plane'
     | '/settings/general'
     | '/settings/members'
@@ -1066,6 +1077,7 @@ export interface FileRouteTypes {
     | '/websites'
     | '/settings/api-tokens'
     | '/settings/audit-log'
+    | '/settings/backups'
     | '/settings/control-plane'
     | '/settings/general'
     | '/settings/members'
@@ -1161,6 +1173,7 @@ export interface FileRouteTypes {
     | '/_shell/websites/'
     | '/_shell/_settings/settings/api-tokens'
     | '/_shell/_settings/settings/audit-log'
+    | '/_shell/_settings/settings/backups'
     | '/_shell/_settings/settings/control-plane'
     | '/_shell/_settings/settings/general'
     | '/_shell/_settings/settings/members'
@@ -1550,6 +1563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsAuditLogRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/backups': {
+      id: '/_shell/_settings/settings/backups'
+      path: '/settings/backups'
+      fullPath: '/settings/backups'
+      preLoaderRoute: typeof ShellSettingsSettingsBackupsRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/_settings/settings/control-plane': {
       id: '/_shell/_settings/settings/control-plane'
       path: '/settings/control-plane'
@@ -1879,6 +1899,7 @@ interface ShellSettingsRouteChildren {
   ShellSettingsProfileRoute: typeof ShellSettingsProfileRoute
   ShellSettingsSettingsApiTokensRoute: typeof ShellSettingsSettingsApiTokensRoute
   ShellSettingsSettingsAuditLogRoute: typeof ShellSettingsSettingsAuditLogRoute
+  ShellSettingsSettingsBackupsRoute: typeof ShellSettingsSettingsBackupsRoute
   ShellSettingsSettingsControlPlaneRoute: typeof ShellSettingsSettingsControlPlaneRoute
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
   ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
@@ -1893,6 +1914,7 @@ const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsProfileRoute: ShellSettingsProfileRoute,
   ShellSettingsSettingsApiTokensRoute: ShellSettingsSettingsApiTokensRoute,
   ShellSettingsSettingsAuditLogRoute: ShellSettingsSettingsAuditLogRoute,
+  ShellSettingsSettingsBackupsRoute: ShellSettingsSettingsBackupsRoute,
   ShellSettingsSettingsControlPlaneRoute:
     ShellSettingsSettingsControlPlaneRoute,
   ShellSettingsSettingsGeneralRoute: ShellSettingsSettingsGeneralRoute,

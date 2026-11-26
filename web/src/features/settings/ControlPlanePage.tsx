@@ -276,6 +276,9 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
           <a href={`${DOCS}#back-up-the-control-plane`} target="_blank" rel="noreferrer" className="cp-link">
             <Trans>How to restore it</Trans>
           </a>
+          <Link to="/settings/backups" className="cp-link">
+            <Trans>Control plane backups</Trans>
+          </Link>
           <Link to="/backups" className="cp-link">
             <Trans>Apps' backups</Trans>
           </Link>

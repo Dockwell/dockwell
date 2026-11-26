@@ -407,6 +407,9 @@ func (h *Handler) BeginStepUp(ctx context.Context, req *connect.Request[dockwell
 }
 
 var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION:            auth.StepUpControlBackupDestination,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE:        auth.StepUpControlBackupShow,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE:         auth.StepUpControlBackupSet,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SECRET:                         auth.StepUpRevealSecret,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_PASSKEY:                           auth.StepUpAddPasskey,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REMOVE_PASSKEY:                        auth.StepUpRemovePasskey,

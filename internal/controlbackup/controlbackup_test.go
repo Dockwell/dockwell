@@ -1,0 +1,362 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package controlbackup
+
+import (
+	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/binary"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/dockwell/dockwell/internal/backup/keep"
+	"github.com/dockwell/dockwell/internal/backup/s3"
+	"github.com/dockwell/dockwell/internal/backup/s3/s3test"
+	chunks "github.com/dockwell/dockwell/internal/backup/seal"
+	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/seal"
+	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
+)
+
+func TestBundleAuthenticatesEveryChunkAndTheHeader(t *testing.T) {
+	now := time.Now().UTC()
+	h := Header{
+		Install: id.New("ins"), Bundle: id.New("cbk"), Generation: 1,
+		GenerationID: id.New("gen"), Schema: store.SchemaVersion(), Taken: now, Version: "devel",
+	}
+	phrase := GeneratePhrase()
+	r := NewRecovery(phrase, now)
+	var installKey [32]byte
+	_, _ = rand.Read(installKey[:])
+	payload := make([]byte, chunks.ChunkSize*2+10)
+	_, _ = rand.Read(payload)
+	var sealed bytes.Buffer
+	if err := SealBundle(&sealed, bytes.NewReader(payload), int64(len(payload)), installKey[:], h, r); err != nil {
+		t.Fatal(err)
+	}
+	got := &bytes.Buffer{}
+	head, err := openBundle(got, bytes.NewReader(sealed.Bytes()), phrase)
+	if err != nil || head.Bundle != h.Bundle || !bytes.Equal(got.Bytes(), slices.Concat(installKey[:], payload)) {
+		t.Fatalf("bundle round trip: %v, %+v, %d bytes", err, head, got.Len())
+	}
+
+	reader := bytes.NewReader(sealed.Bytes())
+	_, header, err := readHeader(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headerEnd := len(header)
+	original := sealed.Bytes()
+	cases := map[string]func([]byte) []byte{
+		"header":     func(b []byte) []byte { b[bytes.Index(b[:headerEnd], []byte("devel"))] = 'D'; return b },
+		"chunk":      func(b []byte) []byte { b[headerEnd+128] ^= 0x80; return b },
+		"truncation": func(b []byte) []byte { return b[:len(b)-1] },
+		"append":     func(b []byte) []byte { return append(b, 0) },
+		"reordering": func(b []byte) []byte {
+			one := slices.Clone(b[headerEnd : headerEnd+chunks.SealedChunk])
+			copy(b[headerEnd:], b[headerEnd+chunks.SealedChunk:headerEnd+2*chunks.SealedChunk])
+			copy(b[headerEnd+chunks.SealedChunk:], one)
+			return b
+		},
+	}
+	for name, change := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := openBundle(io.Discard, bytes.NewReader(change(slices.Clone(original))), phrase); err == nil {
+				t.Fatal("opened a changed bundle")
+			}
+		})
+	}
+}
+
+func TestHeaderBoundsBeforeArgon(t *testing.T) {
+	now := time.Now()
+	h := Header{
+		Install: id.New("ins"), Bundle: id.New("cbk"), Generation: 1, GenerationID: id.New("gen"),
+		Schema: 58, Taken: now, PassphraseAt: now, KDF: KDF{Memory: memoryKiB, Passes: passes, Lanes: lanes, Salt: randomSalt()}, Salt: randomSalt(),
+	}
+	for name, change := range map[string]func(*Header){
+		"small memory": func(h *Header) { h.KDF.Memory = 1 },
+		"large memory": func(h *Header) { h.KDF.Memory = ^uint32(0) },
+		"passes":       func(h *Header) { h.KDF.Passes = ^uint32(0) },
+		"lanes":        func(h *Header) { h.KDF.Lanes = 5 },
+		"argon salt":   func(h *Header) { h.KDF.Salt = make([]byte, 65) },
+		"bundle salt":  func(h *Header) { h.Salt = make([]byte, 15) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := h
+			change(&bad)
+			raw, err := json.Marshal(bad)
+			if err != nil {
+				t.Fatal(err)
+			}
+			head := binary.BigEndian.AppendUint32([]byte(magic), uint32(len(raw)))
+			_, err = openBundle(io.Discard, bytes.NewReader(append(head, raw...)), "anything")
+			if err == nil || !strings.Contains(err.Error(), "invalid values") {
+				t.Fatalf("invalid header refusal: %v", err)
+			}
+		})
+	}
+	head := binary.BigEndian.AppendUint32([]byte(magic), maxHeader+1)
+	if _, _, err := readHeader(bytes.NewReader(head)); err == nil {
+		t.Fatal("read an oversized header")
+	}
+}
+
+func TestControlBackupOpensAConsistentStoreAndKey(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		ctx := t.Context()
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		keyFile := filepath.Join(t.TempDir(), "key")
+		key, err := seal.LoadOrCreate(keyFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		install := id.New("ins")
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			if err := tx.PutSetting(ctx, "install.id", []byte(install)); err != nil {
+				return err
+			}
+			if err := tx.PutSetting(ctx, "test.variable", []byte("example.com")); err != nil {
+				return err
+			}
+			if err := tx.AddHistoryRows(ctx, []store.HistoryRow{{
+				ServerID: "server", Start: now, Tier: store.HistoryMinute, CoveredMs: 60_000,
+			}}); err != nil {
+				return err
+			}
+			return tx.CreateUser(ctx, store.User{
+				ID: id.New(id.User), Name: "Owner", Email: "owner@example.com",
+				Role: store.RoleOwner, WebAuthnHandle: []byte("owner"), CreatedAt: now,
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		m := New(Config{DB: db, Key: key, KeyFile: keyFile, Install: install, Now: func() time.Time { return now }})
+		if err := m.Init(ctx); err != nil {
+			t.Fatal(err)
+		}
+		b, err := m.take(ctx, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer b.close()
+		r, err := m.openRecovery(b.state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := filepath.Join(t.TempDir(), "recovered")
+		h, err := Extract(ctx, io.NewSectionReader(b.file, 0, b.size), r.Phrase, root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want, err := os.ReadFile(keyFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join(root, "key"))
+		if err != nil || !bytes.Equal(want, got) || h.Schema != store.SchemaVersion() || h.Install != install || h.Generation != 1 {
+			t.Fatalf("recovered key and header: key matches %t, header %+v, error %v", bytes.Equal(want, got), h, err)
+		}
+		restored, err := sql.Open("sqlite", filepath.Join(root, "state.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer restored.Close()
+		var check string
+		if err := restored.QueryRowContext(ctx, "PRAGMA quick_check").Scan(&check); err != nil || check != "ok" {
+			t.Fatalf("quick_check = %q, %v", check, err)
+		}
+		var history int
+		if err := restored.QueryRowContext(ctx, "SELECT COUNT(*) FROM server_history").Scan(&history); err != nil || history != 0 {
+			t.Fatalf("recovered bundle contains %d metric rows, %v", history, err)
+		}
+		var owner string
+		if err := restored.QueryRowContext(ctx, "SELECT email FROM users").Scan(&owner); err != nil || owner != "owner@example.com" {
+			t.Fatalf("recovered owner = %q, %v", owner, err)
+		}
+	})
+}
+
+func TestOffsiteCopyAndRetentionStayInTheirGeneration(t *testing.T) {
+	fake := s3test.New(t)
+	d := destination{prefix: "backup", bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+	now := time.Now().UTC()
+	file, err := os.CreateTemp(t.TempDir(), "bundle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	install, gen, phrase := id.New("ins"), id.New("gen"), id.New("phrase")
+	h := Header{Install: install, Generation: 1, GenerationID: gen}
+	data := []byte("a sealed object from a separately verified bundle")
+	if _, err := file.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(data)
+	prefix := "/bucket/" + d.key("dockwell-control/"+install+"/")
+	old := keep.Name(now.AddDate(0, 0, -20), id.New("cbk"), phrase)
+	fake.Set(prefix+"1/"+old, []byte("old"))
+	for i := 1; i <= 23; i++ {
+		fake.Set(prefix+"1/"+keep.Name(now.Add(-time.Duration(i)*time.Minute), id.New("cbk"), phrase), []byte("recent"))
+	}
+	fake.Set(prefix+"2/"+old, []byte("a different generation"))
+	b := takenBundle{header: h, name: keep.Name(now, id.New("cbk"), phrase), file: file, size: int64(len(data)), sum: sum[:]}
+	if problem, err := d.store(t.Context(), b); problem != "" || err != nil {
+		t.Fatalf("copy: %q, %v", problem, err)
+	}
+	objects := fake.Objects()
+	if !bytes.Equal(objects[prefix+"1/"+b.name], data) || objects[prefix+"1/"+old] != nil || objects[prefix+"2/"+old] == nil ||
+		objects[prefix+"current.json"] == nil {
+		t.Fatalf("wrong objects after backup: %v", objects)
+	}
+	// A later marker makes a stale sender leave every object alone.
+	fake.Set(prefix+"current.json", []byte(`{"generation":2}`))
+	b.name = keep.Name(now.Add(time.Hour), id.New("cbk"), phrase)
+	if _, err := d.store(t.Context(), b); err == nil || fake.Objects()[prefix+"1/"+b.name] != nil {
+		t.Fatal("sent a bundle past a different generation marker")
+	}
+}
+
+func TestScheduleDebouncesAgainstAFakeClock(t *testing.T) {
+	now := time.Unix(2_000_000, 0)
+	s := store.ControlBackup{
+		LastAttempt: now.Add(-20 * time.Minute), LastPosition: 3, Position: 4,
+		FirstChangedAt: now.Add(-25 * time.Second), ChangedAt: now.Add(-10 * time.Second),
+	}
+	check := func(want time.Time) {
+		t.Helper()
+		if got := due(s, now); !got.Equal(want) {
+			t.Fatalf("due at %v, want %v", got, want)
+		}
+	}
+	check(now.Add(50 * time.Second))
+	now = now.Add(20 * time.Second)
+	s.ChangedAt = now
+	check(now.Add(time.Minute))
+	now = now.Add(10 * time.Minute)
+	s.ChangedAt = now
+	check(s.FirstChangedAt.Add(10 * time.Minute))
+	s.LastAttempt = now.Add(-5 * time.Minute)
+	check(now.Add(5 * time.Minute))
+	s.LastPosition = s.Position
+	check(now.Add(55 * time.Minute))
+	s.Requested = true
+	check(now.Add(5 * time.Minute))
+	s.Hourly = true
+	check(now.Add(55 * time.Minute))
+}
+
+func TestRecoveryPhraseRules(t *testing.T) {
+	generated := GeneratePhrase()
+	if len(generated) != 39 || strings.Trim(strings.ReplaceAll(generated, "-", ""), id.CrockfordAlphabet) != "" {
+		t.Fatalf("generated phrase has the wrong format")
+	}
+	if err := validatePhrase(generated); err != nil {
+		t.Fatal(err)
+	}
+	if err := validatePhrase("passwordpasswordpasswordpassword"); err == nil {
+		t.Fatal("accepted a low-entropy phrase")
+	}
+}
+
+func TestAttemptFailurePreservesPriorPlace(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	m := New(Config{DB: db, Logger: slog.New(slog.DiscardHandler)})
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	m.result(t.Context(), "bundle", store.ControlBackupPlace{Generation: 1, Place: "offsite", Target: "location", RecoveryID: "phrase", SentAt: now}, ActionSent)
+	m.result(t.Context(), "bundle", store.ControlBackupPlace{Generation: 1, Place: "offsite", Target: "location", RecoveryID: "rotated", Problem: "upload failed"}, ActionFailed)
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		p, err := tx.ControlBackupPlaces(t.Context(), 1)
+		if err != nil {
+			return err
+		}
+		if len(p) != 1 || !p[0].SentAt.Equal(now) || p[0].RecoveryID != "phrase" || p[0].Problem != "upload failed" {
+			t.Fatalf("wrong place: %+v", p)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOnlyManagedWritesAdvanceTheBackupPosition(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		ctx := t.Context()
+		now := time.Now()
+		update := func(fn func(*store.Tx) error) {
+			t.Helper()
+			if err := db.Update(ctx, fn); err != nil {
+				t.Fatal(err)
+			}
+		}
+		get := func() store.ControlBackup {
+			t.Helper()
+			var got store.ControlBackup
+			if err := db.View(ctx, func(tx *store.Tx) error {
+				var err error
+				got, err = tx.ControlBackup(ctx)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}
+		user := id.New(id.User)
+		session, token := id.New(id.Session), id.New(id.Token)
+		update(func(tx *store.Tx) error {
+			if err := tx.CreateUser(ctx, store.User{
+				ID: user, Name: "Owner", Email: "owner@example.com",
+				Role: store.RoleOwner, WebAuthnHandle: []byte("owner"), CreatedAt: now,
+			}); err != nil {
+				return err
+			}
+			if err := tx.CreateSession(ctx, store.Session{
+				ID: session, UserID: user, TokenHash: []byte("session"),
+				Method: "claim", RPID: "localhost", CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(time.Hour),
+			}); err != nil {
+				return err
+			}
+			return tx.CreateAPIToken(ctx, store.APIToken{
+				ID: token, UserID: user, TokenHash: []byte("token"),
+				Name: "Read", Scope: store.ScopeReadOnly, CreatedAt: now,
+			})
+		})
+		managed := get()
+		if managed.Position == 0 || managed.FirstChangedAt.UnixMilli() == 0 {
+			t.Fatal("managed writes did not advance the position")
+		}
+		update(func(tx *store.Tx) error {
+			if err := tx.TouchSession(ctx, session, now.Add(time.Minute), "192.0.2.1"); err != nil {
+				return err
+			}
+			return tx.TouchAPIToken(ctx, token, now.Add(time.Minute), "192.0.2.1")
+		})
+		afterTouch := get()
+		if managed.Position != afterTouch.Position || !managed.ChangedAt.Equal(afterTouch.ChangedAt) {
+			t.Fatal("a last-use write scheduled a backup")
+		}
+		update(func(tx *store.Tx) error { return tx.RevokeAPIToken(ctx, user, token, now.Add(time.Minute)) })
+		if got := get(); got.Position != managed.Position+1 || !got.FirstChangedAt.Equal(managed.FirstChangedAt) {
+			t.Fatalf("token revocation did not advance the debounce window: %+v", got)
+		}
+	})
+}
+
+func BenchmarkControlBackupRecoveryDerivation(b *testing.B) {
+	k := KDF{Memory: memoryKiB, Passes: passes, Lanes: lanes, Salt: randomSalt()}
+	for b.Loop() {
+		clear(k.derive("a-generated-recovery-passphrase"))
+	}
+}

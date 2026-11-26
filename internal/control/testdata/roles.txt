@@ -125,6 +125,13 @@ ConnectionService.DisconnectStorage            plan         developer  developer
 ConnectionService.ListConnections              read         viewer     viewer     named
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+ControlBackupService.ConfirmControlBackupPassphrase apply        owner      owner      install  session
+ControlBackupService.GetControlBackup          read         admin      admin      install
+ControlBackupService.SetControlBackupDestination apply        owner      owner      install  session
+ControlBackupService.SetControlBackupPassphrase apply        owner      owner      install  session
+ControlBackupService.SetControlBackupServers   apply        owner      owner      install  session
+ControlBackupService.ShowControlBackupPassphrase read         owner      owner      install  session
+ControlBackupService.TakeControlBackup         apply        admin      admin      install
 DatabaseService.BeginDatabaseImport            apply        admin      admin      project  session
 DatabaseService.CancelDatabaseImport           destructive  admin      admin      project  session
 DatabaseService.ChangeDatabasePassword         plan         developer  developer  project

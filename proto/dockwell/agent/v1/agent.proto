@@ -428,6 +428,8 @@ message Draining {}
 
 // Hello introduces the agent at the start of a stream.
 message Hello {
+  // This agent can keep sealed control plane backups (ADR 0073).
+  bool keeps_control_backups = 190;
   bool host_toolbox = 510;
   // A guarded host edit could not yet be restored on startup.
   string host_toolbox_recovery_error = 513;
@@ -867,6 +869,7 @@ message Call {
     FetchBackupCall fetch_backup = 23;
     // Send a backup that's on the server to its destination.
     SendBackupCall send_backup = 24;
+    KeepControlBackupCall keep_control_backup = 190;
     // Check that a backup on the server restores (ADR 0068).
     DrillBackupCall drill_backup = 220;
     // Say which package updates wait on the server. The terminal and updates take
@@ -2815,6 +2818,7 @@ message CallResult {
     BackupResult fetch_backup = 23;
     // What send_backup sent.
     SendBackupResult send_backup = 24;
+    KeepControlBackupResult keep_control_backup = 190;
     DrillBackupResult drill_backup = 220;
     ListUpdatesResult list_updates = 53;
     // What a database call read. Numbered apart, as open work adds to this
@@ -3611,3 +3615,22 @@ message ReadCertificateResult {
 }
 // HostToolboxReadCall asks the agent for its current host settings.
 message HostToolboxReadCall {}
+
+// KeepControlBackupCall asks how much fits, or streams one finished bundle over
+// ReceiveFile. The agent never receives its passphrase or install key.
+message KeepControlBackupCall {
+  string install = 1;
+  int64 generation = 2;
+  string name = 3;
+  int64 size = 4;
+  uint64 stream = 5;
+  bytes sha256 = 6;
+}
+
+// KeepControlBackupResult reports available room or a completed recovery copy.
+message KeepControlBackupResult {
+  int64 room = 1;
+  bool kept = 2;
+  string prune_problem = 3;
+  string path = 4;
+}

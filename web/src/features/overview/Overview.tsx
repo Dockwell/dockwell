@@ -4,10 +4,10 @@ import { Connection, type Server, ServerService } from "@dockwell/api";
 import { Button, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
-
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
+import { OverviewControlBackup } from "../backups/ControlBackup";
 import { AddServerSheet, useJoinStart } from "../servers/AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
@@ -108,6 +108,7 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
         </div>
         <div className="overview-side">
           <RecentChanges />
+          <OverviewControlBackup />
           <OverviewBackups />
           {phone ? null : <UpdatesCard server={server} />}
         </div>

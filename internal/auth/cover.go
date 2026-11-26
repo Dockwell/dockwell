@@ -86,15 +86,18 @@ func policyOf(u store.User) StepUpPolicy {
 // transferring ownership, which a stolen session would make for good, as only
 // the new owner can undo it (ADR 0049); and changing your email (#801).
 var alwaysAsks = map[StepUpAction]bool{
-	StepUpAddPasskey:    true,
-	StepUpRemovePasskey: true,
-	StepUpSetUpCodes:    true,
-	StepUpDisableCodes:  true,
-	StepUpRecoveryCodes: true,
-	StepUpSetPolicy:     true,
-	StepUpSetFloor:      true,
-	StepUpApproveChange: true,
-	StepUpLinkProvider:  true,
+	StepUpControlBackupDestination: true,
+	StepUpControlBackupShow:        true,
+	StepUpControlBackupSet:         true,
+	StepUpAddPasskey:               true,
+	StepUpRemovePasskey:            true,
+	StepUpSetUpCodes:               true,
+	StepUpDisableCodes:             true,
+	StepUpRecoveryCodes:            true,
+	StepUpSetPolicy:                true,
+	StepUpSetFloor:                 true,
+	StepUpApproveChange:            true,
+	StepUpLinkProvider:             true,
 	// The owner's session within its hour would otherwise give the install away.
 	StepUpTransferOwnership: true,
 	// The email names someone for code sign-in and dockwell recover, so a stolen

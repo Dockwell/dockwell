@@ -67,6 +67,10 @@ func keyed(passphrase string, salt []byte, iterations int) (cipher.AEAD, error) 
 	if err != nil {
 		return nil, err
 	}
+	return gcm(key)
+}
+
+func gcm(key []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -103,6 +107,36 @@ func New(passphrase, binding string, iterations int) (*Sealer, error) {
 	header = binary.BigEndian.AppendUint16(header, uint16(len(binding))) //nolint:gosec // checked above
 	header = append(header, binding...)
 	return &Sealer{aead: aead, header: header}, nil
+}
+
+// WithKey reuses the backup chunk format with a separately derived key and header.
+func WithKey(key, header []byte) (*Sealer, error) {
+	aead, err := gcm(key)
+	if err != nil {
+		return nil, err
+	}
+	return &Sealer{aead: aead, header: header}, nil
+}
+
+// Write streams exactly size bytes with the header and an authenticated last chunk.
+func (s *Sealer) Write(w io.Writer, r io.Reader, size int64) error {
+	if _, err := w.Write(s.header); err != nil {
+		return err
+	}
+	buf := make([]byte, min(size, ChunkSize), min(size, ChunkSize)+tagSize)
+	for n := uint64(0); ; n++ {
+		part := buf[:min(size, ChunkSize)]
+		if _, err := io.ReadFull(r, part); err != nil {
+			return err
+		}
+		size -= int64(len(part))
+		if _, err := w.Write(s.aead.Seal(part[:0], nonce(n, size == 0), part, s.header)); err != nil {
+			return err
+		}
+		if size == 0 {
+			return nil
+		}
+	}
 }
 
 // Header is what a sealed file starts with.
@@ -178,29 +212,34 @@ func Open(w io.Writer, r io.Reader, passphrase, want string) (string, error) {
 	if err != nil {
 		return binding, err
 	}
-	header := slices.Concat(head, bound)
+	s := &Sealer{aead: aead, header: slices.Concat(head, bound)}
+	return binding, s.Read(w, r)
+}
+
+// Read opens the chunks after a header. Output must be staged until Read succeeds.
+func (s *Sealer) Read(w io.Writer, r io.Reader) error {
 	// A chunk is the last one when nothing follows it, so one more is read ahead.
 	this := make([]byte, SealedChunk)
 	next := make([]byte, SealedChunk)
 	n, err := io.ReadFull(r, this)
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return binding, err
+		return err
 	}
 	for chunk := uint64(0); ; chunk++ {
 		m, err := io.ReadFull(r, next)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-			return binding, err
+			return err
 		}
 		last := m == 0
-		plain, err := aead.Open(nil, nonce(chunk, last), this[:n], header)
+		plain, err := s.aead.Open(this[:0], nonce(chunk, last), this[:n], s.header)
 		if err != nil {
-			return binding, errors.New("the backup can't be opened: the passphrase is wrong, or the file was changed or cut short")
+			return errors.New("the backup can't be opened: the passphrase is wrong, or the file was changed or cut short")
 		}
 		if _, err := w.Write(plain); err != nil {
-			return binding, err
+			return err
 		}
 		if last {
-			return binding, nil
+			return nil
 		}
 		this, next, n = next, this, m
 	}

@@ -38,6 +38,7 @@ func Commands() []string {
 		"compose-templates",
 		"connections",
 		"containers",
+		"control",
 		"control-plane",
 		"database-users",
 		"databases",

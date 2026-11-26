@@ -144,22 +144,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		limit, _ := strconv.Atoi(q.Get("max-keys"))
 		var keys []string
 		for path := range s.objects {
-			if k, ok := strings.CutPrefix(path, "/"+bucket+"/"); ok && strings.HasPrefix(k, q.Get("prefix")) {
+			if k, ok := strings.CutPrefix(path, "/"+bucket+"/"); ok && strings.HasPrefix(k, q.Get("prefix")) && k > q.Get("continuation-token") {
 				keys = append(keys, k)
 			}
 		}
 		slices.Sort(keys)
-		if limit > 0 && len(keys) > limit {
+		truncated := limit > 0 && len(keys) > limit
+		if truncated {
 			keys = keys[:limit]
 		}
 		type contents struct {
 			Key string
 		}
 		list := struct {
-			XMLName  xml.Name `xml:"ListBucketResult"`
-			Contents []contents
-			KeyCount int
-		}{KeyCount: len(keys)}
+			XMLName               xml.Name `xml:"ListBucketResult"`
+			Contents              []contents
+			KeyCount              int
+			IsTruncated           bool
+			NextContinuationToken string `xml:",omitempty"`
+		}{KeyCount: len(keys), IsTruncated: truncated}
+		if truncated {
+			list.NextContinuationToken = keys[len(keys)-1]
+		}
 		for _, k := range keys {
 			list.Contents = append(list.Contents, contents{Key: k})
 		}
@@ -221,6 +227,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.Aborted++
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPut:
+		if _, exists := s.objects[key]; exists && r.Header.Get("If-None-Match") == "*" {
+			w.WriteHeader(http.StatusPreconditionFailed)
+			return
+		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return // its sender went away, as one stopped or cancelled does: nothing of it is kept

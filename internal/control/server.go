@@ -96,11 +96,13 @@ import (
 	"github.com/dockwell/dockwell/internal/control/volumes"
 	"github.com/dockwell/dockwell/internal/control/watchroutes"
 	"github.com/dockwell/dockwell/internal/control/websites"
+	"github.com/dockwell/dockwell/internal/controlbackup"
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
@@ -192,6 +194,9 @@ type Config struct {
 	// ServiceManager what runs it as a service, for the settings to say what
 	// the control plane is, and how to stop it for a backup.
 	DataDir, KeyFile, AgentListen string
+	ControlBackupKey              *seal.Key
+	ControlBackupAddress          string
+	ControlBackupLocalS3          bool
 	ServiceManager                dockwellv1.ServiceManager
 	// PublicAddress is this server's public IP address, shown on the claim
 	// screen for pointing a domain at. Empty when it isn't known.
@@ -314,7 +319,8 @@ type Server struct {
 	// manualOwners leaves the owners' looks to a test (#854).
 	manualOwners bool
 	// backups takes backups, and those under way end with the control plane.
-	backups *backups.Handler
+	backups       *backups.Handler
+	controlBackup *controlbackup.Manager
 	// hooks deploys on push, and what deploys wait for ends with the control plane.
 	hooks *githooks.Handler
 	// apps are the GitHub Apps Dockwell made, which check their deliveries and
@@ -367,6 +373,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	var logs *logapi.Handler
 	var backupHandler *backups.Handler
+	var controlBackup *controlbackup.Manager
 	var hooks *githooks.Handler
 	var gitApps *gitproviders.Handler
 	var taskHandler *tasks.Handler
@@ -458,7 +465,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Identity != nil && cfg.Store != nil && cfg.Fleet != nil {
 		histRecorder = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
 	}
-	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
+	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &controlBackup, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +474,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
@@ -527,7 +534,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, controlBackupOut **controlbackup.Manager, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -903,6 +910,22 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		// A backup restores into a new database the catalog way (ADR 0106).
 		(*backupsOut).InstallWith(imports.PlanInstall)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
+		var controlBackupHandler dockwellv1connect.ControlBackupServiceHandler = dockwellv1connect.UnimplementedControlBackupServiceHandler{}
+		if cfg.ControlBackupKey != nil && cfg.Identity != nil && cfg.Auth != nil {
+			manager := controlbackup.New(controlbackup.Config{
+				DB: cfg.Store, Auth: cfg.Auth, Key: cfg.ControlBackupKey, KeyFile: cfg.KeyFile,
+				Install: cfg.Identity.InstallID(), ControlID: cfg.Fleet.ControlServer().GetId(),
+				Address: cfg.ControlBackupAddress,
+				Build:   cfg.Build, Logger: cfg.Logger, Agents: cfg.Agents,
+				Destination: (*backupsOut).ControlDestination, LocalS3: cfg.ControlBackupLocalS3,
+			})
+			if err := manager.Init(context.Background()); err != nil {
+				return nil, fmt.Errorf("prepare control plane backups: %w", err)
+			}
+			*controlBackupOut = manager
+			controlBackupHandler = manager
+		}
+		handle(dockwellv1connect.NewControlBackupServiceHandler(controlBackupHandler, opts...))
 		dbs := databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger)
 		dbs.ImportWith(func(ctx context.Context, ref resource.Ref, source resource.RestoreSource, summary string) (*dockwellv1.Change, error) {
 			return ch.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
@@ -1244,6 +1267,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.backups != nil && !s.manualBackups {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
+	}
+	if s.controlBackup != nil && !s.manualBackups {
+		api.Go(func() { s.controlBackup.Run(apiCtx) })
 	}
 	if s.hooks != nil {
 		api.Go(func() { s.hooks.KeepForgetting(apiCtx) })

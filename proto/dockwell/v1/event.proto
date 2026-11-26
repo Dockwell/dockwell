@@ -252,6 +252,7 @@ message Event {
   EventAppOwner app_owner = 150;
   // The attempted operation for an unconfirmed manual Fail2ban change.
   EventFail2ban fail2ban = 160;
+  EventControlBackup control_backup = 190;
 }
 
 // EventFail2ban identifies a manual ban or unban whose outcome is unknown.
@@ -629,4 +630,11 @@ message EventMember {
   int32 changes = 11;
   // The accounts at sign-in providers a removal deleted (ADR 0095).
   int32 links = 12;
+}
+
+// EventControlBackup identifies a control plane backup or its destination.
+message EventControlBackup {
+  string bundle = 1;
+  string place = 2;
+  string problem = 3;
 }

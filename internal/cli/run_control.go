@@ -467,10 +467,13 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		PanelCA:     certificateAuthority(f),
 		// The ingress takes the public ports at the server's first route, and gives them
 		// back at its last, so the settings ask which holds them on each request.
-		PanelHandsOver: handsOver,
-		DataDir:        dir.Root,
-		KeyFile:        dir.SealKey(),
-		ServiceManager: serviceManager(os.Getenv, os.ReadFile),
+		PanelHandsOver:       handsOver,
+		DataDir:              dir.Root,
+		KeyFile:              dir.SealKey(),
+		ControlBackupKey:     key,
+		ControlBackupAddress: addr.url(),
+		ControlBackupLocalS3: isSet(stdio.Getenv(envTest)),
+		ServiceManager:       serviceManager(os.Getenv, os.ReadFile),
 		PanelDomain: control.PanelDomain{
 			From: domainFrom, Problem: domainProblem, Certified: certified,
 			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,

@@ -41,6 +41,7 @@ type transfer struct {
 	out      chan *agentv1.SendFileRequest
 	done     chan struct{}
 	artifact *artifactGrant
+	control  *controlBackupTransfer
 }
 
 // openTransfer notes a transfer about to be asked for, by a random token, so one
@@ -76,6 +77,12 @@ func (a *Agents) takeTransfer(peer Peer, token uint64, receive bool) *transfer {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if t := a.transfers[token]; t != nil && t.server == peer.ServerID {
+		if backup := t.control; backup != nil {
+			if !receive || backup.used || backup.session != a.sessions[peer.ServerID] || backup.session.serial != peer.Serial {
+				return nil
+			}
+			backup.used = true
+		}
 		if grant := t.artifact; grant != nil {
 			if grant.used || grant.receive != receive || grant.session != a.sessions[peer.ServerID] || grant.session.serial != peer.Serial {
 				return nil
@@ -99,6 +106,9 @@ func (h *Handler) ReceiveFile(ctx context.Context, req *connect.Request[agentv1.
 	t := h.agents.takeTransfer(peer, req.Msg.GetStream(), true)
 	if t == nil {
 		return connect.NewError(connect.CodeNotFound, errors.New("nobody is sending this upload"))
+	}
+	if t.control != nil {
+		return h.whileIn(ctx, peer, func() error { return t.control.send(ctx, t.done, stream) })
 	}
 	if t.artifact != nil {
 		return h.receiveArtifact(ctx, t, stream)

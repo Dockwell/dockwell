@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ControlBackupService manages sealed recovery copies of the whole control plane
+// (ADR 0073). It never serves a bundle's bytes.
+service ControlBackupService {
+  // GetControlBackup reads status. An install admin's read-only token may use it.
+  rpc GetControlBackup(GetControlBackupRequest) returns (GetControlBackupResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "status"
+    };
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {get: "/v1/control-backup"};
+  }
+
+  // TakeControlBackup requests the next backup. An install admin's read-write
+  // token may use it. The request is audited.
+  rpc TakeControlBackup(TakeControlBackupRequest) returns (TakeControlBackupResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "now"
+    };
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup:take"
+      body: "*"
+    };
+  }
+
+  // SetControlBackupDestination selects or clears the off-site destination with
+  // an owner's session and a fresh passkey. No token can use it.
+  rpc SetControlBackupDestination(SetControlBackupDestinationRequest) returns (SetControlBackupDestinationResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "set-destination"
+    };
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup/destination:set"
+      body: "*"
+    };
+  }
+
+  // SetControlBackupServers sets optional server preferences in an owner's
+  // session. No token can use it. An empty selection chooses by available room.
+  rpc SetControlBackupServers(SetControlBackupServersRequest) returns (SetControlBackupServersResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "set-servers"
+    };
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup/servers:set"
+      body: "*"
+    };
+  }
+
+  // ShowControlBackupPassphrase reveals the passphrase to the owner in a
+  // session, after a fresh passkey. No token can use it. Every reveal is audited.
+  rpc ShowControlBackupPassphrase(ShowControlBackupPassphraseRequest) returns (ShowControlBackupPassphraseResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "show-passphrase"
+    };
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup/passphrase:show"
+      body: "*"
+    };
+  }
+
+  // SetControlBackupPassphrase rotates the passphrase with an owner's session
+  // and a fresh passkey. No token can use it.
+  rpc SetControlBackupPassphrase(SetControlBackupPassphraseRequest) returns (SetControlBackupPassphraseResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "set-passphrase"
+    };
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup/passphrase:set"
+      body: "*"
+    };
+  }
+
+  // ConfirmControlBackupPassphrase records that the owner can type the current
+  // passphrase back. No token can use it.
+  rpc ConfirmControlBackupPassphrase(ConfirmControlBackupPassphraseRequest) returns (ConfirmControlBackupPassphraseResponse) {
+    option (dockwell.v1.command) = {
+      noun: "control"
+      verb: "confirm-passphrase"
+    };
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.min_role) = NEEDS_OWNER;
+    option (dockwell.v1.min_role_protected) = NEEDS_OWNER;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/control-backup/passphrase:confirm"
+      body: "*"
+    };
+  }
+}
+
+// GetControlBackupRequest asks for the install’s recovery settings and copy status.
+message GetControlBackupRequest {}
+
+// GetControlBackupResponse describes the current generation and where its newest copies reached.
+message GetControlBackupResponse {
+  string install = 1;
+  int64 generation = 2;
+  string address = 3;
+  string destination = 4;
+  ControlBackupPlace offsite = 5;
+  repeated ControlBackupPlace servers = 6;
+  bool passphrase_kept = 7;
+  bool hourly = 8;
+  bool requested = 9;
+  bool running = 10;
+  google.protobuf.Timestamp last_attempt = 11;
+  ControlBackupDestination storage = 12;
+  string problem = 13;
+  google.protobuf.Timestamp next_at = 14;
+  repeated ControlBackupServer eligible_servers = 15;
+  repeated string preferred_servers = 16;
+  repeated string excluded_servers = 17;
+}
+
+// ControlBackupServer identifies another server the owner can choose to keep copies.
+message ControlBackupServer {
+  string id = 1;
+  string name = 2;
+}
+
+// ControlBackupPlace describes what the last delivery to one place achieved.
+message ControlBackupPlace {
+  string name = 1;
+  string path = 2;
+  google.protobuf.Timestamp sent_at = 3;
+  string problem = 4;
+  bool behind = 5;
+  string server = 6;
+  string file = 7;
+  // When the newest bundle at this place was captured. sent_at is when it arrived.
+  google.protobuf.Timestamp bundle_at = 8;
+}
+
+// ControlBackupDestination holds the off-site coordinates for the recovery sheet.
+message ControlBackupDestination {
+  string endpoint = 1;
+  string region = 2;
+  string bucket = 3;
+  string prefix = 4;
+  string access_key_id = 5;
+  bool virtual_host = 6;
+}
+
+// TakeControlBackupRequest asks the scheduler to take a backup as soon as its rate limit allows.
+message TakeControlBackupRequest {}
+// TakeControlBackupResponse reports the earliest time the queued attempt can start.
+message TakeControlBackupResponse {
+  google.protobuf.Timestamp next_at = 1;
+}
+
+// SetControlBackupDestinationRequest carries the selection and its fresh passkey proof.
+message SetControlBackupDestinationRequest {
+  // The name of an existing backup destination. Empty removes the selection.
+  string destination = 1;
+  string proof = 2 [(dockwell.v1.from_file) = true];
+}
+// SetControlBackupDestinationResponse confirms that the destination selection was saved.
+message SetControlBackupDestinationResponse {}
+
+// ShowControlBackupPassphraseRequest carries the owner’s fresh passkey proof.
+message ShowControlBackupPassphraseRequest {
+  string proof = 1 [(dockwell.v1.from_file) = true];
+}
+// ShowControlBackupPassphraseResponse returns the recovery phrase to the confirmed owner.
+message ShowControlBackupPassphraseResponse {
+  string passphrase = 1;
+}
+
+// SetControlBackupPassphraseRequest rotates the recovery phrase after a fresh passkey.
+message SetControlBackupPassphraseRequest {
+  // Leave empty to generate a new passphrase.
+  string passphrase = 1 [(dockwell.v1.from_file) = true];
+  string proof = 2 [(dockwell.v1.from_file) = true];
+}
+// SetControlBackupPassphraseResponse confirms that the new phrase was saved and a backup queued.
+message SetControlBackupPassphraseResponse {}
+
+// ConfirmControlBackupPassphraseRequest checks the owner can type the current recovery phrase.
+message ConfirmControlBackupPassphraseRequest {
+  string passphrase = 1 [(dockwell.v1.from_file) = true];
+}
+// ConfirmControlBackupPassphraseResponse confirms that the current phrase was kept.
+message ConfirmControlBackupPassphraseResponse {}
+
+// SetControlBackupServersRequest changes how the scheduler chooses other servers.
+message SetControlBackupServersRequest {
+  // Up to two preferred server IDs. Other servers fill any available places.
+  repeated string preferred = 1;
+  repeated string excluded = 2;
+}
+// SetControlBackupServersResponse confirms that placement preferences were saved.
+message SetControlBackupServersResponse {}

@@ -1380,6 +1380,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadOnepanel{ReadOnepanel: found}}
 	}
+	if k := call.GetKeepControlBackup(); k != nil {
+		return c.keepControlBackup(ctx, k)
+	}
 	if w := call.GetWriteUpload(); w != nil {
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)

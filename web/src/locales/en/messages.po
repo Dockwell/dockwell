@@ -727,6 +727,12 @@ msgstr "A change failed: {subject}"
 msgid "A change in a project you can't see"
 msgstr "A change in a project you can't see"
 
+msgid "A control plane backup failed"
+msgstr "A control plane backup failed"
+
+msgid "A control plane backup failed at {copyPlace}"
+msgstr "A control plane backup failed at {copyPlace}"
+
 msgid "A major update of {subject} is out: {where}"
 msgstr "A major update of {subject} is out: {where}"
 
@@ -841,6 +847,9 @@ msgstr "Asked to run a scheduled task"
 msgid "Asked to run {task}"
 msgstr "Asked to run {task}"
 
+msgid "Backed up the control plane"
+msgstr "Backed up the control plane"
+
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
@@ -855,6 +864,9 @@ msgstr "Cancelled download of {path} to {server}"
 
 msgid "Changed permissions or ownership on {path} on {server}"
 msgstr "Changed permissions or ownership on {path} on {server}"
+
+msgid "Changed the control plane backup destination"
+msgstr "Changed the control plane backup destination"
 
 msgid "Changed their email"
 msgstr "Changed their email"
@@ -876,6 +888,9 @@ msgstr "Changed whether deploy on push waits for a person"
 
 msgid "Changed whether {name}'s deploy on push waits for a person"
 msgstr "Changed whether {name}'s deploy on push waits for a person"
+
+msgid "Changed which servers keep control plane copies"
+msgstr "Changed which servers keep control plane copies"
 
 msgid "Checked a DNS provider"
 msgstr "Checked a DNS provider"
@@ -936,6 +951,9 @@ msgstr "Compressed {path} on {server}, which can let someone back in"
 
 msgid "Compressed {path} on {server}, {size}"
 msgstr "Compressed {path} on {server}, {size}"
+
+msgid "Confirmed the recovery passphrase was kept"
+msgstr "Confirmed the recovery passphrase was kept"
 
 msgid "Confirmed which environments are protected"
 msgstr "Confirmed which environments are protected"
@@ -1297,6 +1315,9 @@ msgstr "Replaced an edit to {target} made in Cloudflare, removing {rule}"
 msgid "Replaced the DNS record made in Cloudflare for {name}, in {where}"
 msgstr "Replaced the DNS record made in Cloudflare for {name}, in {where}"
 
+msgid "Requested a control plane backup"
+msgstr "Requested a control plane backup"
+
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
 
@@ -1358,6 +1379,12 @@ msgstr "Sent a certificate's key, proven by DNS, to a server"
 msgid "Sent a certificate's key, proven by DNS, to {name}"
 msgstr "Sent a certificate's key, proven by DNS, to {name}"
 
+msgid "Sent a control plane backup"
+msgstr "Sent a control plane backup"
+
+msgid "Sent a control plane backup to {copyPlace}"
+msgstr "Sent a control plane backup to {copyPlace}"
+
 msgid "Sent a test to a new {kind} channel at {host}, which arrived"
 msgstr "Sent a test to a new {kind} channel at {host}, which arrived"
 
@@ -1409,6 +1436,9 @@ msgstr "Set the public address of {server} to {address}"
 msgid "Set the public address of {server} to {address}, which was {previous}"
 msgstr "Set the public address of {server} to {address}, which was {previous}"
 
+msgid "Set the recovery passphrase"
+msgstr "Set the recovery passphrase"
+
 msgid "Set the time zone for new schedules to {value}"
 msgstr "Set the time zone for new schedules to {value}"
 
@@ -1423,6 +1453,9 @@ msgstr "Set their time zone to {value}"
 
 msgid "Set {name}'s SSL mode at Cloudflare"
 msgstr "Set {name}'s SSL mode at Cloudflare"
+
+msgid "Showed the recovery passphrase"
+msgstr "Showed the recovery passphrase"
 
 msgid "Signed in"
 msgstr "Signed in"
@@ -8231,6 +8264,9 @@ msgstr "Backups, newest first"
 msgid "Check it now"
 msgstr "Check it now"
 
+msgid "Control plane backups"
+msgstr "Control plane backups"
+
 msgid "Delete from both"
 msgstr "Delete from both"
 
@@ -8396,6 +8432,227 @@ msgstr "{shown, plural, one {Sorted within the newest # backup.} other {Sorted w
 
 msgid "{shown} newest"
 msgstr "{shown} newest"
+
+msgid "Access key ID"
+msgstr "Access key ID"
+
+msgid "Add an S3 connection"
+msgstr "Add an S3 connection"
+
+msgid "Add backup destination {destName}"
+msgstr "Add backup destination {destName}"
+
+msgid "Ask the owner to choose storage for off-site copies."
+msgstr "Ask the owner to choose storage for off-site copies."
+
+msgid "At least 20 characters"
+msgstr "At least 20 characters"
+
+msgid "Backup queued"
+msgstr "Backup queued"
+
+msgid "Bucket"
+msgstr "Bucket"
+
+msgid "Can't read control plane backups"
+msgstr "Can't read control plane backups"
+
+msgid "Change destination"
+msgstr "Change destination"
+
+msgid "Choose by available space"
+msgstr "Choose by available space"
+
+msgid "Choose servers"
+msgstr "Choose servers"
+
+msgid "Commands copied"
+msgstr "Commands copied"
+
+msgid "Confirm and open recovery sheet"
+msgstr "Confirm and open recovery sheet"
+
+msgid "Confirmed kept"
+msgstr "Confirmed kept"
+
+msgid "Control plane"
+msgstr "Control plane"
+
+msgid "Control plane backup"
+msgstr "Control plane backup"
+
+msgid "Control plane recovery sheet"
+msgstr "Control plane recovery sheet"
+
+msgid "Copy commands"
+msgstr "Copy commands"
+
+msgid "Copy passphrase"
+msgstr "Copy passphrase"
+
+msgid "Couldn't request a backup"
+msgstr "Couldn't request a backup"
+
+msgid "Couldn't save servers"
+msgstr "Couldn't save servers"
+
+msgid "Couldn't save the destination"
+msgstr "Couldn't save the destination"
+
+msgid "Couldn't use the recovery passphrase"
+msgstr "Couldn't use the recovery passphrase"
+
+msgid "Destination"
+msgstr "Destination"
+
+msgid "Each place needs a new copy before it can remove older ones."
+msgstr "Each place needs a new copy before it can remove older ones."
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "First copy"
+msgstr "First copy"
+
+msgid "Generate a stronger passphrase"
+msgstr "Generate a stronger passphrase"
+
+msgid "Generate passphrase"
+msgstr "Generate passphrase"
+
+msgid "Generation"
+msgstr "Generation"
+
+msgid "Install ID"
+msgstr "Install ID"
+
+msgid "It opens every secret in your control plane backup."
+msgstr "It opens every secret in your control plane backup."
+
+msgid "Keep it outside this install"
+msgstr "Keep it outside this install"
+
+msgid "Keep off-site copies protected"
+msgstr "Keep off-site copies protected"
+
+msgid "Keep the passphrase outside this install"
+msgstr "Keep the passphrase outside this install"
+
+msgid "Keep the recovery passphrase separately"
+msgstr "Keep the recovery passphrase separately"
+
+msgid "Leave out"
+msgstr "Leave out"
+
+msgid "Loading control plane backups"
+msgstr "Loading control plane backups"
+
+msgid "Needs attention"
+msgstr "Needs attention"
+
+msgid "New passphrase"
+msgstr "New passphrase"
+
+msgid "Newest off-site copy"
+msgstr "Newest off-site copy"
+
+msgid "No copies on other servers"
+msgstr "No copies on other servers"
+
+msgid "No destination"
+msgstr "No destination"
+
+msgid "Off-site copy needed"
+msgstr "Off-site copy needed"
+
+msgid "Off-site destination"
+msgstr "Off-site destination"
+
+msgid "Older copies may still open with the old passphrase"
+msgstr "Older copies may still open with the old passphrase"
+
+msgid "Opening a bundle needs it. Off-site access also needs your storage credentials."
+msgstr "Opening a bundle needs it. Off-site access also needs your storage credentials."
+
+msgid "Over 256 MiB · Hourly at most"
+msgstr "Over 256 MiB · Hourly at most"
+
+msgid "Pick a destination"
+msgstr "Pick a destination"
+
+msgid "Prefix"
+msgstr "Prefix"
+
+msgid "Print or save as PDF"
+msgstr "Print or save as PDF"
+
+#. placeholder {0}: words.span(next)
+msgid "Queued · In about {0}"
+msgstr "Queued · In about {0}"
+
+msgid "Received {received}"
+msgstr "Received {received}"
+
+msgid "Recovery passphrase"
+msgstr "Recovery passphrase"
+
+msgid "Recovery passphrase still needs to be kept"
+msgstr "Recovery passphrase still needs to be kept"
+
+msgid "Recovery sheet"
+msgstr "Recovery sheet"
+
+msgid "Remove destination"
+msgstr "Remove destination"
+
+msgid "Save destination"
+msgstr "Save destination"
+
+msgid "Save servers"
+msgstr "Save servers"
+
+msgid "Second copy"
+msgstr "Second copy"
+
+msgid "Server copies"
+msgstr "Server copies"
+
+msgid "Servers that keep copies"
+msgstr "Servers that keep copies"
+
+msgid "Set passphrase"
+msgstr "Set passphrase"
+
+msgid "Set recovery passphrase"
+msgstr "Set recovery passphrase"
+
+#. placeholder {0}: item.label
+msgid "Set up {0}"
+msgstr "Set up {0}"
+
+msgid "Show passphrase"
+msgstr "Show passphrase"
+
+msgid "Stored"
+msgstr "Stored"
+
+msgid "Take one now"
+msgstr "Take one now"
+
+msgid "Taking a backup"
+msgstr "Taking a backup"
+
+msgid "The last backup failed"
+msgstr "The last backup failed"
+
+msgid "Type the passphrase to confirm"
+msgstr "Type the passphrase to confirm"
+
+msgid "Use bucket versioning or object lock and a key that can't delete."
+msgstr "Use bucket versioning or object lock and a key that can't delete."
+
+msgid "Use your own"
+msgstr "Use your own"
 
 msgid "Add storage"
 msgstr "Add storage"
@@ -10815,9 +11072,6 @@ msgstr "Checking the registry"
 
 msgid "Choose another tag"
 msgstr "Choose another tag"
-
-msgid "Destination"
-msgstr "Destination"
 
 msgid "Manifest digest"
 msgstr "Manifest digest"
@@ -13800,17 +14054,11 @@ msgstr "A bucket's keys, pasted once."
 msgid "A key goes only into a secret, as plans show a variable."
 msgstr "A key goes only into a secret, as plans show a variable."
 
-msgid "Access key ID"
-msgstr "Access key ID"
-
 msgid "Add another"
 msgstr "Add another"
 
 msgid "An admin adds one."
 msgstr "An admin adds one."
-
-msgid "Bucket"
-msgstr "Bucket"
 
 msgid "Bucket in the path: true or false"
 msgstr "Bucket in the path: true or false"
@@ -13823,9 +14071,6 @@ msgstr "Connect {app} to storage"
 
 msgid "Connection"
 msgstr "Connection"
-
-msgid "Endpoint"
-msgstr "Endpoint"
 
 msgid "Folders, each ending with a slash, such as {app}/"
 msgstr "Folders, each ending with a slash, such as {app}/"
@@ -14006,9 +14251,6 @@ msgstr "Sign-in"
 
 msgid "Stop sharing the connection {label}"
 msgstr "Stop sharing the connection {label}"
-
-msgid "Stored"
-msgstr "Stored"
 
 msgid "TLS from the start"
 msgstr "TLS from the start"
@@ -16298,9 +16540,6 @@ msgstr "Loading Compose projects"
 
 msgid "Managed by Dockwell"
 msgstr "Managed by Dockwell"
-
-msgid "Needs attention"
-msgstr "Needs attention"
 
 msgid "New Compose"
 msgstr "New Compose"
@@ -22226,9 +22465,6 @@ msgstr "{rx} in · {tx} out"
 msgid "Can't read Docker"
 msgstr "Can't read Docker"
 
-msgid "Control plane"
-msgstr "Control plane"
-
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
 
@@ -27985,3 +28221,6 @@ msgstr "{minutes} min {seconds} s"
 
 msgid "{seconds} s"
 msgstr "{seconds} s"
+
+msgid "App backups"
+msgstr "App backups"

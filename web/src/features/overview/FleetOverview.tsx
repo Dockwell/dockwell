@@ -18,9 +18,9 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo, useState } from "react";
-
 import { formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { OverviewControlBackup } from "../backups/ControlBackup";
 import { FleetUnreadNote } from "../servers/FleetNotes";
 import { fleetLabels, groupBy, withoutRegion } from "../servers/labels";
 import { byNeed, NEED } from "../servers/server";
@@ -118,6 +118,7 @@ export function FleetOverview({ servers: fleet, status }: { servers: readonly Se
         <FleetMap servers={servers} compact={phone} byRegion={shown === ALL && regions.length > 0 && !phone} />
         <RecentChanges kinds={FLEET_EVENTS} className="overview-fleet-changes" unboxed={phone} />
       </div>
+      <OverviewControlBackup />
       <OverviewApps fleet />
     </Page>
   );

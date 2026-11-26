@@ -48,6 +48,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/tasks"
 	"github.com/dockwell/dockwell/internal/control/terminals"
+	"github.com/dockwell/dockwell/internal/controlbackup"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -126,7 +127,7 @@ var (
 	// Shared terminal commands live in settings too and are audited there (ADR 0108).
 	settingsActions = slices.Concat(settings.Actions, terminals.CommandActions)
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
-	backupActions = backups.Actions
+	backupActions = slices.Concat(backups.Actions, controlbackup.Actions)
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
 	taskActions = tasks.Actions
 	// What became of making an app's owner is observed, so an event; the install that
@@ -176,7 +177,7 @@ var (
 	}
 	// adminActions are on the timeline for admins and the owner alone: what each
 	// person was called, the emails they signed in with, and their chosen time zone.
-	adminActions = []string{auth.ActionAccountName, auth.ActionAccountEmail, auth.ActionAccountTimeZone}
+	adminActions = slices.Concat([]string{auth.ActionAccountName, auth.ActionAccountEmail, auth.ActionAccountTimeZone}, controlbackup.Actions)
 )
 
 // forReader leaves out of f what only admins see on the timeline, for a caller
@@ -819,6 +820,15 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			e.TaskRun.Id, e.TaskRun.Task, e.TaskRun.DisplayName = told.Run, told.Task, told.DisplayName
 			e.TaskRun.State, e.TaskRun.Reason = dockwellv1.TaskRunState(told.State), dockwellv1.TaskRunReason(told.Reason)
 			e.TaskRun.ExitCode, e.TaskRun.HttpStatus, e.TaskRun.Error = told.ExitCode, told.HTTPStatus, told.Error
+		}
+		return e
+	}
+	if slices.Contains(controlbackup.Actions, a.Action) {
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_BACKUP
+		var detail controlbackup.EventDetail
+		_ = json.Unmarshal([]byte(a.Detail), &detail)
+		e.ControlBackup = &dockwellv1.EventControlBackup{
+			Bundle: a.Subject, Place: look.Name(detail.Place), Problem: detail.Problem,
 		}
 		return e
 	}
