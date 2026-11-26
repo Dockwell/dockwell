@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: Deploy to Dockwell
+description: Deploy an image built by GitHub Actions and wait for its rollout.
+inputs:
+  panel:
+    description: HTTPS address of your Dockwell panel.
+    required: true
+  token:
+    description: Dockwell deploy token from an Actions secret.
+    required: true
+  service:
+    description: Dockwell service ID.
+    required: true
+  image:
+    description: Published image reference, preferably by digest.
+    required: true
+  version:
+    description: Dockwell CLI release tag. Defaults to the action's own release tag.
+    required: false
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DOCKWELL_URL: ${{ inputs.panel }}
+        DOCKWELL_TOKEN: ${{ inputs.token }}
+        DOCKWELL_SERVICE: ${{ inputs.service }}
+        DOCKWELL_IMAGE: ${{ inputs.image }}
+        DOCKWELL_VERSION: ${{ inputs.version || github.action_ref }}
+        DOCKWELL_CI_PROVIDER: github-actions
+      run: bash "$GITHUB_ACTION_PATH/../deploy.sh"

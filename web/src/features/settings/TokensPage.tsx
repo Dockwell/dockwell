@@ -61,7 +61,7 @@ const NEW_TOKEN_NAME = "new-token-name";
 const SORT_KEYS = ["name", "scopes", "created", "used", "expires"] as const;
 
 export interface TokensSearch extends ListSearch {
-  scope?: "read" | "write";
+  scope?: "read" | "write" | "deploy";
 }
 
 function focusNewToken() {
@@ -98,7 +98,9 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
   const rows = sortedRows(
     list.filter(
       (token) =>
-        (!search.scope || (token.scope === TokenScope.READ_WRITE ? "write" : "read") === search.scope) &&
+        (!search.scope ||
+          (token.scope === TokenScope.READ_WRITE ? "write" : token.scope === TokenScope.DEPLOY ? "deploy" : "read") ===
+            search.scope) &&
         `${token.name} ${token.hint}`.toLowerCase().includes(place.query),
     ),
     place.sort,
@@ -244,6 +246,7 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
                   { value: "", label: t`Every scope` },
                   { value: "read", label: t`Read only` },
                   { value: "write", label: t`Read and write` },
+                  { value: "deploy", label: t`Deploy only` },
                 ]}
                 onChange={(event) =>
                   onSearch({
@@ -305,7 +308,11 @@ function Scopes({ token }: { token: Token }) {
       : token.projects.map((p) => p.name || t`a project that's gone`).join(", ");
   return (
     <span className="tokens-tags">
-      <Tag label="read" value="*" />
+      {token.scope === TokenScope.DEPLOY ? (
+        <Tag label={t`Deploy`} value={token.deployService} />
+      ) : (
+        <Tag label="read" value="*" />
+      )}
       {token.scope === TokenScope.READ_WRITE ? <Tag label="write" value="undoable" /> : null}
       {token.grants.includes(TokenGrant.LOGS) ? <Tag label="logs" value="read" /> : null}
       <span className="tokens-tag-where" title={where}>

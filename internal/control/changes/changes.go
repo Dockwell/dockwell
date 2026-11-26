@@ -512,6 +512,9 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
+	if err := h.checkDeployToken(ctx, p, r); err != nil {
+		return nil, err
+	}
 	fp := req.Msg.GetFingerprint()
 	pushPermission := r.State == store.ChangePlanned && r.Plan.ChangesRegistryPushPermission()
 	if pushPermission && (p.Token != nil || p.Session.ID == "") {
@@ -1164,11 +1167,49 @@ func (h *Handler) onDrift(ctx context.Context, server, resourceID string,
 	return h.change(ctx, p.Change)
 }
 
+// ExistingCIDeploy returns a recorded CI change, with the caller's normal access checks.
+func (h *Handler) ExistingCIDeploy(ctx context.Context, changeID string) (*dockwellv1.Change, error) {
+	return h.change(ctx, changeID)
+}
+
+func (h *Handler) checkDeployToken(ctx context.Context, p auth.Principal, r *revision.Record) error {
+	if p.Token == nil || p.Token.DeployService == "" {
+		return nil
+	}
+	intent := r.Brief.Intent
+	if intent != nil && intent.DeployOrigin != nil && intent.Resource == p.Token.DeployService {
+		var matches bool
+		err := h.db.View(ctx, func(tx *store.Tx) error {
+			svc, err := tx.GetResourceByID(ctx, p.Token.DeployService)
+			if errors.Is(err, store.ErrNotFound) {
+				return nil
+			}
+			matches = svc.Spec != nil && svc.Scope == p.Token.DeployEnvironment
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		for i := range r.Items {
+			item := &r.Items[i]
+			if matches && item.ResourceID == p.Token.DeployService && item.Scope == p.Token.DeployEnvironment {
+				return nil
+			}
+		}
+	}
+	return authapi.ReasonError(connect.CodeNotFound, errors.New("this change isn't available to this deploy token"), "not_found")
+}
+
 // change reads a change for the schema.
 func (h *Handler) change(ctx context.Context, changeID string) (*dockwellv1.Change, error) {
 	r, err := h.engine.Change(ctx, changeID)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
+	}
+	if p, ok := authapi.PrincipalFrom(ctx); ok {
+		if err := h.checkDeployToken(ctx, p, r); err != nil {
+			return nil, err
+		}
 	}
 	cs, err := h.protos(ctx, r)
 	if err != nil {
@@ -1639,6 +1680,9 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 		CreateTime: timestamppb.New(r.CreatedAt), Plan: planProto(r), Reverts: r.Reverts,
 		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: Surfaces[r.AppliedVia],
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback), Because: r.Brief.Because, Restart: r.Brief.Restart,
+	}
+	if i := r.Brief.Intent; i != nil {
+		c.DeployOrigin = i.DeployOrigin
 	}
 	if !r.AppliedAt.IsZero() {
 		c.ApplyTime = timestamppb.New(r.AppliedAt)

@@ -27,6 +27,7 @@ type options struct {
 	json     bool
 	// yes applies without asking, and planOnly proposes without applying.
 	yes, planOnly bool
+	wait          bool
 }
 
 // runner runs one API command.
@@ -259,6 +260,9 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	})
 	if err != nil {
 		return r.explain(err)
+	}
+	if deploy, ok := res.(*dockwellv1.DeployServiceResponse); ok && r.opts.wait {
+		return r.waitDeploy(ctx, deploy)
 	}
 	if c := changeIn(res); c.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
 		if plans, _ := proposes(m); plans {

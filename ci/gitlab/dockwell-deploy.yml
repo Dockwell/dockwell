@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+spec:
+  inputs:
+    panel:
+      description: HTTPS address of your Dockwell panel.
+    token:
+      description: Reference to a masked GitLab CI/CD variable with the Dockwell deploy token.
+    service:
+      description: Dockwell service ID.
+    image:
+      description: Published image reference, preferably by digest.
+    version:
+      description: Dockwell release tag.
+      regex: '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+    stage:
+      description: Pipeline stage to run the deploy in.
+      default: deploy
+    job:
+      description: Name of the deploy job.
+      default: dockwell-deploy
+---
+"$[[ inputs.job ]]":
+  stage: $[[ inputs.stage ]]
+  image: debian:13-slim
+  variables:
+    DOCKWELL_URL: $[[ inputs.panel ]]
+    DOCKWELL_TOKEN: $[[ inputs.token ]]
+    DOCKWELL_SERVICE: $[[ inputs.service ]]
+    DOCKWELL_CI_IMAGE: $[[ inputs.image ]]
+    DOCKWELL_VERSION: $[[ inputs.version ]]
+    DOCKWELL_CI_PROVIDER: gitlab-ci
+  script:
+    - apt-get update -qq && apt-get install -y -qq ca-certificates curl jq
+    - |
+      file=$(mktemp)
+      trap 'rm -f -- "$file"' EXIT
+      curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+        -o "$file" "https://raw.githubusercontent.com/Dockwell/dockwell/$DOCKWELL_VERSION/ci/deploy.sh"
+      DOCKWELL_IMAGE="$DOCKWELL_CI_IMAGE" bash "$file"

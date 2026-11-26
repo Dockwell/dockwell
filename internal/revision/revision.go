@@ -550,6 +550,9 @@ type Intent struct {
 	Image    string `json:",omitempty"` // the image a deploy runs
 	Port     int    `json:",omitempty"` // the server's port that publishing opens
 	Revision int    `json:",omitempty"` // the revision a rollback puts back
+	// DeployOrigin is the provenance and digest of an externally built image.
+	DeployOrigin *dockwellv1.DeployOrigin `json:",omitempty"`
+
 	// Commit and Ref are what a deploy builds, for a service that builds from Git.
 	Commit string `json:",omitempty"`
 	Ref    string `json:",omitempty"`
@@ -1137,6 +1140,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return nil, err
 		}
 	}
+	var ciKey store.CIDeployKey
+	if origin := p.Intent; origin != nil && origin.DeployOrigin != nil {
+		ciKey = store.CIDeployKey{
+			Service: origin.Resource, Digest: origin.DeployOrigin.GetDigest(), Commit: origin.DeployOrigin.GetCommit(),
+		}
+	}
+
 	edits, err := e.hostsAsIs(ctx, p.Edits)
 	if err != nil {
 		return nil, err
@@ -1432,9 +1442,19 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
 		ActsFor: actsFor(ctx, p.Actor),
 	}
+	raced := errors.New("another request planned this CI deploy")
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := e.recordPlanned(ctx, tx, c, items); err != nil {
 			return err
+		}
+		if ciKey.Service != "" {
+			claimed, err := tx.RecordCIDeployKey(ctx, ciKey, c.ID)
+			if err != nil {
+				return err
+			}
+			if !claimed {
+				return raced
+			}
 		}
 		if p.Records == nil {
 			return nil
@@ -1447,6 +1467,20 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		}
 		return nil
 	})
+	if errors.Is(err, raced) {
+		var existing string
+		if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
+			existing, err = tx.CIDeployChange(ctx, ciKey)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		r, err := e.Change(ctx, existing)
+		if err != nil {
+			return nil, err
+		}
+		return r.Plan, nil
+	}
 	if err != nil {
 		return nil, err
 	}

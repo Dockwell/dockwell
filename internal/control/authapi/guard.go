@@ -1013,6 +1013,8 @@ func (i *interceptor) authorizeToken(ctx context.Context, req request, procedure
 		return context.WithValue(ctx, principalKey{}, p), nil
 	case errors.Is(err, auth.ErrTokenRejected):
 		return ctx, ReasonError(connect.CodeUnauthenticated, auth.ErrTokenRejected, ReasonTokenRejected)
+	case errors.Is(err, auth.ErrDeployScope):
+		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrDeployScope, ReasonTokenScope)
 	case errors.Is(err, auth.ErrTokenScope):
 		return ctx, ReasonError(connect.CodePermissionDenied, auth.ErrTokenScope, ReasonTokenScope)
 	case errors.Is(err, auth.ErrTokenLogs):

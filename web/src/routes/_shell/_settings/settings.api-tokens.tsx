@@ -8,7 +8,9 @@ import { readListSearch } from "../../../features/shell/list";
 export const Route = createFileRoute("/_shell/_settings/settings/api-tokens")({
   validateSearch: (search: Record<string, unknown>): TokensSearch => ({
     ...readListSearch(search),
-    ...(search["scope"] === "read" || search["scope"] === "write" ? { scope: search["scope"] } : {}),
+    ...(search["scope"] === "read" || search["scope"] === "write" || search["scope"] === "deploy"
+      ? { scope: search["scope"] }
+      : {}),
   }),
   component: function Tokens() {
     const search = Route.useSearch();

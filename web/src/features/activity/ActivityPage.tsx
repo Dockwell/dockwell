@@ -49,6 +49,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { DeploySource } from "../changes/DeploySource";
 import { BecauseNotice, FailureNotice, MachineWords } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
 import { PlanSteps } from "../changes/PlanSteps";
@@ -601,6 +602,7 @@ function DayTable({
             <Mark icon={d.icon} tone={d.tone} />
             <div className="activity-event-text">
               <span className="activity-event-title">{d.title}</span>
+              {event.change?.deployOrigin ? <DeploySource origin={event.change.deployOrigin} /> : null}
               <MetaLine
                 look={line.look}
                 parts={times > 1 ? [...parts, plural(times, { one: "# time", other: "# times" })] : parts}
@@ -684,9 +686,12 @@ export function EventTimeline({
       icon: d.icon,
       ...(d.tone ? { tone: d.tone } : {}),
       title: change ? (
-        <button type="button" className="activity-open" onClick={() => sheet.open({ kind: "change", id: event.id })}>
-          {d.title}
-        </button>
+        <>
+          <button type="button" className="activity-open" onClick={() => sheet.open({ kind: "change", id: event.id })}>
+            {d.title}
+          </button>
+          {change.deployOrigin ? <DeploySource origin={change.deployOrigin} /> : null}
+        </>
       ) : (
         d.title
       ),
@@ -947,7 +952,9 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
             </dd>
             {repeats && repeats.length > 1 ? <RepeatFacts run={repeats} /> : null}
             <dt>{t`From`}</dt>
-            <dd>{words.surface(event.surface)}</dd>
+            <dd>
+              {change?.deployOrigin ? <DeploySource origin={change.deployOrigin} /> : words.surface(event.surface)}
+            </dd>
             {change && proposedApart(change) ? (
               <>
                 <dt>{t`Proposed by`}</dt>

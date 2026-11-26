@@ -105,6 +105,7 @@ func Narrow(ctx context.Context, tx *store.Tx, c *dockwellv1.Change) error {
 		plan.Notes = notes
 		if id := plan.GetIntent().GetResourceId(); id != "" && !ids[id] {
 			plan.Intent = nil
+			c.DeployOrigin = nil
 		}
 		places, err := heldPlaces(ctx, tx, caller.Grants)
 		if err != nil {

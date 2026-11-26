@@ -1233,6 +1233,8 @@ message Change {
   // discards in person (ADR 0071). False doesn't mean they can't discard it:
   // someone else's needs what applying it would.
   bool discards = 24;
+  // Source and immutable image of an external CI deploy, if supplied.
+  DeployOrigin deploy_origin = 25;
   // What the change waits for, while a change to a server's firewall waits
   // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
   // open work adds to this message.
@@ -1247,6 +1249,35 @@ message Change {
   // can touch places a reader below an admin can't see, so it's empty
   // everywhere else. Numbered apart, as open work adds to this message.
   repeated ResourceRef touches = 290;
+}
+
+// DeployOrigin identifies the external CI run that supplied an image.
+message DeployOrigin {
+  // HTTPS URL of the source repository.
+  string repository = 1;
+  // Full Git commit SHA.
+  string commit = 2;
+  // Git ref, such as refs/heads/main.
+  string ref = 3;
+  // HTTPS URL of the CI run or pipeline.
+  string run_url = 4;
+  // The CI provider, used to construct the commit link.
+  DeployProvider provider = 5;
+  // Original image reference from the request. Only returned by Dockwell.
+  string image = 6;
+  // Manifest digest resolved when the change was planned. Only returned by Dockwell.
+  string digest = 7;
+  // HTTPS commit link. Dockwell derives it for GitHub and GitLab. Supply it
+  // when the provider is other.
+  string commit_url = 8;
+}
+
+// DeployProvider describes the CI system that supplied the image.
+enum DeployProvider {
+  DEPLOY_PROVIDER_UNSPECIFIED = 0;
+  DEPLOY_PROVIDER_GITHUB_ACTIONS = 1;
+  DEPLOY_PROVIDER_GITLAB_CI = 2;
+  DEPLOY_PROVIDER_OTHER = 3;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for

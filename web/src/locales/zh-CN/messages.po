@@ -3099,6 +3099,9 @@ msgstr "已更改，值已隐藏"
 msgid "Commit"
 msgstr "提交"
 
+msgid "Deploy from CI"
+msgstr "从 CI 部署"
+
 msgid "Deployed"
 msgstr "部署时间"
 
@@ -4676,6 +4679,39 @@ msgstr "{0, plural, other {构建输出太快，日志来不及接收，丢弃�
 
 msgid "{count} lines left out"
 msgstr "省略了 {count} 行"
+
+msgid "CI deploy · {name}"
+msgstr "CI 部署 · {name}"
+
+msgid "CI provider"
+msgstr "CI 提供商"
+
+msgid "Copy token"
+msgstr "复制令牌"
+
+msgid "Copy workflow"
+msgstr "复制工作流"
+
+msgid "Create deploy token"
+msgstr "创建部署令牌"
+
+msgid "Hide the token"
+msgstr "隐藏令牌"
+
+msgid "Release tag"
+msgstr "发行版本标签"
+
+msgid "Show the whole token"
+msgstr "显示完整令牌"
+
+msgid "Token copied"
+msgstr "令牌已复制"
+
+msgid "Workflow"
+msgstr "工作流"
+
+msgid "Workflow copied"
+msgstr "已复制工作流"
 
 msgid "A new one for {name}"
 msgstr "为 {name} 新建一个"
@@ -11040,6 +11076,12 @@ msgstr "如果不保留设置，{name} 将在 {left} 秒后恢复原设置。"
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
+
+msgid "CI run"
+msgstr "CI 运行记录"
+
+msgid "From {link} on {shortRef}"
+msgstr "来自 {shortRef} 上的 {link}"
 
 msgid "Checking download access"
 msgstr "正在检查下载权限"
@@ -24829,9 +24871,6 @@ msgstr "身份"
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
-msgid "Copy token"
-msgstr "复制令牌"
-
 msgid "Create a token"
 msgstr "创建令牌"
 
@@ -24843,6 +24882,9 @@ msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "已创建 <0>{name}</0>。请在 Authorization 请求头中以 <1>Bearer</1> 加令牌的形式发送。它将于 {expires} 过期。"
+
+msgid "Deploy only"
+msgstr "仅部署"
 
 msgid "Dockwell can't list your projects"
 msgstr "Dockwell 无法列出你的项目"
@@ -24858,9 +24900,6 @@ msgstr "所有权限范围"
 
 msgid "Filter tokens"
 msgstr "筛选令牌"
-
-msgid "Hide the token"
-msgstr "隐藏令牌"
 
 msgid "In 1 year"
 msgstr "1 年后"
@@ -24914,9 +24953,6 @@ msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且
 msgid "Scopes"
 msgstr "范围"
 
-msgid "Show the whole token"
-msgstr "显示完整令牌"
-
 msgid "Start with read access, and add only what the job needs."
 msgstr "从只读权限开始，只添加任务需要的权限。"
 
@@ -24925,9 +24961,6 @@ msgstr "新令牌，部分已隐藏："
 
 msgid "The token wasn't created"
 msgstr "令牌未创建"
-
-msgid "Token copied"
-msgstr "令牌已复制"
 
 msgid "Token of {day}"
 msgstr "{day} 的令牌"

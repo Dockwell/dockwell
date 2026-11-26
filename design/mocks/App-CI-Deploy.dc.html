@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deploy api from CI</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<div data-theme="{{theme}}" style="min-height: 100vh; background: var(--canvas); padding: 20px; box-sizing: border-box; color: var(--ink); font: 14px var(--font-sans);">
+<section aria-label="Deploy from CI" style="box-sizing: border-box; width: min(100%, 560px); margin-inline-start: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: var(--space-5); display: grid; gap: var(--space-4);">
+<h1 style="margin: 0;">Deploy from CI</h1>
+<div style="display: grid; gap: var(--space-2);">
+<strong>CI provider</strong>
+<div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary">GitHub Actions</x-import>
+<x-import component-from-global-scope="Dockwell.Button" variant="secondary">GitLab CI</x-import>
+</div>
+</div>
+<div style="display: grid; gap: var(--space-2);">
+<strong>Secret · DOCKWELL_DEPLOY_TOKEN</strong>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);">
+<code>dwt_••••••••••••••••</code>
+<x-import component-from-global-scope="Dockwell.Button" variant="secondary">Copy token</x-import>
+</div>
+</div>
+<div style="display: grid; gap: var(--space-2);">
+<strong>Workflow</strong>
+<pre style="overflow: auto; margin: 0; padding: var(--space-3); background: var(--canvas);">uses: Dockwell/dockwell/ci/github@vX.Y.Z
+with:
+  panel: https://panel.example.com
+  service: svc_api</pre>
+<x-import component-from-global-scope="Dockwell.Button" variant="secondary">Copy workflow</x-import>
+</div>
+<div style="display: flex; justify-content: flex-end;">
+<x-import component-from-global-scope="Dockwell.Button" variant="primary">Done</x-import>
+</div>
+</section>
+</div>
+<script type="text/x-dc">
+function renderVals() { return { theme: 'light' }; }
+</script>
+</x-dc>
+</body>
+</html>

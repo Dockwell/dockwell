@@ -3287,3 +3287,55 @@
 .app-metrics.is-stale {
   opacity: 0.45;
 }
+
+.ci-deploy-trigger {
+  margin-inline-start: auto;
+}
+
+.deploy-list-head:has(.ci-deploy-trigger) {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ci-deploy-sheet,
+.ci-deploy-field {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ci-deploy-sheet {
+  gap: var(--space-5);
+}
+
+.ci-deploy-row,
+.ci-deploy-source {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.ci-deploy-row > :last-child {
+  margin-inline-start: auto;
+}
+
+.ci-deploy-secret {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ci-deploy-field pre {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  overflow: auto;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.deploy-phone > li > .ci-deploy-source {
+  padding: 0 var(--space-3) var(--space-3);
+}

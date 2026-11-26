@@ -16,6 +16,7 @@ import (
 	"connectrpc.com/connect"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -270,7 +271,26 @@ func (s *Service) unexpected() error {
 // with it (ADR 0078). An image its registry hasn't got, or didn't answer for, is an
 // error that names it.
 func (s *Service) Digests(ctx context.Context, server string, refs []string) (map[string]string, error) {
-	got, err := s.read(ctx, server, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: refs}}})
+	return s.digestsAs(ctx, server, refs, registry.Auth{})
+}
+
+// DeployDigest resolves a deploy's tag as the target server would pull it.
+func (s *Service) DeployDigest(ctx context.Context, server string, ref resource.Ref, spec *resourcev1.Service) (string, error) {
+	var login registry.Auth
+	if s.logins != nil {
+		var err error
+		login, _, err = s.logins.For(ctx, ref, spec, "")
+		if err != nil {
+			return "", err
+		}
+	}
+	image := spec.GetApp().GetImage()
+	out, err := s.digestsAs(ctx, server, []string{image}, login)
+	return out[image], err
+}
+
+func (s *Service) digestsAs(ctx context.Context, server string, refs []string, a registry.Auth) (map[string]string, error) {
+	got, err := s.readAs(ctx, server, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: refs}}}, a)
 	if err != nil {
 		return nil, err
 	}

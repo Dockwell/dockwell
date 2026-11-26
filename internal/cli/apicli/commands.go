@@ -16,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/resource"
 	servicekind "github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -211,6 +212,10 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	}
 	if plans {
 		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
+	}
+	if m.Procedure == dockwellv1connect.ServiceServiceDeployServiceProcedure {
+		cmd.Flags().BoolVar(&o.wait, "wait", false, "apply without asking and wait for the deployment to finish")
+		cmd.MarkFlagsMutuallyExclusive("wait", "plan-only")
 	}
 	var b *binding
 	if m.Call != nil {

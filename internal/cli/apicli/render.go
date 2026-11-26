@@ -513,6 +513,10 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 
 func renderChangeWithOptions(w io.Writer, c *dockwellv1.Change, now time.Time, fullMaintenance bool) {
 	fmt.Fprintf(w, "%s  %s\n", c.GetId(), c.GetSummary())
+	if origin := c.GetDeployOrigin(); origin != nil {
+		fmt.Fprintf(w, "From %s on %s (%s)\n", origin.GetCommit(), origin.GetRef(), origin.GetRepository())
+		fmt.Fprintf(w, "Commit: %s\nRun: %s\nImage: %s (%s)\n", origin.GetCommitUrl(), origin.GetRunUrl(), origin.GetImage(), origin.GetDigest())
+	}
 	proposed := fmt.Sprintf("%s by %s %s", when(c.GetCreateTime(), now), actor(c.GetProposedBy()), surfaces[c.GetProposedVia()])
 	applied := fmt.Sprintf("%s by %s %s", when(c.GetApplyTime(), now), actor(c.GetAppliedBy()), surfaces[c.GetAppliedVia()])
 	switch c.GetState() {

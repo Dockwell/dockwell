@@ -69,6 +69,8 @@ enum TokenScope {
   // EFFECT_READ, EFFECT_PLAN and EFFECT_APPLY methods: reading, planning and
   // applying changes that can be undone. Never EFFECT_DESTRUCTIVE.
   TOKEN_SCOPE_READ_WRITE = 2;
+  // Deploy and follow CI images for one service in its current environment.
+  TOKEN_SCOPE_DEPLOY = 3;
 }
 
 // TokenRole is the role a token acts as at most, below its maker's (ADR 0071).
@@ -111,6 +113,9 @@ message Token {
   repeated TokenProject projects = 10;
   // The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
   TokenRole role = 11;
+  // The service and environment bound to a deploy token.
+  string deploy_service = 12;
+  string deploy_environment = 13;
 }
 
 // TokenProject is a project a token acts in.
@@ -140,7 +145,7 @@ message CreateTokenRequest {
   // The proof from AuthService.FinishStepUp, for creating a token.
   string proof = 5;
   // What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
-  // Either scope can have it.
+  // Read-only and read-write scopes can have grants. Deploy scope has none.
   repeated TokenGrant grants = 6;
   // The projects it acts in, each by its ID or its name, up to 100, each one
   // its maker holds something in. Leave it empty for every project its maker
@@ -150,6 +155,9 @@ message CreateTokenRequest {
   // The role it acts as at most, below its maker's. Leave it unset for its
   // maker's role.
   TokenRole role = 8;
+  // Required for deploy scope. A service ID; Dockwell sets its project,
+  // environment and developer cap from the service.
+  string deploy_service = 9;
 }
 
 // CreateTokenResponse carries the new token and its secret.
