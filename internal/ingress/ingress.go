@@ -1099,8 +1099,9 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 		Allow: allow, Users: users, Redirect: RedirectOf(spec),
 	}
-	if spec.GetHostPort() == 0 && spec.GetRedirect() == nil && m.servicePaused(ctx, serviceOf(ref, spec)) {
-		r.Paused = true
+	if spec.GetHostPort() == 0 && spec.GetRedirect() == nil {
+		// Docker not answering reads as running: the next reconcile puts the page up.
+		r.Paused, _ = m.servicePaused(ctx, serviceOf(ref, spec))
 	}
 	if rl := spec.GetRateLimit(); rl != nil && rl.GetRequestsPerMinute() > 0 {
 		dial, err := m.rateLimitDial()
@@ -1541,14 +1542,17 @@ func (m *Manager) Reconcile(ctx context.Context) error {
 	if err := m.settle(ctx); err != nil {
 		return err
 	}
-	if err := m.syncPaused(ctx); err != nil {
-		return err
-	}
+	// A paused page that couldn't be brought up to date is no reason to keep
+	// every route closed, so the routes open first and the failure is said after.
+	pausedErr := m.syncPaused(ctx)
 	// Each instance is back at its own address, so a route may dial it again.
 	if err := m.Proxy.SetClosed(ctx, false); err != nil {
-		return err
+		return errors.Join(err, pausedErr)
 	}
 	m.ensureKeeper(ctx, false)
+	if pausedErr != nil {
+		return pausedErr
+	}
 	m.report(nil)
 	return nil
 }

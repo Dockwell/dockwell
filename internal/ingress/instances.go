@@ -1368,10 +1368,10 @@ func (m *Manager) RemoveUpstream(ctx context.Context, i Instance) error {
 			r.Paused = false
 		})
 	}
-	stillPaused := m.servicePaused(ctx, i.service())
+	stillPaused, known := m.servicePaused(ctx, i.service())
 	if err := m.editUpstreams(ctx, i.service(), func(r *Route, _ uint32) {
 		stopDialing(r, a)
-		if !stillPaused {
+		if known && !stillPaused {
 			r.Paused = false
 		}
 	}); err != nil {
@@ -1414,14 +1414,15 @@ func (m *Manager) PauseUpstream(ctx context.Context, i Instance) error {
 }
 
 // servicePaused reports whether the service has at least one container on this
-// server and every non-one-off container of it is paused.
-func (m *Manager) servicePaused(ctx context.Context, s Service) bool {
+// server and every non-one-off container of it is paused. known is false when
+// Docker couldn't be asked, and then a caller keeps what the route already says.
+func (m *Manager) servicePaused(ctx context.Context, s Service) (paused, known bool) {
 	if m.Client == nil {
-		return false
+		return false, true
 	}
 	list, err := m.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + s.Project, docker.LabelService + "=" + s.Name}})
 	if err != nil {
-		return false
+		return false, false
 	}
 	found := false
 	for i := range list {
@@ -1430,10 +1431,10 @@ func (m *Manager) servicePaused(ctx context.Context, s Service) bool {
 		}
 		found = true
 		if list[i].State != "paused" {
-			return false
+			return false, true
 		}
 	}
-	return found
+	return found, true
 }
 
 // syncPaused brings existing service routes into line with Docker's paused
@@ -1453,7 +1454,11 @@ func (m *Manager) syncPaused(ctx context.Context) error {
 	slices.SortFunc(services, func(a, b Service) int { return strings.Compare(a.Project+"/"+a.Name, b.Project+"/"+b.Name) })
 	var failed error
 	for _, s := range services {
-		want := m.servicePaused(ctx, s)
+		want, known := m.servicePaused(ctx, s)
+		if !known {
+			// Docker didn't answer: leave the route as it is until it does.
+			continue
+		}
 		failed = errors.Join(failed, m.editUpstreams(ctx, s, func(r *Route, _ uint32) {
 			r.Paused = want
 		}))

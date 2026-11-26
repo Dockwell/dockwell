@@ -3,6 +3,7 @@
 package ingress
 
 import (
+	"path/filepath"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -267,5 +268,36 @@ func TestReconcileMarksPreExistingPausedServiceRoute(t *testing.T) {
 	routes, _ = s.proxy.Routes(t.Context())
 	if len(routes) != 1 || routes[0].Paused {
 		t.Fatalf("after Reconcile on unpaused workload, routes = %+v, want Paused=false", routes)
+	}
+}
+
+// TestPauseSyncKeepsThePageWhenDockerDoesNotAnswer: a Docker that can't be asked
+// leaves a paused route paused, rather than reading as running and dialing a
+// frozen container.
+func TestPauseSyncKeepsThePageWhenDockerDoesNotAnswer(t *testing.T) {
+	s := newSetup(t)
+	s.apply(t, "web", spec("app.example.com", "", "web", 8080))
+	project := docker.Project(envID)
+	if err := s.engine.Client().PauseContainer(t.Context(), project+"-web-1"); err != nil {
+		t.Fatalf("PauseContainer: %v", err)
+	}
+	if err := s.Reconcile(t.Context()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	broken := &Manager{Client: docker.New(filepath.Join(t.TempDir(), "gone.sock")), Proxy: s.Proxy, Dir: s.Dir, Holders: s.Holders, DNS: s.DNS}
+	if err := broken.mu.lock(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	err := broken.table.load(broken.Dir)
+	if err == nil {
+		err = broken.syncPaused(t.Context())
+	}
+	broken.mu.unlock()
+	if err != nil {
+		t.Fatalf("syncPaused with Docker gone: %v", err)
+	}
+	routes, _ := s.proxy.Routes(t.Context())
+	if len(routes) != 1 || !routes[0].Paused {
+		t.Fatalf("routes = %+v, want Paused=true kept while Docker doesn't answer", routes)
 	}
 }
