@@ -378,9 +378,7 @@ func (m *Manager) SetControlBackupPassphrase(ctx context.Context, req *connect.R
 		return nil, authapi.Invalid(err)
 	}
 	now := m.cfg.Now()
-	r := NewRecovery(phrase, now)
-	defer clear(r.Base)
-	sealed, err := m.sealRecovery(r)
+	recoveryID, sealed, err := m.deriveRecovery(phrase, now)
 	if err != nil {
 		return nil, m.unavailable(ctx, err)
 	}
@@ -388,7 +386,7 @@ func (m *Manager) SetControlBackupPassphrase(ctx context.Context, req *connect.R
 		if err := requireOwner(ctx, tx, p); err != nil {
 			return err
 		}
-		if err := tx.SetControlBackupPassphrase(ctx, r.ID, sealed, now); err != nil {
+		if err := tx.SetControlBackupPassphrase(ctx, recoveryID, sealed, now); err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{

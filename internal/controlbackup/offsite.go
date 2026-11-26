@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -83,31 +82,37 @@ type generationMarker struct {
 	Nonce        string `json:"nonce,omitempty"`
 }
 
-func (d destination) readMarker(ctx context.Context, key string) (generationMarker, string, error) {
-	read, etag, err := d.bucket.GetWithETag(ctx, key)
+type storedMarker struct {
+	generationMarker
+	info s3.ObjectInfo
+	body []byte
+}
+
+func (d destination) readMarker(ctx context.Context, key string) (storedMarker, error) {
+	read, info, err := d.bucket.GetWithInfo(ctx, key)
 	if err != nil {
-		return generationMarker{}, "", err
+		return storedMarker{}, err
 	}
 	defer read.Close()
 	raw, err := io.ReadAll(io.LimitReader(read, 4097))
 	if err != nil {
-		return generationMarker{}, "", err
+		return storedMarker{}, err
 	}
-	var got generationMarker
-	if len(raw) > 4096 || json.Unmarshal(raw, &got) != nil {
-		return generationMarker{}, "", errDestinationChanged
+	got := storedMarker{info: info, body: raw}
+	if len(raw) > 4096 || json.Unmarshal(raw, &got.generationMarker) != nil {
+		return storedMarker{}, errDestinationChanged
 	}
-	return got, etag, nil
+	return got, nil
 }
 
-func (d destination) ensureMarker(ctx context.Context, h Header, selection, trusted string) (string, error) {
+func (d destination) ensureMarker(ctx context.Context, h Header, selection, trusted string, now time.Time) (string, error) {
 	key := d.key("dockwell-control/" + h.Install + "/current.json")
 	if selection == "" {
 		return "", errDestinationChanged
 	}
 	want := generationMarker{Install: h.Install, Generation: h.Generation, GenerationID: h.GenerationID, Nonce: selection}
 	data, _ := json.Marshal(want)
-	got, etag, err := d.readMarker(ctx, key)
+	got, err := d.readMarker(ctx, key)
 	if s3.IsNotFound(err) {
 		if trusted != "" || h.Generation != 1 {
 			return "", errDestinationChanged
@@ -123,7 +128,7 @@ func (d destination) ensureMarker(ctx context.Context, h Header, selection, trus
 		switch refused.Status {
 		case http.StatusNotImplemented:
 			// Recheck absence before falling back on older S3 implementations.
-			got, etag, err = d.readMarker(ctx, key)
+			got, err = d.readMarker(ctx, key)
 			if s3.IsNotFound(err) {
 				if err := d.bucket.Put(ctx, key, data); err != nil {
 					return "", err
@@ -131,7 +136,7 @@ func (d destination) ensureMarker(ctx context.Context, h Header, selection, trus
 				return want.Nonce, nil
 			}
 		case http.StatusPreconditionFailed, http.StatusConflict:
-			got, etag, err = d.readMarker(ctx, key)
+			got, err = d.readMarker(ctx, key)
 		}
 	}
 	if err != nil {
@@ -143,13 +148,20 @@ func (d destination) ensureMarker(ctx context.Context, h Header, selection, trus
 	}
 	if got.Nonce == "" && trusted == "" {
 		// On explicit re-selection, bind the pre-nonce marker without replacing a concurrent update.
-		if err := d.bucket.PutIfMatch(ctx, key, data, etag); err != nil {
+		if err := d.bucket.PutIfMatch(ctx, key, data, got.info.ETag); err != nil {
 			return "", err
 		}
 		return want.Nonce, nil
 	}
 	if !validID("cbs", got.Nonce) {
 		return "", errDestinationChanged
+	}
+	if !got.info.Modified.IsZero() && now.Sub(got.info.Modified) > 24*time.Hour {
+		// Some older stores support neither conditional write. The marker just
+		// matched, so sending is safe. A generation-scoped lifecycle keeps it.
+		if err := d.bucket.PutIfMatch(ctx, key, got.body, got.info.ETag); err != nil && !s3.IsNotImplemented(err) {
+			return "", err
+		}
 	}
 	return got.Nonce, nil
 }
@@ -198,7 +210,7 @@ func (m *Manager) sendOffsite(ctx context.Context, s store.ControlBackup, d dest
 	d.bucket.Client = netguard.Client(netguard.Options{
 		Private: true, Loopback: m.cfg.LocalS3, Local: m.cfg.LocalS3, MaxBody: 4 << 20, Timeout: storageTimeout,
 	})
-	nonce, err := d.ensureMarker(ctx, b.header, s.DestinationSelection, s.DestinationMarker)
+	nonce, err := d.ensureMarker(ctx, b.header, s.DestinationSelection, s.DestinationMarker, m.cfg.Now())
 	if err != nil {
 		if errors.Is(err, errDestinationChanged) {
 			return false, err
@@ -216,12 +228,26 @@ func (m *Manager) sendOffsite(ctx context.Context, s store.ControlBackup, d dest
 			return false, err
 		}
 	}
+	now := m.cfg.Now()
+	var retention retentionState
+	if err := m.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		encoded, recoveryID, previous, err := tx.ControlBackupRetention(ctx, s.Generation, p.Place)
+		if err != nil {
+			return err
+		}
+		retention = readRetention(encoded, nonce, now)
+		retention.previous = previous || recoveryID != "" && recoveryID != b.state.RecoveryID
+		return nil
+	}); err != nil {
+		return false, err
+	}
 	p.Path = d.key(keep.Prefix(b.header.Install, b.header.Generation))
-	p.Problem, p.PreviousPending, err = d.store(ctx, b)
+	p.Problem, p.PreviousPending, err = d.store(ctx, b, &retention, now)
+	p.RetentionState = retention.encode()
 	return true, err
 }
 
-func (d destination) store(ctx context.Context, b takenBundle) (string, bool, error) {
+func (d destination) store(ctx context.Context, b takenBundle, retention *retentionState, now time.Time) (string, bool, error) {
 	prefix := d.key(keep.Prefix(b.header.Install, b.header.Generation))
 	part := s3.PartSize(b.size, 1<<20)
 	count := int((b.size + part - 1) / part)
@@ -245,115 +271,8 @@ func (d destination) store(ctx context.Context, b takenBundle) (string, bool, er
 	if err != nil || size != b.size {
 		return "", false, errors.New("could not verify the off-site copy. Check the destination")
 	}
-	problem, previous := d.prune(ctx, prefix, b.name)
+	problem, previous := d.prune(ctx, prefix, b.name, retention, now)
 	return problem, previous, nil
-}
-
-func (d destination) prune(ctx context.Context, prefix, newest string) (string, bool) {
-	keys, err := d.bucket.ListObjects(ctx, prefix)
-	if err != nil {
-		return "Could not list older copies. Check the bucket's list access and lifecycle rules", true
-	}
-	var names []string
-	for _, key := range keys {
-		if name, ok := strings.CutPrefix(key, prefix); ok {
-			names = append(names, name)
-		}
-	}
-	if !slices.Contains(names, newest) {
-		return "The destination did not list the completed copy. Older copies were kept", true
-	}
-	drop := keep.Expired(names, newest)
-	versioned, err := d.bucket.Versioned(ctx)
-	if err != nil {
-		return "Could not check bucket versioning. Older copies were kept. Check the bucket's versioning access", true
-	}
-	byName := make(map[string][]s3.ObjectVersion)
-	if versioned {
-		versions, err := d.bucket.ListObjectVersions(ctx, prefix)
-		if err != nil {
-			return "Could not list object versions. Older copies were kept. Check the bucket's version list access", true
-		}
-		visible := make(map[string]bool, len(names))
-		for _, name := range names {
-			visible[name] = true
-		}
-		for _, v := range versions {
-			name, ok := strings.CutPrefix(v.Key, prefix)
-			if _, valid := keep.Phrase(name); !ok || !valid || name >= newest {
-				continue
-			}
-			if len(byName[name]) == 0 && !visible[name] {
-				// A previously deleted key may still hold noncurrent versions.
-				drop = append(drop, name)
-			}
-			byName[name] = append(byName[name], v)
-		}
-	}
-	current, _ := keep.Phrase(newest)
-	var failures []string
-	var failed int
-	previous := false
-	for _, name := range drop {
-		problem := d.removeRetired(ctx, prefix+name, byName[name], versioned)
-		if problem == "" {
-			continue
-		}
-		phrase, _ := keep.Phrase(name)
-		previous = previous || phrase != current
-		failed++
-		if len(failures) < 3 {
-			failures = append(failures, fmt.Sprintf("%s (%s)", name, problem))
-		}
-	}
-	if failed == 0 {
-		return "", false
-	}
-	if failed > len(failures) {
-		failures = append(failures, fmt.Sprintf("%d more", failed-len(failures)))
-	}
-	return "Storage kept " + strings.Join(failures, ", ") + ". Check the bucket's retention and delete access", previous
-}
-
-func (d destination) removeRetired(ctx context.Context, key string, versions []s3.ObjectVersion, versioned bool) string {
-	if !versioned {
-		if err := d.bucket.Delete(ctx, key); err != nil {
-			return d.retentionExpiry(ctx, key, "")
-		}
-		return ""
-	}
-	if len(versions) == 0 {
-		return "no versions listed"
-	}
-	var problem string
-	for _, v := range versions {
-		if !v.DeleteMarker {
-			if err := d.bucket.DeleteVersion(ctx, key, v.VersionID); err != nil {
-				expiry := d.retentionExpiry(ctx, key, v.VersionID)
-				if problem == "" || problem == "expiry unknown" {
-					problem = expiry
-				}
-			}
-		}
-	}
-	if problem != "" {
-		return problem // Keep delete markers in place while a body is still locked.
-	}
-	for _, v := range versions {
-		if v.DeleteMarker {
-			if err := d.bucket.DeleteVersion(ctx, key, v.VersionID); err != nil {
-				return "could not remove its delete marker"
-			}
-		}
-	}
-	return ""
-}
-
-func (d destination) retentionExpiry(ctx context.Context, key, version string) string {
-	if until, err := d.bucket.ObjectRetention(ctx, key, version); err == nil && !until.IsZero() {
-		return "locked until " + until.UTC().Format(time.DateOnly)
-	}
-	return "expiry unknown"
 }
 
 func storageProblem(doing string, err error) error {

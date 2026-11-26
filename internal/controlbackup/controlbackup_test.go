@@ -13,6 +13,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"testing"
@@ -123,6 +125,31 @@ func TestHeaderBoundsBeforeArgon(t *testing.T) {
 	}
 }
 
+func TestRecoveryInitReleasesScratchMemory(t *testing.T) {
+	db, _ := storetest.Open(t, store.SQLite)
+	keyFile := filepath.Join(t.TempDir(), "key")
+	key, err := seal.LoadOrCreate(keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(Config{DB: db, Key: key, KeyFile: keyFile, Install: id.New("ins")})
+	residentHeap := func() uint64 {
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+		return stats.HeapSys - stats.HeapReleased
+	}
+	debug.FreeOSMemory()
+	before := residentHeap()
+	if err := m.Init(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	// Leave room for the loaded schema and allocator bookkeeping, while
+	// catching Argon2's 64 MiB block if it remains resident.
+	if after := residentHeap(); after > before+32<<20 {
+		t.Errorf("initializing recovery left %d MiB of additional heap resident", (after-before)>>20)
+	}
+}
+
 func TestControlBackupOpensAConsistentStoreAndKey(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		db, _ := storetest.Open(t, backend)
@@ -224,11 +251,11 @@ func TestOffsiteCopyAndRetentionStayInTheirGeneration(t *testing.T) {
 	fake.Set(prefix+"2/"+old, []byte("a different generation"))
 	b := takenBundle{header: h, name: keep.Name(now, id.New("cbk"), phrase), file: file, size: int64(len(data)), sum: sum[:]}
 	selection := id.New("cbs")
-	trusted, err := d.ensureMarker(t.Context(), h, selection, "")
+	trusted, err := d.ensureMarker(t.Context(), h, selection, "", time.Now())
 	if err != nil || trusted != selection {
 		t.Fatalf("marker: %q, %v", trusted, err)
 	}
-	if problem, old, err := d.store(t.Context(), b); problem != "" || old || err != nil {
+	if problem, old, err := d.store(t.Context(), b, &retentionState{}, now); problem != "" || old || err != nil {
 		t.Fatalf("copy: %q, old=%v, %v", problem, old, err)
 	}
 	objects := fake.Objects()
@@ -239,7 +266,7 @@ func TestOffsiteCopyAndRetentionStayInTheirGeneration(t *testing.T) {
 	// A later marker makes a stale sender leave every object alone.
 	fake.Set(prefix+"current.json", []byte(`{"generation":2}`))
 	b.name = keep.Name(now.Add(time.Hour), id.New("cbk"), phrase)
-	if _, err := d.ensureMarker(t.Context(), h, selection, trusted); err == nil || fake.Objects()[prefix+"1/"+b.name] != nil {
+	if _, err := d.ensureMarker(t.Context(), h, selection, trusted, time.Now()); err == nil || fake.Objects()[prefix+"1/"+b.name] != nil {
 		t.Fatal("sent a bundle past a different generation marker")
 	}
 }
@@ -284,7 +311,7 @@ func TestRecoveryPhraseRules(t *testing.T) {
 	if err := validatePhrase("passwordpasswordpasswordpassword"); err == nil {
 		t.Fatal("accepted a low-entropy phrase")
 	}
-	for _, phrase := range []string{"cQ8#nRsW4@kH9zE2tM7w", "correct horse battery staple orbit"} {
+	for _, phrase := range []string{"cQ8#nRsW4@kH9zE2tM7w", "gravel optic cedar paper lattice"} {
 		if err := validatePhrase(phrase); err != nil {
 			t.Errorf("rejected a strong phrase: %v", err)
 		}
@@ -443,5 +470,24 @@ func TestSweepRemovesOnlyAbandonedControlBackupWork(t *testing.T) {
 	}
 	if len(entries) != 2 || entries[0].Name() != ".control-backup-fresh" || entries[1].Name() != "other" {
 		t.Fatalf("wrong remaining directories: %v", entries)
+	}
+}
+
+func TestRecoveryPhraseRejectsWeakSegments(t *testing.T) {
+	for _, phrase := range []string{
+		"password1234567890ab", "Password1234567890ab", "1qaz2wsx3edc4rfv5tgb", "qwertyuiop1234567890",
+		"1234567890qwertyuiop", "zxcvbnmasdfghjklqwer", "aaaaaaaaaaaaaaaaaaab", "iloveyouiloveyou2026",
+		"Summer2026!Summer2026", "P@ssw0rd!P@ssw0rd!12", "monkeymonkeymonkey12", "letmein1234567890abc",
+		"abcdefghij1234567890", "qwertyuiopasdfghjklz", "asdfghjkl;asdfghjkl;", "trustno1trustno1trust",
+		"correcthorsebatterystaple1", "cQ8#nRsW4@\tkH9zE2tM7w",
+	} {
+		if err := validatePhrase(phrase); err == nil {
+			t.Errorf("accepted a weak or invalid test phrase %q", phrase)
+		}
+	}
+	for _, phrase := range []string{"cQ8#nRsW4@kH9zE2tM7w", "q7#Vx9!mT2pL$wR4zK8n", "k3vq9xw2mzr8tp4ld7hy"} {
+		if err := validatePhrase(phrase); err != nil {
+			t.Errorf("rejected a random test phrase %q: %v", phrase, err)
+		}
 	}
 }

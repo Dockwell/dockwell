@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -92,6 +93,16 @@ func (m *Manager) sealRecovery(r Recovery) ([]byte, error) {
 	return m.cfg.Key.Seal(m.recoveryPurpose(), raw), nil
 }
 
+// deriveRecovery is used by the running control plane. Argon2's scratch space
+// would otherwise stay resident for minutes on an idle server after it is freed.
+func (m *Manager) deriveRecovery(phrase string, at time.Time) (string, []byte, error) {
+	r := NewRecovery(phrase, at)
+	sealed, err := m.sealRecovery(r)
+	clear(r.Base)
+	debug.FreeOSMemory()
+	return r.ID, sealed, err
+}
+
 func (m *Manager) openRecovery(s store.ControlBackup) (Recovery, error) {
 	var r Recovery
 	raw, err := m.cfg.Key.Open(m.recoveryPurpose(), s.Recovery)
@@ -127,16 +138,14 @@ func (m *Manager) Init(ctx context.Context) error {
 	if s.GenerationID != "" {
 		return nil
 	}
-	r := NewRecovery(GeneratePhrase(), m.cfg.Now())
-	defer clear(r.Base)
-	sealed, err := m.sealRecovery(r)
+	recoveryID, sealed, err := m.deriveRecovery(GeneratePhrase(), m.cfg.Now())
 	if err != nil {
 		return err
 	}
 	var random [16]byte
 	_, _ = rand.Read(random[:])
 	generationID := "gen_" + id.Crockford(random[:])
-	return m.cfg.DB.Update(ctx, func(tx *store.Tx) error { return tx.InitControlBackup(ctx, generationID, r.ID, sealed) })
+	return m.cfg.DB.Update(ctx, func(tx *store.Tx) error { return tx.InitControlBackup(ctx, generationID, recoveryID, sealed) })
 }
 
 func sweepBackups(root string, now time.Time) error {

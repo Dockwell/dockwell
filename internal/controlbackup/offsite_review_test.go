@@ -3,12 +3,16 @@
 package controlbackup
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +52,7 @@ func TestOffsiteRetirementRemovesObjectVersions(t *testing.T) {
 			expiry := now.Add(24 * time.Hour)
 			fake.SetLocked(path+locked, []byte("locked"), expiry)
 			fake.Set(path+newest, []byte("new"))
-			problem, previous := d.prune(t.Context(), prefix, newest)
+			problem, previous := d.prune(t.Context(), prefix, newest, &retentionState{}, now)
 			if !previous || !strings.Contains(problem, locked) || !strings.Contains(problem, expiry.Format(time.DateOnly)) {
 				t.Fatalf("wrong lock status: %q, previous=%v", problem, previous)
 			}
@@ -70,7 +74,7 @@ func TestOffsiteMarkerRequiresApprovalAfterItChanges(t *testing.T) {
 	ctx := t.Context()
 	h := Header{Install: id.New("ins"), Generation: 1, GenerationID: id.New("gen")}
 	selection := id.New("cbs")
-	trusted, err := d.ensureMarker(ctx, h, selection, "")
+	trusted, err := d.ensureMarker(ctx, h, selection, "", time.Now())
 	if err != nil || trusted != selection {
 		t.Fatalf("could not fall back when conditional PUT is unsupported: %q, %v", trusted, err)
 	}
@@ -78,16 +82,16 @@ func TestOffsiteMarkerRequiresApprovalAfterItChanges(t *testing.T) {
 	if err := d.bucket.Delete(ctx, key); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.ensureMarker(ctx, h, selection, trusted); !errors.Is(err, errDestinationChanged) || fake.Objects()["/bucket/"+key] != nil {
+	if _, err := d.ensureMarker(ctx, h, selection, trusted, time.Now()); !errors.Is(err, errDestinationChanged) || fake.Objects()["/bucket/"+key] != nil {
 		t.Fatal("a trusted marker disappeared and the destination was automatically adopted again")
 	}
 	other := id.New("cbs")
 	data, _ := json.Marshal(generationMarker{Install: h.Install, Generation: 1, GenerationID: h.GenerationID, Nonce: other})
 	fake.Set("/bucket/"+key, data)
-	if _, err := d.ensureMarker(ctx, h, selection, trusted); !errors.Is(err, errDestinationChanged) {
+	if _, err := d.ensureMarker(ctx, h, selection, trusted, time.Now()); !errors.Is(err, errDestinationChanged) {
 		t.Fatalf("a different marker was accepted: %v", err)
 	}
-	if got, err := d.ensureMarker(ctx, h, id.New("cbs"), ""); err != nil || got != other {
+	if got, err := d.ensureMarker(ctx, h, id.New("cbs"), "", time.Now()); err != nil || got != other {
 		t.Fatalf("explicit re-selection did not adopt the existing marker: %q, %v", got, err)
 	}
 }
@@ -181,5 +185,190 @@ func TestOffsitePinsAccessKeyIDButAllowsSecretRotation(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRetentionKeepsHiddenCopiesInTheWindow(t *testing.T) {
+	fake := s3test.New(t)
+	fake.Versioning = "Enabled"
+	d := destination{bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+	now := time.Now().UTC()
+	prefix := keep.Prefix(id.New("ins"), 1)
+	phrase := id.New("phrase")
+	var kept []string
+	for age := 1; age <= 5; age++ {
+		kept = append(kept, keep.Name(now.Add(-time.Duration(age)*time.Hour), id.New("cbk"), phrase))
+	}
+	// The hidden names count against the same window as the visible ones.
+	for age := 6; age <= 24; age++ {
+		name := keep.Name(now.Add(-time.Duration(age)*time.Hour), id.New("cbk"), phrase)
+		fake.Set("/bucket/"+prefix+name, []byte("visible"))
+	}
+	retired := keep.Name(now.AddDate(0, 0, -20), id.New("cbk"), phrase)
+	for _, name := range append(slices.Clone(kept), retired) {
+		fake.Set("/bucket/"+prefix+name, []byte("hidden"))
+		if err := d.bucket.Delete(t.Context(), prefix+name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	newest := keep.Name(now, id.New("cbk"), phrase)
+	fake.Set("/bucket/"+prefix+newest, []byte("new"))
+	if problem, previous := d.prune(t.Context(), prefix, newest, &retentionState{}, now); problem != "" || previous {
+		t.Fatalf("prune: %q, previous=%v", problem, previous)
+	}
+	for _, name := range kept {
+		if fake.VersionCount("/bucket/"+prefix+name) != 2 {
+			t.Fatal("retention changed a hidden copy that should be kept")
+		}
+	}
+	if fake.VersionCount("/bucket/"+prefix+retired) != 0 {
+		t.Fatal("retention kept a hidden copy beyond the retention window")
+	}
+}
+
+func TestOffsiteRefreshesOnlyAnOldTrustedMarker(t *testing.T) {
+	fake := s3test.New(t)
+	d := destination{bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+	h := Header{Install: id.New("ins"), Generation: 1, GenerationID: id.New("gen")}
+	ctx := t.Context()
+	now := time.Now().UTC().Truncate(time.Second)
+	nonce := id.New("cbs")
+	key := "dockwell-control/" + h.Install + "/current.json"
+	if _, err := d.ensureMarker(ctx, h, nonce, "", now); err != nil {
+		t.Fatal(err)
+	}
+	original := fake.Objects()["/bucket/"+key]
+	fake.SetModified("/bucket/"+key, now.Add(-25*time.Hour))
+	if got, err := d.ensureMarker(ctx, h, nonce, nonce, now); err != nil || got != nonce {
+		t.Fatalf("refresh: %q, %v", got, err)
+	}
+	wantTag := fmt.Sprintf(`"%x"`, sha256.Sum256(original))
+	if !bytes.Equal(fake.Objects()["/bucket/"+key], original) || !slices.Equal(fake.IfMatches, []string{wantTag}) {
+		t.Fatal("the marker refresh did not use If-Match or changed its body")
+	}
+	if _, err := d.ensureMarker(ctx, h, nonce, nonce, now); err != nil || len(fake.IfMatches) != 1 {
+		t.Fatalf("refreshed a fresh marker: %v", err)
+	}
+	if err := d.bucket.Delete(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.ensureMarker(ctx, h, nonce, nonce, now); !errors.Is(err, errDestinationChanged) {
+		t.Fatalf("a missing trusted marker was not refused: %v", err)
+	}
+}
+
+func TestRetentionWhenVersioningStatusIsUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name, versioning, code string
+		status                 int
+		refuseList             bool
+	}{
+		{"unsupported", "", "", http.StatusNotImplemented, false},
+		{"NotImplemented error", "", "NotImplemented", http.StatusBadRequest, false},
+		{"versioning forbidden", "Enabled", "AccessDenied", http.StatusForbidden, false},
+		{"both denied", "Enabled", "AccessDenied", http.StatusForbidden, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := s3test.New(t)
+			fake.Versioning, fake.RefuseVersionList = tc.versioning, tc.refuseList
+			fake.Refuse, fake.RefuseOnly, fake.RefuseQuery, fake.RefuseStatus = tc.code, http.MethodGet, "versioning", tc.status
+			if fake.Refuse == "" {
+				fake.Refuse = "Unsupported"
+			}
+			d := destination{bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+			now := time.Now().UTC()
+			prefix := keep.Prefix(id.New("ins"), 1)
+			current := id.New("phrase")
+			newest := keep.Name(now, id.New("cbk"), current)
+			fake.Set("/bucket/"+prefix+newest, []byte("new"))
+			for age := 1; age <= 24; age++ {
+				name := keep.Name(now.Add(-time.Duration(age)*time.Second), id.New("cbk"), current)
+				fake.Set("/bucket/"+prefix+name, []byte("recent"))
+			}
+			outdated := keep.Name(now.AddDate(0, 0, -20), id.New("cbk"), current)
+			currentKey := "/bucket/" + prefix + outdated
+			fake.Set(currentKey, []byte("outdated"))
+			state := retentionState{Marker: id.New("cbs")}
+			if problem, old := d.prune(t.Context(), prefix, newest, &state, now); problem != "" || old || fake.Objects()[currentKey] != nil {
+				t.Fatalf("could not retire a current-phrase copy: %q, previous=%v", problem, old)
+			}
+			oldName := keep.Name(now.Add(-time.Hour), id.New("cbk"), id.New("phrase"))
+			oldKey := "/bucket/" + prefix + oldName
+			fake.Set(oldKey, []byte("old"))
+			fake.Set(oldKey, []byte("old again"))
+			problem, previous := d.prune(t.Context(), prefix, newest, &state, now)
+			if tc.refuseList {
+				if !previous || !strings.Contains(problem, "can't tell whether storage keeps older versions") || fake.Objects()[oldKey] != nil {
+					t.Fatalf("could not distinguish an unchecked old-phrase version: %q, previous=%v", problem, previous)
+				}
+				resumed := readRetention(state.encode(), state.Marker, now)
+				if _, previous := d.prune(t.Context(), prefix, newest, &resumed, now); !previous {
+					t.Fatal("lost the previous-passphrase warning after the key became hidden")
+				}
+				return
+			}
+			if problem != "" || previous || fake.Objects()[oldKey] != nil || fake.VersionCount(oldKey) != 0 {
+				t.Fatalf("did not retire a previous-phrase copy: %q, previous=%v", problem, previous)
+			}
+		})
+	}
+}
+
+func TestLockedCurrentPhraseCopyIsQuietUntilExpiry(t *testing.T) {
+	fake := s3test.New(t)
+	fake.Versioning = "Enabled"
+	d := destination{bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+	now := time.Now().UTC()
+	prefix := keep.Prefix(id.New("ins"), 1)
+	phrase := id.New("phrase")
+	for age := range 24 {
+		name := keep.Name(now.Add(-time.Duration(age)*time.Minute), id.New("cbk"), phrase)
+		fake.Set("/bucket/"+prefix+name, []byte("recent"))
+	}
+	newest := keep.Name(now.Add(time.Minute), id.New("cbk"), phrase)
+	name := keep.Name(now.AddDate(0, 0, -20), id.New("cbk"), phrase)
+	key := "/bucket/" + prefix + name
+	fake.Set("/bucket/"+prefix+newest, []byte("newest"))
+	expiry := now.Add(time.Hour)
+	fake.SetLocked(key, []byte("locked"), expiry)
+	state := retentionState{Marker: id.New("cbs")}
+	if problem, previous := d.prune(t.Context(), prefix, newest, &state, now); problem != "" || previous || len(state.Locks[name]) != 1 {
+		t.Fatalf("a current-phrase lock is not a problem: %q, previous=%v", problem, previous)
+	}
+	var deletes int
+	for _, method := range fake.Methods {
+		if method == http.MethodDelete {
+			deletes++
+		}
+	}
+	before := len(fake.Methods)
+	resumed := readRetention(state.encode(), state.Marker, now.Add(time.Minute))
+	if problem, previous := d.prune(t.Context(), prefix, newest, &resumed, now.Add(time.Minute)); problem != "" || previous || len(fake.Methods)-before != 3 {
+		t.Fatalf("retried a locked version before expiry: %q, previous=%v, requests=%v", problem, previous, fake.Methods[before:])
+	}
+	if deletes == 0 || len(readRetention(state.encode(), state.Marker, expiry).Locks) != 0 {
+		t.Fatal("the lock expiry did not control retries")
+	}
+}
+
+func TestOffsiteUnsupportedConditionalRefreshKeepsTrustedMarker(t *testing.T) {
+	fake := s3test.New(t)
+	fake.Versioning = "Enabled"
+	fake.RefuseConditionalMatch = true
+	d := destination{bucket: s3.Bucket{Endpoint: fake.URL(), Name: "bucket", AccessKey: "key", SecretKey: "secret", Client: fake.Client()}}
+	h := Header{Install: id.New("ins"), Generation: 1, GenerationID: id.New("gen")}
+	ctx := t.Context()
+	now := time.Now()
+	nonce := id.New("cbs")
+	key := "dockwell-control/" + h.Install + "/current.json"
+	if _, err := d.ensureMarker(ctx, h, nonce, "", now); err != nil {
+		t.Fatal(err)
+	}
+	fake.SetModified("/bucket/"+key, now.Add(-25*time.Hour))
+	if got, err := d.ensureMarker(ctx, h, nonce, nonce, now); err != nil || got != nonce {
+		t.Fatalf("refused a trusted marker: %q, %v", got, err)
+	}
+	if len(fake.IfMatches) != 1 || fake.VersionCount("/bucket/"+key) != 1 {
+		t.Fatal("the store attempted to overwrite the marker without a precondition")
 	}
 }

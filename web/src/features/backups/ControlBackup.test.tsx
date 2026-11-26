@@ -46,3 +46,31 @@ it("shows whether a custom passphrase meets the rule before asking for a passkey
   expect(sheet.getByRole("button", { name: "Set passphrase" })).toBeEnabled();
   expect(recoveryPhraseStrength("12345678901234567890")).toBe("weak");
 });
+
+it("rejects weak segments and tabs with the same rules as the server", () => {
+  for (const phrase of [
+    "password1234567890ab",
+    "Password1234567890ab",
+    "1qaz2wsx3edc4rfv5tgb",
+    "qwertyuiop1234567890",
+    "1234567890qwertyuiop",
+    "zxcvbnmasdfghjklqwer",
+    "aaaaaaaaaaaaaaaaaaab",
+    "iloveyouiloveyou2026",
+    "Summer2026!Summer2026",
+    "P@ssw0rd!P@ssw0rd!12",
+    "monkeymonkeymonkey12",
+    "letmein1234567890abc",
+    "abcdefghij1234567890",
+    "qwertyuiopasdfghjklz",
+    "asdfghjkl;asdfghjkl;",
+    "trustno1trustno1trust",
+    "correcthorsebatterystaple1",
+  ]) {
+    expect(recoveryPhraseStrength(phrase), phrase).toBe("weak");
+  }
+  expect(recoveryPhraseStrength("cQ8#nRsW4@\tkH9zE2tM7w")).toBe("format");
+  for (const phrase of ["cQ8#nRsW4@kH9zE2tM7w", "q7#Vx9!mT2pL$wR4zK8n", "k3vq9xw2mzr8tp4ld7hy"]) {
+    expect(recoveryPhraseStrength(phrase), phrase).toBe("ready");
+  }
+});

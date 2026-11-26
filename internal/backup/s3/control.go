@@ -86,18 +86,34 @@ func (b *Bucket) ListObjects(ctx context.Context, prefix string) ([]string, erro
 	return nil, errors.New("the storage returned too many backup pages")
 }
 
-// GetWithETag reads a marker and its version validator.
-func (b *Bucket) GetWithETag(ctx context.Context, key string) (io.ReadCloser, string, error) {
+// ObjectInfo describes the version validator and age of an object.
+type ObjectInfo struct {
+	ETag     string
+	Modified time.Time
+}
+
+// GetWithInfo reads a marker and the metadata needed to update it safely.
+func (b *Bucket) GetWithInfo(ctx context.Context, key string) (io.ReadCloser, ObjectInfo, error) {
 	res, err := b.do(ctx, http.MethodGet, key, nil, nil, 0, emptyHash)
 	if err != nil {
-		return nil, "", err
+		return nil, ObjectInfo{}, err
 	}
-	return res.Body, res.Header.Get("ETag"), nil
+	modified, _ := http.ParseTime(res.Header.Get("Last-Modified"))
+	return res.Body, ObjectInfo{ETag: res.Header.Get("ETag"), Modified: modified}, nil
+}
+
+// IsNotImplemented recognizes providers that do not support an S3 operation.
+func IsNotImplemented(err error) bool {
+	var refused *Error
+	return errors.As(err, &refused) && (refused.Status == http.StatusNotImplemented || refused.Code == "NotImplemented")
 }
 
 // Versioned reports whether a bucket has retained versions, including suspended buckets.
 func (b *Bucket) Versioned(ctx context.Context) (bool, error) {
 	res, err := b.do(ctx, http.MethodGet, "", url.Values{"versioning": {""}}, nil, 0, emptyHash)
+	if IsNotImplemented(err) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}

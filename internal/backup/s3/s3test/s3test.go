@@ -34,13 +34,18 @@ type Server struct {
 	mu sync.Mutex
 	// objects are what's stored, by path, with the bucket's name first.
 	objects     map[string][]byte
+	modified    map[string]time.Time
 	uploads     map[string]map[int][]byte
 	versions    map[string][]objectVersion
 	nextVersion int
 	// Versioning reports Enabled, Suspended, or empty for an unversioned bucket.
 	Versioning string
+	// RefuseVersionList simulates a key without permission to list object versions.
+	RefuseVersionList bool
 	// RefuseConditionalPut simulates a store without If-None-Match support.
 	RefuseConditionalPut bool
+	// RefuseConditionalMatch simulates a store without If-Match support.
+	RefuseConditionalMatch bool
 	// Aborted counts uploads given up on.
 	Aborted int
 	// FailParts fails this many parts, as a network does.
@@ -63,6 +68,7 @@ type Server struct {
 	// method of each request, in order.
 	Authorizations []string
 	Methods        []string
+	IfMatches      []string
 	// Expires are how long each presigned URL it was sent lasts, in seconds, as
 	// X-Amz-Expires says.
 	Expires []string
@@ -79,7 +85,7 @@ type Server struct {
 // New starts a fake that stops when the test ends.
 func New(t testing.TB) *Server {
 	t.Helper()
-	s := &Server{t: t, objects: map[string][]byte{}, uploads: map[string]map[int][]byte{}, versions: map[string][]objectVersion{}}
+	s := &Server{t: t, objects: map[string][]byte{}, modified: map[string]time.Time{}, uploads: map[string]map[int][]byte{}, versions: map[string][]objectVersion{}}
 	s.srv = httptest.NewServer(s)
 	t.Cleanup(s.srv.Close)
 	return s
@@ -105,6 +111,13 @@ func (s *Server) Set(path string, body []byte) {
 	s.put(path, body)
 }
 
+// SetModified backdates an object without changing its contents or versions.
+func (s *Server) SetModified(path string, at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.modified[path] = at
+}
+
 // SetLocked creates a version with an object-lock expiry.
 func (s *Server) SetLocked(path string, body []byte, until time.Time) {
 	s.mu.Lock()
@@ -125,6 +138,7 @@ func (s *Server) put(path string, body []byte) {
 		s.addVersion(path, body, false)
 	}
 	s.objects[path] = body
+	s.modified[path] = time.Now()
 }
 
 func (s *Server) addVersion(path string, body []byte, marker bool) {
@@ -176,6 +190,10 @@ func (s *Server) versionRequest(w http.ResponseWriter, r *http.Request, key stri
 	case q.Has("versioning"):
 		fmt.Fprintf(w, "<VersioningConfiguration><Status>%s</Status></VersioningConfiguration>", s.Versioning)
 	case q.Has("versions"):
+		if s.RefuseVersionList {
+			w.WriteHeader(http.StatusForbidden)
+			return true
+		}
 		type entry struct {
 			XMLName   xml.Name
 			Key       string
@@ -217,6 +235,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	s.Authorizations = append(s.Authorizations, auth)
 	s.Methods = append(s.Methods, r.Method)
+	if tag := r.Header.Get("If-Match"); tag != "" {
+		s.IfMatches = append(s.IfMatches, tag)
+	}
 	// Signed in its header, or presigned in its query.
 	credential, presigned := strings.TrimPrefix(auth, "AWS4-HMAC-SHA256 Credential="), r.URL.Query().Get("X-Amz-Signature") != ""
 	if presigned {
@@ -351,9 +372,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotImplemented)
 			return
 		}
-		if tag := r.Header.Get("If-Match"); tag != "" && tag != fmt.Sprintf(`"%x"`, sha256.Sum256(s.objects[key])) {
-			w.WriteHeader(http.StatusPreconditionFailed)
-			return
+		if tag := r.Header.Get("If-Match"); tag != "" {
+			if s.RefuseConditionalMatch {
+				w.WriteHeader(http.StatusNotImplemented)
+				return
+			}
+			if tag != fmt.Sprintf(`"%x"`, sha256.Sum256(s.objects[key])) {
+				w.WriteHeader(http.StatusPreconditionFailed)
+				return
+			}
 		}
 		if _, exists := s.objects[key]; exists && r.Header.Get("If-None-Match") == "*" {
 			w.WriteHeader(http.StatusPreconditionFailed)
@@ -372,6 +399,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		w.Header().Set("Last-Modified", s.modified[key].UTC().Format(http.TimeFormat))
 		w.Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(body)))
 		if r.Method == http.MethodGet {
 			_, _ = w.Write(body)

@@ -4,6 +4,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -149,6 +151,7 @@ func (t *Tx) RecordControlBackupProblem(ctx context.Context, problem string) err
 // the time of its latest complete bundle at the same location.
 type ControlBackupPlace struct {
 	Place, Target, Problem, RecoveryID, Path, File, Name string
+	RetentionState                                       string
 	PreviousPending                                      bool
 	Generation                                           int64
 	SentAt                                               time.Time
@@ -179,17 +182,30 @@ func (t *Tx) ControlBackupPlaces(ctx context.Context, generation int64) ([]Contr
 	return out, rows.Err()
 }
 
+// ControlBackupRetention reads the retry state for a single destination and generation.
+func (t *Tx) ControlBackupRetention(ctx context.Context, generation int64, place string) (state, recoveryID string, previous bool, err error) {
+	var pending int
+	err = t.queryRow(ctx, `SELECT retention_state, recovery_id, previous_pending FROM control_backup_places
+		WHERE generation = ? AND place = ?`, generation, place).Scan(&state, &recoveryID, &pending)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	return state, recoveryID, pending != 0, err
+}
+
 // RecordControlBackupPlace records a delivery or refusal at one destination.
 func (t *Tx) RecordControlBackupPlace(ctx context.Context, p ControlBackupPlace) error {
 	var sent int64
 	if !p.SentAt.IsZero() {
 		sent = millis(p.SentAt)
 	}
-	_, err := t.exec(ctx, `INSERT INTO control_backup_places (place, generation, target, sent_at, problem, recovery_id, path, file, name, previous_pending)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (generation, place) DO UPDATE SET
+	_, err := t.exec(ctx, `INSERT INTO control_backup_places (place, generation, target, sent_at, problem, recovery_id, path, file, name, previous_pending, retention_state)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (generation, place) DO UPDATE SET
 		target = excluded.target, problem = excluded.problem, name = excluded.name,
 		previous_pending = CASE WHEN excluded.sent_at = 0 AND control_backup_places.target = excluded.target
 			THEN control_backup_places.previous_pending ELSE excluded.previous_pending END,
+		retention_state = CASE WHEN excluded.sent_at = 0 AND control_backup_places.target = excluded.target
+			THEN control_backup_places.retention_state ELSE excluded.retention_state END,
 		sent_at = CASE WHEN excluded.sent_at = 0
 			AND control_backup_places.target = excluded.target THEN control_backup_places.sent_at ELSE excluded.sent_at END,
 		recovery_id = CASE WHEN excluded.sent_at = 0
@@ -198,6 +214,6 @@ func (t *Tx) RecordControlBackupPlace(ctx context.Context, p ControlBackupPlace)
 			AND control_backup_places.target = excluded.target THEN control_backup_places.path ELSE excluded.path END,
 		file = CASE WHEN excluded.sent_at = 0
 			AND control_backup_places.target = excluded.target THEN control_backup_places.file ELSE excluded.file END`,
-		p.Place, p.Generation, p.Target, sent, p.Problem, p.RecoveryID, p.Path, p.File, p.Name, boolInt(p.PreviousPending))
+		p.Place, p.Generation, p.Target, sent, p.Problem, p.RecoveryID, p.Path, p.File, p.Name, boolInt(p.PreviousPending), p.RetentionState)
 	return err
 }
