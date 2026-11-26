@@ -827,8 +827,12 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_BACKUP
 		var detail controlbackup.EventDetail
 		_ = json.Unmarshal([]byte(a.Detail), &detail)
+		placeName := detail.PlaceName
+		if placeName == "" {
+			placeName = look.Name(detail.Place)
+		}
 		e.ControlBackup = &dockwellv1.EventControlBackup{
-			Bundle: a.Subject, Place: look.Name(detail.Place), Problem: detail.Problem,
+			Bundle: a.Subject, Place: placeName, Problem: detail.Problem,
 		}
 		return e
 	}

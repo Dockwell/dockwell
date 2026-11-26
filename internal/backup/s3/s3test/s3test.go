@@ -6,6 +6,7 @@ package s3test
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -17,15 +18,29 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
+
+type objectVersion struct {
+	id          string
+	body        []byte
+	marker      bool
+	lockedUntil time.Time
+}
 
 // Server is a fake bucket store.
 type Server struct {
 	t  testing.TB
 	mu sync.Mutex
 	// objects are what's stored, by path, with the bucket's name first.
-	objects map[string][]byte
-	uploads map[string]map[int][]byte
+	objects     map[string][]byte
+	uploads     map[string]map[int][]byte
+	versions    map[string][]objectVersion
+	nextVersion int
+	// Versioning reports Enabled, Suspended, or empty for an unversioned bucket.
+	Versioning string
+	// RefuseConditionalPut simulates a store without If-None-Match support.
+	RefuseConditionalPut bool
 	// Aborted counts uploads given up on.
 	Aborted int
 	// FailParts fails this many parts, as a network does.
@@ -64,7 +79,7 @@ type Server struct {
 // New starts a fake that stops when the test ends.
 func New(t testing.TB) *Server {
 	t.Helper()
-	s := &Server{t: t, objects: map[string][]byte{}, uploads: map[string]map[int][]byte{}}
+	s := &Server{t: t, objects: map[string][]byte{}, uploads: map[string]map[int][]byte{}, versions: map[string][]objectVersion{}}
 	s.srv = httptest.NewServer(s)
 	t.Cleanup(s.srv.Close)
 	return s
@@ -87,7 +102,109 @@ func (s *Server) Objects() map[string][]byte {
 func (s *Server) Set(path string, body []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.put(path, body)
+}
+
+// SetLocked creates a version with an object-lock expiry.
+func (s *Server) SetLocked(path string, body []byte, until time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.put(path, body)
+	s.versions[path][len(s.versions[path])-1].lockedUntil = until
+}
+
+// VersionCount counts the versions of a key, including delete markers.
+func (s *Server) VersionCount(path string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.versions[path])
+}
+
+func (s *Server) put(path string, body []byte) {
+	if s.Versioning != "" {
+		s.addVersion(path, body, false)
+	}
 	s.objects[path] = body
+}
+
+func (s *Server) addVersion(path string, body []byte, marker bool) {
+	s.nextVersion++
+	v := objectVersion{id: strconv.Itoa(s.nextVersion), body: body, marker: marker}
+	if s.Versioning == "Suspended" {
+		v.id = "null"
+		s.versions[path] = slices.DeleteFunc(s.versions[path], func(v objectVersion) bool { return v.id == "null" })
+	}
+	s.versions[path] = append(s.versions[path], v)
+}
+
+func (s *Server) versionRequest(w http.ResponseWriter, r *http.Request, key string) bool {
+	q := r.URL.Query()
+	if id := q.Get("versionId"); id != "" {
+		versions := s.versions[key]
+		for i, v := range versions {
+			if v.id != id {
+				continue
+			}
+			switch {
+			case r.Method == http.MethodGet && q.Has("retention"):
+				fmt.Fprintf(w, "<Retention><RetainUntilDate>%s</RetainUntilDate></Retention>", v.lockedUntil.Format(time.RFC3339))
+			case r.Method == http.MethodDelete:
+				if v.lockedUntil.After(time.Now()) {
+					w.WriteHeader(http.StatusForbidden)
+					return true
+				}
+				remaining := slices.Delete(versions, i, i+1)
+				s.versions[key] = remaining
+				delete(s.objects, key)
+				if len(remaining) > 0 && !remaining[len(remaining)-1].marker {
+					s.objects[key] = remaining[len(remaining)-1].body
+				}
+				w.WriteHeader(http.StatusNoContent)
+			default:
+				return false
+			}
+			return true
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return true
+	}
+	bucket, rest, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/")
+	if rest != "" || r.Method != http.MethodGet {
+		return false
+	}
+	switch {
+	case q.Has("versioning"):
+		fmt.Fprintf(w, "<VersioningConfiguration><Status>%s</Status></VersioningConfiguration>", s.Versioning)
+	case q.Has("versions"):
+		type entry struct {
+			XMLName   xml.Name
+			Key       string
+			VersionID string `xml:"VersionId"`
+		}
+		list := struct {
+			XMLName xml.Name `xml:"ListVersionsResult"`
+			Entries []entry
+		}{}
+		for path, versions := range s.versions {
+			name, ok := strings.CutPrefix(path, "/"+bucket+"/")
+			if !ok || !strings.HasPrefix(name, q.Get("prefix")) {
+				continue
+			}
+			for _, v := range versions {
+				tag := "Version"
+				if v.marker {
+					tag = "DeleteMarker"
+				}
+				list.Entries = append(list.Entries, entry{XMLName: xml.Name{Local: tag}, Key: name, VersionID: v.id})
+			}
+		}
+		if err := xml.NewEncoder(w).Encode(list); err != nil {
+			s.t.Errorf("can't write a version list: %v", err)
+		}
+	default:
+		return false
+	}
+	return true
 }
 
 // ServeHTTP answers as S3 does.
@@ -137,6 +254,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if bucket, _, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/"); s.Buckets != nil && !slices.Contains(s.Buckets, bucket) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>")
+		return
+	}
+	if s.versionRequest(w, r, key) {
 		return
 	}
 	// ListObjectsV2 of a bucket, path style: at most max-keys of its keys under prefix.
@@ -221,12 +341,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			whole.Write(s.uploads[id[0]][p.Number])
 		}
-		s.objects[key] = whole.Bytes()
+		s.put(key, whole.Bytes())
 		fmt.Fprint(w, "<CompleteMultipartUploadResult></CompleteMultipartUploadResult>")
 	case r.Method == http.MethodDelete && inUpload:
 		s.Aborted++
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPut:
+		if r.Header.Get("If-None-Match") == "*" && s.RefuseConditionalPut {
+			w.WriteHeader(http.StatusNotImplemented)
+			return
+		}
+		if tag := r.Header.Get("If-Match"); tag != "" && tag != fmt.Sprintf(`"%x"`, sha256.Sum256(s.objects[key])) {
+			w.WriteHeader(http.StatusPreconditionFailed)
+			return
+		}
 		if _, exists := s.objects[key]; exists && r.Header.Get("If-None-Match") == "*" {
 			w.WriteHeader(http.StatusPreconditionFailed)
 			return
@@ -235,7 +363,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return // its sender went away, as one stopped or cancelled does: nothing of it is kept
 		}
-		s.objects[key] = body
+		s.put(key, body)
 	case r.Method == http.MethodGet, r.Method == http.MethodHead:
 		body, ok := s.objects[key]
 		if !ok {
@@ -244,10 +372,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+		w.Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(body)))
 		if r.Method == http.MethodGet {
 			_, _ = w.Write(body)
 		}
 	case r.Method == http.MethodDelete:
+		if s.Versioning != "" {
+			s.addVersion(key, nil, true)
+		}
 		delete(s.objects, key)
 		w.WriteHeader(http.StatusNoContent)
 	default:

@@ -5,15 +5,13 @@ package controlbackup
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
-	"math"
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"connectrpc.com/connect"
-	"github.com/trustelem/zxcvbn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -60,24 +58,28 @@ func (m *Manager) GetControlBackup(ctx context.Context, _ *connect.Request[dockw
 		for i := range places {
 			p := &places[i]
 			byPlace[p.Place] = *p
-		}
-		if s.Destination != "" {
-			p := byPlace[offsitePlace]
-			if p.Target != s.DestinationPin {
-				p = store.ControlBackupPlace{}
+			if strings.HasPrefix(p.Place, offsitePlace+":") && p.Target != s.DestinationPin && !p.SentAt.IsZero() {
+				earlier := placeStatus(now, s.RecoveryID, *p)
+				earlier.Name, earlier.Pin = p.Name, p.Target
+				out.EarlierDestinations = append(out.EarlierDestinations, earlier)
 			}
-			out.Offsite = placeStatus(now, s.RecoveryID, p)
+		}
+		slices.SortFunc(out.EarlierDestinations, func(a, b *dockwellv1.ControlBackupPlace) int {
+			return b.GetSentAt().AsTime().Compare(a.GetSentAt().AsTime())
+		})
+		if s.Destination != "" {
+			out.Offsite = placeStatus(now, s.RecoveryID, byPlace[offsitePlace+":"+s.DestinationPin])
 			out.Offsite.Name = s.Destination
 			d, err := m.destination(ctx, tx, s.Destination)
 			switch {
 			case err != nil:
 				out.Offsite.Problem = "The destination could not be read. Check its settings"
-			case d.pin != s.DestinationPin:
-				out.Offsite.Problem = "The destination changed. Ask the owner to select it again"
+			case d.pin != s.DestinationPin || s.DestinationSelection == "":
+				out.Offsite.Problem = destinationChanged
 				out.Offsite.SentAt, out.Offsite.BundleAt = nil, nil
 				out.Offsite.File = ""
 				out.Offsite.Behind = true
-			default:
+			case out.Offsite.Problem != destinationChanged:
 				out.Storage = d.sheet(prefix)
 				out.Offsite.Path = out.Storage.GetPrefix()
 			}
@@ -134,12 +136,8 @@ func placeStatus(now time.Time, recoveryID string, p store.ControlBackupPlace) *
 		out.BundleAt = timestamppb.New(at)
 	}
 	out.Behind = now.Sub(p.SentAt) >= 2*time.Hour
-	switch {
-	case recoveryID != p.RecoveryID && out.Problem == "":
-		out.Problem = "The previous passphrase still opens this copy"
-	case recoveryID != p.RecoveryID:
-		out.Problem += ". The previous passphrase still opens this copy"
-	case out.Behind && out.Problem == "":
+	out.PreviousPassphrase = recoveryID != p.RecoveryID || p.PreviousPending
+	if out.Behind && out.Problem == "" && !out.PreviousPassphrase {
 		out.Problem = "This place has not received a backup in two hours"
 	}
 	return out
@@ -202,11 +200,32 @@ func (m *Manager) SetControlBackupDestination(ctx context.Context, req *connect.
 	if err != nil {
 		return nil, err
 	}
-	name := req.Msg.GetDestination()
+	name, dismiss := req.Msg.GetDestination(), req.Msg.GetDismissEarlierPin()
+	if dismiss != "" {
+		if decoded, err := hex.DecodeString(dismiss); name != "" || err != nil || len(decoded) != 32 {
+			return nil, authapi.Invalid(errors.New("choose one earlier destination to dismiss"))
+		}
+	}
 	now := m.cfg.Now()
 	err = m.cfg.DB.Update(ctx, func(tx *store.Tx) error {
 		if err := requireOwner(ctx, tx, p); err != nil {
 			return err
+		}
+		if dismiss != "" {
+			if err := m.cfg.Auth.UseStepUpIn(ctx, tx, client, p, req.Msg.GetProof(), auth.StepUpControlBackupDestination, "earlier:"+dismiss); err != nil {
+				return authapi.StepUpRefused(err)
+			}
+			done, err := tx.DismissControlBackupPlace(ctx, dismiss, now)
+			if err != nil {
+				return err
+			}
+			if !done {
+				return authapi.Invalid(errors.New("this earlier destination is no longer listed"))
+			}
+			return tx.RecordEvent(ctx, store.Event{
+				ID: id.New(id.Event), At: now, Actor: p.Actor(), Surface: client.Surface(p),
+				Action: ActionDismissDestination, Subject: m.cfg.Install, Detail: dismiss,
+			})
 		}
 		var d destination
 		if name != "" {
@@ -219,7 +238,11 @@ func (m *Manager) SetControlBackupDestination(ctx context.Context, req *connect.
 		if err := m.cfg.Auth.UseStepUpIn(ctx, tx, client, p, req.Msg.GetProof(), auth.StepUpControlBackupDestination, "destination:"+name); err != nil {
 			return authapi.StepUpRefused(err)
 		}
-		if err := tx.SetControlBackupDestination(ctx, name, d.pin, now); err != nil {
+		var selection string
+		if name != "" {
+			selection = id.New("cbs")
+		}
+		if err := tx.SetControlBackupDestination(ctx, name, d.pin, selection, now); err != nil {
 			return err
 		}
 		return tx.RecordEvent(ctx, store.Event{
@@ -328,17 +351,6 @@ func (m *Manager) ShowControlBackupPassphrase(ctx context.Context, req *connect.
 	return res, nil
 }
 
-func validatePhrase(phrase string) error {
-	if len(phrase) > 256 || utf8.RuneCountInString(phrase) < 20 || strings.TrimSpace(phrase) != phrase ||
-		strings.ContainsAny(phrase, "\r\n\x00") {
-		return errors.New("use a passphrase of at least 20 characters and up to 256 bytes, on one line")
-	}
-	if zxcvbn.PasswordStrength(phrase, nil).Guesses < math.Exp2(80) {
-		return errors.New("this passphrase is too easy to guess. Use a longer random phrase or generate one")
-	}
-	return nil
-}
-
 // SetControlBackupPassphrase changes the phrase and queues a new bundle.
 func (m *Manager) SetControlBackupPassphrase(ctx context.Context, req *connect.Request[dockwellv1.SetControlBackupPassphraseRequest]) (*connect.Response[dockwellv1.SetControlBackupPassphraseResponse], error) {
 	p, client, err := owner(ctx)
@@ -415,7 +427,8 @@ func (m *Manager) ConfirmControlBackupPassphrase(ctx context.Context, req *conne
 			return err
 		}
 		clear(r.Base)
-		if subtle.ConstantTimeCompare([]byte(r.Phrase), []byte(req.Msg.GetPassphrase())) != 1 {
+		if subtle.ConstantTimeCompare([]byte(r.Phrase), []byte(req.Msg.GetPassphrase())) != 1 &&
+			subtle.ConstantTimeCompare([]byte(r.Phrase), []byte(canonicalPhrase(req.Msg.GetPassphrase()))) != 1 {
 			return authapi.Invalid(errors.New("the recovery passphrase does not match. Enter it again"))
 		}
 		if s.Kept {

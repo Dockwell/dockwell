@@ -218,6 +218,11 @@ func Open(w io.Writer, r io.Reader, passphrase, want string) (string, error) {
 
 // Read opens the chunks after a header. Output must be staged until Read succeeds.
 func (s *Sealer) Read(w io.Writer, r io.Reader) error {
+	return s.ReadWithFallback(w, r, nil)
+}
+
+// ReadWithFallback can try a legacy key if the first chunk fails authentication.
+func (s *Sealer) ReadWithFallback(w io.Writer, r io.Reader, fallback func() (*Sealer, error)) error {
 	// A chunk is the last one when nothing follows it, so one more is read ahead.
 	this := make([]byte, SealedChunk)
 	next := make([]byte, SealedChunk)
@@ -231,7 +236,18 @@ func (s *Sealer) Read(w io.Writer, r io.Reader) error {
 			return err
 		}
 		last := m == 0
-		plain, err := s.aead.Open(this[:0], nonce(chunk, last), this[:n], s.header)
+		dest := this[:0]
+		if chunk == 0 && fallback != nil {
+			dest = nil // A failed Open may overwrite its destination.
+		}
+		plain, err := s.aead.Open(dest, nonce(chunk, last), this[:n], s.header)
+		if err != nil && chunk == 0 && fallback != nil {
+			s, err = fallback()
+			if err != nil {
+				return err
+			}
+			plain, err = s.aead.Open(this[:0], nonce(chunk, last), this[:n], s.header)
+		}
 		if err != nil {
 			return errors.New("the backup can't be opened: the passphrase is wrong, or the file was changed or cut short")
 		}

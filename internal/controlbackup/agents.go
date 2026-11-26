@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -51,7 +52,7 @@ func (m *Manager) deliverAgents(ctx context.Context, s store.ControlBackup, b ta
 		places, err := tx.ControlBackupPlaces(ctx, s.Generation)
 		for i := range places {
 			p := &places[i]
-			if p.Place != offsitePlace && !p.SentAt.IsZero() {
+			if !strings.HasPrefix(p.Place, offsitePlace+":") && !p.SentAt.IsZero() {
 				prior[p.Place] = p.SentAt
 			}
 		}
@@ -77,7 +78,7 @@ func (m *Manager) deliverAgents(ctx context.Context, s store.ControlBackup, b ta
 			break
 		}
 		probes.Go(func() error {
-			pick.room, pick.err = pick.session.ControlBackupRoom(check)
+			pick.room, pick.err = pick.session.ControlBackupRoom(check, b.header.Install, b.header.Generation)
 			return nil
 		})
 	}
@@ -92,7 +93,7 @@ func (m *Manager) deliverAgents(ctx context.Context, s store.ControlBackup, b ta
 			if pick.err != nil {
 				problem = "Could not check available room on this server"
 			}
-			m.recordDelivery(ctx, b, pick.id, pick.id, "", "", errors.New(problem))
+			m.recordDelivery(ctx, b, store.ControlBackupPlace{Place: pick.id, Target: pick.id}, errors.New(problem))
 		}
 		return true
 	})
@@ -122,7 +123,7 @@ func (m *Manager) deliverAgents(ctx context.Context, s store.ControlBackup, b ta
 			Install: b.header.Install, Generation: b.header.Generation, Name: b.name,
 			Size: b.size, Sha256: b.sum,
 		}, b.file)
-		m.recordDelivery(ctx, b, pick.id, pick.id, result.GetPath(), result.GetPruneProblem(), err)
+		m.recordDelivery(ctx, b, store.ControlBackupPlace{Place: pick.id, Target: pick.id, Path: result.GetPath(), Problem: result.GetPruneProblem()}, err)
 		if err == nil {
 			kept++
 		}

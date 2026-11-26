@@ -12,6 +12,7 @@ import (
 type ControlBackup struct {
 	Generation, Position, LastPosition                    int64
 	GenerationID, Destination, DestinationPin, RecoveryID string
+	DestinationSelection, DestinationMarker               string
 	Problem                                               string
 	Preferred, Excluded                                   []string
 	ChangedAt, FirstChangedAt, LastAttempt                time.Time
@@ -20,7 +21,7 @@ type ControlBackup struct {
 }
 
 const controlBackupColumns = `generation, generation_id, position, changed_at, first_changed_at, recovery, recovery_id,
-	passphrase_kept, destination, destination_pin, preferred_servers, excluded_servers, last_attempt, last_position, hourly, requested, attempt_problem`
+	passphrase_kept, destination, destination_pin, preferred_servers, excluded_servers, last_attempt, last_position, hourly, requested, attempt_problem, destination_selection, destination_marker`
 
 // ControlBackup reads the recovery configuration and schedule.
 func (t *Tx) ControlBackup(ctx context.Context) (ControlBackup, error) {
@@ -33,7 +34,7 @@ func scanControlBackup(row interface{ Scan(...any) error }) (ControlBackup, erro
 	var kept, hourly, requested int
 	var preferred, excluded string
 	err := row.Scan(&s.Generation, &s.GenerationID, &s.Position, &at, &first, &s.Recovery, &s.RecoveryID, &kept, &s.Destination,
-		&s.DestinationPin, &preferred, &excluded, &attempt, &s.LastPosition, &hourly, &requested, &s.Problem)
+		&s.DestinationPin, &preferred, &excluded, &attempt, &s.LastPosition, &hourly, &requested, &s.Problem, &s.DestinationSelection, &s.DestinationMarker)
 	s.ChangedAt, s.FirstChangedAt, s.LastAttempt = fromMillis(at), fromMillis(first), fromMillis(attempt)
 	s.Kept, s.Hourly, s.Requested = kept != 0, hourly != 0, requested != 0
 	if preferred != "" {
@@ -69,11 +70,45 @@ func (t *Tx) ConfirmControlBackupPassphrase(ctx context.Context, now time.Time) 
 }
 
 // SetControlBackupDestination stores the selected destination and its location pin.
-func (t *Tx) SetControlBackupDestination(ctx context.Context, dest, pin string, now time.Time) error {
-	_, err := t.exec(ctx, `UPDATE control_backup SET destination = ?, destination_pin = ?, position = position + 1,
+func (t *Tx) SetControlBackupDestination(ctx context.Context, dest, pin, selection string, now time.Time) error {
+	_, err := t.exec(ctx, `UPDATE control_backup SET destination = ?, destination_pin = ?, destination_selection = ?,
+		destination_marker = '', position = position + 1,
 		changed_at = ?, first_changed_at = CASE WHEN first_changed_at = 0 THEN ? ELSE first_changed_at END
-		WHERE singleton = 1`, dest, pin, millis(now), millis(now))
+		WHERE singleton = 1`, dest, pin, selection, millis(now), millis(now))
+	if err != nil || pin == "" {
+		return err
+	}
+	_, err = t.exec(ctx, `UPDATE control_backup_places SET dismissed = 0 WHERE place = ?
+		AND generation = (SELECT generation FROM control_backup WHERE singleton = 1)`, "offsite:"+pin)
 	return err
+}
+
+// PinControlBackupMarker trusts the marker only for the approval that read it.
+func (t *Tx) PinControlBackupMarker(ctx context.Context, generation int64, selection, marker string) (bool, error) {
+	r, err := t.exec(ctx, `UPDATE control_backup SET destination_marker = ? WHERE singleton = 1
+		AND generation = ? AND destination_selection = ? AND destination_marker = ''`, marker, generation, selection)
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	return n == 1, err
+}
+
+// DismissControlBackupPlace hides an earlier destination after owner approval.
+func (t *Tx) DismissControlBackupPlace(ctx context.Context, pin string, now time.Time) (bool, error) {
+	r, err := t.exec(ctx, `UPDATE control_backup_places SET dismissed = 1 WHERE place = ?
+		AND dismissed = 0 AND sent_at > 0 AND generation = (SELECT generation FROM control_backup WHERE singleton = 1)
+		AND target <> (SELECT destination_pin FROM control_backup WHERE singleton = 1)`, "offsite:"+pin)
+	if err != nil {
+		return false, err
+	}
+	n, err := r.RowsAffected()
+	if err != nil || n == 0 {
+		return false, err
+	}
+	_, err = t.exec(ctx, `UPDATE control_backup SET position = position + 1, changed_at = ?,
+		first_changed_at = CASE WHEN first_changed_at = 0 THEN ? ELSE first_changed_at END WHERE singleton = 1`, millis(now), millis(now))
+	return err == nil, err
 }
 
 // SetControlBackupServers stores preferred and excluded server IDs.
@@ -113,15 +148,16 @@ func (t *Tx) RecordControlBackupProblem(ctx context.Context, problem string) err
 // ControlBackupPlace records each place independently. A failed send preserves
 // the time of its latest complete bundle at the same location.
 type ControlBackupPlace struct {
-	Place, Target, Problem, RecoveryID, Path, File string
-	Generation                                     int64
-	SentAt                                         time.Time
+	Place, Target, Problem, RecoveryID, Path, File, Name string
+	PreviousPending                                      bool
+	Generation                                           int64
+	SentAt                                               time.Time
 }
 
 // ControlBackupPlaces reads delivery history for a generation.
 func (t *Tx) ControlBackupPlaces(ctx context.Context, generation int64) ([]ControlBackupPlace, error) {
-	rows, err := t.query(ctx, `SELECT place, target, sent_at, problem, recovery_id, path, file FROM control_backup_places
-		WHERE generation = ? ORDER BY place`, generation)
+	rows, err := t.query(ctx, `SELECT place, target, sent_at, problem, recovery_id, path, file, name, previous_pending FROM control_backup_places
+		WHERE generation = ? AND dismissed = 0 ORDER BY place`, generation)
 	if err != nil {
 		return nil, err
 	}
@@ -130,12 +166,14 @@ func (t *Tx) ControlBackupPlaces(ctx context.Context, generation int64) ([]Contr
 	for rows.Next() {
 		p := ControlBackupPlace{Generation: generation}
 		var sent int64
-		if err := rows.Scan(&p.Place, &p.Target, &sent, &p.Problem, &p.RecoveryID, &p.Path, &p.File); err != nil {
+		var pending int
+		if err := rows.Scan(&p.Place, &p.Target, &sent, &p.Problem, &p.RecoveryID, &p.Path, &p.File, &p.Name, &pending); err != nil {
 			return nil, err
 		}
 		if sent != 0 {
 			p.SentAt = fromMillis(sent)
 		}
+		p.PreviousPending = pending != 0
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -147,9 +185,11 @@ func (t *Tx) RecordControlBackupPlace(ctx context.Context, p ControlBackupPlace)
 	if !p.SentAt.IsZero() {
 		sent = millis(p.SentAt)
 	}
-	_, err := t.exec(ctx, `INSERT INTO control_backup_places (place, generation, target, sent_at, problem, recovery_id, path, file)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (generation, place) DO UPDATE SET
-		target = excluded.target, problem = excluded.problem,
+	_, err := t.exec(ctx, `INSERT INTO control_backup_places (place, generation, target, sent_at, problem, recovery_id, path, file, name, previous_pending)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (generation, place) DO UPDATE SET
+		target = excluded.target, problem = excluded.problem, name = excluded.name,
+		previous_pending = CASE WHEN excluded.sent_at = 0 AND control_backup_places.target = excluded.target
+			THEN control_backup_places.previous_pending ELSE excluded.previous_pending END,
 		sent_at = CASE WHEN excluded.sent_at = 0
 			AND control_backup_places.target = excluded.target THEN control_backup_places.sent_at ELSE excluded.sent_at END,
 		recovery_id = CASE WHEN excluded.sent_at = 0
@@ -158,6 +198,6 @@ func (t *Tx) RecordControlBackupPlace(ctx context.Context, p ControlBackupPlace)
 			AND control_backup_places.target = excluded.target THEN control_backup_places.path ELSE excluded.path END,
 		file = CASE WHEN excluded.sent_at = 0
 			AND control_backup_places.target = excluded.target THEN control_backup_places.file ELSE excluded.file END`,
-		p.Place, p.Generation, p.Target, sent, p.Problem, p.RecoveryID, p.Path, p.File)
+		p.Place, p.Generation, p.Target, sent, p.Problem, p.RecoveryID, p.Path, p.File, p.Name, boolInt(p.PreviousPending))
 	return err
 }

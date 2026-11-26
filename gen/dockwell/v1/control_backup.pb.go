@@ -66,26 +66,27 @@ func (*GetControlBackupRequest) Descriptor() ([]byte, []int) {
 
 // GetControlBackupResponse describes the current generation and where its newest copies reached.
 type GetControlBackupResponse struct {
-	state            protoimpl.MessageState    `protogen:"open.v1"`
-	Install          string                    `protobuf:"bytes,1,opt,name=install,proto3" json:"install,omitempty"`
-	Generation       int64                     `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
-	Address          string                    `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
-	Destination      string                    `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
-	Offsite          *ControlBackupPlace       `protobuf:"bytes,5,opt,name=offsite,proto3" json:"offsite,omitempty"`
-	Servers          []*ControlBackupPlace     `protobuf:"bytes,6,rep,name=servers,proto3" json:"servers,omitempty"`
-	PassphraseKept   bool                      `protobuf:"varint,7,opt,name=passphrase_kept,json=passphraseKept,proto3" json:"passphrase_kept,omitempty"`
-	Hourly           bool                      `protobuf:"varint,8,opt,name=hourly,proto3" json:"hourly,omitempty"`
-	Requested        bool                      `protobuf:"varint,9,opt,name=requested,proto3" json:"requested,omitempty"`
-	Running          bool                      `protobuf:"varint,10,opt,name=running,proto3" json:"running,omitempty"`
-	LastAttempt      *timestamppb.Timestamp    `protobuf:"bytes,11,opt,name=last_attempt,json=lastAttempt,proto3" json:"last_attempt,omitempty"`
-	Storage          *ControlBackupDestination `protobuf:"bytes,12,opt,name=storage,proto3" json:"storage,omitempty"`
-	Problem          string                    `protobuf:"bytes,13,opt,name=problem,proto3" json:"problem,omitempty"`
-	NextAt           *timestamppb.Timestamp    `protobuf:"bytes,14,opt,name=next_at,json=nextAt,proto3" json:"next_at,omitempty"`
-	EligibleServers  []*ControlBackupServer    `protobuf:"bytes,15,rep,name=eligible_servers,json=eligibleServers,proto3" json:"eligible_servers,omitempty"`
-	PreferredServers []string                  `protobuf:"bytes,16,rep,name=preferred_servers,json=preferredServers,proto3" json:"preferred_servers,omitempty"`
-	ExcludedServers  []string                  `protobuf:"bytes,17,rep,name=excluded_servers,json=excludedServers,proto3" json:"excluded_servers,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state               protoimpl.MessageState    `protogen:"open.v1"`
+	Install             string                    `protobuf:"bytes,1,opt,name=install,proto3" json:"install,omitempty"`
+	Generation          int64                     `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	Address             string                    `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	Destination         string                    `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
+	Offsite             *ControlBackupPlace       `protobuf:"bytes,5,opt,name=offsite,proto3" json:"offsite,omitempty"`
+	Servers             []*ControlBackupPlace     `protobuf:"bytes,6,rep,name=servers,proto3" json:"servers,omitempty"`
+	PassphraseKept      bool                      `protobuf:"varint,7,opt,name=passphrase_kept,json=passphraseKept,proto3" json:"passphrase_kept,omitempty"`
+	Hourly              bool                      `protobuf:"varint,8,opt,name=hourly,proto3" json:"hourly,omitempty"`
+	Requested           bool                      `protobuf:"varint,9,opt,name=requested,proto3" json:"requested,omitempty"`
+	Running             bool                      `protobuf:"varint,10,opt,name=running,proto3" json:"running,omitempty"`
+	LastAttempt         *timestamppb.Timestamp    `protobuf:"bytes,11,opt,name=last_attempt,json=lastAttempt,proto3" json:"last_attempt,omitempty"`
+	Storage             *ControlBackupDestination `protobuf:"bytes,12,opt,name=storage,proto3" json:"storage,omitempty"`
+	Problem             string                    `protobuf:"bytes,13,opt,name=problem,proto3" json:"problem,omitempty"`
+	NextAt              *timestamppb.Timestamp    `protobuf:"bytes,14,opt,name=next_at,json=nextAt,proto3" json:"next_at,omitempty"`
+	EligibleServers     []*ControlBackupServer    `protobuf:"bytes,15,rep,name=eligible_servers,json=eligibleServers,proto3" json:"eligible_servers,omitempty"`
+	PreferredServers    []string                  `protobuf:"bytes,16,rep,name=preferred_servers,json=preferredServers,proto3" json:"preferred_servers,omitempty"`
+	ExcludedServers     []string                  `protobuf:"bytes,17,rep,name=excluded_servers,json=excludedServers,proto3" json:"excluded_servers,omitempty"`
+	EarlierDestinations []*ControlBackupPlace     `protobuf:"bytes,190,rep,name=earlier_destinations,json=earlierDestinations,proto3" json:"earlier_destinations,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *GetControlBackupResponse) Reset() {
@@ -237,6 +238,13 @@ func (x *GetControlBackupResponse) GetExcludedServers() []string {
 	return nil
 }
 
+func (x *GetControlBackupResponse) GetEarlierDestinations() []*ControlBackupPlace {
+	if x != nil {
+		return x.EarlierDestinations
+	}
+	return nil
+}
+
 // ControlBackupServer identifies another server the owner can choose to keep copies.
 type ControlBackupServer struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -301,9 +309,12 @@ type ControlBackupPlace struct {
 	Server  string                 `protobuf:"bytes,6,opt,name=server,proto3" json:"server,omitempty"`
 	File    string                 `protobuf:"bytes,7,opt,name=file,proto3" json:"file,omitempty"`
 	// When the newest bundle at this place was captured. sent_at is when it arrived.
-	BundleAt      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=bundle_at,json=bundleAt,proto3" json:"bundle_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	BundleAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=bundle_at,json=bundleAt,proto3" json:"bundle_at,omitempty"`
+	// The identifier for dismissing an earlier destination.
+	Pin                string `protobuf:"bytes,190,opt,name=pin,proto3" json:"pin,omitempty"`
+	PreviousPassphrase bool   `protobuf:"varint,191,opt,name=previous_passphrase,json=previousPassphrase,proto3" json:"previous_passphrase,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ControlBackupPlace) Reset() {
@@ -390,6 +401,20 @@ func (x *ControlBackupPlace) GetBundleAt() *timestamppb.Timestamp {
 		return x.BundleAt
 	}
 	return nil
+}
+
+func (x *ControlBackupPlace) GetPin() string {
+	if x != nil {
+		return x.Pin
+	}
+	return ""
+}
+
+func (x *ControlBackupPlace) GetPreviousPassphrase() bool {
+	if x != nil {
+		return x.PreviousPassphrase
+	}
+	return false
 }
 
 // ControlBackupDestination holds the off-site coordinates for the recovery sheet.
@@ -563,10 +588,12 @@ func (x *TakeControlBackupResponse) GetNextAt() *timestamppb.Timestamp {
 type SetControlBackupDestinationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of an existing backup destination. Empty removes the selection.
-	Destination   string `protobuf:"bytes,1,opt,name=destination,proto3" json:"destination,omitempty"`
-	Proof         string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Destination string `protobuf:"bytes,1,opt,name=destination,proto3" json:"destination,omitempty"`
+	Proof       string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	// Dismisses this earlier destination instead of changing the current selection.
+	DismissEarlierPin string `protobuf:"bytes,190,opt,name=dismiss_earlier_pin,json=dismissEarlierPin,proto3" json:"dismiss_earlier_pin,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SetControlBackupDestinationRequest) Reset() {
@@ -609,6 +636,13 @@ func (x *SetControlBackupDestinationRequest) GetDestination() string {
 func (x *SetControlBackupDestinationRequest) GetProof() string {
 	if x != nil {
 		return x.Proof
+	}
+	return ""
+}
+
+func (x *SetControlBackupDestinationRequest) GetDismissEarlierPin() string {
+	if x != nil {
+		return x.DismissEarlierPin
 	}
 	return ""
 }
@@ -1009,7 +1043,7 @@ var File_dockwell_v1_control_backup_proto protoreflect.FileDescriptor
 const file_dockwell_v1_control_backup_proto_rawDesc = "" +
 	"\n" +
 	" dockwell/v1/control_backup.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x19\n" +
-	"\x17GetControlBackupRequest\"\xf3\x05\n" +
+	"\x17GetControlBackupRequest\"\xc8\x06\n" +
 	"\x18GetControlBackupResponse\x12\x18\n" +
 	"\ainstall\x18\x01 \x01(\tR\ainstall\x12\x1e\n" +
 	"\n" +
@@ -1030,10 +1064,11 @@ const file_dockwell_v1_control_backup_proto_rawDesc = "" +
 	"\anext_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\x06nextAt\x12K\n" +
 	"\x10eligible_servers\x18\x0f \x03(\v2 .dockwell.v1.ControlBackupServerR\x0feligibleServers\x12+\n" +
 	"\x11preferred_servers\x18\x10 \x03(\tR\x10preferredServers\x12)\n" +
-	"\x10excluded_servers\x18\x11 \x03(\tR\x0fexcludedServers\"9\n" +
+	"\x10excluded_servers\x18\x11 \x03(\tR\x0fexcludedServers\x12S\n" +
+	"\x14earlier_destinations\x18\xbe\x01 \x03(\v2\x1f.dockwell.v1.ControlBackupPlaceR\x13earlierDestinations\"9\n" +
 	"\x13ControlBackupServer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\x88\x02\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xcd\x02\n" +
 	"\x12ControlBackupPlace\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -1042,7 +1077,9 @@ const file_dockwell_v1_control_backup_proto_rawDesc = "" +
 	"\x06behind\x18\x05 \x01(\bR\x06behind\x12\x16\n" +
 	"\x06server\x18\x06 \x01(\tR\x06server\x12\x12\n" +
 	"\x04file\x18\a \x01(\tR\x04file\x127\n" +
-	"\tbundle_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bbundleAt\"\xc5\x01\n" +
+	"\tbundle_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bbundleAt\x12\x11\n" +
+	"\x03pin\x18\xbe\x01 \x01(\tR\x03pin\x120\n" +
+	"\x13previous_passphrase\x18\xbf\x01 \x01(\bR\x12previousPassphrase\"\xc5\x01\n" +
 	"\x18ControlBackupDestination\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x16\n" +
 	"\x06region\x18\x02 \x01(\tR\x06region\x12\x16\n" +
@@ -1052,10 +1089,11 @@ const file_dockwell_v1_control_backup_proto_rawDesc = "" +
 	"\fvirtual_host\x18\x06 \x01(\bR\vvirtualHost\"\x1a\n" +
 	"\x18TakeControlBackupRequest\"P\n" +
 	"\x19TakeControlBackupResponse\x123\n" +
-	"\anext_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x06nextAt\"b\n" +
+	"\anext_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x06nextAt\"\x93\x01\n" +
 	"\"SetControlBackupDestinationRequest\x12 \n" +
 	"\vdestination\x18\x01 \x01(\tR\vdestination\x12\x1a\n" +
-	"\x05proof\x18\x02 \x01(\tB\x04\xa8\xbb\x18\x01R\x05proof\"%\n" +
+	"\x05proof\x18\x02 \x01(\tB\x04\xa8\xbb\x18\x01R\x05proof\x12/\n" +
+	"\x13dismiss_earlier_pin\x18\xbe\x01 \x01(\tR\x11dismissEarlierPin\"%\n" +
 	"#SetControlBackupDestinationResponse\"@\n" +
 	"\"ShowControlBackupPassphraseRequest\x12\x1a\n" +
 	"\x05proof\x18\x01 \x01(\tB\x04\xa8\xbb\x18\x01R\x05proof\"E\n" +
@@ -1135,28 +1173,29 @@ var file_dockwell_v1_control_backup_proto_depIdxs = []int32{
 	4,  // 3: dockwell.v1.GetControlBackupResponse.storage:type_name -> dockwell.v1.ControlBackupDestination
 	17, // 4: dockwell.v1.GetControlBackupResponse.next_at:type_name -> google.protobuf.Timestamp
 	2,  // 5: dockwell.v1.GetControlBackupResponse.eligible_servers:type_name -> dockwell.v1.ControlBackupServer
-	17, // 6: dockwell.v1.ControlBackupPlace.sent_at:type_name -> google.protobuf.Timestamp
-	17, // 7: dockwell.v1.ControlBackupPlace.bundle_at:type_name -> google.protobuf.Timestamp
-	17, // 8: dockwell.v1.TakeControlBackupResponse.next_at:type_name -> google.protobuf.Timestamp
-	0,  // 9: dockwell.v1.ControlBackupService.GetControlBackup:input_type -> dockwell.v1.GetControlBackupRequest
-	5,  // 10: dockwell.v1.ControlBackupService.TakeControlBackup:input_type -> dockwell.v1.TakeControlBackupRequest
-	7,  // 11: dockwell.v1.ControlBackupService.SetControlBackupDestination:input_type -> dockwell.v1.SetControlBackupDestinationRequest
-	15, // 12: dockwell.v1.ControlBackupService.SetControlBackupServers:input_type -> dockwell.v1.SetControlBackupServersRequest
-	9,  // 13: dockwell.v1.ControlBackupService.ShowControlBackupPassphrase:input_type -> dockwell.v1.ShowControlBackupPassphraseRequest
-	11, // 14: dockwell.v1.ControlBackupService.SetControlBackupPassphrase:input_type -> dockwell.v1.SetControlBackupPassphraseRequest
-	13, // 15: dockwell.v1.ControlBackupService.ConfirmControlBackupPassphrase:input_type -> dockwell.v1.ConfirmControlBackupPassphraseRequest
-	1,  // 16: dockwell.v1.ControlBackupService.GetControlBackup:output_type -> dockwell.v1.GetControlBackupResponse
-	6,  // 17: dockwell.v1.ControlBackupService.TakeControlBackup:output_type -> dockwell.v1.TakeControlBackupResponse
-	8,  // 18: dockwell.v1.ControlBackupService.SetControlBackupDestination:output_type -> dockwell.v1.SetControlBackupDestinationResponse
-	16, // 19: dockwell.v1.ControlBackupService.SetControlBackupServers:output_type -> dockwell.v1.SetControlBackupServersResponse
-	10, // 20: dockwell.v1.ControlBackupService.ShowControlBackupPassphrase:output_type -> dockwell.v1.ShowControlBackupPassphraseResponse
-	12, // 21: dockwell.v1.ControlBackupService.SetControlBackupPassphrase:output_type -> dockwell.v1.SetControlBackupPassphraseResponse
-	14, // 22: dockwell.v1.ControlBackupService.ConfirmControlBackupPassphrase:output_type -> dockwell.v1.ConfirmControlBackupPassphraseResponse
-	16, // [16:23] is the sub-list for method output_type
-	9,  // [9:16] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	3,  // 6: dockwell.v1.GetControlBackupResponse.earlier_destinations:type_name -> dockwell.v1.ControlBackupPlace
+	17, // 7: dockwell.v1.ControlBackupPlace.sent_at:type_name -> google.protobuf.Timestamp
+	17, // 8: dockwell.v1.ControlBackupPlace.bundle_at:type_name -> google.protobuf.Timestamp
+	17, // 9: dockwell.v1.TakeControlBackupResponse.next_at:type_name -> google.protobuf.Timestamp
+	0,  // 10: dockwell.v1.ControlBackupService.GetControlBackup:input_type -> dockwell.v1.GetControlBackupRequest
+	5,  // 11: dockwell.v1.ControlBackupService.TakeControlBackup:input_type -> dockwell.v1.TakeControlBackupRequest
+	7,  // 12: dockwell.v1.ControlBackupService.SetControlBackupDestination:input_type -> dockwell.v1.SetControlBackupDestinationRequest
+	15, // 13: dockwell.v1.ControlBackupService.SetControlBackupServers:input_type -> dockwell.v1.SetControlBackupServersRequest
+	9,  // 14: dockwell.v1.ControlBackupService.ShowControlBackupPassphrase:input_type -> dockwell.v1.ShowControlBackupPassphraseRequest
+	11, // 15: dockwell.v1.ControlBackupService.SetControlBackupPassphrase:input_type -> dockwell.v1.SetControlBackupPassphraseRequest
+	13, // 16: dockwell.v1.ControlBackupService.ConfirmControlBackupPassphrase:input_type -> dockwell.v1.ConfirmControlBackupPassphraseRequest
+	1,  // 17: dockwell.v1.ControlBackupService.GetControlBackup:output_type -> dockwell.v1.GetControlBackupResponse
+	6,  // 18: dockwell.v1.ControlBackupService.TakeControlBackup:output_type -> dockwell.v1.TakeControlBackupResponse
+	8,  // 19: dockwell.v1.ControlBackupService.SetControlBackupDestination:output_type -> dockwell.v1.SetControlBackupDestinationResponse
+	16, // 20: dockwell.v1.ControlBackupService.SetControlBackupServers:output_type -> dockwell.v1.SetControlBackupServersResponse
+	10, // 21: dockwell.v1.ControlBackupService.ShowControlBackupPassphrase:output_type -> dockwell.v1.ShowControlBackupPassphraseResponse
+	12, // 22: dockwell.v1.ControlBackupService.SetControlBackupPassphrase:output_type -> dockwell.v1.SetControlBackupPassphraseResponse
+	14, // 23: dockwell.v1.ControlBackupService.ConfirmControlBackupPassphrase:output_type -> dockwell.v1.ConfirmControlBackupPassphraseResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_control_backup_proto_init() }

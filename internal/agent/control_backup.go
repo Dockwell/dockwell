@@ -11,11 +11,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/backup/keep"
+	"github.com/dockwell/dockwell/internal/id"
 )
 
 // Only one bundle reserves room at once, even while a stream reconnects.
@@ -29,23 +31,30 @@ func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlB
 		return fail(errors.New("this server has no place to keep control plane backups"))
 	}
 	root := filepath.Join(c.cfg.Dir, "control-backups")
-	if ask.GetStream() == 0 {
-		room, err := backup.AvailableRoom(root)
-		if err != nil {
-			return fail(err)
-		}
-		return keptControlBackup(&agentv1.KeepControlBackupResult{Room: room})
-	}
 	if !keepingControlBackup.TryLock() {
 		return fail(errors.New("this server is already keeping a control plane backup"))
 	}
 	defer keepingControlBackup.Unlock()
-	if !keep.Valid(ask.GetInstall(), ask.GetGeneration(), ask.GetName()) || len(ask.GetSha256()) != sha256.Size {
-		return fail(errors.New("invalid control plane backup name or checksum"))
+	install, generation, probe := ask.GetInstall(), ask.GetGeneration(), ask.GetStream() == 0
+	var dir string
+	if !probe || install != "" || generation != 0 {
+		if _, err := id.Parse("ins", install); err != nil || generation < 1 {
+			return fail(errors.New("invalid control plane backup directory"))
+		}
+		if !probe && (!keep.Valid(install, generation, ask.GetName()) || len(ask.GetSha256()) != sha256.Size) {
+			return fail(errors.New("invalid control plane backup name or checksum"))
+		}
+		dir = filepath.Join(root, keep.Prefix(install, generation))
+		if err := sweepPartialControlBackups(dir); err != nil {
+			return fail(err)
+		}
 	}
 	room, err := backup.AvailableRoom(root)
 	if err != nil {
 		return fail(err)
+	}
+	if probe {
+		return keptControlBackup(&agentv1.KeepControlBackupResult{Room: room})
 	}
 	if err := controlBackupRoom(room, ask.GetSize()); err != nil {
 		return fail(err)
@@ -59,7 +68,6 @@ func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlB
 		return fail(err)
 	}
 	defer stream.Close()
-	dir := filepath.Join(root, keep.Prefix(ask.GetInstall(), ask.GetGeneration()))
 	problem, err := receiveControlBackup(dir, ask.GetName(), ask.GetSize(), ask.GetSha256(), stream.Next)
 	if err != nil {
 		return fail(err)
@@ -74,6 +82,24 @@ func keptControlBackup(out *agentv1.KeepControlBackupResult) *agentv1.CallResult
 func controlBackupRoom(room, size int64) error {
 	if size <= 0 || size > room {
 		return errors.New("the control plane backup does not fit on this server. Free some disk space")
+	}
+	return nil
+}
+
+func sweepPartialControlBackups(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && strings.HasPrefix(entry.Name(), ".partial-") {
+			if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

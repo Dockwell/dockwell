@@ -65,6 +65,7 @@ type Recovery struct {
 
 // NewRecovery derives the base key once when a recovery passphrase is set.
 func NewRecovery(phrase string, at time.Time) Recovery {
+	phrase = canonicalPhrase(phrase)
 	kdf := KDF{Memory: memoryKiB, Passes: passes, Lanes: lanes, Salt: randomSalt()}
 	return Recovery{Phrase: phrase, Base: kdf.derive(phrase), KDF: kdf, SetAt: at.UTC(), ID: id.New("phrase")}
 }
@@ -74,12 +75,45 @@ func GeneratePhrase() string {
 	var raw [20]byte
 	_, _ = rand.Read(raw[:])
 	s := id.Crockford(raw[:])
+	return groupPhrase(s)
+}
+
+func groupPhrase(s string) string {
 	var groups []string
 	for s != "" {
 		groups = append(groups, s[:4])
 		s = s[4:]
 	}
 	return strings.Join(groups, "-")
+}
+
+// canonicalPhrase recognizes the recovery code while preserving other phrases.
+func canonicalPhrase(phrase string) string {
+	var code strings.Builder
+	for _, c := range strings.TrimSpace(phrase) {
+		switch c {
+		case '-', ' ', '_':
+			continue
+		default:
+			if c >= 'a' && c <= 'z' {
+				c -= 'a' - 'A'
+			}
+		}
+		switch c {
+		case 'O':
+			c = '0'
+		case 'I', 'L':
+			c = '1'
+		}
+		if !strings.ContainsRune(id.CrockfordAlphabet, c) || code.Len() == 32 {
+			return phrase
+		}
+		code.WriteRune(c)
+	}
+	if code.Len() != 32 {
+		return phrase
+	}
+	return groupPhrase(code.String())
 }
 
 func randomSalt() []byte {
@@ -171,18 +205,26 @@ func openBundle(w io.Writer, r io.Reader, passphrase string) (Header, error) {
 	if err != nil {
 		return h, err
 	}
-	base := h.KDF.derive(passphrase)
-	key, err := h.key(base)
-	clear(base)
+	sealer := func(phrase string) (*chunks.Sealer, error) {
+		base := h.KDF.derive(phrase)
+		defer clear(base)
+		key, err := h.key(base)
+		if err != nil {
+			return nil, err
+		}
+		defer clear(key)
+		return chunks.WithKey(key, head)
+	}
+	canonical := canonicalPhrase(passphrase)
+	s, err := sealer(canonical)
 	if err != nil {
 		return h, err
 	}
-	sealer, err := chunks.WithKey(key, head)
-	clear(key)
-	if err != nil {
-		return h, err
+	if canonical != passphrase {
+		// Before canonicalization, a custom phrase could resemble a recovery code.
+		return h, s.ReadWithFallback(w, r, func() (*chunks.Sealer, error) { return sealer(passphrase) })
 	}
-	return h, sealer.Read(w, r)
+	return h, s.Read(w, r)
 }
 
 type splitKey struct {

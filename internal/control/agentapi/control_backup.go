@@ -47,8 +47,8 @@ func (t *controlBackupTransfer) send(ctx context.Context, done <-chan struct{}, 
 func (s *Session) KeepsControlBackups() bool { return s.transfersFiles && s.keepsControlBackups }
 
 // ControlBackupRoom checks how much the agent can keep.
-func (s *Session) ControlBackupRoom(ctx context.Context) (int64, error) {
-	got, err := s.keepControlBackup(ctx, &agentv1.KeepControlBackupCall{})
+func (s *Session) ControlBackupRoom(ctx context.Context, install string, generation int64) (int64, error) {
+	got, err := s.keepControlBackup(ctx, &agentv1.KeepControlBackupCall{Install: install, Generation: generation})
 	return got.GetRoom(), err
 }
 

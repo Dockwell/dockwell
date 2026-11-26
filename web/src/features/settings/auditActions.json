@@ -49,6 +49,7 @@
   "cloudflare.write",
   "control_backup.confirm_passphrase",
   "control_backup.destination",
+  "control_backup.dismiss_destination",
   "control_backup.failed",
   "control_backup.requested",
   "control_backup.sent",

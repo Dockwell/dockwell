@@ -84,9 +84,18 @@
 }
 
 .control-backup-form,
-.control-recovery-commands {
+.control-recovery-commands,
+.control-recovery-step {
   display: grid;
   gap: var(--space-3);
+}
+
+.control-recovery-step {
+  gap: var(--space-1);
+}
+
+.control-recovery-commands code {
+  white-space: pre-wrap;
 }
 
 .control-backup-secret,

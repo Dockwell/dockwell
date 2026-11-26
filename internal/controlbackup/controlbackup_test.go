@@ -38,7 +38,7 @@ func TestBundleAuthenticatesEveryChunkAndTheHeader(t *testing.T) {
 	r := NewRecovery(phrase, now)
 	var installKey [32]byte
 	_, _ = rand.Read(installKey[:])
-	payload := make([]byte, chunks.ChunkSize*2+10)
+	payload := make([]byte, chunks.ChunkSize*2-keySize)
 	_, _ = rand.Read(payload)
 	var sealed bytes.Buffer
 	if err := SealBundle(&sealed, bytes.NewReader(payload), int64(len(payload)), installKey[:], h, r); err != nil {
@@ -56,12 +56,23 @@ func TestBundleAuthenticatesEveryChunkAndTheHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	headerEnd := len(header)
+	h.Bundle = id.New("cbk")
+	var second bytes.Buffer
+	if err := SealBundle(&second, bytes.NewReader(payload), int64(len(payload)), installKey[:], h, r); err != nil {
+		t.Fatal(err)
+	}
+	_, otherHeader, err := readHeader(&second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	original := sealed.Bytes()
 	cases := map[string]func([]byte) []byte{
-		"header":     func(b []byte) []byte { b[bytes.Index(b[:headerEnd], []byte("devel"))] = 'D'; return b },
-		"chunk":      func(b []byte) []byte { b[headerEnd+128] ^= 0x80; return b },
-		"truncation": func(b []byte) []byte { return b[:len(b)-1] },
-		"append":     func(b []byte) []byte { return append(b, 0) },
+		"header":                     func(b []byte) []byte { b[bytes.Index(b[:headerEnd], []byte("devel"))] = 'D'; return b },
+		"chunk":                      func(b []byte) []byte { b[headerEnd+128] ^= 0x80; return b },
+		"truncation":                 func(b []byte) []byte { return b[:len(b)-1] },
+		"cut at chunk boundary":      func(b []byte) []byte { return b[:headerEnd+chunks.SealedChunk] },
+		"header from another bundle": func(b []byte) []byte { return slices.Concat(otherHeader, b[headerEnd:]) },
+		"append":                     func(b []byte) []byte { return append(b, 0) },
 		"reordering": func(b []byte) []byte {
 			one := slices.Clone(b[headerEnd : headerEnd+chunks.SealedChunk])
 			copy(b[headerEnd:], b[headerEnd+chunks.SealedChunk:headerEnd+2*chunks.SealedChunk])
@@ -212,8 +223,13 @@ func TestOffsiteCopyAndRetentionStayInTheirGeneration(t *testing.T) {
 	}
 	fake.Set(prefix+"2/"+old, []byte("a different generation"))
 	b := takenBundle{header: h, name: keep.Name(now, id.New("cbk"), phrase), file: file, size: int64(len(data)), sum: sum[:]}
-	if problem, err := d.store(t.Context(), b); problem != "" || err != nil {
-		t.Fatalf("copy: %q, %v", problem, err)
+	selection := id.New("cbs")
+	trusted, err := d.ensureMarker(t.Context(), h, selection, "")
+	if err != nil || trusted != selection {
+		t.Fatalf("marker: %q, %v", trusted, err)
+	}
+	if problem, old, err := d.store(t.Context(), b); problem != "" || old || err != nil {
+		t.Fatalf("copy: %q, old=%v, %v", problem, old, err)
 	}
 	objects := fake.Objects()
 	if !bytes.Equal(objects[prefix+"1/"+b.name], data) || objects[prefix+"1/"+old] != nil || objects[prefix+"2/"+old] == nil ||
@@ -223,7 +239,7 @@ func TestOffsiteCopyAndRetentionStayInTheirGeneration(t *testing.T) {
 	// A later marker makes a stale sender leave every object alone.
 	fake.Set(prefix+"current.json", []byte(`{"generation":2}`))
 	b.name = keep.Name(now.Add(time.Hour), id.New("cbk"), phrase)
-	if _, err := d.store(t.Context(), b); err == nil || fake.Objects()[prefix+"1/"+b.name] != nil {
+	if _, err := d.ensureMarker(t.Context(), h, selection, trusted); err == nil || fake.Objects()[prefix+"1/"+b.name] != nil {
 		t.Fatal("sent a bundle past a different generation marker")
 	}
 }
@@ -267,6 +283,11 @@ func TestRecoveryPhraseRules(t *testing.T) {
 	}
 	if err := validatePhrase("passwordpasswordpasswordpassword"); err == nil {
 		t.Fatal("accepted a low-entropy phrase")
+	}
+	for _, phrase := range []string{"cQ8#nRsW4@kH9zE2tM7w", "correct horse battery staple orbit"} {
+		if err := validatePhrase(phrase); err != nil {
+			t.Errorf("rejected a strong phrase: %v", err)
+		}
 	}
 }
 
@@ -341,7 +362,11 @@ func TestOnlyManagedWritesAdvanceTheBackupPosition(t *testing.T) {
 			if err := tx.TouchSession(ctx, session, now.Add(time.Minute), "192.0.2.1"); err != nil {
 				return err
 			}
-			return tx.TouchAPIToken(ctx, token, now.Add(time.Minute), "192.0.2.1")
+			if err := tx.TouchAPIToken(ctx, token, now.Add(time.Minute), "192.0.2.1"); err != nil {
+				return err
+			}
+			_, err := tx.SeeAPITokenAddress(ctx, token, "192.0.2.1", now.Add(time.Minute))
+			return err
 		})
 		afterTouch := get()
 		if managed.Position != afterTouch.Position || !managed.ChangedAt.Equal(afterTouch.ChangedAt) {
@@ -358,5 +383,65 @@ func BenchmarkControlBackupRecoveryDerivation(b *testing.B) {
 	k := KDF{Memory: memoryKiB, Passes: passes, Lanes: lanes, Salt: randomSalt()}
 	for b.Loop() {
 		clear(k.derive("a-generated-recovery-passphrase"))
+	}
+}
+
+func TestOpeningCrockfordRecoveryPhraseVariants(t *testing.T) {
+	now := time.Now()
+	canonical := "011A-BCDE-FGHJ-KMNP-QRST-VWXY-Z234-5678"
+	r := NewRecovery(canonical, now)
+	h := Header{Install: id.New("ins"), Bundle: id.New("cbk"), Generation: 1, GenerationID: id.New("gen"), Schema: 58, Taken: now}
+	var sealed bytes.Buffer
+	if err := SealBundle(&sealed, strings.NewReader("state"), 5, make([]byte, keySize), h, r); err != nil {
+		t.Fatal(err)
+	}
+	for _, typed := range []string{strings.ToLower(canonical), strings.ReplaceAll(canonical, "-", ""), strings.ReplaceAll(canonical, "-", " "), "  oilA_BCDE_FGHJ_KMNP_QRST_VWXY_Z234_5678  "} {
+		if canonicalPhrase(typed) != canonical {
+			t.Errorf("did not normalize %q", typed)
+		}
+		if _, err := openBundle(io.Discard, bytes.NewReader(sealed.Bytes()), typed); err != nil {
+			t.Errorf("could not open with %q: %v", typed, err)
+		}
+	}
+	// A custom phrase which looked like a code used its literal spelling before round 2.
+	legacy := strings.ToLower(canonical)
+	r.Phrase, r.Base = legacy, r.KDF.derive(legacy)
+	sealed.Reset()
+	if err := SealBundle(&sealed, strings.NewReader("state"), 5, make([]byte, keySize), h, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := openBundle(io.Discard, bytes.NewReader(sealed.Bytes()), legacy); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSweepRemovesOnlyAbandonedControlBackupWork(t *testing.T) {
+	root := t.TempDir()
+	now := time.Now()
+	for _, entry := range []struct {
+		name string
+		age  time.Duration
+	}{
+		{".control-backup-stale", 2 * time.Hour},
+		{".control-backup-fresh", 15 * time.Minute},
+		{"other", 2 * time.Hour},
+	} {
+		path := filepath.Join(root, entry.name)
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, now.Add(-entry.age), now.Add(-entry.age)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := sweepBackups(root, now); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].Name() != ".control-backup-fresh" || entries[1].Name() != "other" {
+		t.Fatalf("wrong remaining directories: %v", entries)
 	}
 }

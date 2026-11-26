@@ -72,6 +72,8 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           };
         case "control_backup.destination":
           return { title: t`Changed the control plane backup destination`, icon: "archive" };
+        case "control_backup.dismiss_destination":
+          return { title: t`Dismissed an earlier control plane backup destination`, icon: "archive" };
         case "control_backup.servers":
           return { title: t`Changed which servers keep control plane copies`, icon: "archive" };
         case "control_backup.show_passphrase":

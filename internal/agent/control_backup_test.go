@@ -4,12 +4,14 @@ package agent
 
 import (
 	"crypto/sha256"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/backup/keep"
 	"github.com/dockwell/dockwell/internal/id"
 )
@@ -50,5 +52,36 @@ func TestControlBackupKeepsAndPrunesOnlyAfterAWholeCopy(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 1 || entries[0].Name() != name {
 		t.Fatalf("wanted only the newer copy, got %v, %v", entries, err)
+	}
+}
+
+func TestControlBackupRoomRemovesPartialCopiesInItsGeneration(t *testing.T) {
+	root := t.TempDir()
+	install := id.New("ins")
+	for _, generation := range []int64{1, 2} {
+		if err := os.MkdirAll(filepath.Join(root, "control-backups", keep.Prefix(install, generation)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := filepath.Join(root, "control-backups", keep.Prefix(install, 1), ".partial-abandoned")
+	other := filepath.Join(root, "control-backups", keep.Prefix(install, 2), ".partial-other")
+	whole := filepath.Join(root, "control-backups", keep.Prefix(install, 1), "complete.dwcb")
+	for _, file := range []string{first, other, whole} {
+		if err := os.WriteFile(file, []byte("sealed"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := &calls{cfg: Config{Dir: root}}
+	got := c.keepControlBackup(t.Context(), &agentv1.KeepControlBackupCall{Install: install, Generation: 1})
+	if got.GetKeepControlBackup() == nil {
+		t.Fatalf("room check failed: %v", got.GetError())
+	}
+	if _, err := os.Stat(first); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("first generation kept its abandoned copy: %v", err)
+	}
+	for _, file := range []string{other, whole} {
+		if _, err := os.Stat(file); err != nil {
+			t.Fatalf("sweep removed a file it should keep: %v", err)
+		}
 	}
 }

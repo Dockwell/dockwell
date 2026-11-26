@@ -39,6 +39,10 @@ export const flow: Flow = {
         res.writeHead(204).end();
         return;
       }
+      if (url.searchParams.has("versioning")) {
+        res.writeHead(200, { "Content-Type": "application/xml" }).end("<VersioningConfiguration/>");
+        return;
+      }
       if (url.searchParams.get("list-type") === "2") {
         const prefix = url.searchParams.get("prefix") ?? "";
         const entries = [...objects.keys()]
@@ -130,7 +134,9 @@ export const flow: Flow = {
       if (!/^(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/.test(phrase)) {
         throw new Error("The generated passphrase did not have eight Crockford groups");
       }
-      await pass.getByLabel("Type the passphrase to confirm").fill(phrase);
+      await pass
+        .getByLabel("Type the passphrase to confirm")
+        .fill(phrase.toLowerCase().replaceAll("-", " ").replaceAll("0", "o").replaceAll("1", "l"));
       await pass.getByRole("button", { name: "Confirm and open recovery sheet" }).click();
       const sheet = page.getByRole("dialog", { name: "Recovery sheet" });
       await sheet.getByText("AKIDCONTROL").waitFor();
@@ -138,13 +144,27 @@ export const flow: Flow = {
         throw new Error("The recovery sheet showed a secret");
       }
       await sheet.getByText(/dockwell open-backup /).waitFor();
+      await sheet.getByText("Fetch the newest off-site copy").waitFor();
+      if ((await sheet.innerText()).match(/\d{19}-cbk_|control backup status/)) {
+        throw new Error(
+          "The recovery sheet left a command which depends on a specific bundle or on Dockwell being online",
+        );
+      }
       await shoot(page, "control-backup-recovery");
       await sheet.getByRole("button", { name: "Close", exact: true }).last().click();
+
+      await panel.getByRole("button", { name: "Set passphrase", exact: true }).click();
+      const setting = page.getByRole("dialog", { name: "Set recovery passphrase" });
+      await setting.getByLabel("Passphrase", { exact: true }).selectOption("custom");
+      await setting.getByLabel("New passphrase").fill("cQ8#nRsW4@kH9zE2tM7w");
+      await setting.getByText("Strength: meets the requirement").waitFor();
+      await shoot(page, "control-backup-strength");
+      await setting.getByRole("button", { name: "Close", exact: true }).last().click();
 
       const file = join(data, "control-backup-e2e.dwcb");
       const passFile = join(data, "control-backup-passphrase");
       writeFileSync(file, sealed, { mode: 0o600 });
-      writeFileSync(passFile, phrase, { mode: 0o600 });
+      writeFileSync(passFile, ` ${phrase.toLowerCase().replaceAll("-", "_")} \n`, { mode: 0o600 });
       cli("open-backup", file, "--output", join(data, "opened-control-backup"), "--passphrase-file", passFile);
 
       await atWidth(page, { width: 390, height: 844 });
@@ -166,6 +186,21 @@ export const flow: Flow = {
         .getByRole("row", { name: /Showed the recovery passphrase/ })
         .first()
         .waitFor();
+      await page
+        .getByRole("row", { name: /Sent a control plane backup to control-archive/ })
+        .first()
+        .waitFor();
+      step("control backup: an earlier destination remains visible and a passkey can dismiss it");
+      await page.goto(`${origin}/settings/backups`);
+      await panel.getByRole("button", { name: "Change destination" }).click();
+      await picker.getByLabel("Destination").selectOption("");
+      await picker.getByRole("button", { name: "Remove destination" }).click();
+      await picker.waitFor({ state: "hidden" });
+      const earlier = panel.getByRole("list", { name: "Earlier destinations" });
+      await earlier.getByText("control-archive", { exact: true }).waitFor();
+      await shoot(page, "control-backup-earlier-destination");
+      await earlier.getByRole("button", { name: "Dismiss" }).click();
+      await earlier.waitFor({ state: "hidden" });
     } finally {
       await new Promise<void>((resolve) => s3.close(() => resolve()));
     }

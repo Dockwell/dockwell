@@ -52,6 +52,9 @@ func newOpenBackupCmd(stdio IO) *cobra.Command {
 			const controlPrefix = "dockwell-control-backup-"
 			magic, _ := reader.Peek(len(controlPrefix))
 			if bytes.Equal(magic, []byte(controlPrefix)) {
+				if passphraseFile != "" {
+					passphrase = strings.TrimSpace(passphrase)
+				}
 				return openControlBackup(cmd.Context(), stdio, reader, passphrase, output)
 			}
 			if passphrase == "" {

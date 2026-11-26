@@ -38,6 +38,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
 import { BackupSealFields, useBackupSeal } from "./BackupSealFields";
 import { useDestinations } from "./DestinationsPanel";
+import { recoveryPhraseStrength } from "./recoveryPhrase";
 import { freeDestinationName, pickerStatus, useStorage } from "./storage";
 import "./ControlBackup.css";
 
@@ -153,7 +154,7 @@ function BackupStatus({ status, refresh }: { status: GetControlBackupResponse; r
           ) : null}
         </div>
         <div className="control-backup-tools">
-          {offsite?.behind || !offsite || offsite?.problem ? (
+          {offsite?.behind || !offsite || offsite.problem || offsite.previousPassphrase ? (
             <StatusBadge
               status="degraded"
               label={!offsite ? t`Off-site copy needed` : t`Needs attention`}
@@ -174,6 +175,11 @@ function BackupStatus({ status, refresh }: { status: GetControlBackupResponse; r
           </div>
         ) : null}
         {offsite?.problem ? <div className="control-backup-caption">{offsite.problem}</div> : null}
+        {offsite?.previousPassphrase ? (
+          <div className="control-backup-caption">
+            <Trans>Older copies still open with the previous passphrase.</Trans>
+          </div>
+        ) : null}
       </div>
       {status.problem ? (
         <Callout tone="critical" title={t`The last backup failed`}>
@@ -219,6 +225,9 @@ function BackupStatus({ status, refresh }: { status: GetControlBackupResponse; r
           <Trans>No copies on other servers</Trans>
         </div>
       )}
+      {status.earlierDestinations.length > 0 ? (
+        <EarlierDestinations destinations={status.earlierDestinations} now={now} refresh={refresh} />
+      ) : null}
       <div className="control-backup-footer">
         <div>
           <strong>
@@ -271,13 +280,95 @@ function ServerCopy({ place, now }: { place: ControlBackupPlace; now: number }) 
       <div>
         <strong>{place.name}</strong>
         {place.problem ? <span className="control-backup-caption">{place.problem}</span> : null}
+        {place.previousPassphrase ? (
+          <span className="control-backup-caption">
+            <Trans>Older copies still open with the previous passphrase.</Trans>
+          </span>
+        ) : null}
       </div>
       <StatusBadge
-        status={place.behind || place.problem ? "degraded" : place.sentAt ? "healthy" : "unknown"}
+        status={
+          place.behind || place.problem || place.previousPassphrase ? "degraded" : place.sentAt ? "healthy" : "unknown"
+        }
         label={place.sentAt ? words.ago(timestampDate(place.sentAt), now) : t`None yet`}
         labelIsState
       />
     </li>
+  );
+}
+
+function EarlierDestinations({
+  destinations,
+  now,
+  refresh,
+}: {
+  destinations: ControlBackupPlace[];
+  now: number;
+  refresh: () => Promise<unknown>;
+}) {
+  const { t } = useLingui();
+  const words = useTimeWords();
+  const mayDismiss = useMay()(ControlBackupService.method.setControlBackupDestination).allowed;
+  const transport = useTransport();
+  const [dismissing, setDismissing] = useState("");
+  const [failure, setFailure] = useState<string>();
+  const dismiss = async (pin: string) => {
+    setDismissing(pin);
+    setFailure(undefined);
+    try {
+      const client = createClient(ControlBackupService, transport);
+      await withStepUpIfAsked(transport, StepUpAction.CONTROL_BACKUP_DESTINATION, `earlier:${pin}`, (proof) =>
+        client.setControlBackupDestination({ dismissEarlierPin: pin, proof }),
+      );
+      await refresh();
+    } catch (err) {
+      setFailure(sentence(err));
+    } finally {
+      setDismissing("");
+    }
+  };
+  return (
+    <>
+      <ul className="control-backup-places" aria-label={t`Earlier destinations`}>
+        {destinations.map((place) => (
+          <li className="control-backup-place" key={place.pin}>
+            <div>
+              <strong>{place.name || t`Earlier destination`}</strong>
+              <span className="control-backup-caption">
+                {place.sentAt
+                  ? t`Earlier destination · Last copy ${words.ago(timestampDate(place.sentAt), now)}`
+                  : t`Earlier destination`}
+              </span>
+              {place.previousPassphrase ? (
+                <span className="control-backup-caption">
+                  <Trans>Older copies still open with the previous passphrase.</Trans>
+                </span>
+              ) : (
+                <span className="control-backup-caption">
+                  <Trans>Opens with the current recovery passphrase.</Trans>
+                </span>
+              )}
+            </div>
+            {mayDismiss ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={dismissing === place.pin}
+                disabled={!!dismissing}
+                onClick={() => void dismiss(place.pin)}
+              >
+                <Trans>Dismiss</Trans>
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {failure ? (
+        <Callout tone="critical" title={t`Couldn't dismiss the destination`}>
+          {failure}
+        </Callout>
+      ) : null}
+    </>
   );
 }
 
@@ -518,6 +609,7 @@ function PassphraseSheet({
   const [phrase, setPhrase] = useState("");
   const [typed, setTyped] = useState("");
   const [custom, setCustom] = useState(false);
+  const strength = recoveryPhraseStrength(typed);
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setFailure(undefined);
@@ -565,7 +657,7 @@ function PassphraseSheet({
             <Button
               variant="primary"
               loading={busy}
-              disabled={custom && Array.from(typed).length < 20}
+              disabled={custom && strength !== "ready"}
               onClick={() => void save()}
             >
               {custom ? t`Set passphrase` : t`Generate passphrase`}
@@ -624,15 +716,26 @@ function PassphraseSheet({
               onChange={(e) => setCustom(e.target.value === "custom")}
             />
             {custom ? (
-              <TextField
-                label={t`New passphrase`}
-                type="password"
-                autoComplete="new-password"
-                hint={t`At least 20 characters`}
-                maxLength={256}
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-              />
+              <>
+                <TextField
+                  label={t`New passphrase`}
+                  type="password"
+                  autoComplete="new-password"
+                  hint={t`At least 20 characters and up to 256 bytes, on one line`}
+                  maxLength={256}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                />
+                <div role="status" className="control-backup-caption">
+                  {typed
+                    ? strength === "ready"
+                      ? t`Strength: meets the requirement`
+                      : strength === "weak"
+                        ? t`Strength: too easy to guess`
+                        : t`Strength: enter a longer phrase on one line`
+                    : null}
+                </div>
+              </>
             ) : null}
           </>
         )}
@@ -648,30 +751,39 @@ function PassphraseSheet({
 
 const shellArg = (word: string) => `'${word.replaceAll("'", "'\"'\"'")}'`;
 
+function recoveryCommands(status: GetControlBackupResponse) {
+  const storage = status.storage;
+  let offsite: string | undefined;
+  if (storage) {
+    const prefix = `s3://${storage.bucket}/${storage.prefix}`;
+    const options = `--endpoint-url ${shellArg(storage.endpoint)}${storage.region && storage.region !== "auto" ? ` --region ${shellArg(storage.region)}` : ""}`;
+    offsite = `newest=$(aws s3 ls ${shellArg(prefix)} ${options} | awk '$4 ~ /[.]dwcb$/ { print $4 }' | LC_ALL=C sort | tail -n 1)
+aws s3 cp ${shellArg(prefix)}"\${newest:?No control plane bundle found}" ./control-backup.dwcb ${options}`;
+  }
+  const readAgent =
+    'newest=$(find "$1" -maxdepth 1 -type f -name "*.dwcb" | LC_ALL=C sort | tail -n 1); test -n "$newest" && exec cat -- "$newest"';
+  const agents = status.servers
+    .filter((place) => place.path)
+    .map((place) => {
+      const remote = `root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo -n "$@"; fi; }; root sh -c ${shellArg(readAgent)} sh ${shellArg(place.path)}`;
+      return {
+        name: place.name,
+        server: place.server,
+        command: `ssh -T "\${backup_ssh:?Set backup_ssh to your SSH login}" ${shellArg(remote)} > ./control-backup.dwcb`,
+      };
+    });
+  return {
+    offsite,
+    agents,
+    open: "dockwell open-backup ./control-backup.dwcb --output ./recovered-control --passphrase-file ./recovery-passphrase",
+  };
+}
+
 function RecoverySheet({ status, close }: { status: GetControlBackupResponse; close: () => void }) {
   const { t } = useLingui();
   const storage = status.storage;
   const copies = status.servers.filter((p) => p.path);
-  const s3 = storage ? shellArg(`s3://${storage.bucket}/${storage.prefix}`) : "";
-  const s3Options = storage
-    ? `--endpoint-url ${shellArg(storage.endpoint)}${storage.region && storage.region !== "auto" ? ` --region ${shellArg(storage.region)}` : ""}`
-    : "";
-  const offsiteFile = status.offsite?.file;
-  const open = (file: string) =>
-    `dockwell open-backup ${file} --output ./recovered-control --passphrase-file ./recovery-passphrase`;
-  const commands = [
-    ...(storage ? [`aws s3 ls ${s3} ${s3Options}`] : []),
-    ...(storage && offsiteFile
-      ? [
-          `aws s3 cp ${shellArg(`s3://${storage.bucket}/${storage.prefix}${offsiteFile}`)} ./control-backup.dwcb ${s3Options}`,
-        ]
-      : []),
-    ...copies.map((place) =>
-      place.file ? `sudo ${open(shellArg(`${place.path}/${place.file}`))}` : `sudo ls -lt -- ${shellArg(place.path)}`,
-    ),
-    `dockwell control backup status --url ${shellArg(status.address)}`,
-    open("./control-backup.dwcb"),
-  ];
+  const commands = recoveryCommands(status);
   return (
     <Sheet
       open
@@ -715,14 +827,36 @@ function RecoverySheet({ status, close }: { status: GetControlBackupResponse; cl
           <Trans>Opening a bundle needs it. Off-site access also needs your storage credentials.</Trans>
         </Callout>
         <div className="control-recovery-commands">
-          {commands.map((command) => (
-            <code key={command}>{command}</code>
+          {commands.offsite ? (
+            <div className="control-recovery-step">
+              <strong>
+                <Trans>Fetch the newest off-site copy</Trans>
+              </strong>
+              <code>{commands.offsite}</code>
+            </div>
+          ) : null}
+          {commands.agents.map(({ name, command, server }) => (
+            <div className="control-recovery-step" key={server}>
+              <strong>
+                <Trans>Copy from {name}</Trans>
+              </strong>
+              <span className="control-backup-caption">
+                <Trans>Set backup_ssh to a root SSH login or one with passwordless sudo on this server.</Trans>
+              </span>
+              <code>{command}</code>
+            </div>
           ))}
+          <div className="control-recovery-step">
+            <strong>
+              <Trans>Open on the machine with the full Dockwell build</Trans>
+            </strong>
+            <code>{commands.open}</code>
+          </div>
         </div>
         <CopyButton
           className="control-recovery-copy"
-          text={commands.join("\n")}
-          label={t`Copy commands`}
+          text={[commands.offsite || commands.agents[0]?.command, commands.open].filter(Boolean).join("\n")}
+          label={t`Copy recovery commands`}
           copiedLabel={t`Commands copied`}
         />
       </div>
@@ -750,7 +884,7 @@ export function OverviewControlBackup() {
   const offsite = status.offsite;
   const captured = offsite?.bundleAt ?? offsite?.sentAt;
   const age = captured ? time.ago(timestampDate(captured), now) : offsite ? t`None yet` : t`No destination`;
-  const bad = !offsite || offsite.behind || !!offsite.problem;
+  const bad = !offsite || offsite.behind || !!offsite.problem || offsite.previousPassphrase;
   return (
     <Panel
       title={t`Control plane backup`}

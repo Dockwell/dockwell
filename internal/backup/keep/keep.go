@@ -55,6 +55,12 @@ func Taken(name string) (time.Time, bool) {
 	return at, ok
 }
 
+// Phrase reads the recovery passphrase ID in a valid bundle name.
+func Phrase(name string) (string, bool) {
+	_, phrase, ok := parse(name)
+	return phrase, ok
+}
+
 // Expired chooses copies older than the newly completed one in the same place
 // and generation. A newly completed bundle retires older passphrase copies.
 func Expired(names []string, newest string) []string {

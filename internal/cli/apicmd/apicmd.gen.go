@@ -1486,6 +1486,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "destination", Help: "The name of an existing backup destination. Empty removes the selection."},
 				{Path: "proof", FromFile: true},
+				{Path: "dismiss_earlier_pin", Help: "Dismisses this earlier destination instead of changing the current selection."},
 			},
 			Call: apicli.Unary[v1.SetControlBackupDestinationRequest, v1.SetControlBackupDestinationResponse](dockwellv1connect.ControlBackupServiceSetControlBackupDestinationProcedure),
 		},

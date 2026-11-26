@@ -17189,6 +17189,11 @@ components:
                     type: string
                     description: When the newest bundle at this place was captured. sent_at is when it arrived.
                     format: date-time
+                pin:
+                    type: string
+                    description: The identifier for dismissing an earlier destination.
+                previousPassphrase:
+                    type: boolean
             description: ControlBackupPlace describes what the last delivery to one place achieved.
         ControlBackupServer:
             type: object
@@ -22866,6 +22871,10 @@ components:
                     type: array
                     items:
                         type: string
+                earlierDestinations:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ControlBackupPlace'
             description: GetControlBackupResponse describes the current generation and where its newest copies reached.
         GetControlPlaneResponse:
             type: object
@@ -34247,6 +34256,9 @@ components:
                     description: The name of an existing backup destination. Empty removes the selection.
                 proof:
                     type: string
+                dismissEarlierPin:
+                    type: string
+                    description: Dismisses this earlier destination instead of changing the current selection.
             description: SetControlBackupDestinationRequest carries the selection and its fresh passkey proof.
         SetControlBackupDestinationResponse:
             type: object

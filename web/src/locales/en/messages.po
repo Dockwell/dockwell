@@ -1044,6 +1044,9 @@ msgstr "Deleted {path} on {server}, which can let someone back in"
 msgid "Disconnected an SSH session on {server}"
 msgstr "Disconnected an SSH session on {server}"
 
+msgid "Dismissed an earlier control plane backup destination"
+msgstr "Dismissed an earlier control plane backup destination"
+
 msgid "Downloaded a certificate's private key"
 msgstr "Downloaded a certificate's private key"
 
@@ -8445,8 +8448,8 @@ msgstr "Add backup destination {destName}"
 msgid "Ask the owner to choose storage for off-site copies."
 msgstr "Ask the owner to choose storage for off-site copies."
 
-msgid "At least 20 characters"
-msgstr "At least 20 characters"
+msgid "At least 20 characters and up to 256 bytes, on one line"
+msgstr "At least 20 characters and up to 256 bytes, on one line"
 
 msgid "Backup queued"
 msgstr "Backup queued"
@@ -8484,11 +8487,17 @@ msgstr "Control plane backup"
 msgid "Control plane recovery sheet"
 msgstr "Control plane recovery sheet"
 
-msgid "Copy commands"
-msgstr "Copy commands"
+msgid "Copy from {name}"
+msgstr "Copy from {name}"
 
 msgid "Copy passphrase"
 msgstr "Copy passphrase"
+
+msgid "Copy recovery commands"
+msgstr "Copy recovery commands"
+
+msgid "Couldn't dismiss the destination"
+msgstr "Couldn't dismiss the destination"
 
 msgid "Couldn't request a backup"
 msgstr "Couldn't request a backup"
@@ -8508,8 +8517,21 @@ msgstr "Destination"
 msgid "Each place needs a new copy before it can remove older ones."
 msgstr "Each place needs a new copy before it can remove older ones."
 
+msgid "Earlier destination"
+msgstr "Earlier destination"
+
+#. placeholder {0}: words.ago(timestampDate(place.sentAt), now)
+msgid "Earlier destination · Last copy {0}"
+msgstr "Earlier destination · Last copy {0}"
+
+msgid "Earlier destinations"
+msgstr "Earlier destinations"
+
 msgid "Endpoint"
 msgstr "Endpoint"
+
+msgid "Fetch the newest off-site copy"
+msgstr "Fetch the newest off-site copy"
 
 msgid "First copy"
 msgstr "First copy"
@@ -8571,8 +8593,17 @@ msgstr "Off-site destination"
 msgid "Older copies may still open with the old passphrase"
 msgstr "Older copies may still open with the old passphrase"
 
+msgid "Older copies still open with the previous passphrase."
+msgstr "Older copies still open with the previous passphrase."
+
+msgid "Open on the machine with the full Dockwell build"
+msgstr "Open on the machine with the full Dockwell build"
+
 msgid "Opening a bundle needs it. Off-site access also needs your storage credentials."
 msgstr "Opening a bundle needs it. Off-site access also needs your storage credentials."
+
+msgid "Opens with the current recovery passphrase."
+msgstr "Opens with the current recovery passphrase."
 
 msgid "Over 256 MiB · Hourly at most"
 msgstr "Over 256 MiB · Hourly at most"
@@ -8620,6 +8651,9 @@ msgstr "Server copies"
 msgid "Servers that keep copies"
 msgstr "Servers that keep copies"
 
+msgid "Set backup_ssh to a root SSH login or one with passwordless sudo on this server."
+msgstr "Set backup_ssh to a root SSH login or one with passwordless sudo on this server."
+
 msgid "Set passphrase"
 msgstr "Set passphrase"
 
@@ -8635,6 +8669,15 @@ msgstr "Show passphrase"
 
 msgid "Stored"
 msgstr "Stored"
+
+msgid "Strength: enter a longer phrase on one line"
+msgstr "Strength: enter a longer phrase on one line"
+
+msgid "Strength: meets the requirement"
+msgstr "Strength: meets the requirement"
+
+msgid "Strength: too easy to guess"
+msgstr "Strength: too easy to guess"
 
 msgid "Take one now"
 msgstr "Take one now"

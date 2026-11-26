@@ -155,6 +155,7 @@ message GetControlBackupResponse {
   repeated ControlBackupServer eligible_servers = 15;
   repeated string preferred_servers = 16;
   repeated string excluded_servers = 17;
+  repeated ControlBackupPlace earlier_destinations = 190;
 }
 
 // ControlBackupServer identifies another server the owner can choose to keep copies.
@@ -174,6 +175,9 @@ message ControlBackupPlace {
   string file = 7;
   // When the newest bundle at this place was captured. sent_at is when it arrived.
   google.protobuf.Timestamp bundle_at = 8;
+  // The identifier for dismissing an earlier destination.
+  string pin = 190;
+  bool previous_passphrase = 191;
 }
 
 // ControlBackupDestination holds the off-site coordinates for the recovery sheet.
@@ -198,6 +202,8 @@ message SetControlBackupDestinationRequest {
   // The name of an existing backup destination. Empty removes the selection.
   string destination = 1;
   string proof = 2 [(dockwell.v1.from_file) = true];
+  // Dismisses this earlier destination instead of changing the current selection.
+  string dismiss_earlier_pin = 190;
 }
 // SetControlBackupDestinationResponse confirms that the destination selection was saved.
 message SetControlBackupDestinationResponse {}

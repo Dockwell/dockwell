@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -26,22 +27,23 @@ import (
 
 // These actions appear on Activity with the schedule and deliveries.
 const (
-	ActionRequested   = "control_backup.requested"
-	ActionTaken       = "control_backup.taken"
-	ActionSent        = "control_backup.sent"
-	ActionFailed      = "control_backup.failed"
-	ActionDestination = "control_backup.destination"
-	ActionServers     = "control_backup.servers"
-	ActionShow        = "control_backup.show_passphrase"
-	ActionSet         = "control_backup.set_passphrase"
-	ActionConfirm     = "control_backup.confirm_passphrase"
+	ActionRequested          = "control_backup.requested"
+	ActionTaken              = "control_backup.taken"
+	ActionSent               = "control_backup.sent"
+	ActionFailed             = "control_backup.failed"
+	ActionDestination        = "control_backup.destination"
+	ActionDismissDestination = "control_backup.dismiss_destination"
+	ActionServers            = "control_backup.servers"
+	ActionShow               = "control_backup.show_passphrase"
+	ActionSet                = "control_backup.set_passphrase"
+	ActionConfirm            = "control_backup.confirm_passphrase"
 
 	offsitePlace = "offsite"
 	largeBundle  = 256 << 20
 )
 
 // Actions are the control backup entries visible to install admins.
-var Actions = []string{ActionRequested, ActionTaken, ActionSent, ActionFailed, ActionDestination, ActionServers, ActionShow, ActionSet, ActionConfirm}
+var Actions = []string{ActionRequested, ActionTaken, ActionSent, ActionFailed, ActionDestination, ActionDismissDestination, ActionServers, ActionShow, ActionSet, ActionConfirm}
 
 // DestinationResolver reads storage coordinates and the current sealed credentials.
 type DestinationResolver func(context.Context, *store.Tx, string) (string, map[string]string, error)
@@ -109,6 +111,11 @@ func (m *Manager) openRecovery(s store.ControlBackup) (Recovery, error) {
 
 // Init is called before serving requests. Restarts use the already-derived key.
 func (m *Manager) Init(ctx context.Context) error {
+	if m.cfg.KeyFile != "" {
+		if err := sweepBackups(filepath.Dir(m.cfg.KeyFile), m.cfg.Now()); err != nil {
+			m.cfg.Logger.WarnContext(ctx, "could not remove stale control plane backup work", "error", err)
+		}
+	}
 	var s store.ControlBackup
 	if err := m.cfg.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -130,6 +137,24 @@ func (m *Manager) Init(ctx context.Context) error {
 	_, _ = rand.Read(random[:])
 	generationID := "gen_" + id.Crockford(random[:])
 	return m.cfg.DB.Update(ctx, func(tx *store.Tx) error { return tx.InitControlBackup(ctx, generationID, r.ID, sealed) })
+}
+
+func sweepBackups(root string, now time.Time) error {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	var result error
+	for _, entry := range entries {
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), ".control-backup-") {
+			info, err := entry.Info()
+			if err == nil && info.ModTime().Before(now.Add(-time.Hour)) {
+				err = os.RemoveAll(filepath.Join(root, entry.Name()))
+			}
+			result = errors.Join(result, err)
+		}
+	}
+	return result
 }
 
 func due(s store.ControlBackup, now time.Time) time.Time {
@@ -179,25 +204,26 @@ func (m *Manager) wakeUp() {
 // Run keeps the schedule until the control plane stops. One run is in flight at
 // a time. A request and the debounce state survive a process restart.
 func (m *Manager) Run(ctx context.Context) {
-	timer := time.NewTicker(time.Second)
-	defer timer.Stop()
 	for ctx.Err() == nil {
-		if err := m.RunDue(ctx); err != nil && ctx.Err() == nil {
+		wait, err := m.runDue(ctx)
+		if err != nil && ctx.Err() == nil {
 			m.cfg.Logger.WarnContext(ctx, "control plane backup could not finish", "error", err)
 		}
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
-			return
 		case <-timer.C:
 		case <-m.wake:
 		}
+		timer.Stop()
 	}
 }
 
-// RunDue takes and distributes a bundle when the schedule allows it.
-func (m *Manager) RunDue(ctx context.Context) error {
+// runDue returns the next wait, capped so managed writes and agent joins are seen promptly.
+func (m *Manager) runDue(ctx context.Context) (time.Duration, error) {
+	const maxWait = time.Minute
 	if !m.running.CompareAndSwap(false, true) {
-		return nil
+		return maxWait, nil
 	}
 	defer m.running.Store(false)
 	now := m.cfg.Now()
@@ -206,11 +232,14 @@ func (m *Manager) RunDue(ctx context.Context) error {
 		var err error
 		s, err = tx.ControlBackup(ctx)
 		return err
-	}); err != nil || now.Before(due(s, now)) {
-		return err
+	}); err != nil {
+		return maxWait, err
+	}
+	if wait := due(s, now).Sub(now); wait > 0 {
+		return min(maxWait, wait), nil
 	}
 	if s.Destination == "" && !s.Requested && !m.hasAgent(s) {
-		return nil
+		return maxWait, nil
 	}
 	started := false
 	err := m.cfg.DB.Update(ctx, func(tx *store.Tx) error {
@@ -223,14 +252,14 @@ func (m *Manager) RunDue(ctx context.Context) error {
 		return tx.BeginControlBackupAttempt(ctx, now)
 	})
 	if err != nil || !started {
-		return err
+		return maxWait, err
 	}
 	back, err := m.take(ctx, now)
 	if err != nil {
 		m.result(ctx, "", store.ControlBackupPlace{
-			Generation: s.Generation, Problem: "The control server could not seal a backup. Check its disk and logs",
+			Generation: s.Generation, Problem: "The control server could not seal a backup, so no new copy left this server. Check its disk and logs",
 		}, ActionFailed)
-		return err
+		return maxWait, err
 	}
 	defer back.close()
 	if err := m.cfg.DB.Update(ctx, func(tx *store.Tx) error {
@@ -239,7 +268,7 @@ func (m *Manager) RunDue(ctx context.Context) error {
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: "system", Action: ActionTaken, Subject: back.header.Bundle})
 	}); err != nil {
-		return err
+		return maxWait, err
 	}
 	offsiteDone := make(chan struct{})
 	go func() {
@@ -248,7 +277,7 @@ func (m *Manager) RunDue(ctx context.Context) error {
 	}()
 	m.deliverAgents(ctx, back.state, back)
 	<-offsiteDone
-	return nil
+	return 0, nil
 }
 
 type takenBundle struct {
@@ -343,12 +372,13 @@ func (m *Manager) take(ctx context.Context, now time.Time) (takenBundle, error) 
 
 // EventDetail describes a delivery without including storage credentials.
 type EventDetail struct {
-	Place   string `json:"place,omitempty"`
-	Problem string `json:"problem,omitempty"`
+	Place     string `json:"place,omitempty"`
+	Problem   string `json:"problem,omitempty"`
+	PlaceName string `json:"place_name,omitempty"`
 }
 
 func (m *Manager) result(ctx context.Context, bundle string, p store.ControlBackupPlace, action string) {
-	detail, _ := json.Marshal(EventDetail{Place: p.Place, Problem: p.Problem})
+	detail, _ := json.Marshal(EventDetail{Place: p.Place, PlaceName: p.Name, Problem: p.Problem})
 	err := m.cfg.DB.Update(ctx, func(tx *store.Tx) error {
 		if p.Place == "" {
 			if err := tx.RecordControlBackupProblem(ctx, p.Problem); err != nil {
@@ -364,15 +394,16 @@ func (m *Manager) result(ctx context.Context, bundle string, p store.ControlBack
 	}
 }
 
-func (m *Manager) recordDelivery(ctx context.Context, b takenBundle, place, target, path, problem string, err error) {
-	p := store.ControlBackupPlace{
-		Generation: b.header.Generation, Place: place, Target: target, RecoveryID: b.state.RecoveryID,
-	}
+func (m *Manager) recordDelivery(ctx context.Context, b takenBundle, p store.ControlBackupPlace, err error) {
+	p.Generation, p.RecoveryID = b.header.Generation, b.state.RecoveryID
 	if err != nil {
 		p.Problem = err.Error()
+		if errors.Is(err, errDestinationChanged) {
+			p.Problem = destinationChanged
+		}
 		m.result(ctx, b.header.Bundle, p, ActionFailed)
 		return
 	}
-	p.SentAt, p.Problem, p.Path, p.File = m.cfg.Now(), problem, path, b.name
+	p.SentAt, p.File = m.cfg.Now(), b.name
 	m.result(ctx, b.header.Bundle, p, ActionSent)
 }
