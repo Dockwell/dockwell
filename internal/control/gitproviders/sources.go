@@ -7,14 +7,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/github"
+	"github.com/dockwell/dockwell/internal/control/gitlab"
+	"github.com/dockwell/dockwell/internal/gitfetch"
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
+	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -40,11 +47,11 @@ var _ revision.Sources = (*Sources)(nil)
 
 // Resolve gives what ref names in the repository at url, as Base does.
 func (s *Sources) Resolve(ctx context.Context, url, ref string) (commit, full string, err error) {
-	ctx, err = s.authed(ctx, url)
+	ctx, target, err := s.authed(ctx, url)
 	if err != nil {
 		return "", "", err
 	}
-	return s.Base.Resolve(ctx, url, ref)
+	return s.Base.Resolve(ctx, target, ref)
 }
 
 // Branches lists the repository's branches, as Base does.
@@ -53,28 +60,38 @@ func (s *Sources) Branches(ctx context.Context, url string) (head string, branch
 	if !ok {
 		return "", nil, errors.New("this control plane can't read a repository's branches")
 	}
-	ctx, err = s.authed(ctx, url)
+	ctx, target, err := s.authed(ctx, url)
 	if err != nil {
 		return "", nil, err
 	}
-	return lister.Branches(ctx, url)
+	return lister.Branches(ctx, target)
 }
 
-// authed is ctx with the Authorization the call's git login gives, if it names one.
-func (s *Sources) authed(ctx context.Context, url string) (context.Context, error) {
+// authed is ctx with the Authorization the call's git login gives, if it names one,
+// and the target URL to query (rewritten to TestBase for GitLab test stand-ins).
+func (s *Sources) authed(ctx context.Context, url string) (context.Context, string, error) {
 	login := revision.GitLoginOf(ctx)
 	if login == "" {
-		return ctx, nil
+		return ctx, url, nil
 	}
 	apps := s.apps.Load()
 	if apps == nil {
-		return ctx, errors.New("this control plane has no GitHub App to read a private repository with")
+		return ctx, url, errors.New("this control plane has no Git provider to read a private repository with")
+	}
+	if _, isGL := service.GitLabConnectionOf(login); isGL {
+		target, header, connName, err := apps.GitLabGitTarget(ctx, login, url, revision.GitScopeOf(ctx))
+		if err != nil {
+			return ctx, url, err
+		}
+		ctx = gitref.WithAuth(ctx, header)
+		ctx = gitref.WithAuthProvider(ctx, "GitLab connection "+connName)
+		return ctx, target, nil
 	}
 	header, err := apps.Authorization(ctx, login, url)
 	if err != nil {
-		return ctx, err
+		return ctx, url, err
 	}
-	return gitref.WithAuth(ctx, header), nil
+	return gitref.WithAuth(ctx, header), url, nil
 }
 
 // installationOf reads the App and installation a git login names, as
@@ -183,10 +200,14 @@ func shown(url string) string {
 var _ changes.GitLogins = (*Handler)(nil)
 
 // PinGitLogin checks a build's git login for project, as a plan is made: one named
-// must be an installation that reaches the project and lists the repository at
-// repoURL. One left out is the first installation, by App and ID, that does, or ""
-// where none does, which fetches the repository as the public do.
+// must be a GitHub App installation or GitLab connection that reaches the project
+// and covers repoURL. One left out picks the first matching GitHub App
+// installation or the most specific matching GitLab connection, or "" where none
+// matches, which fetches the repository as the public do.
 func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error) {
+	if connName, isGL := service.GitLabConnectionOf(login); isGL {
+		return h.pinGitLabLogin(ctx, tx, project, repoURL, connName)
+	}
 	full := fullName(h.cfg.Web, repoURL)
 	apps, err := h.all(ctx, tx)
 	if err != nil {
@@ -222,7 +243,11 @@ func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoUR
 				return r.login, nil
 			}
 		}
-		return "", nil
+		glLogin, err := h.pinGitLabLogin(ctx, tx, project, repoURL, "")
+		if err != nil {
+			return "", err
+		}
+		return glLogin, nil
 	}
 	accounts := make([]string, 0, len(reach))
 	for _, r := range reach {
@@ -239,6 +264,181 @@ func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoUR
 		return "", fmt.Errorf("the GitHub App installation %s doesn't reach this project, and none does. An admin says which projects each installation reaches in Settings, Integrations", login)
 	}
 	return "", fmt.Errorf("the GitHub App installation %s doesn't reach this project. The project's are on %s", login, strings.Join(accounts, ", "))
+}
+
+// pinGitLabLogin validates an explicit GitLab connection name for project and
+// repoURL, or picks the most specific reachable GitLab connection when connName
+// is empty (returning "", nil when no connection covers repoURL).
+func (h *Handler) pinGitLabLogin(ctx context.Context, tx *store.Tx, project, repoURL, connName string) (string, error) {
+	conns, err := h.allGitLab(ctx, tx)
+	if err != nil {
+		return "", err
+	}
+	if connName != "" {
+		if project == "" {
+			return "", fmt.Errorf("the GitLab connection %s reaches only the projects an admin lets it. Name the project the build belongs to", connName)
+		}
+		for _, k := range conns {
+			if k.r.Name != connName {
+				continue
+			}
+			if !gitlabconnection.Reaches(k.spec, project) {
+				return "", fmt.Errorf("the GitLab connection %s doesn't reach this project. An admin says which projects each connection reaches in Settings, Integrations", connName)
+			}
+			projectPath := gitlab.ProjectPath(k.spec.GetInstanceUrl(), repoURL)
+			if projectPath == "" {
+				return "", fmt.Errorf("the GitLab connection %s is for %s, not %s. Dockwell never sends a GitLab token to another host", connName, k.spec.GetInstanceUrl(), shown(repoURL))
+			}
+			if !gitlab.MatchesPrefix(projectPath, k.spec.GetPathPrefix()) {
+				return "", fmt.Errorf("the GitLab connection %s covers %s, which doesn't include %s", connName, k.spec.GetPathPrefix(), projectPath)
+			}
+			return service.GitLabLoginPrefix + k.r.Name, nil
+		}
+		return "", fmt.Errorf("there's no GitLab connection %s any more. Connect it again in Settings, Integrations", connName)
+	}
+	if project == "" {
+		return "", nil
+	}
+	var best *keptGitLab
+	bestPrefixLen := -1
+	for i := range conns {
+		k := conns[i]
+		if !gitlabconnection.Reaches(k.spec, project) {
+			continue
+		}
+		projectPath := gitlab.ProjectPath(k.spec.GetInstanceUrl(), repoURL)
+		if projectPath == "" || !gitlab.MatchesPrefix(projectPath, k.spec.GetPathPrefix()) {
+			continue
+		}
+		if prefixLen := len(k.spec.GetPathPrefix()); best == nil || prefixLen > bestPrefixLen {
+			bestPrefixLen = prefixLen
+			best = &k
+		}
+	}
+	if best == nil {
+		return "", nil
+	}
+	return service.GitLabLoginPrefix + best.r.Name, nil
+}
+
+func (h *Handler) gitlabForOp(ctx context.Context, login, repoURL, scopeID string) (keptGitLab, error) {
+	connName, ok := service.GitLabConnectionOf(login)
+	if !ok {
+		return keptGitLab{}, fmt.Errorf("%q isn't a GitLab connection login", login)
+	}
+	if scopeID == "" {
+		scopeID = revision.GitScopeOf(ctx)
+	}
+	var found keptGitLab
+	var projectID string
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		if scopeID != "" {
+			tree, err := scope.Load(ctx, tx)
+			if err != nil {
+				return err
+			}
+			for _, p := range tree.Projects {
+				if p.ID == scopeID || p.Name == scopeID {
+					projectID = p.ID
+					break
+				}
+				for _, e := range p.Environments {
+					if e.ID == scopeID {
+						projectID = p.ID
+						break
+					}
+				}
+				if projectID != "" {
+					break
+				}
+			}
+			if projectID == "" {
+				return fmt.Errorf("the GitLab connection %s doesn't reach this project any more. Check Settings, Integrations", connName)
+			}
+		}
+		conns, err := h.allGitLab(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, k := range conns {
+			if k.r.Name == connName {
+				found = k
+				return nil
+			}
+		}
+		return fmt.Errorf("there's no GitLab connection %s any more. Connect it again in Settings, Integrations", connName)
+	})
+	if err != nil {
+		return keptGitLab{}, err
+	}
+	if projectID != "" && !gitlabconnection.Reaches(found.spec, projectID) {
+		return keptGitLab{}, fmt.Errorf("the GitLab connection %s doesn't reach this project any more, so its build can't fetch %s. An admin lets the connection reach the project in Settings, Integrations", connName, shown(repoURL))
+	}
+	projectPath := gitlab.ProjectPath(found.spec.GetInstanceUrl(), repoURL)
+	if projectPath == "" {
+		return keptGitLab{}, fmt.Errorf("the GitLab connection %s is for %s, not %s. Dockwell never sends a GitLab token to another host", connName, found.spec.GetInstanceUrl(), shown(repoURL))
+	}
+	if !gitlab.MatchesPrefix(projectPath, found.spec.GetPathPrefix()) {
+		return keptGitLab{}, fmt.Errorf("the GitLab connection %s covers %s, which doesn't include %s", connName, found.spec.GetPathPrefix(), projectPath)
+	}
+	return found, nil
+}
+
+// GitLabGitTarget verifies that login covers repoURL (and scopeID's project,
+// when given) and returns the smart-HTTP target URL, the Basic oauth2 header
+// (never leaving the control plane), and the connection name.
+func (h *Handler) GitLabGitTarget(ctx context.Context, login, repoURL, scopeID string) (targetURL, authHeader, connName string, err error) {
+	k, err := h.gitlabForOp(ctx, login, repoURL, scopeID)
+	if err != nil {
+		return "", "", "", err
+	}
+	targetURL, err = h.cfg.GitLab.GitURL(repoURL)
+	if err != nil {
+		return "", "", "", err
+	}
+	authHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("oauth2:"+k.spec.GetToken()))
+	return targetURL, authHeader, k.r.Name, nil
+}
+
+// FetchGitLabPackIn fetches and verifies a shallow Git pack over HTTPS on the
+// control plane using the GitLab connection's token (never sending the token to
+// any agent or to another host) (ADR 0113).
+func (h *Handler) FetchGitLabPackIn(ctx context.Context, login, repoURL, ref, commit, scopeID string) (io.ReaderAt, int64, func(), error) {
+	if scopeID == "" {
+		scopeID = revision.GitScopeOf(ctx)
+	}
+	if scopeID == "" {
+		return nil, 0, nil, errors.New("a GitLab connection reaches only the projects an admin lets it, and this build named none")
+	}
+	k, err := h.gitlabForOp(ctx, login, repoURL, scopeID)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	targetURL, err := h.cfg.GitLab.GitURL(repoURL)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("oauth2:"+k.spec.GetToken()))
+	f, size, err := gitfetch.FetchVerifiedPack(ctx, gitfetch.PackFetchOptions{
+		RepoURL:      targetURL,
+		Ref:          ref,
+		Commit:       commit,
+		AuthHeader:   authHeader,
+		Client:       h.cfg.GitLab.HTTPClient(),
+		AllowPrivate: true,
+		PackTempDir:  h.cfg.PackTempDir,
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	var once sync.Once
+	cleanup := func() {
+		once.Do(func() {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+		})
+	}
+	return f, size, cleanup, nil
 }
 
 // DockerBuildAuthorization rechecks the reviewed project's access before a

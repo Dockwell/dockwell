@@ -42,6 +42,11 @@ EXPOSE 8080
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `
 
+const standaloneImageDockerfile = `FROM scratch
+COPY index.html /index.html
+RUN echo "built standalone docker image over ssh"
+`
+
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
@@ -112,8 +117,9 @@ func run() error {
 		commitN++
 		subject := fmt.Sprintf("Deploy commit %d over SSH", commitN)
 		sha, err := addCommit(work, "main", subject, map[string]string{
-			"Dockerfile": appDockerfile,
-			"index.html": subject + "\n",
+			"Dockerfile":       appDockerfile,
+			"Dockerfile.image": standaloneImageDockerfile,
+			"index.html":       subject + "\n",
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -180,8 +186,9 @@ func initRepo(bare, work string) error {
 		return err
 	}
 	if _, err := addCommit(work, "main", "Add SSH deploy key app", map[string]string{
-		"Dockerfile": appDockerfile,
-		"index.html": "Add SSH deploy key app\n",
+		"Dockerfile":       appDockerfile,
+		"Dockerfile.image": standaloneImageDockerfile,
+		"index.html":       "Add SSH deploy key app\n",
 	}); err != nil {
 		return err
 	}

@@ -1775,7 +1775,8 @@ func (x *CheckGitLabConnectionRequest) GetToken() string {
 	return ""
 }
 
-// CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
+// CheckGitLabConnectionResponse reports whether the GitLab token can build
+// private repositories or post commit statuses.
 type CheckGitLabConnectionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	State         GitLabConnectionState  `protobuf:"varint,1,opt,name=state,proto3,enum=dockwell.v1.GitLabConnectionState" json:"state,omitempty"`
@@ -1971,8 +1972,10 @@ type GitLabProject struct {
 	// to this repository, so only an install admin may bind a deploy token in
 	// this project to it.
 	ClaimedByOtherProject bool `protobuf:"varint,5,opt,name=claimed_by_other_project,json=claimedByOtherProject,proto3" json:"claimed_by_other_project,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Default branch reported by GitLab, such as "main", when known.
+	DefaultBranch string `protobuf:"bytes,6,opt,name=default_branch,json=defaultBranch,proto3" json:"default_branch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GitLabProject) Reset() {
@@ -2038,6 +2041,13 @@ func (x *GitLabProject) GetClaimedByOtherProject() bool {
 		return x.ClaimedByOtherProject
 	}
 	return false
+}
+
+func (x *GitLabProject) GetDefaultBranch() string {
+	if x != nil {
+		return x.DefaultBranch
+	}
+	return ""
 }
 
 // GitLabProjectConnection summarizes a GitLab connection reachable by the project.
@@ -2276,13 +2286,14 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x05query\x18\x02 \x01(\tR\x05query\"\x9c\x01\n" +
 	"\x1aListGitLabProjectsResponse\x126\n" +
 	"\bprojects\x18\x01 \x03(\v2\x1a.dockwell.v1.GitLabProjectR\bprojects\x12F\n" +
-	"\vconnections\x18\x02 \x03(\v2$.dockwell.v1.GitLabProjectConnectionR\vconnections\"\xd8\x01\n" +
+	"\vconnections\x18\x02 \x03(\v2$.dockwell.v1.GitLabProjectConnectionR\vconnections\"\xff\x01\n" +
 	"\rGitLabProject\x12.\n" +
 	"\x13path_with_namespace\x18\x01 \x01(\tR\x11pathWithNamespace\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12#\n" +
 	"\rconnection_id\x18\x03 \x01(\tR\fconnectionId\x12'\n" +
 	"\x0fconnection_name\x18\x04 \x01(\tR\x0econnectionName\x127\n" +
-	"\x18claimed_by_other_project\x18\x05 \x01(\bR\x15claimedByOtherProject\"\xdd\x01\n" +
+	"\x18claimed_by_other_project\x18\x05 \x01(\bR\x15claimedByOtherProject\x12%\n" +
+	"\x0edefault_branch\x18\x06 \x01(\tR\rdefaultBranch\"\xdd\x01\n" +
 	"\x17GitLabProjectConnection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +

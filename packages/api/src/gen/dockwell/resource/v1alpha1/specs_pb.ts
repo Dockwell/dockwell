@@ -2964,10 +2964,11 @@ export type ImageBuild = Message<"dockwell.resource.v1alpha1.ImageBuild"> & {
 
   /**
    * What fetches a private repository: a GitHub App's installation, as
-   * "<App name>/<installation ID>" (ADR 0098), or an SSH deploy key in the
-   * app's project, as "ssh:<key name>" (ADR 0113). A plan names it where an
-   * installation or deploy key of the project matches the repository and the
-   * edit leaves it out. Empty fetches as the public. Numbered after the
+   * "<App name>/<installation ID>" (ADR 0098), a GitLab connection, as
+   * "gitlab:<connection name>" (ADR 0113), or an SSH deploy key in the app's
+   * project, as "ssh:<key name>" (ADR 0113). A plan names it where an
+   * installation, connection or deploy key of the project matches the repository
+   * and the edit leaves it out. Empty fetches as the public. Numbered after the
    * registry logins, as ADR 0098 has it.
    *
    * @generated from field: string git_login = 101;

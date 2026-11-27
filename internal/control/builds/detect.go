@@ -144,11 +144,11 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 	if err != nil {
 		return nil, err
 	}
-	// A reading through a project's SSH deploy key is that project's alone, so its
-	// result is kept under the project, whichever of its environments or the
-	// project itself asked. Every other reading is the same for everyone.
+	// A reading through a project's SSH deploy key or a GitLab connection is
+	// scoped to the project so its result is never shared across projects whose
+	// reach differs. Every other reading is the same for everyone.
 	var keyScope string
-	if _, ok := service.DeployKeyOf(b.GetGitLogin()); ok {
+	if service.UsesGitPack(b.GetGitLogin()) {
 		if keyScope, err = h.projectOfScope(ctx, revision.GitScopeOf(ctx)); err != nil {
 			return nil, err
 		}

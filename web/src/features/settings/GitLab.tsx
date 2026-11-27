@@ -23,7 +23,7 @@ import { useAllResources } from "../projects/useProjects";
 function statusBadgeFor(state: GitLabConnectionState) {
   switch (state) {
     case GitLabConnectionState.MISSING_SCOPE:
-      return { status: "degraded" as const, label: msg`Missing api scope` };
+      return { status: "degraded" as const, label: msg`Missing scope` };
     case GitLabConnectionState.AUTH_FAILED:
       return { status: "down" as const, label: msg`Token refused` };
     case GitLabConnectionState.UNREACHABLE:
@@ -121,7 +121,7 @@ export function GitLabConnectCard({ onConnect }: { onConnect: () => void }) {
       </div>
       <div className="integrations-card-text">
         <h3 className="integrations-name">GitLab</h3>
-        <p className="integrations-desc">{t`Commit statuses for GitLab CI deploys`}</p>
+        <p className="integrations-desc">{t`Private repositories and CI commit statuses`}</p>
       </div>
       <div>
         <Button size="sm" icon="plus" onClick={onConnect} {...mayPlan.off}>
@@ -259,7 +259,7 @@ export function GitLabSheet({
       open
       onClose={onClose}
       title={editing ? t`GitLab connection ${editing.name}` : t`Connect GitLab`}
-      subtitle={t`Report CI deploy commit statuses to gitlab.com or self-managed GitLab`}
+      subtitle={t`Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab`}
       footer={
         removing ? (
           <>
@@ -290,7 +290,7 @@ export function GitLabSheet({
       <div className="github-manage">
         {removing ? (
           <Callout tone="warning" title={t`Remove this GitLab connection?`}>
-            {t`Deploys from matching GitLab repositories won't report commit statuses until another connection covers them.`}
+            {t`Private repositories won't build or report commit statuses through this connection until another connection covers them.`}
           </Callout>
         ) : null}
 
@@ -319,8 +319,8 @@ export function GitLabSheet({
           placeholder={editing && !urlChanged ? t`Leave blank to keep the saved token` : "glpat-..."}
           hint={
             urlChanged
-              ? t`Enter a token for the new GitLab URL. Needs the api scope.`
-              : t`Personal, group or project access token with the api scope.`
+              ? t`Enter a token for the new GitLab URL. Needs read_repository or api scope.`
+              : t`Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses.`
           }
         />
 
@@ -337,7 +337,7 @@ export function GitLabSheet({
             checked={someProjects}
             onChange={setSomeProjects}
             label={t`Only some projects`}
-            description={t`Limit which projects' deploys can report statuses through this connection.`}
+            description={t`Limit which projects can pick repositories, build, and report statuses through this connection.`}
           />
           {someProjects ? (
             <fieldset className="github-project-list">
@@ -375,9 +375,11 @@ export function GitLabSheet({
         {checked ? (
           checked.state === GitLabConnectionState.CONNECTED ? (
             <Callout tone="healthy" title={t`Connected to GitLab`}>
-              {checked.tokenName
-                ? t`Token ${checked.tokenName} can post commit statuses to ${checked.url}.`
-                : t`This token can post commit statuses to ${checked.url}.`}
+              {checked.detail
+                ? checked.detail
+                : checked.tokenName
+                  ? t`Token ${checked.tokenName} can build private repositories and report commit statuses on ${checked.url}.`
+                  : t`This token can build private repositories and report commit statuses on ${checked.url}.`}
             </Callout>
           ) : (
             <Callout

@@ -29,6 +29,16 @@ export function useGitRepositories(project: string) {
   );
 }
 
+/** The GitLab projects a project's apps may build from through its allowed GitLab connections (cached 60 s). */
+export function useGitLabProjects(project: string, query = "") {
+  const allowed = useMay()(GitProviderService.method.listGitLabProjects, project ? { project } : undefined).allowed;
+  return useQuery(
+    GitProviderService.method.listGitLabProjects,
+    { project, query },
+    { enabled: allowed && project !== "", staleTime: 60_000, refetchOnWindowFocus: false },
+  );
+}
+
 /** The App and installation a build's git login names, as "<App name>/<installation ID>", where they're listed. */
 export function installationOf(
   apps: readonly GitHubAppInfo[] | undefined,

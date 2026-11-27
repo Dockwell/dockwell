@@ -142,7 +142,7 @@ func (h *Handler) CheckGitLabConnection(ctx context.Context, req *connect.Reques
 	usingSavedToken := false
 	if token == "" {
 		if saved == nil {
-			return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with the api scope")
+			return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with read_repository or api scope")
 		}
 		savedURL, serr := gitlabconnection.NormalizeURL(saved.spec.GetInstanceUrl())
 		if serr != nil || savedURL != normURL {
@@ -152,7 +152,7 @@ func (h *Handler) CheckGitLabConnection(ctx context.Context, req *connect.Reques
 		usingSavedToken = true
 	}
 	if token == "" {
-		return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with the api scope")
+		return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with read_repository or api scope")
 	}
 
 	info, err := h.cfg.GitLab.CheckToken(ctx, normURL, token)
@@ -181,7 +181,7 @@ func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabCon
 			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error(), nil, ""
 		case errors.As(err, &ge) && (ge.Status == 401 || ge.Status == 403):
 			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED,
-				"GitLab refused this token. Check that it hasn't expired or been revoked, and carries the api scope.", nil, ""
+				"GitLab refused this token. Check that it hasn't expired or been revoked, and carries read_repository or api scope.", nil, ""
 		case errors.As(err, &ge):
 			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, ge.Error(), nil, ""
 		default:
@@ -190,13 +190,21 @@ func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabCon
 	}
 	if info.Revoked || (info.ScopesKnown && !info.Active) {
 		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED,
-			"This GitLab token is revoked or expired. Create a new token with the api scope.", info.Scopes, info.Name
+			"This GitLab token is revoked or expired. Create a new token with read_repository (plus read_api to list projects) or api scope.", info.Scopes, info.Name
 	}
-	if !info.HasAPIScope() {
-		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE,
-			"This token doesn't have the api scope needed to report commit statuses. Create a token with the api scope.", info.Scopes, info.Name
+	if info.HasAPIScope() {
+		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name
 	}
-	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name
+	if info.HasReadRepositoryScope() {
+		if info.HasListProjectsScope() {
+			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+				"Builds private repositories and lists projects. Add the api scope to also report CI commit statuses.", info.Scopes, info.Name
+		}
+		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+			"Builds private repositories. Add read_api to list projects in the picker, or api to also report CI commit statuses.", info.Scopes, info.Name
+	}
+	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE,
+		"This token needs read_repository (plus read_api to list projects) to build private repositories, or api to also report CI commit statuses.", info.Scopes, info.Name
 }
 
 func (h *Handler) invalidateGitLabProjectsCache(connID string) {
@@ -335,6 +343,7 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 				ConnectionId:          k.r.ID,
 				ConnectionName:        k.r.Name,
 				ClaimedByOtherProject: claimed[key],
+				DefaultBranch:         p.DefaultBranch,
 			})
 		}
 	}

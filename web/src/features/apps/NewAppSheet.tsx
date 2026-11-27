@@ -77,7 +77,7 @@ import { registryOf, useRegistryLogins } from "../registries/registries";
 import { defaultServer } from "../servers/pick";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
 import { useFleet, useFleetView } from "../servers/useFleet";
-import { useGitRepositories } from "../settings/github";
+import { useGitLabProjects, useGitRepositories } from "../settings/github";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { useRuntimes } from "../websites/website";
 import {
@@ -123,7 +123,7 @@ import {
   validEnvName,
   validPort,
 } from "./form";
-import { deployKeyNameOf, isSSHRepository } from "./gitHost";
+import { deployKeyNameOf, GITLAB_LOGIN_PREFIX, gitlabConnectionNameOf, isSSHRepository } from "./gitHost";
 import { ImageField, type ImageRead } from "./ImageField";
 import { CatalogSource } from "./NewAppCatalog";
 import { useProjectPage } from "./projectPage";
@@ -1217,10 +1217,19 @@ function GitFields({
     }
   };
   const placeholderName = nameFromRepository(git.url) || "web";
+  const [glQuery, setGlQuery] = useState("");
   const repositories = useGitRepositories(project).data?.repositories ?? [];
+  const glListing = useGitLabProjects(project, glQuery).data;
+  const gitlabProjects = glListing?.projects ?? [];
+  const gitlabConnections = glListing?.connections ?? [];
   const deployKeys = useGitDeployKeys(project);
   const sshAddress = isSSHRepository(git.url);
   const keyName = deployKeyNameOf(git.gitLogin);
+  const explicitGitLab = gitlabConnectionNameOf(git.gitLogin);
+  const matchedGitLab = useMemo(() => {
+    if (sshAddress) return undefined;
+    return gitlabProjects.find((p) => sameRepository(p.url, git.url));
+  }, [gitlabProjects, git.url, sshAddress]);
   const matchedKey = useMemo(() => {
     const list = deployKeys.data?.keys ?? [];
     if (keyName) {
@@ -1229,8 +1238,17 @@ function GitFields({
     }
     return list.find((k) => sameRepository(k.repository, git.url));
   }, [deployKeys.data?.keys, git.url, keyName]);
+  // Prefer a matching GitLab connection over an SSH deploy key for the same
+  // repository unless the user explicitly chose or pasted an SSH deploy key.
+  const preferredGitLabLogin = explicitGitLab
+    ? git.gitLogin
+    : matchedGitLab
+      ? `${GITLAB_LOGIN_PREFIX}${matchedGitLab.connectionName}`
+      : "";
   const effectiveGitLogin =
-    git.gitLogin || (matchedKey?.hostKeyPinned && !matchedKey.hostKeyChanged ? matchedKey.gitLogin : "");
+    preferredGitLabLogin ||
+    git.gitLogin ||
+    (matchedKey?.hostKeyPinned && !matchedKey.hostKeyChanged ? matchedKey.gitLogin : "");
   const [testedRepo, setTestedRepo] = useState<{
     url: string;
     branches: readonly string[];
@@ -1238,7 +1256,15 @@ function GitFields({
     gitLogin: string;
   }>();
   const waitForDeployKey = sshAddress && (!matchedKey?.hostKeyPinned || matchedKey.hostKeyChanged);
-  const repository = useRepository(git.url, project, repositories, effectiveGitLogin, waitForDeployKey);
+  const repository = useRepository(
+    git.url,
+    project,
+    repositories,
+    effectiveGitLogin,
+    waitForDeployKey,
+    !sshAddress ? matchedKey?.name : undefined,
+  );
+  const activeGitLab = gitlabConnectionNameOf(repository.resolvedLogin || effectiveGitLogin);
   const verifiedOverride =
     testedRepo && sameRepository(testedRepo.url, git.url) && testedRepo.gitLogin === effectiveGitLogin
       ? testedRepo
@@ -1300,9 +1326,13 @@ function GitFields({
           fieldRef={fieldRef}
           value={git.url}
           repositories={repositories}
+          gitlabProjects={gitlabProjects}
+          gitlabConnections={gitlabConnections}
+          deployKeys={deployKeys.data?.keys ?? []}
+          onSearch={setGlQuery}
           error={errors["git.url"] ?? (repository.authRequired ? undefined : repository.failed)}
           hint={repository.state}
-          onChange={(url) => onGit({ url, gitLogin: "" }, "git.url")}
+          onChange={(url, picked) => onGit({ url, gitLogin: picked?.gitLogin ?? "" }, "git.url")}
         />
         {branchOptions.length > 1 ? (
           <SelectField
@@ -1321,29 +1351,31 @@ function GitFields({
             label={t`Branch`}
             icon="branch"
             mono
-            placeholder={repoDefaultBranch || "main"}
+            placeholder={repoDefaultBranch || matchedGitLab?.defaultBranch || "main"}
             value={git.ref}
             error={errors["git.ref"]}
             onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
           />
         )}
       </div>
-      <DeployKeySetup
-        project={project}
-        repository={git.url}
-        activeKey={matchedKey}
-        authRequired={repository.authRequired}
-        sshAddress={sshAddress}
-        onCreated={(k) => {
-          onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
-          void deployKeys.refetch();
-        }}
-        onVerified={(k, branches, defaultBranch) => {
-          onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
-          setTestedRepo({ url: k.repository, branches, defaultBranch, gitLogin: k.gitLogin });
-          void deployKeys.refetch();
-        }}
-      />
+      {activeGitLab && !sshAddress ? null : (
+        <DeployKeySetup
+          project={project}
+          repository={git.url}
+          activeKey={matchedKey}
+          authRequired={repository.authRequired}
+          sshAddress={sshAddress}
+          onCreated={(k) => {
+            onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
+            void deployKeys.refetch();
+          }}
+          onVerified={(k, branches, defaultBranch) => {
+            onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
+            setTestedRepo({ url: k.repository, branches, defaultBranch, gitLogin: k.gitLogin });
+            void deployKeys.refetch();
+          }}
+        />
+      )}
       <BuildRow
         git={effectiveGitLogin ? { ...git, gitLogin: effectiveGitLogin } : git}
         project={project}
@@ -1487,6 +1519,7 @@ function useRepository(
   repositories: readonly GitRepository[],
   gitLogin: string,
   pauseLookup: boolean,
+  matchingDeployKeyName?: string,
 ): {
   state?: ReactNode;
   failed?: ReactNode;
@@ -1495,6 +1528,8 @@ function useRepository(
   checked: boolean;
   /** The URL it answered for. */
   url: string;
+  /** The git login returned by the server (or requested). */
+  resolvedLogin: string;
   branches: readonly string[];
   defaultBranch: string;
 } {
@@ -1507,7 +1542,7 @@ function useRepository(
   // Having the control server ask a repository is a developer's, as planning is (ADR 0059).
   const allowed = useMay()(BuildService.method.listRepositoryBranches).allowed;
   const worth = looksLikeRepository(typed) && allowed && !pauseLookup;
-  // For the project, as its builds fetch it: through its GitHub App installation or SSH deploy key (ADR 0098, ADR 0113).
+  // For the project, as its builds fetch it: through its GitHub App installation, GitLab connection, or SSH deploy key (ADR 0098, ADR 0113).
   const asked = useQuery(
     BuildService.method.listRepositoryBranches,
     { url, project, ...(gitLogin ? { gitLogin } : {}) },
@@ -1518,13 +1553,14 @@ function useRepository(
       refetchOnWindowFocus: false,
     },
   );
-  if (!worth) return { authRequired: false, checked: false, url, branches: [], defaultBranch: "" };
+  if (!worth) return { authRequired: false, checked: false, url, resolvedLogin: "", branches: [], defaultBranch: "" };
   if (url !== typed.trim() || asked.isFetching)
     return {
       state: t`Checking the repository`,
       authRequired: false,
       checked: false,
       url,
+      resolvedLogin: "",
       branches: [],
       defaultBranch: "",
     };
@@ -1550,6 +1586,7 @@ function useRepository(
       authRequired,
       checked: false,
       url,
+      resolvedLogin: "",
       branches: [],
       defaultBranch: "",
     };
@@ -1558,12 +1595,14 @@ function useRepository(
   const count = asked.data?.total || branches.length;
   const login = asked.data?.gitLogin || gitLogin;
   const deployKey = deployKeyNameOf(login);
-  const through = login && !deployKey ? repositories.find((r) => sameRepository(r.url, url)) : undefined;
+  const gitlabConn = gitlabConnectionNameOf(login);
+  const through = login && !deployKey && !gitlabConn ? repositories.find((r) => sameRepository(r.url, url)) : undefined;
   const account = through?.account ?? "";
   return {
     authRequired: false,
     checked: true,
     url,
+    resolvedLogin: login,
     state: !login
       ? plural(count, { one: "Public · # branch", other: "Public · # branches" })
       : deployKey
@@ -1571,15 +1610,25 @@ function useRepository(
             one: `Private, with deploy key ${deployKey} · # branch`,
             other: `Private, with deploy key ${deployKey} · # branches`,
           })
-        : through?.private
-          ? plural(count, {
-              one: `Private, through ${account} · # branch`,
-              other: `Private, through ${account} · # branches`,
-            })
-          : plural(count, {
-              one: "Through the GitHub App · # branch",
-              other: "Through the GitHub App · # branches",
-            }),
+        : gitlabConn
+          ? matchingDeployKeyName
+            ? plural(count, {
+                one: `Through GitLab (${gitlabConn}, preferred over deploy key ${matchingDeployKeyName}) · # branch`,
+                other: `Through GitLab (${gitlabConn}, preferred over deploy key ${matchingDeployKeyName}) · # branches`,
+              })
+            : plural(count, {
+                one: `Through GitLab (${gitlabConn}) · # branch`,
+                other: `Through GitLab (${gitlabConn}) · # branches`,
+              })
+          : through?.private
+            ? plural(count, {
+                one: `Private, through ${account} · # branch`,
+                other: `Private, through ${account} · # branches`,
+              })
+            : plural(count, {
+                one: "Through the GitHub App · # branch",
+                other: "Through the GitHub App · # branches",
+              }),
     branches,
     defaultBranch: asked.data?.defaultBranch ?? "",
   };

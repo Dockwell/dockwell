@@ -537,8 +537,8 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "url", Flag: "repository", Help: "The repository's URL, such as \"https://github.com/acme/web.git\", which the CLI takes as --repository."},
-				{Path: "project", Help: "The project whose app builds from it, by ID or name. A repository one of its GitHub App installations or deploy keys reaches is read through it, private or not, as the project's builds fetch it (ADR 0098, ADR 0113)."},
-				{Path: "git_login", Help: "Optional git login to read through, such as \"ssh:<key name>\" for a deploy key in project (ADR 0113)."},
+				{Path: "project", Help: "The project whose app builds from it, by ID or name. A repository one of its GitHub App installations, GitLab connections or deploy keys reaches is read through it, private or not, as the project's builds fetch it (ADR 0098, ADR 0113)."},
+				{Path: "git_login", Help: "Optional git login to read through, such as \"ssh:<key name>\" for a deploy key in project or \"gitlab:<connection name>\" for a GitLab connection (ADR 0113)."},
 			},
 			Call: apicli.Unary[v1.ListRepositoryBranchesRequest, v1.ListRepositoryBranchesResponse](dockwellv1connect.BuildServiceListRepositoryBranchesProcedure),
 		},
@@ -3079,7 +3079,7 @@ func Methods() []*apicli.Method {
 			Noun:      "git-providers",
 			Verb:      "check-gitlab",
 			Short:     "Check a GitLab host and access token from the control plane without saving anything",
-			Long:      "Check a GitLab host and access token from the control plane without saving\nanything, verifying connectivity and the api scope required for commit statuses\n(ADR 0111).",
+			Long:      "Check a GitLab host and access token from the control plane without saving\nanything, verifying connectivity and token scopes for private repository builds\n(read_repository, plus read_api to list projects) and CI commit statuses (api)\n(ADR 0111, ADR 0113).",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "name", Help: "Optional saved gitlab.connection name whose token is reused when token is empty."},
@@ -5704,7 +5704,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "build.build_command", Help: "With Railpack, the command that builds the app, such as \"npm run build\", in place of the one it finds."},
 				{Path: "build.start_command", Help: "With Railpack, the command the image starts with, such as \"node server.js\", in place of the one it finds."},
 				{Path: "build.registry_logins", Help: "The registry logins its Dockerfile's images pull with, by name, one for each registry: its FROM lines', COPY --from's and RUN --mount from='s. None unless named, as its Dockerfile can read any image a login it's given can read. A login for a registry on the server's loopback can't be given, and a build with logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in the block registry logins hold, 100 to 109."},
-				{Path: "build.git_login", Help: "What fetches a private repository: a GitHub App's installation, as \"<App name>/<installation ID>\" (ADR 0098), or an SSH deploy key in the app's project, as \"ssh:<key name>\" (ADR 0113). A plan names it where an installation or deploy key of the project matches the repository and the edit leaves it out. Empty fetches as the public. Numbered after the registry logins, as ADR 0098 has it."},
+				{Path: "build.git_login", Help: "What fetches a private repository: a GitHub App's installation, as \"<App name>/<installation ID>\" (ADR 0098), a GitLab connection, as \"gitlab:<connection name>\" (ADR 0113), or an SSH deploy key in the app's project, as \"ssh:<key name>\" (ADR 0113). A plan names it where an installation, connection or deploy key of the project matches the repository and the edit leaves it out. Empty fetches as the public. Numbered after the registry logins, as ADR 0098 has it."},
 				{Path: "runtime.language", Help: "The language: \"node\", \"python\", \"go\" or \"java\"."},
 				{Path: "runtime.version", Help: "Its version, such as \"24\" for Node.js or \"3.14\" for Python. Empty takes the newest, and is written as it."},
 				{Path: "runtime.folder", Help: "The folder on the server that holds the app, such as \"/srv/shop\". It's mounted at /app, read-write, as what the app installs goes there. A folder that isn't there is made as user's."},

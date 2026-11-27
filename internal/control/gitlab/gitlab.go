@@ -78,6 +78,22 @@ func (c *Client) http() Doer {
 	return NewClient()
 }
 
+// HTTPClient returns the custom *http.Client configured for tests, or nil in
+// production so callers fall back to netguard's client.
+func (c *Client) HTTPClient() *http.Client {
+	if c == nil {
+		return nil
+	}
+	hc, _ := c.HTTP.(*http.Client)
+	return hc
+}
+
+// GitURL returns the smart-HTTP target URL for repoURL, rewriting scheme and
+// host to TestBase when running against a test stand-in (DOCKWELL_TEST_GITLAB).
+func (c *Client) GitURL(repoURL string) (string, error) {
+	return c.endpoint(repoURL, "")
+}
+
 func (c *Client) endpoint(baseURL, apiPath string) (string, error) {
 	base := strings.TrimRight(baseURL, "/")
 	if c != nil && c.TestBase != "" {
@@ -204,6 +220,26 @@ func (t TokenInfo) HasAPIScope() bool {
 	return slices.Contains(t.Scopes, "api")
 }
 
+// HasReadRepositoryScope reports whether the token can fetch private Git
+// repositories over HTTPS (read_repository, write_repository, or api).
+func (t TokenInfo) HasReadRepositoryScope() bool {
+	if !t.ScopesKnown {
+		return true
+	}
+	return slices.Contains(t.Scopes, "api") ||
+		slices.Contains(t.Scopes, "read_repository") ||
+		slices.Contains(t.Scopes, "write_repository")
+}
+
+// HasListProjectsScope reports whether the token can list projects through
+// GET /api/v4/projects (read_api or api).
+func (t TokenInfo) HasListProjectsScope() bool {
+	if !t.ScopesKnown {
+		return true
+	}
+	return slices.Contains(t.Scopes, "api") || slices.Contains(t.Scopes, "read_api")
+}
+
 // CheckToken verifies that token authenticates against baseURL and checks its
 // scopes when GitLab supports /api/v4/personal_access_tokens/self.
 func (c *Client) CheckToken(ctx context.Context, baseURL, token string) (TokenInfo, error) {
@@ -290,6 +326,7 @@ func (c *Client) findCommitStatus(ctx context.Context, baseURL, token, projectPa
 type Project struct {
 	PathWithNamespace string `json:"path_with_namespace"`
 	WebURL            string `json:"web_url"`
+	DefaultBranch     string `json:"default_branch"`
 }
 
 // ListProjects lists up to 100 GitLab projects accessible to token, filtered by
@@ -336,7 +373,7 @@ func ProjectPath(baseURL, repoURL string) string {
 	}
 	base, berr := url.Parse(strings.TrimSpace(baseURL))
 	repo, rerr := url.Parse(rawRepo)
-	if berr != nil || rerr != nil || !strings.EqualFold(base.Host, repo.Host) || repo.User != nil || repo.RawQuery != "" || repo.Fragment != "" {
+	if berr != nil || rerr != nil || !strings.EqualFold(base.Scheme, repo.Scheme) || !strings.EqualFold(base.Host, repo.Host) || repo.User != nil || repo.RawQuery != "" || repo.Fragment != "" {
 		return ""
 	}
 	basePath := strings.TrimRight(base.Path, "/")

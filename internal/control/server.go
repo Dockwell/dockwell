@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -104,6 +105,7 @@ import (
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -849,21 +851,21 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		var apps *gitproviders.Handler
 		glClient := &gitlab.Client{HTTP: cfg.GitLab.Client, TestBase: cfg.GitLab.Base}
 		if cfg.Auth != nil && cfg.Secrets != nil {
-			// GitHub as an App Dockwell makes: connecting it, its installations, and
-			// the repositories a project's apps may build from (ADR 0098), plus GitLab
-			// connections for CI deploy status reporting (ADR 0111).
-			apps = gitproviders.New(gitproviders.Config{
-				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
-				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, GitLab: glClient,
-				Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
-			})
-			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
-			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
-			appSources.SetApps(apps)
 			var packTempDir string
 			if cfg.DataDir != "" {
 				packTempDir = filepath.Join(cfg.DataDir, "ssh-packs")
 			}
+			// GitHub as an App Dockwell makes: connecting it, its installations, and
+			// the repositories a project's apps may build from (ADR 0098), plus GitLab
+			// connections for CI deploy status reporting and private builds (ADR 0111, ADR 0113).
+			apps = gitproviders.New(gitproviders.Config{
+				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
+				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, GitLab: glClient,
+				PackTempDir: packTempDir, Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
+			})
+			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
+			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
+			appSources.SetApps(apps)
 			deployKeys := gitkeys.New(gitkeys.Config{
 				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
 				Local:       cfg.GitKeysLocal || testing.Testing(),
@@ -876,7 +878,17 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 			if cfg.Agents != nil {
 				cfg.Agents.SendGitAuth(apps.AuthorizationIn)
 				cfg.Agents.SendDockerBuildGitAuth(apps.DockerBuildAuthorization)
-				cfg.Agents.SendGitPack(deployKeys.FetchPackIn)
+				cfg.Agents.SendGitPack(func(ctx context.Context, login, repoURL, ref, commit, scopeID string) (io.ReaderAt, int64, func(), error) {
+					if _, isGL := service.GitLabConnectionOf(login); isGL {
+						release, err := deployKeys.AcquirePackFetch(ctx, scopeID)
+						if err != nil {
+							return nil, 0, nil, err
+						}
+						defer release()
+						return apps.FetchGitLabPackIn(ctx, login, repoURL, ref, commit, scopeID)
+					}
+					return deployKeys.FetchPackIn(ctx, login, repoURL, ref, commit, scopeID)
+				})
 			}
 			if buildHandler != nil {
 				// A form's readings fetch a private repository as the plan will.

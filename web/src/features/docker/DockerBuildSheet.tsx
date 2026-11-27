@@ -30,12 +30,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { delay } from "../../lib/retry";
+import { DeployKeySetup, useGitDeployKeys } from "../apps/DeployKeyPanel";
+import { deployKeyNameOf, GITLAB_LOGIN_PREFIX, gitlabConnectionNameOf, isSSHRepository } from "../apps/gitHost";
 import { RepositoryField, sameRepository } from "../apps/RepositoryField";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFolderList } from "../files/folders";
 import { useProjects } from "../projects/useProjects";
 import { useRegistryLogins } from "../registries/registries";
-import { useGitRepositories } from "../settings/github";
+import { useGitLabProjects, useGitRepositories } from "../settings/github";
 import { ARTIFACT_CHUNK, archiveHash, committedUploadAfterConflict } from "./archiveTransfer";
 
 type Source = "folder" | "git" | "upload";
@@ -65,6 +67,8 @@ export function DockerBuildSheet({
   );
   const [folder, setFolder] = useState("");
   const [repository, setRepository] = useState("");
+  const [gitLogin, setGitLogin] = useState("");
+  const [glQuery, setGlQuery] = useState("");
   const [ref, setRef] = useState("");
   const [subdirectory, setSubdirectory] = useState("");
   const [project, setProject] = useState("");
@@ -90,8 +94,34 @@ export function DockerBuildSheet({
   const folders = useFolderList(server);
   const projects = useProjects();
   const registryLogins = useRegistryLogins({ project }, advanced);
-  const repos = useGitRepositories(source === "git" ? project : "");
+  const gitProject = source === "git" ? project : "";
+  const repos = useGitRepositories(gitProject);
+  const glListing = useGitLabProjects(gitProject, glQuery);
+  const deployKeys = useGitDeployKeys(gitProject, source === "git");
+  const gitlabProjects = glListing.data?.projects ?? [];
+  const gitlabConnections = glListing.data?.connections ?? [];
+  const sshAddress = isSSHRepository(repository);
   const repo = repos.data?.repositories.find((r) => sameRepository(r.url, repository));
+  const matchedGitLab = !sshAddress ? gitlabProjects.find((p) => sameRepository(p.url, repository)) : undefined;
+  const keyName = deployKeyNameOf(gitLogin);
+  const matchedKey = useMemo(() => {
+    const list = deployKeys.data?.keys ?? [];
+    if (keyName) {
+      const byName = list.find((k) => k.name === keyName);
+      if (byName && sameRepository(byName.repository, repository)) return byName;
+    }
+    return list.find((k) => sameRepository(k.repository, repository));
+  }, [deployKeys.data?.keys, keyName, repository]);
+  const preferredGitLabLogin = gitlabConnectionNameOf(gitLogin)
+    ? gitLogin
+    : matchedGitLab
+      ? `${GITLAB_LOGIN_PREFIX}${matchedGitLab.connectionName}`
+      : "";
+  const effectiveGitLogin =
+    preferredGitLabLogin ||
+    gitLogin ||
+    (matchedKey?.hostKeyPinned && !matchedKey.hostKeyChanged ? matchedKey.gitLogin : "");
+  const activeGitLab = gitlabConnectionNameOf(effectiveGitLogin);
   const context = useQuery(
     DockerService.method.getDockerArtifact,
     { serverId: server, artifactId: contextId },
@@ -246,6 +276,7 @@ export function DockerBuildSheet({
                         repository: repository.trim(),
                         ref: ref.trim(),
                         subdirectory: subdirectory.trim(),
+                        gitLogin: effectiveGitLogin,
                         project,
                       },
                     }
@@ -345,25 +376,59 @@ export function DockerBuildSheet({
               ]}
               onChange={(event) => {
                 setProject(event.target.value);
+                setGitLogin("");
                 setLogins([]);
               }}
             />
-            {project && repos.isLoading ? (
+            {project && repos.isLoading && glListing.isLoading ? (
               <Loading label={t`Reading repositories`}>
                 <SkeletonFacts layout="rows" count={1} />
               </Loading>
             ) : (
               <RepositoryField
                 value={repository}
-                onChange={setRepository}
+                onChange={(url, picked) => {
+                  setRepository(url);
+                  setGitLogin(picked?.gitLogin ?? "");
+                }}
                 repositories={repos.data?.repositories ?? []}
+                gitlabProjects={gitlabProjects}
+                gitlabConnections={gitlabConnections}
+                deployKeys={deployKeys.data?.keys ?? []}
+                onSearch={setGlQuery}
+                hint={
+                  activeGitLab
+                    ? !sshAddress && matchedKey
+                      ? t`Through GitLab (${activeGitLab}, preferred over deploy key ${matchedKey.name}).`
+                      : t`Through GitLab (${activeGitLab}).`
+                    : undefined
+                }
+              />
+            )}
+            {activeGitLab && !sshAddress ? null : (
+              <DeployKeySetup
+                project={project}
+                repository={repository}
+                activeKey={matchedKey}
+                authRequired={false}
+                sshAddress={sshAddress}
+                onCreated={(k) => {
+                  setRepository(k.repository);
+                  setGitLogin(k.gitLogin);
+                  void deployKeys.refetch();
+                }}
+                onVerified={(k) => {
+                  setRepository(k.repository);
+                  setGitLogin(k.gitLogin);
+                  void deployKeys.refetch();
+                }}
               />
             )}
             <TextField
               label={t`Branch, tag or commit`}
               mono
               value={ref}
-              placeholder={repo?.defaultBranch || t`Default branch`}
+              placeholder={repo?.defaultBranch || matchedGitLab?.defaultBranch || t`Default branch`}
               onChange={(event) => setRef(event.target.value)}
             />
             <TextField

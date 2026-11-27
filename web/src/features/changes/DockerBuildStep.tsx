@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { BuildLog } from "../apps/BuildLog";
+import { deployKeyNameOf, gitlabConnectionNameOf } from "../apps/gitHost";
 import { useMay } from "../auth/may";
 import { shortImageId } from "../docker/imageIdentity";
 import { CopyButton } from "../servers/CopyButton";
@@ -147,6 +148,17 @@ export function DockerBuildStep({
               <code title={action.gitCommit}>{action.gitCommit.slice(0, 12)}</code>
               <CopyButton label={t`Copy commit`} text={action.gitCommit} />
             </>
+          ) : null}
+          {b?.git?.gitLogin ? (
+            <Tag>
+              {(() => {
+                const key = deployKeyNameOf(b.git.gitLogin);
+                if (key) return t`with deploy key ${key}`;
+                const gl = gitlabConnectionNameOf(b.git.gitLogin);
+                if (gl) return t`through GitLab connection ${gl}`;
+                return t`through GitHub App ${b.git.gitLogin}`;
+              })()}
+            </Tag>
           ) : null}
         </dd>
         <dt>

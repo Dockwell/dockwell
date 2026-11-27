@@ -12,18 +12,20 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // GitPackFetcher fetches a verified Git pack on the control plane for a build
-// or detection that uses an SSH deploy key (ADR 0113). The returned cleanup
-// closes and removes the temporary pack file.
+// or detection that keeps its credentials on the control plane: SSH deploy keys
+// and GitLab connections (ADR 0113). The returned cleanup closes and removes
+// the temporary pack file.
 type GitPackFetcher func(ctx context.Context, login, repoURL, ref, commit, scopeID string) (io.ReaderAt, int64, func(), error)
 
-// SendGitPack has a build or detection whose git_login names an SSH deploy key
-// fetch the verified Git pack on the control plane and stream it to the agent
-// over ReceiveFile (ADR 0113).
+// SendGitPack has a build or detection whose git_login keeps its credentials
+// on the control plane fetch the verified Git pack on the control plane and
+// stream it to the agent over ReceiveFile (ADR 0113).
 func (a *Agents) SendGitPack(fn GitPackFetcher) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -54,7 +56,7 @@ func (s *Session) buildGitAuth(ctx context.Context, step resource.Step, spec pro
 	if step.Build == nil || !ok || b.GetGitLogin() == "" {
 		return "", nil
 	}
-	if _, isKey := service.DeployKeyOf(b.GetGitLogin()); isKey {
+	if service.UsesGitPack(b.GetGitLogin()) {
 		return "", nil
 	}
 	if !s.handsGitAuth {
@@ -86,7 +88,7 @@ func (s *Session) detectGitAuth(ctx context.Context, call *agentv1.DetectBuildCa
 	if b.GetGitLogin() == "" {
 		return nil, nil
 	}
-	if _, isKey := service.DeployKeyOf(b.GetGitLogin()); isKey {
+	if service.UsesGitPack(b.GetGitLogin()) {
 		return nil, nil
 	}
 	s.agents.mu.Lock()
@@ -126,32 +128,49 @@ func (s *Session) buildGitPack(ctx context.Context, step resource.Step, spec pro
 	if step.Build == nil || !ok {
 		return nil, 0, nil, nil
 	}
-	if _, isKey := service.DeployKeyOf(b.GetGitLogin()); !isKey {
+	if !service.UsesGitPack(b.GetGitLogin()) {
 		return nil, 0, nil, nil
 	}
 	if !s.handsGitBundle || !s.transfersFiles {
-		return nil, 0, nil, fmt.Errorf("the agent on %s can't build with an SSH deploy key yet. Update the agent on %s, then deploy again", s.name, s.name)
+		return nil, 0, nil, fmt.Errorf("the agent on %s can't receive a repository pack from the control plane yet. Update the agent on %s, then deploy again", s.name, s.name)
 	}
 	s.agents.mu.Lock()
 	fn := s.agents.gitPack
 	s.agents.mu.Unlock()
 	if fn == nil {
-		return nil, 0, nil, errors.New("this control plane can't fetch a repository with an SSH deploy key")
+		return nil, 0, nil, errors.New("this control plane can't fetch a private repository pack")
 	}
 	g := b.GetGit()
 	return fn(ctx, b.GetGitLogin(), g.GetUrl(), g.GetRef(), g.GetCommit(), step.Ref.Scope)
 }
 
+func (s *Session) dockerBuildGitPack(ctx context.Context, image *dockwellv1.DockerImageAction) (io.ReaderAt, int64, func(), error) {
+	git := image.GetBuild().GetGit()
+	if git == nil || !service.UsesGitPack(git.GetGitLogin()) {
+		return nil, 0, nil, nil
+	}
+	if !s.handsGitBundle || !s.transfersFiles {
+		return nil, 0, nil, fmt.Errorf("the agent on %s can't receive a repository pack from the control plane yet. Update the agent on %s, then try again", s.name, s.name)
+	}
+	s.agents.mu.Lock()
+	fn := s.agents.gitPack
+	s.agents.mu.Unlock()
+	if fn == nil {
+		return nil, 0, nil, errors.New("this control plane can't fetch a private repository pack")
+	}
+	return fn(ctx, git.GetGitLogin(), git.GetRepository(), git.GetRef(), image.GetGitCommit(), git.GetProject())
+}
+
 func (s *Session) detectGitPack(ctx context.Context, call *agentv1.DetectBuildCall) (func(*Session) error, func(), error) {
 	b := call.GetBuild()
-	if _, isKey := service.DeployKeyOf(b.GetGitLogin()); !isKey {
+	if !service.UsesGitPack(b.GetGitLogin()) {
 		return nil, nil, nil
 	}
 	s.agents.mu.Lock()
 	fn := s.agents.gitPack
 	s.agents.mu.Unlock()
 	if fn == nil {
-		return nil, nil, errors.New("this control plane can't read a repository with an SSH deploy key")
+		return nil, nil, errors.New("this control plane can't read a private repository pack")
 	}
 	g := b.GetGit()
 	r, size, cleanupFile, err := fn(ctx, b.GetGitLogin(), g.GetUrl(), g.GetRef(), g.GetCommit(), "")
@@ -169,7 +188,7 @@ func (s *Session) detectGitPack(ctx context.Context, call *agentv1.DetectBuildCa
 	}
 	prepare := func(on *Session) error {
 		if !on.handsGitBundle || !on.transfersFiles {
-			return fmt.Errorf("the agent on %s can't read a repository with an SSH deploy key yet. Update the agent on %s, then read again", on.name, on.name)
+			return fmt.Errorf("the agent on %s can't receive a repository pack from the control plane yet. Update the agent on %s, then read again", on.name, on.name)
 		}
 		if active != nil {
 			s.agents.closeTransfer(active)

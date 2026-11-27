@@ -45,8 +45,24 @@ func TestCheckTokenAndPostCommitStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CheckToken(read_api) failed: %v", err)
 	}
-	if readInfo.HasAPIScope() {
-		t.Fatalf("read_api token should not have api scope: %+v", readInfo)
+	if readInfo.HasAPIScope() || readInfo.HasReadRepositoryScope() || !readInfo.HasListProjectsScope() {
+		t.Fatalf("read_api token scopes mismatch: %+v", readInfo)
+	}
+
+	repoInfo, err := client.CheckToken(t.Context(), "https://gitlab.example.com", gltest.TokenReadRepo)
+	if err != nil {
+		t.Fatalf("CheckToken(read_api+read_repository) failed: %v", err)
+	}
+	if repoInfo.HasAPIScope() || !repoInfo.HasReadRepositoryScope() || !repoInfo.HasListProjectsScope() {
+		t.Fatalf("read_api+read_repository token scopes mismatch: %+v", repoInfo)
+	}
+
+	repoOnlyInfo, err := client.CheckToken(t.Context(), "https://gitlab.example.com", gltest.TokenRepoOnly)
+	if err != nil {
+		t.Fatalf("CheckToken(read_repository) failed: %v", err)
+	}
+	if repoOnlyInfo.HasAPIScope() || !repoOnlyInfo.HasReadRepositoryScope() || repoOnlyInfo.HasListProjectsScope() {
+		t.Fatalf("read_repository-only token scopes mismatch: %+v", repoOnlyInfo)
 	}
 
 	if _, err := client.CheckToken(t.Context(), "https://gitlab.example.com", "glpat-bad"); err == nil {
@@ -115,6 +131,7 @@ func TestProjectPathAndMatchesPrefix(t *testing.T) {
 		t.Fatalf("ProjectPath with subpath = %q", got)
 	}
 	for _, bad := range []string{
+		"http://gitlab.example.com/acme/web",
 		"https://other.example.com/acme/web",
 		"https://gitlab.example.com/acme",
 		"https://gitlab.example.com/acme/../other",

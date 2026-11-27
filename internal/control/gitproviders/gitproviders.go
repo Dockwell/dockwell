@@ -68,6 +68,9 @@ type Config struct {
 	Client github.Doer
 	// GitLab reaches GitLab servers: a netguard-backed client unless a test's.
 	GitLab *gitlab.Client
+	// PackTempDir is a Dockwell-owned directory for temporary verified packs
+	// fetched on the control plane (ADR 0113). Empty falls back to os.TempDir().
+	PackTempDir string
 	// Now is the clock: time.Now unless a test's.
 	Now func() time.Time
 	// BeforeChange runs between reading an App and keeping a change made from it,

@@ -231,7 +231,7 @@ func checkBuild(svc *resourcev1.Service) error {
 		return err
 	}
 	if l := b.GetGitLogin(); l != "" && !validGitLogin(l) {
-		return fmt.Errorf("%q isn't a valid git login. Use a GitHub App installation (<App name>/<installation ID>) or an SSH deploy key (ssh:<key name>)", l)
+		return fmt.Errorf("%q isn't a valid git login. Use a GitHub App installation (<App name>/<installation ID>), a GitLab connection (gitlab:<connection name>), or an SSH deploy key (ssh:<key name>)", l)
 	}
 	for id, name := range b.GetSecrets() {
 		if len(id) > maxArgName || !secretID().MatchString(id) {
@@ -482,14 +482,37 @@ var gitLogin = lazyre.Regexp(`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[1-9][0-9]{0
 // SSHLoginPrefix prefixes an SSH deploy key's name in ImageBuild.git_login (ADR 0113).
 const SSHLoginPrefix = "ssh:"
 
+// GitLabLoginPrefix prefixes a GitLab connection's name in ImageBuild.git_login (ADR 0113).
+const GitLabLoginPrefix = "gitlab:"
+
 // DeployKeyOf returns the deploy key's name when login is "ssh:<name>", and ok=true.
 func DeployKeyOf(login string) (name string, ok bool) {
 	return strings.CutPrefix(login, SSHLoginPrefix)
 }
 
+// GitLabConnectionOf returns the GitLab connection's name when login is "gitlab:<name>", and ok=true.
+func GitLabConnectionOf(login string) (name string, ok bool) {
+	return strings.CutPrefix(login, GitLabLoginPrefix)
+}
+
+// UsesGitPack reports whether login fetches a verified Git pack on the control
+// plane and streams it to the building server over ReceiveFile (ADR 0113):
+// SSH deploy keys and GitLab connections both keep their credentials on the
+// control plane this way.
+func UsesGitPack(login string) bool {
+	if _, ok := DeployKeyOf(login); ok {
+		return true
+	}
+	_, ok := GitLabConnectionOf(login)
+	return ok
+}
+
 func validGitLogin(login string) bool {
 	if name, ok := DeployKeyOf(login); ok {
 		return resource.CheckLabel("deploy key", name, "acme-web") == nil
+	}
+	if name, ok := GitLabConnectionOf(login); ok {
+		return resource.CheckLabel("GitLab connection", name, "gitlab-com") == nil
 	}
 	return gitLogin().MatchString(login)
 }

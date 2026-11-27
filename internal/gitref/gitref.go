@@ -84,17 +84,32 @@ func Guard(local, plain bool) func(network, address string, _ syscall.RawConn) e
 // authKey keys the Authorization a call under a context sends.
 type authKey struct{}
 
+// authProviderKey optionally names which Git provider gave the Authorization
+// (e.g. a GitLab connection name) so 401/403 refusals report the right fix.
+type authProviderKey struct{}
+
 // WithAuth has the calls under ctx send header as their Authorization, for a
-// repository that wants credentials: a GitHub App's token for that repository
-// alone (ADR 0098). Nothing here writes it down or says it, and a redirect to
-// another host or port goes without it.
+// repository that wants credentials: a GitHub App's token or a GitLab
+// connection's token (ADR 0098, ADR 0113). Nothing here writes it down or says
+// it, and a redirect to another host or port goes without it.
 func WithAuth(ctx context.Context, header string) context.Context {
 	return context.WithValue(ctx, authKey{}, header)
+}
+
+// WithAuthProvider names the credential source (such as "GitLab connection corp")
+// used by WithAuth so auth refusal messages name the right fix.
+func WithAuthProvider(ctx context.Context, provider string) context.Context {
+	return context.WithValue(ctx, authProviderKey{}, provider)
 }
 
 func authOf(ctx context.Context) string {
 	h, _ := ctx.Value(authKey{}).(string)
 	return h
+}
+
+func authProviderOf(ctx context.Context) string {
+	p, _ := ctx.Value(authProviderKey{}).(string)
+	return p
 }
 
 // Refs is what a repository's branches and tags name.
@@ -195,6 +210,9 @@ func (r *Resolver) List(ctx context.Context, url string) (Refs, error) {
 	defer res.Body.Close()
 	switch {
 	case (res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden) && auth != "":
+		if prov := authProviderOf(ctx); prov != "" {
+			return Refs{}, fmt.Errorf("%s refused the token for %s, so Dockwell can't read it now. Check that the token is active and has read_repository scope in Settings, Integrations", where, prov)
+		}
 		return Refs{}, fmt.Errorf("%s refused the GitHub App's token, so the App's installation doesn't reach it now. Add it to the installation on GitHub", where)
 	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
 		return Refs{}, authError{msg: where + " wants credentials, so it's private, or isn't there. Check the URL, use a deploy key, or connect GitHub in Settings, Integrations"}

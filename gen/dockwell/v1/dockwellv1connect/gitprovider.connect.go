@@ -114,8 +114,9 @@ type GitProviderServiceClient interface {
 	// updating cached repositories and accepted permissions such as Checks write.
 	RefreshGitHubApp(context.Context, *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error)
 	// CheckGitLabConnection checks a GitLab host and access token from the control
-	// plane without saving anything, verifying connectivity and the api scope
-	// required for commit statuses (ADR 0111).
+	// plane without saving anything, verifying connectivity and token scopes for
+	// private repository builds (read_repository, plus read_api to list projects)
+	// and CI commit statuses (api) (ADR 0111, ADR 0113).
 	CheckGitLabConnection(context.Context, *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error)
 	// ListGitLabProjects returns the GitLab projects reachable by a project's
 	// connected GitLab instances, filtered by each connection's path prefix.
@@ -319,8 +320,9 @@ type GitProviderServiceHandler interface {
 	// updating cached repositories and accepted permissions such as Checks write.
 	RefreshGitHubApp(context.Context, *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error)
 	// CheckGitLabConnection checks a GitLab host and access token from the control
-	// plane without saving anything, verifying connectivity and the api scope
-	// required for commit statuses (ADR 0111).
+	// plane without saving anything, verifying connectivity and token scopes for
+	// private repository builds (read_repository, plus read_api to list projects)
+	// and CI commit statuses (api) (ADR 0111, ADR 0113).
 	CheckGitLabConnection(context.Context, *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error)
 	// ListGitLabProjects returns the GitLab projects reachable by a project's
 	// connected GitLab instances, filtered by each connection's path prefix.

@@ -239,7 +239,7 @@ export const flow: Flow = {
       await glSheet.getByLabel("GitLab URL").fill("https://gitlab.example.com");
       await glSheet.getByLabel("Access token").fill("glpat-e2e-read");
       await glSheet.getByRole("button", { name: "Check connection" }).click();
-      await glSheet.getByText("Missing api scope").waitFor({ timeout: 15_000 });
+      await glSheet.getByText("Missing scope").waitFor({ timeout: 15_000 });
 
       await glSheet.getByLabel("Access token").fill("glpat-e2e-api");
       await glSheet.getByRole("button", { name: "Check connection" }).click();

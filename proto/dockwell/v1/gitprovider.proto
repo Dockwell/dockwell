@@ -175,8 +175,9 @@ service GitProviderService {
   }
 
   // CheckGitLabConnection checks a GitLab host and access token from the control
-  // plane without saving anything, verifying connectivity and the api scope
-  // required for commit statuses (ADR 0111).
+  // plane without saving anything, verifying connectivity and token scopes for
+  // private repository builds (read_repository, plus read_api to list projects)
+  // and CI commit statuses (api) (ADR 0111, ADR 0113).
   rpc CheckGitLabConnection(CheckGitLabConnectionRequest) returns (CheckGitLabConnectionResponse) {
     option (dockwell.v1.command) = {
       noun: "git-providers"
@@ -481,7 +482,8 @@ message CheckGitLabConnectionRequest {
   ];
 }
 
-// CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
+// CheckGitLabConnectionResponse reports whether the GitLab token can build
+// private repositories or post commit statuses.
 message CheckGitLabConnectionResponse {
   GitLabConnectionState state = 1;
   string detail = 2;
@@ -514,6 +516,8 @@ message GitLabProject {
   // to this repository, so only an install admin may bind a deploy token in
   // this project to it.
   bool claimed_by_other_project = 5;
+  // Default branch reported by GitLab, such as "main", when known.
+  string default_branch = 6;
 }
 
 // GitLabProjectConnection summarizes a GitLab connection reachable by the project.

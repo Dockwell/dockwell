@@ -38,8 +38,9 @@ export type ListRepositoryBranchesRequest = Message<"dockwell.v1.ListRepositoryB
 
   /**
    * The project whose app builds from it, by ID or name. A repository one of
-   * its GitHub App installations or deploy keys reaches is read through it,
-   * private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
+   * its GitHub App installations, GitLab connections or deploy keys reaches is
+   * read through it, private or not, as the project's builds fetch it (ADR 0098,
+   * ADR 0113).
    *
    * @generated from field: string project = 2;
    */
@@ -47,7 +48,7 @@ export type ListRepositoryBranchesRequest = Message<"dockwell.v1.ListRepositoryB
 
   /**
    * Optional git login to read through, such as "ssh:<key name>" for a deploy
-   * key in project (ADR 0113).
+   * key in project or "gitlab:<connection name>" for a GitLab connection (ADR 0113).
    *
    * @generated from field: string git_login = 3;
    */
@@ -90,8 +91,9 @@ export type ListRepositoryBranchesResponse = Message<"dockwell.v1.ListRepository
   total: number;
 
   /**
-   * The GitHub App installation it was read through, as a build names it,
-   * "<App name>/<installation ID>"; empty where it was read as the public do.
+   * The Git login it was read through: "<App name>/<installation ID>",
+   * "gitlab:<connection name>" or "ssh:<key name>"; empty where it was read as
+   * the public do.
    *
    * @generated from field: string git_login = 4;
    */

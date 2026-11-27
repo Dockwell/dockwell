@@ -8,6 +8,7 @@ import {
   type GitHookDelivery,
   GitHookOutcome,
   GitHookService,
+  GitLabConnectionState,
   type GitSource,
   Role,
   StepUpAction,
@@ -24,13 +25,19 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
 import { useAgoNow } from "../servers/useFleet";
-import { installationOf, useDeliveryWords, useGitHubApps, useGitRepositories } from "../settings/github";
+import {
+  installationOf,
+  useDeliveryWords,
+  useGitHubApps,
+  useGitLabProjects,
+  useGitRepositories,
+} from "../settings/github";
 import { CopyButton } from "../system/CopyCommand";
 import { useApp, useRevisions } from "./AppContext";
 import { environmentOf, nameOf } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { DeployKeySheet, useGitDeployKeys } from "./DeployKeyPanel";
-import { deployKeyNameOf, type GitHost, gitHost, hookOutOfReach } from "./gitHost";
+import { deployKeyNameOf, type GitHost, gitHost, gitlabConnectionNameOf, hookOutOfReach } from "./gitHost";
 import { sameRepository } from "./RepositoryField";
 import { usePlaces } from "./useServices";
 
@@ -64,6 +71,8 @@ export function SourcePanel() {
             {build?.gitLogin ? (
               deployKeyNameOf(build.gitLogin) ? (
                 <WithDeployKey login={build.gitLogin} />
+              ) : gitlabConnectionNameOf(build.gitLogin) ? (
+                <ThroughGitLab login={build.gitLogin} />
               ) : (
                 <ThroughApp login={build.gitLogin} url={source.url} />
               )
@@ -117,6 +126,63 @@ function WithDeployKey({ login }: { login: string }) {
       ) : null}
     </>
   );
+}
+
+/**
+ * Which GitLab connection a private repository is fetched through, and when the
+ * connection was removed, narrowed away from this project, or failed auth, that
+ * fact with a link to Settings -> Integrations (ADR 0113).
+ */
+function ThroughGitLab({ login }: { login: string }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const places = usePlaces();
+  const connName = gitlabConnectionNameOf(login) ?? "";
+  const providers = useGitHubApps().data;
+  const project = places.place(environmentOf(service))?.scope ?? "";
+  const gl = useGitLabProjects(project).data;
+  const conn = providers?.gitlabConnections.find((c) => c.name === connName);
+  const projectConn = gl?.connections.find((c) => c.name === connName);
+
+  if (providers && !conn) {
+    return (
+      <span className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`The GitLab connection ${connName} was removed.`}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Open Integrations`}
+        </Link>
+      </span>
+    );
+  }
+  const state = projectConn?.state ?? conn?.state;
+  if (
+    state === GitLabConnectionState.AUTH_FAILED ||
+    state === GitLabConnectionState.MISSING_SCOPE ||
+    state === GitLabConnectionState.UNREACHABLE
+  ) {
+    return (
+      <span className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`GitLab connection ${connName} can't read this repository right now.`}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Open Integrations`}
+        </Link>
+      </span>
+    );
+  }
+  if (gl && !projectConn) {
+    return (
+      <span className="app-source-line is-warning">
+        <Icon name="alert" size={14} />
+        <span>{t`GitLab connection ${connName} doesn't reach this project any more.`}</span>
+        <Link to="/settings/integrations" className="app-panel-link">
+          {t`Open Integrations`}
+        </Link>
+      </span>
+    );
+  }
+  return <span className="app-muted">{t`through GitLab connection ${connName}`}</span>;
 }
 
 /**

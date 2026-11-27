@@ -281,10 +281,32 @@ func (h *Handler) maybeNoteHostKeyChange(ctx context.Context, keyID string, err 
 	}
 }
 
+// AcquirePackFetch acquires a shared control-plane pack-fetch slot (at most 2
+// concurrent pack fetches total, 1 per project) so SSH and GitLab pack
+// verifications stay inside the control-plane memory budget.
+func (h *Handler) AcquirePackFetch(ctx context.Context, scopeID string) (func(), error) {
+	if scopeID == "" {
+		scopeID = revision.GitScopeOf(ctx)
+	}
+	projectID := scopeID
+	if scopeID != "" && h.cfg.DB != nil {
+		_ = h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			if p, err := h.projectForScope(ctx, tx, scopeID); err == nil && p != "" {
+				projectID = p
+			}
+			return nil
+		})
+	}
+	return h.gate.acquireFetch(ctx, projectID, "")
+}
+
 // ShownLogin formats a git_login for CLI or plan display.
 func ShownLogin(login string) string {
 	if name, ok := service.DeployKeyOf(login); ok {
 		return "deploy key " + name
+	}
+	if name, ok := service.GitLabConnectionOf(login); ok {
+		return "GitLab connection " + name
 	}
 	if strings.Contains(login, "/") {
 		return "GitHub App " + login

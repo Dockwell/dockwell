@@ -85,6 +85,26 @@
   font-size: 12px;
   color: var(--ink-muted);
 }
+.image-field-group + .image-field-group {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--line);
+}
+.image-field-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px var(--space-2);
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-muted);
+}
+.image-field-group-note {
+  padding: 4px var(--space-2);
+  font-size: 12px;
+  color: var(--warning);
+}
 
 @media (pointer: coarse) {
   .image-field-list {
