@@ -27,6 +27,7 @@ import {
   Panel,
   PHONE_QUERY,
   SegmentedControl,
+  SelectField,
   Skeleton,
   SkeletonRows,
   StatusBadge,
@@ -145,7 +146,7 @@ export function ActivityPage({
   const status = state.status === "reconnecting" ? <Reconnecting /> : undefined;
   const events = state.status === "connecting" ? undefined : state.events;
 
-  // What reverted changes were called, so an undo can say what it undid.
+  // Plan titles already visible on this timeline, for undo and passkey events.
   const summaries = useMemo(() => {
     const out = new Map<string, string>();
     for (const e of events ?? []) if (e.change) out.set(e.id, e.change.summary);
@@ -570,23 +571,26 @@ function DayTable({
   const context = useRowMenu<Event>();
   const sheet = useChangeSheet();
   const may = useMay();
-  const actionsFor = (event: Event): MenuAction[] => [
-    { id: "open", label: t`Open`, onSelect: () => onSelect(event) },
-    ...(event.change
-      ? [
-          {
-            id: "plan",
-            label: t`View plan`,
-            onSelect: () => sheet.open({ kind: "change", id: event.id }),
-          },
-        ]
-      : []),
-    ...(event.change &&
-    canUndo(event.change, now) &&
-    may(ChangeService.method.undoChange, placesOfChange(event.change)).allowed
-      ? [{ id: "undo", label: t`Undo`, onSelect: () => sheet.open({ kind: "undo", id: event.id }) }]
-      : []),
-  ];
+  const actionsFor = (event: Event): MenuAction[] => {
+    const planId = event.change?.id || unconfirmedPlanId(event);
+    return [
+      { id: "open", label: t`Open`, onSelect: () => onSelect(event) },
+      ...(planId
+        ? [
+            {
+              id: "plan",
+              label: t`View plan`,
+              onSelect: () => sheet.open({ kind: "change", id: planId }),
+            },
+          ]
+        : []),
+      ...(event.change &&
+      canUndo(event.change, now) &&
+      may(ChangeService.method.undoChange, placesOfChange(event.change)).allowed
+        ? [{ id: "undo", label: t`Undo`, onSelect: () => sheet.open({ kind: "undo", id: event.id }) }]
+        : []),
+    ];
+  };
   const menuLabel = (event: Event) => t`Actions for ${describe(event, summaries).title}`;
   const columns: TableColumn<Event>[] = [
     {
@@ -765,20 +769,13 @@ function ActorFilter({ events, value, onChange }: { events: Event[]; value: stri
   }, [events, words]);
   const options: [string, string][] = [["", t`All actors`], [DOCKWELL_ACTOR, "Dockwell"], ...actors];
   if (value && !options.some(([id]) => id === value)) options.push([value, value]);
-  const current = options.find(([id]) => id === value)?.[1] ?? t`All actors`;
   return (
-    <label className="dw-btn dw-btn-secondary dw-btn-md activity-select">
-      <Icon name="users" size={16} />
-      <span>{current}</span>
-      <Icon name="chevron-down" size={14} />
-      <select aria-label={t`Actor`} value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <SelectField
+      aria-label={t`Actor`}
+      value={value}
+      options={options.map(([id, label]) => ({ value: id, label }))}
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 
@@ -863,6 +860,10 @@ interface DetailProps {
 }
 
 /** The selected event beside the list: who, when, from where, and for a change what it changed. */
+function unconfirmedPlanId(event: Event): string {
+  return event.action === "change.apply_unconfirmed" ? (event.subject?.id ?? "") : "";
+}
+
 function Detail({ event, repeats, folded, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
   // Undoing plans a change, which a viewer can't: off, with why (ADR 0059).
   const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(event.change));
@@ -870,6 +871,7 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
   const words = useChangeWords();
   const rows = useFieldRows();
   const change = event.change;
+  const unconfirmed = unconfirmedPlanId(event);
   const full = useQuery(ChangeService.method.getChange, { id: event.id }, { enabled: change !== undefined });
   const date = happenedAt(event);
   const ago = time.ago(date, now);
@@ -1117,6 +1119,12 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
                 onClick={() => onOpen(change.id)}
               >
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
+              </Button>
+            </div>
+          ) : unconfirmed ? (
+            <div className="activity-detail-actions">
+              <Button variant="ghost" icon="commit" onClick={() => onOpen(unconfirmed)}>
+                <Trans>Open plan</Trans>
               </Button>
             </div>
           ) : toVariables || toFile || toFolder ? (

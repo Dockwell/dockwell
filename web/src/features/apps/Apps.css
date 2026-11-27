@@ -546,34 +546,18 @@
   font-weight: 550;
 }
 
-/* Two sections a row where they fit, as the mock pairs them; what runs wide, and a section
-   being edited, take the row. */
+/* Settings flow in section-nav order into a second column where both fit. */
 .app-settings-main {
-  display: grid;
   flex: 1 1 560px;
-  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
-  gap: var(--space-6);
-  /* Two sections sharing a row end on one line, as App-Settings draws them, whatever each holds. */
-  align-items: stretch;
+  columns: 2 410px;
+  column-gap: var(--space-6);
   min-width: 0;
+  max-width: 1000px;
 }
 
-.app-settings-anchor {
-  display: flex;
-  flex-direction: column;
-}
-
-.app-settings-anchor > .dw-panel {
-  flex: 1 1 auto;
-}
-
-.app-settings-anchor.is-wide {
-  grid-column: 1 / -1;
-}
-
-/* One between two that take the row, as Automatic updates is between Volumes and the danger zone, takes it too, rather than half a row beside nothing. */
-.app-settings-anchor.is-wide + .app-settings-anchor:not(.is-wide):has(+ .app-settings-anchor.is-wide) {
-  grid-column: 1 / -1;
+.app-settings-in-place .dw-field {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .app-settings-image {
@@ -619,6 +603,11 @@
 /* Below the sticky head, where a link from the nav lands. */
 .app-settings-anchor {
   scroll-margin-top: var(--space-5);
+  break-inside: avoid;
+}
+
+.app-settings-anchor + .app-settings-anchor {
+  margin-top: var(--space-6);
 }
 
 .app-settings-form {
@@ -2496,8 +2485,18 @@
     margin-block: -8px;
   }
 
+  .apps-server-filter,
+  .apps-sort-filter {
+    flex: 1 1 calc(50% - var(--space-2));
+    min-width: 0;
+  }
+
+  .apps-sort-filter {
+    order: 1;
+  }
+
   .apps-server-filter {
-    flex: 1 1 100%;
+    order: 2;
   }
 
   .apps-stack-toggle {

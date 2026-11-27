@@ -36,7 +36,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { SERVER } from "../../test/apps";
+import { places, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { openHowItWorks } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -1079,6 +1079,51 @@ describe("the backups page", () => {
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
 
+  it.each([false, true])(
+    "offers an off-server action on each local schedule when storage exists: %s",
+    async (hasStorage) => {
+      const user = userEvent.setup();
+      const fixture = copies([aBackup()], {
+        listBackupDestinations: () => (hasStorage ? { destinations: [{ id: "dst_offsite", name: "offsite" }] } : {}),
+        listBackupPolicies: () => ({
+          policies: [
+            {
+              id: "bpl_local",
+              name: "orders-local",
+              environmentId: "env_1",
+              spec: { volume: "orders", at: "03:00", keep: 7 },
+            },
+            ...(hasStorage
+              ? [
+                  {
+                    id: "bpl_remote",
+                    name: "orders-offsite",
+                    environmentId: "env_1",
+                    spec: { volume: "orders", at: "03:30", keep: 7, destination: "offsite" },
+                  },
+                ]
+              : []),
+          ],
+        }),
+      });
+      const base = fixture.resources;
+      fixture.resources = {
+        listResources: (req, context) =>
+          req.kind === "volume" ? (base?.listResources?.(req, context) ?? {}) : places("1").listResources(req),
+      };
+      fixture.connections = { listConnections: () => ({}) };
+      renderAt("/backups", fixture);
+      const panel = await screen.findByRole("region", { name: "Schedules" });
+      const local = await within(panel).findByText(/^Kept only on the server, unencrypted/);
+      expect(local).toBeVisible();
+      if (hasStorage) expect(within(panel).getByText("Copies sent to offsite, encrypted")).toBeVisible();
+      await user.click(within(panel).getByRole("button", { name: "Send copies off the server" }));
+      expect(
+        await screen.findByRole("dialog", { name: hasStorage ? "Change the schedule" : "Add a connection" }),
+      ).toBeVisible();
+    },
+  );
+
   it("opens Add a connection when Add storage is clicked on Destinations", async () => {
     const user = userEvent.setup();
     renderAt(
@@ -1801,7 +1846,7 @@ describe("the backups page, laid out as its mock (#793)", () => {
     const runs = screen.getByRole("region", { name: "Recent runs" });
     expect(within(runs).getByText("5 min ago")).toBeVisible();
     const schedules = screen.getByRole("region", { name: "Schedules" });
-    expect(schedules).toHaveTextContent("Kept only on the server, unencrypted");
+    expect(schedules).toHaveTextContent("orders-daily · orders");
     await user.click(within(schedules).getByRole("button", { name: "Edit this schedule" }));
     expect(await screen.findByRole("dialog", { name: "Change the schedule" })).toBeVisible();
   });

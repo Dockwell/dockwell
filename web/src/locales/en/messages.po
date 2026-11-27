@@ -805,9 +805,6 @@ msgstr "Alert opened: {title}"
 msgid "An update of {subject} is out: {where}"
 msgstr "An update of {subject} is out: {where}"
 
-msgid "Asked for a passkey to apply {change}, and none came"
-msgstr "Asked for a passkey to apply {change}, and none came"
-
 msgid "Asked for a passkey to compress {path} on {server}, and none came"
 msgstr "Asked for a passkey to compress {path} on {server}, and none came"
 
@@ -1221,6 +1218,12 @@ msgstr "No passkey confirmed changing permissions or ownership on {path} on {ser
 
 msgid "No passkey confirmed downloading {path} to {server}"
 msgstr "No passkey confirmed downloading {path} to {server}"
+
+msgid "No passkey confirmed the plan"
+msgstr "No passkey confirmed the plan"
+
+msgid "No passkey confirmed the plan “{summary}”"
+msgstr "No passkey confirmed the plan “{summary}”"
 
 msgid "No restore check of {subject} has passed lately"
 msgstr "No restore check of {subject} has passed lately"
@@ -2783,6 +2786,51 @@ msgstr "{n, plural, one {# failed run} other {# failed runs}}"
 msgid "{n, plural, one {down after # failure} other {down after # failures}}"
 msgstr "{n, plural, one {down after # failure} other {down after # failures}}"
 
+msgid "App down"
+msgstr "App down"
+
+msgid "Backup failed"
+msgstr "Backup failed"
+
+msgid "Backup late"
+msgstr "Backup late"
+
+msgid "Catalog source stalled"
+msgstr "Catalog source stalled"
+
+msgid "Certificate expiring"
+msgstr "Certificate expiring"
+
+msgid "Certificate renewal failed"
+msgstr "Certificate renewal failed"
+
+msgid "Change failed"
+msgstr "Change failed"
+
+msgid "Disk full"
+msgstr "Disk full"
+
+msgid "Domain unpublished"
+msgstr "Domain unpublished"
+
+msgid "High memory use"
+msgstr "High memory use"
+
+msgid "Restore test failed"
+msgstr "Restore test failed"
+
+msgid "Restore test late"
+msgstr "Restore test late"
+
+msgid "Server offline"
+msgstr "Server offline"
+
+msgid "Update available"
+msgstr "Update available"
+
+msgid "Uptime check"
+msgstr "Uptime check"
+
 msgctxt "check state"
 msgid "Down"
 msgstr "Down"
@@ -3002,9 +3050,6 @@ msgstr "Set {checkedZone} to Full (strict)"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
-
-msgid "Uptime check"
-msgstr "Uptime check"
 
 msgid "Use {webPort}"
 msgstr "Use {webPort}"
@@ -3510,6 +3555,9 @@ msgstr "Change the version of {name}"
 msgid "Change version"
 msgstr "Change version"
 
+msgid "Delete app"
+msgstr "Delete app"
+
 msgid "Deploy"
 msgstr "Deploy"
 
@@ -3563,9 +3611,6 @@ msgstr "Opens a plan"
 msgid "Overview"
 msgstr "Overview"
 
-msgid "Pause workload"
-msgstr "Pause workload"
-
 msgid "Pause {name}"
 msgstr "Pause {name}"
 
@@ -3574,6 +3619,12 @@ msgstr "Putting <0>{image}</0> back failed, {ago}"
 
 msgid "Restart {name}"
 msgstr "Restart {name}"
+
+msgid "Run again"
+msgstr "Run again"
+
+msgid "Run {name} again"
+msgstr "Run {name} again"
 
 msgid "Search logs"
 msgstr "Search logs"
@@ -3593,8 +3644,8 @@ msgstr "Stop"
 msgid "Stop {name}"
 msgstr "Stop {name}"
 
-msgid "Unpause workload"
-msgstr "Unpause workload"
+msgid "Unpause"
+msgstr "Unpause"
 
 msgid "Unpause {name}"
 msgstr "Unpause {name}"
@@ -3690,11 +3741,11 @@ msgstr "Directory"
 msgid "Docker isn't answering the agent on {server}. It may well be running."
 msgstr "Docker isn't answering the agent on {server}. It may well be running."
 
-msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
-msgstr "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
+msgid "Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy."
+msgstr "Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy."
 
-msgid "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
-msgstr "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
+msgid "Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy."
+msgstr "Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy."
 
 msgid "Docker's socket"
 msgstr "Docker's socket"
@@ -3796,8 +3847,8 @@ msgstr "Nothing outside the server reaches it yet."
 msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "Nothing outside the server reaches it yet. Other apps on its network do."
 
-msgid "Nothing starts it again on its own. Restart it, or deploy."
-msgstr "Nothing starts it again on its own. Restart it, or deploy."
+msgid "Nothing starts it again on its own. Start it, or deploy."
+msgstr "Nothing starts it again on its own. Start it, or deploy."
 
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "Nothing yet. It runs once the deploy finishes."
@@ -4569,9 +4620,6 @@ msgstr "Stop {count}"
 
 msgid "Unfold {title}"
 msgstr "Unfold {title}"
-
-msgid "Unpause"
-msgstr "Unpause"
 
 msgid "Update"
 msgstr "Update"
@@ -7128,9 +7176,6 @@ msgstr "Snoozed until {0}"
 
 msgid "Up to date"
 msgstr "Up to date"
-
-msgid "Update available"
-msgstr "Update available"
 
 msgid "Update available: {change}, {kind}"
 msgstr "Update available: {change}, {kind}"
@@ -15151,6 +15196,9 @@ msgstr "A copy of its files, which stops it a moment"
 msgid "All its backups"
 msgstr "All its backups"
 
+msgid "Can do anything"
+msgstr "Can do anything"
+
 msgid "Change password"
 msgstr "Change password"
 
@@ -15220,6 +15268,9 @@ msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <
 msgid "Newest"
 msgstr "Newest"
 
+msgid "No users yet"
+msgstr "No users yet"
+
 msgid "Not scheduled"
 msgstr "Not scheduled"
 
@@ -15229,8 +15280,8 @@ msgstr "Nothing read yet"
 msgid "One is running now"
 msgstr "One is running now"
 
-msgid "Open Users"
-msgstr "Open Users"
+msgid "Open users"
+msgstr "Open users"
 
 msgid "Reads served from memory"
 msgstr "Reads served from memory"
@@ -15276,6 +15327,10 @@ msgstr "What it said"
 msgid "of {mostWords}"
 msgstr "of {mostWords}"
 
+#. placeholder {0}: users.length
+msgid "{0, plural, one {# user} other {# users}}"
+msgstr "{0, plural, one {# user} other {# users}}"
+
 msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
 msgstr "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
 
@@ -15302,9 +15357,6 @@ msgstr "{servers}, and sealed on {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}, unencrypted"
-
-msgid "{users, plural, one {# user} other {# users}}"
-msgstr "{users, plural, one {# user} other {# users}}"
 
 msgid "Create a database to import into"
 msgstr "Create a database to import into"
@@ -15356,9 +15408,6 @@ msgstr "Actions for {who}"
 
 msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
 msgstr "Apps sign in with a password. Inside its own container, nothing asks for one"
-
-msgid "Can do anything"
-msgstr "Can do anything"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
@@ -15743,9 +15792,6 @@ msgstr "Not read"
 
 msgid "Not read yet"
 msgstr "Not read yet"
-
-msgid "Server offline"
-msgstr "Server offline"
 
 msgid "Starting up"
 msgstr "Starting up"
@@ -16949,6 +16995,9 @@ msgstr "Open {serviceName}"
 msgid "Paste docker run"
 msgstr "Paste docker run"
 
+msgid "Pause workload"
+msgstr "Pause workload"
+
 msgid "Refresh containers"
 msgstr "Refresh containers"
 
@@ -16979,6 +17028,9 @@ msgstr "Take on a container"
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
 msgstr "Terminal for {0}"
+
+msgid "Unpause workload"
+msgstr "Unpause workload"
 
 msgid "Update to {version}"
 msgstr "Update to {version}"
@@ -20121,6 +20173,9 @@ msgstr "Copy this line"
 
 msgid "Deployment"
 msgstr "Deployment"
+
+msgid "Dockwell has no logs for this website."
+msgstr "Dockwell has no logs for this website."
 
 msgid "Download these lines"
 msgstr "Download these lines"
@@ -25627,6 +25682,9 @@ msgstr "{n} minutes"
 msgid "All runs"
 msgstr "All runs"
 
+msgid "Delete task"
+msgstr "Delete task"
+
 msgid "Enabled"
 msgstr "Enabled"
 
@@ -25664,10 +25722,16 @@ msgstr "Run it now on"
 msgid "Run now"
 msgstr "Run now"
 
+msgid "Run output"
+msgstr "Run output"
+
 msgid "Runs in"
 msgstr "Runs in"
 
-#. placeholder {0}: newest.outputCutBytes
+msgid "Show output: {what}"
+msgstr "Show output: {what}"
+
+#. placeholder {0}: selected.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
 msgstr "What it printed before this, {0} bytes, wasn't kept."
 
@@ -27101,9 +27165,6 @@ msgstr ", secret"
 msgid "Add a variable or secret to {envName}"
 msgstr "Add a variable or secret to {envName}"
 
-msgid "Add the first"
-msgstr "Add the first"
-
 msgid "Add the secret {trimmed}"
 msgstr "Add the secret {trimmed}"
 
@@ -27165,6 +27226,9 @@ msgstr "Make {trimmed} a variable"
 
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
+
+msgid "New variable or secret"
+msgstr "New variable or secret"
 
 msgid "No app in {envName} sets a value of its own"
 msgstr "No app in {envName} sets a value of its own"
@@ -27946,8 +28010,8 @@ msgstr "For a backend that serves several names. Off, it gets this website's dom
 msgid "Gets a 404"
 msgstr "Gets a 404"
 
-msgid "Give a number of MiB, such as 64."
-msgstr "Give a number of MiB, such as 64."
+msgid "Give a number of MB, such as 64."
+msgstr "Give a number of MB, such as 64."
 
 msgid "Give every new Basic Auth user a password."
 msgstr "Give every new Basic Auth user a password."
@@ -28009,11 +28073,11 @@ msgstr "PHP"
 msgid "PHP max_execution_time, 5 to 3600 seconds."
 msgstr "PHP max_execution_time, 5 to 3600 seconds."
 
-msgid "PHP memory_limit, 32 to 4096 MiB."
-msgstr "PHP memory_limit, 32 to 4096 MiB."
+msgid "PHP memory_limit, 32 to 4096 MB."
+msgstr "PHP memory_limit, 32 to 4096 MB."
 
-msgid "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
-msgstr "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
+msgid "PHP post_max_size, 1 to 4096 MB. Empty matches upload limit."
+msgstr "PHP post_max_size, 1 to 4096 MB. Empty matches upload limit."
 
 msgid "PHP runs as {user} and can't write there."
 msgstr "PHP runs as {user} and can't write there."
@@ -28040,11 +28104,11 @@ msgstr "Post max size"
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "Root owns it, so PHP can't save uploads there."
 
-msgid "Runs as {who} · {mb} MiB uploads"
-msgstr "Runs as {who} · {mb} MiB uploads"
+msgid "Runs as {who} · {mb} MB uploads"
+msgstr "Runs as {who} · {mb} MB uploads"
 
-msgid "Runs as {who} · {mb} MiB uploads · only files answer"
-msgstr "Runs as {who} · {mb} MiB uploads · only files answer"
+msgid "Runs as {who} · {mb} MB uploads · only files answer"
+msgstr "Runs as {who} · {mb} MB uploads · only files answer"
 
 msgid "Send the URL's own name as Host"
 msgstr "Send the URL's own name as Host"
@@ -28076,11 +28140,11 @@ msgstr "Upload limit"
 msgid "Use a PHP-FPM pool size from 1 to 200."
 msgstr "Use a PHP-FPM pool size from 1 to 200."
 
-msgid "Use a memory limit from 32 to 4096 MiB."
-msgstr "Use a memory limit from 32 to 4096 MiB."
+msgid "Use a memory limit from 32 to 4096 MB."
+msgstr "Use a memory limit from 32 to 4096 MB."
 
-msgid "Use a post max size from 1 to 4096 MiB."
-msgstr "Use a post max size from 1 to 4096 MiB."
+msgid "Use a post max size from 1 to 4096 MB."
+msgstr "Use a post max size from 1 to 4096 MB."
 
 msgid "Use an execution time from 5 to 3600 seconds."
 msgstr "Use an execution time from 5 to 3600 seconds."
@@ -28104,8 +28168,8 @@ msgid "Was index.php index.html"
 msgstr "Was index.php index.html"
 
 #. placeholder {0}: Number(was.uploadMB) || 64
-msgid "Was {0} MiB"
-msgstr "Was {0} MiB"
+msgid "Was {0} MB"
+msgstr "Was {0} MB"
 
 #. placeholder {0}: was.port
 msgid "Was {0} · whatever listens there sees every visitor as local"
@@ -28190,6 +28254,9 @@ msgstr "It has no web server of its own now."
 msgid "Nothing here writes logs"
 msgstr "Nothing here writes logs"
 
+msgid "These website logs aren't available"
+msgstr "These website logs aren't available"
+
 msgid "Web server"
 msgstr "Web server"
 
@@ -28228,6 +28295,9 @@ msgstr "Latest folder backup failed."
 msgid "Latest folder backup: {0} ({1})."
 msgstr "Latest folder backup: {0} ({1})."
 
+msgid "Open backups"
+msgstr "Open backups"
+
 #. placeholder {0}: rules.rateLimit.requestsPerMinute || 60
 msgid "Rate limit ({0}/min)"
 msgstr "Rate limit ({0}/min)"
@@ -28253,11 +28323,6 @@ msgstr "Visitors currently receive a plain 503 response. Domains, certificates a
 
 msgid "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
 msgstr "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
-
-#. placeholder {0}: p.memoryLimitMb || 128
-#. placeholder {0}: p.uploadLimitMb || 64
-msgid "{0} MiB"
-msgstr "{0} MiB"
 
 #. placeholder {0}: rules.headers.length
 msgid "{0} headers"

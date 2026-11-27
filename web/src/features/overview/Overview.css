@@ -5,7 +5,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-6);
-  align-items: flex-start;
 }
 
 .overview-main {
@@ -166,7 +165,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-6);
-  align-items: stretch;
 }
 
 .overview-fleet-map {
@@ -191,12 +189,9 @@
   margin-top: auto;
 }
 
-/*
- * A few servers, a line each under the counts, in the readout's words and type. The lines say all the tiles
- * would, so the tiles go, and the panel ends with its last line rather than stretching beside the changes (#802).
- */
+/* A small fleet keeps its named rows under the legend. */
 .overview-fleet-map:has(.overview-fleet-few) {
-  align-self: flex-start;
+  align-self: start;
 }
 
 .overview-fleet-map:has(.overview-fleet-few) .dw-fleet {
@@ -334,4 +329,28 @@
   margin: var(--space-3) 0 0;
   color: var(--ink-muted);
   font-size: 12px;
+}
+
+.overview-serving-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.overview-serving-tile {
+  display: grid;
+  width: 24px;
+  height: 18px;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+}
+
+.overview-serving-tile.dw-tone-critical {
+  background: var(--critical-soft);
+}
+
+.overview-serving-tile.dw-tone-warning {
+  background: var(--warning-soft);
 }

@@ -6,6 +6,7 @@ import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
   type Alert,
+  type AlertRuleInfo,
   AlertService,
   AlertState,
   AlertRule_Condition as Condition,
@@ -28,10 +29,11 @@ import { useSignedInUser } from "../auth/useAuthState";
 import { trend } from "../servers/history";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
 import { AlertActions } from "./AlertActions";
+import { useAlertKind } from "./alertKind";
 
-/** What an alert is about, as its card's mark draws it. */
 const MARK: Partial<Record<Condition, IconName>> = {
   [Condition.SERVICE_DOWN]: "service",
+  [Condition.CHECK_DOWN]: "activity",
   [Condition.SERVER_UNREACHABLE]: "server",
   [Condition.DISK_FULL]: "server",
   [Condition.MEMORY_HIGH]: "server",
@@ -46,6 +48,10 @@ const MARK: Partial<Record<Condition, IconName>> = {
   [Condition.CATALOG_SOURCE_STUCK]: "branch",
   [Condition.DOMAIN_UNPUBLISHED]: "globe",
 };
+
+function ruleTitle(alert: Alert, rules: readonly AlertRuleInfo[] | undefined): string | undefined {
+  return rules?.find((rule) => rule.id === alert.ruleId)?.title;
+}
 
 const ms = (a: { seconds: bigint } | undefined) => (a ? Number(a.seconds) * 1000 : undefined);
 
@@ -107,7 +113,13 @@ type Acknowledge = ReturnType<typeof useAcknowledge>;
  * since when, what it means, and what was sent. A server's memory has its trend beside it,
  * from the minutes the control plane keeps. Each says who's on it, and offers to take it.
  */
-export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
+export function OpenAlerts({
+  alerts,
+  rules,
+}: {
+  alerts: readonly Alert[];
+  rules: readonly AlertRuleInfo[] | undefined;
+}) {
   const { t } = useLingui();
   const fleet = useFleet();
   const servers = fleet.status === "connecting" ? [] : fleet.servers;
@@ -135,6 +147,7 @@ export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
             <li key={alert.id}>
               <AlertCard
                 alert={alert}
+                rule={ruleTitle(alert, rules)}
                 server={servers.find((s) => s.id === alert.serverId)}
                 now={now}
                 acknowledge={acknowledge}
@@ -149,11 +162,13 @@ export function OpenAlerts({ alerts }: { alerts: readonly Alert[] }) {
 
 function AlertCard({
   alert,
+  rule,
   server,
   now,
   acknowledge,
 }: {
   alert: Alert;
+  rule: string | undefined;
   server: Server | undefined;
   now: number;
   acknowledge: Acknowledge;
@@ -173,6 +188,7 @@ function AlertCard({
   const failed = acknowledge.failed.get(alert.id);
   const critical = alert.severity === Severity.CRITICAL;
   const title = alertTitle(alert, i18n);
+  const kind = useAlertKind()(alert.condition);
   const opened = ms(alert.openTime);
   const lasted = opened === undefined ? "" : words.span(Math.max(0, now - opened));
   const since = alert.openTime ? formatClock(timestampDate(alert.openTime), i18n.locale) : "";
@@ -180,7 +196,7 @@ function AlertCard({
   return (
     <article className={cx("dw-panel", "alerts-card", critical ? "is-critical" : "is-warning")}>
       <span className="alerts-card-mark" aria-hidden="true">
-        <Icon name={MARK[alert.condition] ?? "alert"} size={18} />
+        <Icon name={MARK[alert.condition] ?? "service"} size={20} />
       </span>
       <div className="alerts-card-head">
         <h3 className="alerts-card-title">
@@ -226,7 +242,7 @@ function AlertCard({
         </span>
         <span className="alerts-card-spacer" />
         <span className="alerts-muted">
-          <code>{alert.ruleName}</code>
+          {rule || kind}
           {" · "}
           <Sending alert={alert} sent={sent} />
         </span>
@@ -311,8 +327,15 @@ function MemoryTrend({ alert, server }: { alert: Alert; server: Server | undefin
 }
 
 /** What resolved, newest first, beside what's open: what it was, when it ended and how long it lasted. */
-export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
+export function ResolvedAlerts({
+  alerts,
+  rules,
+}: {
+  alerts: readonly Alert[];
+  rules: readonly AlertRuleInfo[] | undefined;
+}) {
   const { i18n } = useLingui();
+  const kind = useAlertKind();
   const words = useTimeWords();
   // The list's own clock, so a row resolved before midnight turns to its day as the day turns.
   const now = useControlPlaneNow(60_000);
@@ -344,7 +367,9 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
                 {alertTitle(alert, i18n)}
               </Link>
               <ResolvedAt time={alert.resolveTime} now={now} />
-              <span className="alerts-resolved-meta">{[lasted, alert.ruleName].filter(Boolean).join(" · ")}</span>
+              <span className="alerts-resolved-meta">
+                {[lasted, ruleTitle(alert, rules) || kind(alert.condition)].filter(Boolean).join(" · ")}
+              </span>
             </li>
           );
         })}

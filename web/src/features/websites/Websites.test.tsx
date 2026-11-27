@@ -29,6 +29,7 @@ import {
   type WebsiteInfo,
   WebsiteInfoSchema,
   WebsiteReachSchema,
+  WebsiteSchema,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -985,7 +986,7 @@ describe("A PHP website", () => {
     expect(within(sheet).getByLabelText("PHP version")).toHaveValue("8.3");
     // PHP runs as the folder's owner, said in Advanced's line.
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(
-      "Runs as 1000:1000 · 64 MiB uploads",
+      "Runs as 1000:1000 · 64 MB uploads",
     );
     await openAdvanced(user, sheet);
     await user.clear(within(sheet).getByLabelText("Runs as"));
@@ -1222,7 +1223,7 @@ describe("A PHP website", () => {
     await user.paste("shop.example.com");
     expect(await within(sheet).findByText("Holds index.php", {}, { timeout: 3_000 })).toBeVisible();
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(
-      "Runs as 1000:1000 · 64 MiB uploads",
+      "Runs as 1000:1000 · 64 MB uploads",
     );
     // What the form filled in, it takes: uid:gid, as the server stores it.
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
@@ -1266,11 +1267,11 @@ describe("A PHP website", () => {
     const sheet = await screen.findByRole("dialog", { name: "New website" });
     const advanced = within(sheet).getByRole("button", { name: "Advanced" });
     await pickFolder(user, sheet, "/srv/mine");
-    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 1000:1000 · 64 MiB uploads"), {
+    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 1000:1000 · 64 MB uploads"), {
       timeout: 3_000,
     });
     await pickFolder(user, sheet, "/srv/theirs");
-    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 33:33 · 64 MiB uploads"), {
+    await waitFor(() => expect(advanced).toHaveAccessibleDescription("Runs as 33:33 · 64 MB uploads"), {
       timeout: 3_000,
     });
     // Typed, it stays, and the note says when PHP can't write there.
@@ -1402,7 +1403,7 @@ describe("A PHP website", () => {
     expect(logs[1]).toHaveAttribute("href", "/websites/prj_shop/logs?which=php");
     const serves = screen.getByRole("region", { name: "What it serves" });
     expect(serves).toHaveTextContent("Runs as1000");
-    expect(serves).toHaveTextContent("Upload limit64 MiB");
+    expect(serves).toHaveTextContent("Upload limit64 MB");
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/websites/prj_shop/files");
     await expectAccessible(container);
   });
@@ -1423,6 +1424,164 @@ describe("A PHP website", () => {
     const parts = await screen.findByRole("region", { name: "How it serves" });
     await within(parts).findByText("Web server");
     expect(within(parts).queryByText("Kept current by Dockwell")).toBeNull();
+  });
+
+  it("keeps the saved default PHP user after the folder owner is read", async () => {
+    onWideScreen();
+    const spec = shop.spec;
+    if (spec?.serves.case !== "php") throw new Error("Expected a PHP website");
+    const saved = create(WebsiteInfoSchema, {
+      ...shop,
+      spec: { ...spec, serves: { case: "php", value: { ...spec.serves.value, user: "" } } },
+    });
+    renderAt(
+      "/websites/prj_shop/configuration",
+      api([saved], {
+        files: { listFiles: disk({ "/var/www/shop": { mode: "drwxr-xr-x", entries: [entry("index.php")] } }) },
+      }),
+    );
+    await screen.findByRole("button", { name: "Run as 1000:1000" }, { timeout: 3_000 });
+    const advanced = screen.getByRole("button", { name: "Advanced" });
+    expect(advanced).toHaveAccessibleDescription("Runs as www-data · 64 MB uploads");
+    expect(advanced).not.toHaveTextContent("changed");
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
+  });
+
+  it("keeps the saved default PHP user after applying and refetching Configuration", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const spec = shop.spec;
+    if (spec?.serves.case !== "php") throw new Error("Expected a PHP website");
+    let saved = create(WebsiteInfoSchema, {
+      ...shop,
+      spec: { ...spec, serves: { case: "php", value: { ...spec.serves.value, user: "" } } },
+    });
+    let updated: UpdateWebsiteRequest | undefined;
+    let refetched = false;
+    renderAt(
+      "/websites/prj_shop/configuration",
+      api([saved], {
+        websites: {
+          listWebsites: () => {
+            if (updated && saved.spec === updated.website) refetched = true;
+            return { websites: [saved] };
+          },
+          updateWebsite: (req) => {
+            updated = req;
+            return { change: planned };
+          },
+        },
+        changes: {
+          watchChange: watch.stream,
+          applyChange: () => {
+            saved = { ...saved, spec: updated?.website };
+            return { change: moved(planned, { state: ChangeState.APPLYING }) };
+          },
+        },
+        files: {
+          listFiles: disk({ "/var/www/shop": { mode: "drwxr-xr-x", entries: [entry("index.php")] } }),
+        },
+      }),
+    );
+    const version = await screen.findByLabelText("PHP version");
+    await waitFor(() => expect(version).toHaveValue("8.3"));
+    await user.selectOptions(version, "8.4");
+    const review = screen.getByRole("button", { name: "Review plan" });
+    await waitFor(() => expect(review).toBeEnabled());
+    await user.click(review);
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(await within(plan).findByRole("button", { name: /^Apply plan/ }));
+    watch.push(watched(moved(planned, { state: ChangeState.APPLIED })));
+    await user.click(await screen.findByRole("button", { name: "Done" }));
+    await waitFor(() => expect(refetched).toBe(true));
+    await screen.findByRole("button", { name: "Run as 1000:1000" });
+    expect(screen.getByLabelText("PHP version")).toHaveValue("8.4");
+    expect(screen.getByRole("button", { name: "Advanced" })).not.toHaveTextContent("changed");
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
+    expect(updated?.website?.serves.value).toMatchObject({ user: "" });
+  });
+
+  it("restores the saved PHP user after inspecting another folder and returning", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    const spec = shop.spec;
+    if (spec?.serves.case !== "php") throw new Error("Expected a PHP website");
+    const saved = create(WebsiteInfoSchema, {
+      ...shop,
+      spec: { ...spec, serves: { case: "php", value: { ...spec.serves.value, user: "" } } },
+    });
+    renderAt(
+      "/websites/prj_shop/configuration",
+      api([saved], {
+        files: {
+          listFiles: disk({
+            "/var/www/shop": { mode: "drwxr-xr-x", entries: [entry("index.php")] },
+            "/var/www/other": { mode: "drwxr-xr-x", uid: 1234, entries: [entry("index.php")] },
+          }),
+        },
+      }),
+    );
+    const fields = await screen.findByRole("region", { name: "What it serves" });
+    await pickFolder(user, fields, "/var/www/other");
+    const advanced = within(fields).getByRole("button", { name: /Advanced/ });
+    await waitFor(() => expect(advanced).toHaveAccessibleDescription(/Runs as 1234:1234/));
+    expect(advanced).toHaveTextContent("1 changed");
+    await pickFolder(user, fields, "/var/www/shop/");
+    await screen.findByRole("button", { name: "Run as 1000:1000" });
+    expect(advanced).toHaveAccessibleDescription(/Runs as www-data/);
+    expect(advanced).not.toHaveTextContent("changed");
+    await pickFolder(user, fields, "/var/www/shop");
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
+  });
+
+  it("keeps the saved static folder owner when a missing folder is inspected and revisited", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    let asked: UpdateWebsiteRequest | undefined;
+    const saved = create(WebsiteInfoSchema, {
+      ...blog,
+      spec: create(WebsiteSchema, {
+        serves: { case: "folder", value: { root: "/srv/site", owner: "2000:2000" } },
+      }),
+    });
+    const inspectedOwners: string[] = [];
+    renderAt(
+      "/websites/prj_blog/configuration",
+      api([saved], {
+        files: { listFiles: disk({}) },
+        websites: {
+          previewWebsite: ({ website }) => {
+            if (website?.serves.case === "folder" && website.serves.value.root === "/srv/other") {
+              inspectedOwners.push(website.serves.value.owner);
+            }
+            return { website, config: ":8080 { file_server }" };
+          },
+          updateWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const fields = await screen.findByRole("region", { name: "What it serves" });
+    await within(fields).findByRole("link", { name: "Make it in Files" });
+    expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
+    await pickFolder(user, fields, "/srv/other");
+    await waitFor(() => expect(inspectedOwners).toContain("1000:1000"));
+    await pickFolder(user, fields, "/srv/site");
+    expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
+    await openAdvanced(user, fields);
+    await user.click(within(fields).getByRole("switch", { name: "Single-page app" }));
+    const review = screen.getByRole("button", { name: "Review plan" });
+    await waitFor(() => expect(review).toBeEnabled());
+    await user.click(review);
+    await waitFor(() =>
+      expect(asked?.website?.serves.value).toMatchObject({ owner: "2000:2000", singlePageApp: true }),
+    );
   });
 
   it("configures as PHP, and plans a new version", async () => {
@@ -1449,7 +1608,7 @@ describe("A PHP website", () => {
     expect(screen.getByText("Its folder stays on the server, with what PHP wrote there.")).toBeVisible();
     // What has a default is a line under Advanced, until it's opened.
     const advanced = screen.getByRole("button", { name: "Advanced" });
-    expect(advanced).toHaveAccessibleDescription("Runs as 1000 · 64 MiB uploads");
+    expect(advanced).toHaveAccessibleDescription("Runs as 1000 · 64 MB uploads");
     expect(screen.queryByLabelText("Upload limit")).not.toBeInTheDocument();
     await user.click(advanced);
     await user.clear(screen.getByLabelText("Upload limit"));

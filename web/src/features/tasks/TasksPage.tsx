@@ -574,7 +574,7 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
             </section>
             <NextDay tasks={page.rows} chosen={chosen} now={now} />
           </div>
-          {chosen ? <TaskPanel task={chosen} /> : null}
+          {chosen ? <TaskPanel key={chosen.id} task={chosen} onReview={(action) => review([chosen], action)} /> : null}
         </div>
       )}
       {editing ? <TaskSheet task={editing} onClose={() => setEditing(undefined)} /> : null}

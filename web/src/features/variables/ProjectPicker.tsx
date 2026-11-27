@@ -8,9 +8,11 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 
 import { countKinds } from "../projects/contents";
 import type { ProjectView } from "../projects/useProjects";
 
+export type VariablesProject = Pick<ProjectView, "id" | "project" | "name" | "label" | "isDefault" | "idle" | "inside">;
+
 /** A variable or secret found by its name, in any project, from the picker's box. */
 export interface Found {
-  project: ProjectView;
+  project: VariablesProject;
   environment: string;
   name: string;
   secret: boolean;
@@ -30,11 +32,15 @@ export function ProjectPicker({
   chosen,
   onChoose,
   onFind,
+  onOpen,
+  reading,
 }: {
-  views: readonly ProjectView[];
-  chosen: ProjectView | undefined;
-  onChoose: (view: ProjectView) => void;
+  views: readonly VariablesProject[];
+  chosen: VariablesProject | undefined;
+  onChoose: (view: VariablesProject) => void;
   onFind: (found: Found) => void;
+  onOpen: () => void;
+  reading: boolean;
 }) {
   const { t } = useLingui();
   const [open, setOpen] = useState(false);
@@ -54,7 +60,7 @@ export function ProjectPicker({
   }, [open]);
 
   const q = query.trim().toLowerCase();
-  const matches = (view: ProjectView) => q === "" || view.label.toLowerCase().includes(q) || view.name.includes(q);
+  const matches = (view: VariablesProject) => q === "" || view.label.toLowerCase().includes(q) || view.name.includes(q);
   const running = views.filter((v) => (!v.idle || v.isDefault) && matches(v));
   const idle = views.filter((v) => v.idle && !v.isDefault && matches(v));
   const found = useMemo<Found[]>(() => {
@@ -76,7 +82,7 @@ export function ProjectPicker({
     setQuery("");
     trigger.current?.focus();
   };
-  const choose = (view: ProjectView) => {
+  const choose = (view: VariablesProject) => {
     onChoose(view);
     close();
   };
@@ -100,14 +106,14 @@ export function ProjectPicker({
     items[next]?.focus();
   };
 
-  const counts = (view: ProjectView) => {
+  const counts = (view: VariablesProject) => {
     const kinds = countKinds(view.inside);
     return [
       plural(kinds.get("variable") ?? 0, { one: "# variable", other: "# variables" }),
       plural(kinds.get("secret") ?? 0, { one: "# secret", other: "# secrets" }),
     ].join(" · ");
   };
-  const item = (view: ProjectView) => (
+  const item = (view: VariablesProject) => (
     <li key={view.id}>
       <button
         type="button"
@@ -132,7 +138,10 @@ export function ProjectPicker({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-label={chosen ? t`Project ${chosen.label}, ${counts(chosen)}` : t`Choose a project`}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => {
+          if (!open) onOpen();
+          setOpen(!open);
+        }}
       >
         <Icon name="folder" size={16} />
         <span className="variables-pick-label">{chosen?.label ?? <Trans>Choose a project</Trans>}</span>
@@ -150,7 +159,7 @@ export function ProjectPicker({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div className="variables-pick-lists">
+          <div className="variables-pick-lists" aria-busy={reading}>
             {running.length > 0 ? (
               <section aria-label={t`Projects`}>
                 <ul className="variables-pick-list">{running.map(item)}</ul>
@@ -184,7 +193,7 @@ export function ProjectPicker({
                 </ul>
               </section>
             ) : null}
-            {running.length + idle.length + found.length === 0 ? (
+            {!reading && running.length + idle.length + found.length === 0 ? (
               <p className="variables-pick-none">
                 <Trans>No project or variable by that name.</Trans>
               </p>

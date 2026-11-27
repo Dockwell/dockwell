@@ -164,7 +164,10 @@ export function versionOf(db: Database, reading = readOf(firstReading(db))): str
 
 /** "PostgreSQL 17.2". */
 export function engineAndVersion(db: Database, reading = readOf(firstReading(db))): string {
-  return `${engineName(db.engine)} ${versionOf(db, reading)}`;
+  const engine = engineName(db.engine);
+  const version = versionOf(db, reading);
+  if (!version) return engine;
+  return version.toLowerCase().startsWith(engine.toLowerCase()) ? version : `${engine} ${version}`;
 }
 
 function buildConnectionURL(

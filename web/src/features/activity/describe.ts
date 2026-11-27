@@ -892,8 +892,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };
         }
         case "change.apply_unconfirmed": {
-          const change = event.subject?.id ?? "";
-          return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };
+          const summary = summaries.get(event.subject?.id ?? "");
+          return {
+            title: summary ? t`No passkey confirmed the plan “${summary}”` : t`No passkey confirmed the plan`,
+            icon: "key",
+            tone: "warning",
+          };
         }
         case "owner.claim":
           return { title: t`Claimed this install`, icon: "key" };

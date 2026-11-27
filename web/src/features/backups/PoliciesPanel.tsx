@@ -51,6 +51,8 @@ export function PoliciesPanel({
   const mayPlan = useMay()(ChangeService.method.proposeChange);
   // Where each is, where they're in more than one place, as several volumes share a name such as data.
   const places = usePlaces();
+  const storage = useStorage();
+  const [addingStorage, setAddingStorage] = useState(false);
   const several = new Set(policies.map((p) => p.environmentId)).size > 1;
   return (
     <Panel
@@ -87,22 +89,38 @@ export function PoliciesPanel({
               policy={policy}
               place={several ? places.label(policy.environmentId) : ""}
               onEdit={() => onEdit(policy)}
+              onAddStorage={storage.ready && storage.items.length === 0 ? () => setAddingStorage(true) : undefined}
+              storageKnown={storage.ready}
             />
           ))}
         </ul>
       )}
+      {addingStorage ? (
+        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
+      ) : null}
     </Panel>
   );
 }
 
-function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place: string; onEdit: () => void }) {
+function PolicyRow({
+  policy,
+  place,
+  onEdit,
+  onAddStorage,
+  storageKnown,
+}: {
+  policy: BackupPolicyInfo;
+  place: string;
+  onEdit: () => void;
+  onAddStorage: (() => void) | undefined;
+  /** Whether storage has loaded, so the action knows where it leads. */
+  storageKnown: boolean;
+}) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const words = useScheduleWords();
   const when = useWhen();
   const now = useControlPlaneNow(30_000);
-  const storage = useStorage();
-  const [addingStorage, setAddingStorage] = useState(false);
   const websiteOf = useWebsiteOfEnvironment(Boolean(policy.spec?.websiteFolder));
   const website = policy.spec?.websiteFolder ? websiteOf?.(policy.environmentId) : undefined;
   // An app's database alone goes by its need's link (ADR 0084); a website folder shows its domain.
@@ -120,9 +138,7 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
   const may = useMay();
   const mayRemove = may(ChangeService.method.proposeChange, { environment: policy.environmentId });
-  const mayAddStorage = may(ChangeService.method.proposeChange, { install: true });
-  const actOff = mayRemove.allowed ? {} : { disabled: true, title: mayRemove.reason || undefined };
-  const addOff = mayAddStorage.allowed ? {} : { disabled: true, title: mayAddStorage.reason || undefined };
+  const mayCopy = onAddStorage ? may(ChangeService.method.proposeChange, { install: true }) : mayRemove;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -133,7 +149,13 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
     <li className="backup-policy">
       <div className="backup-state">
         <span>
-          <code>{volume}</code>
+          <code>{policy.name}</code>
+          {volume && volume !== policy.name ? (
+            <span className="backup-why">
+              {" "}
+              · <code>{volume}</code>
+            </span>
+          ) : null}
           {place ? <span className="backup-why backup-place"> · {place}</span> : null}
         </span>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
@@ -150,22 +172,21 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
         {sentTo ? (
           <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span>
         ) : (
-          // Kept on the disk it would be lost with: a warning, with the one thing that fixes it (#793).
           <StateLine
             status="degraded"
             action={
-              storage.items.length > 0 ? (
-                <button type="button" className="domain-step-act" onClick={onEdit} {...actOff}>
-                  <Trans>Send copies off the server</Trans>
-                </button>
-              ) : (
-                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)} {...addOff}>
-                  <Trans>Add storage</Trans>
-                </button>
-              )
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={onAddStorage ?? onEdit}
+                disabled={!mayCopy.allowed || !storageKnown}
+                title={mayCopy.reason || undefined}
+              >
+                <Trans>Send copies off the server</Trans>
+              </button>
             }
           >
-            {t`Kept only on the server, unencrypted`}
+            <Trans>Kept only on the server, unencrypted</Trans>
           </StateLine>
         )}
       </div>
@@ -219,9 +240,6 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
           {...mayRemove.off}
         />
       </div>
-      {addingStorage ? (
-        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
-      ) : null}
     </li>
   );
 }

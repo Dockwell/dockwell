@@ -10,14 +10,16 @@ import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { planDeletingProject } from "./contents";
 import type { ProjectView } from "./useProjects";
 
+type DeletableProject = Pick<ProjectView, "id" | "project" | "label" | "isDefault">;
+
 /**
  * Deleting a project, with everything in it, as one plan (ADR 0074): whether the signed-in
  * person may, and what opens the plan. A project is an admin's to delete (ADR 0049); the
  * default project, where apps with no project go, stays, and so does the only one.
  */
 export function useProjectDelete(count: number): {
-  offer: (view: ProjectView) => Offer;
-  open: (view: ProjectView, after?: () => void) => void;
+  offer: (view: DeletableProject) => Offer;
+  open: (view: DeletableProject, after?: () => void) => void;
 } {
   const { t } = useLingui();
   const may = useMay();
@@ -27,7 +29,7 @@ export function useProjectDelete(count: number): {
   const places = usePlaces();
   // A project itself is in no project, so deleting one is an admin's (ADR 0049).
   const admin = may(ChangeService.method.proposeChange, { install: true });
-  const offer = (view: ProjectView): Offer => {
+  const offer = (view: DeletableProject): Offer => {
     if (!admin.allowed) return admin;
     if (view.isDefault || count < 2) {
       const reason = t`Apps with no project go here, so it stays.`;
@@ -50,7 +52,12 @@ export function useProjectDelete(count: number): {
   };
   const shares = (plan: Plan | undefined) =>
     plan?.notes.some((n) => n.reason === "keeps_shared" || n.reason === "breaks_shared") ?? false;
-  const opening = (view: ProjectView, after: (() => void) | undefined, anyway: boolean, keepIn: string): Opening => ({
+  const opening = (
+    view: DeletableProject,
+    after: (() => void) | undefined,
+    anyway: boolean,
+    keepIn: string,
+  ): Opening => ({
     kind: "plan",
     make: () =>
       planDeletingProject(transport, view.project, t`Delete the project ${view.label}`, anyway, anyway ? "" : keepIn),
@@ -84,6 +91,6 @@ export function useProjectDelete(count: number): {
           },
         }),
   });
-  const open = (view: ProjectView, after?: () => void) => sheet.open(opening(view, after, false, ""));
+  const open = (view: DeletableProject, after?: () => void) => sheet.open(opening(view, after, false, ""));
   return { offer, open };
 }

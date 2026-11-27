@@ -72,7 +72,6 @@
 .website-columns {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
   gap: var(--space-6);
 }
 
@@ -83,10 +82,6 @@
   gap: var(--space-4);
   min-width: 0;
   max-width: 400px;
-}
-
-.website-settings > .dw-panel:last-child {
-  flex: 1 1 auto;
 }
 
 .website-tab {
@@ -101,6 +96,11 @@
   gap: var(--space-4);
 }
 
+.website-logs-which,
+.website-backups-link {
+  align-self: flex-start;
+}
+
 .website-config {
   display: flex;
   flex: 2 1 560px;
@@ -109,7 +109,6 @@
   overflow: hidden;
 }
 
-/* The code takes what the panel has, so its foot sits at the bottom, beside the settings. */
 .website-config > .dw-panel-body {
   display: flex;
   flex: 1 1 auto;

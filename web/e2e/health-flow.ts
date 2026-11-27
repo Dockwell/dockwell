@@ -168,9 +168,9 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   const lead = await page.locator(".page-lead").innerText();
   if (!/needs? a look/.test(lead)) fail(`the list's lead says nothing needs a look: ${lead}`);
 
-  step("health: Restart is a plan that says what it does and that it can't be undone, and it comes back");
+  step("health: Start reviews a recovery plan for a workload stopped by hand");
   await goToApp("checked");
-  await page.getByRole("button", { name: "Restart", exact: true }).first().click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   const restart = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await restart.waitFor({ timeout: 30_000 });
   await restart.getByText("A restart has no undo, as it changes nothing to go back to.").waitFor();
@@ -260,7 +260,7 @@ services:
     .getByText(/exit code 137/)
     .waitFor();
   // What follows is the restart policy's: plain has none, so nothing starts it again.
-  await page.locator(".dw-callout").getByText("Nothing starts it again on its own. Restart it, or deploy.").waitFor();
+  await page.locator(".dw-callout").getByText("Nothing starts it again on its own. Start it, or deploy.").waitFor();
 
   step("health: it reads in Chinese too");
   const zh = await browser.newContext({

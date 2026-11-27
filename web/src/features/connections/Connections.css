@@ -383,7 +383,13 @@ a.connections-name:hover {
 }
 
 .connections-tiles .connection-store-grid {
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+}
+
+@media (min-width: 640px) {
+  .connections-tiles .connection-store-grid:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* A phone's actions for one connection, under its panels. */

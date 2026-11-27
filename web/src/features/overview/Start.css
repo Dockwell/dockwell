@@ -223,10 +223,20 @@
   }
 }
 
-/* Two by two beside the overview's other cards, one above the other on a phone. */
+/* Pair the secondary choices and give the catalog its own row on the overview. */
 .start-choices.is-compact {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
+}
+
+.start-choices.is-compact > :first-child:nth-last-child(odd) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 639.98px) {
+  .start-choices.is-compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .start-choices.is-compact .start-choice {

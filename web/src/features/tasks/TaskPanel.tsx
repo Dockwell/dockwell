@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { ChangeService, type TaskInfo, TaskKind, type TaskRun, TaskRunState, TaskService } from "@dockwell/api";
-import { Button, Callout, Glyph, type GlyphShape, SelectField, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Glyph, type GlyphShape, SelectField, Switch } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,7 +32,13 @@ function mark(state: TaskRunState): { shape: GlyphShape; tone: string } {
 }
 
 /** One task, as Scheduled-Tasks has it beside the list. */
-export function TaskPanel({ task }: { task: TaskInfo }) {
+export function TaskPanel({
+  task,
+  onReview,
+}: {
+  task: TaskInfo;
+  onReview: (action: "pause" | "resume" | "delete") => void;
+}) {
   const { t, i18n } = useLingui();
   const words = useTaskWords();
   const time = useTimeWords();
@@ -44,14 +50,16 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
   const [running, setRunning] = useState(false);
   const [runFailure, setRunFailure] = useState<string>();
   const [runOn, setRunOn] = useState(task.servers[0]?.serverId ?? "");
+  const [runId, setRunId] = useState<string>();
   const runs = runsQuery.data?.runs ?? [];
   const oldestFirst = [...runs].reverse();
   const good = runs.filter((r) => r.state === TaskRunState.SUCCEEDED).length;
   const bad = runs.filter((r) => runStatus(r.state) === "down").length;
-  const newest = runs[0];
-  const transcript = newest ? words.transcript(newest, task, time.span) : [];
+  const selected = runs.find((run) => run.id === runId) ?? runs[0];
+  const transcript = selected ? words.transcript(selected, task, time.span) : [];
   const lastBad = runs.find((r) => runStatus(r.state) === "down");
   const spec = task.spec;
+  const saved = !!task.resource && task.revision !== 0n;
   const name = nameOf(task);
   const schedule = words.schedule(spec?.schedule ?? "");
   const timeout = time.span((spec?.timeoutSeconds ?? 600) * 1000);
@@ -77,7 +85,9 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
   };
 
   const may = useMay();
-  const mayRun = may(TaskService.method.runTask, { environment: task.resource?.scope ?? "" });
+  const scope = { environment: task.resource?.scope ?? "" };
+  const mayRun = may(TaskService.method.runTask, scope);
+  const mayEdit = may(ChangeService.method.proposeChange, scope);
   const runNow = async () => {
     setRunning(true);
     setRunFailure(undefined);
@@ -105,12 +115,15 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
             )}
           </span>
         </div>
-        {spec?.paused ? (
-          <StatusBadge status="stopped" label={t`Paused`} />
-        ) : (
-          // Plain, as on is how a task is: the healthy glyph is for how something runs (#796).
-          <span className="tasks-enabled">{t`Enabled`}</span>
-        )}
+        {spec ? (
+          <Switch
+            checked={!spec.paused}
+            label={t`Enabled`}
+            disabled={!mayEdit.allowed || !saved}
+            description={mayEdit.reason || undefined}
+            onChange={(enabled) => onReview(enabled ? "resume" : "pause")}
+          />
+        ) : null}
       </div>
       <div className="dw-panel-body tasks-panel-body">
         <div className="tasks-block">
@@ -157,6 +170,9 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                 ? t`None yet`
                 : `${t`${good} succeeded`} · ${plural(bad, { one: "# failed", other: "# failed" })}`}
             </span>
+            <RouterButtonLink to="/activity" search={{ resource: task.id }} variant="ghost" size="sm">
+              <Trans>All runs</Trans>
+            </RouterButtonLink>
           </div>
           {runs.length > 0 ? (
             <>
@@ -164,11 +180,22 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                 {oldestFirst.map((r) => {
                   const m = mark(r.state);
                   const why = r.state === TaskRunState.SUCCEEDED ? "" : words.why(r, task, time.span);
-                  const what = `${day(r)}, ${words.state(r.state).toLowerCase()}${why ? `: ${why}` : ""}`;
+                  const state = words.state(r.state).toLowerCase();
+                  const what = [day(r), task.servers.length > 1 ? r.serverName : "", why ? `${state}: ${why}` : state]
+                    .filter(Boolean)
+                    .join(" · ");
                   return (
-                    <li key={r.id} title={what} className={`tasks-strip-run ${m.tone}`}>
-                      <Glyph shape={m.shape} size={10} />
-                      <span className="dw-sr">{what}</span>
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        className={`tasks-strip-run ${m.tone}`}
+                        title={what}
+                        aria-label={t`Show output: ${what}`}
+                        aria-pressed={selected?.id === r.id}
+                        onClick={() => setRunId(r.id)}
+                      >
+                        <Glyph shape={m.shape} size={10} />
+                      </button>
                     </li>
                   );
                 })}
@@ -176,7 +203,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
               {/* The span of time the strip covers, its ends by their day, and the last failure between them. */}
               <div className="tasks-row tasks-label tasks-strip-ends">
                 <span>{end(oldestFirst[0])}</span>
-                {lastBad?.startTime ? (
+                {selected === runs[0] && lastBad?.startTime ? (
                   <span className="tasks-bad">{t`${words.when(timestampDate(lastBad.startTime), now)} ${words.state(lastBad.state).toLowerCase()}: ${words.why(lastBad, task, time.span)}`}</span>
                 ) : null}
                 {oldestFirst.length > 1 ? <span>{end(oldestFirst.at(-1))}</span> : null}
@@ -188,15 +215,17 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
             </p>
           )}
         </div>
-        {newest ? (
+        {selected ? (
           <div className="tasks-block">
             <div className="tasks-row">
-              <span className="tasks-label">{t`Last output`}</span>
-              <span className="tasks-label">
+              <span className="tasks-label">{selected === runs[0] ? t`Last output` : t`Run output`}</span>
+              <span className="tasks-label" aria-live="polite">
                 {[
-                  newest.startTime ? words.when(timestampDate(newest.startTime), now) : "",
-                  tookOf(newest) === undefined ? words.state(newest.state) : words.took(tookOf(newest) ?? 0, time.span),
-                  exited(newest),
+                  selected.startTime ? words.when(timestampDate(selected.startTime), now) : "",
+                  tookOf(selected) === undefined
+                    ? words.state(selected.state)
+                    : words.took(tookOf(selected) ?? 0, time.span),
+                  exited(selected),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -217,8 +246,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                 ))
               )}
             </pre>
-            {newest.outputCutBytes > 0n ? (
-              <p className="tasks-quiet">{t`What it printed before this, ${newest.outputCutBytes} bytes, wasn't kept.`}</p>
+            {selected.outputCutBytes > 0n ? (
+              <p className="tasks-quiet">{t`What it printed before this, ${selected.outputCutBytes} bytes, wasn't kept.`}</p>
             ) : null}
           </div>
         ) : null}
@@ -240,17 +269,15 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
           <Button icon="play" loading={running} onClick={() => void runNow()} {...mayRun.off}>
             <Trans>Run now</Trans>
           </Button>
-          <Button
-            icon="edit"
-            onClick={() => setEditing(true)}
-            {...may(ChangeService.method.proposeChange, { environment: task.resource?.scope ?? "" }).off}
-          >
+          <Button icon="edit" onClick={() => setEditing(true)} {...mayEdit.off}>
             <Trans>Edit</Trans>
           </Button>
-          <span className="tasks-fill" />
-          <RouterButtonLink to="/activity" search={{ resource: task.id }} variant="ghost">
-            <Trans>All runs</Trans>
-          </RouterButtonLink>
+          {saved ? (
+            // Quieter than the everyday actions beside it; the plan it opens is where it turns red.
+            <Button variant="ghost" icon="trash" onClick={() => onReview("delete")} {...mayEdit.off}>
+              <Trans>Delete task</Trans>
+            </Button>
+          ) : null}
         </div>
       </div>
       {editing ? <TaskSheet task={task} onClose={() => setEditing(false)} /> : null}

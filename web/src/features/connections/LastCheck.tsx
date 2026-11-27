@@ -54,7 +54,7 @@ export function useLastCheck(connection: ConnectionInfo): LastCheck | undefined 
       };
     }
     return {
-      status: SILENT.includes(failing.code) ? "unknown" : "down",
+      status: SILENT.includes(failing.code) ? "degraded" : "down",
       label: admin ? t`Fails from ${server}` : t`Failed`,
       meta: at(failing),
       why: admin ? said.state : "",

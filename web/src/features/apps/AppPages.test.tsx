@@ -18,6 +18,7 @@ import {
   Connection,
   type CreateTokenRequest,
   DeploymentState,
+  DesiredRunState,
   DomainCheckState,
   EntrySchema,
   FieldOp,
@@ -36,6 +37,7 @@ import {
   PublicAddressSource,
   Reachable,
   type Resource,
+  type RestartServiceRequest,
   Role,
   type RollBackServiceRequest,
   RollbackState,
@@ -476,35 +478,118 @@ describe("an app's frame", () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
     expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
-    // On a phone, Stop and Restart stay beside each other in the app action bar.
     const bar = container.querySelector(".app-actionbar") as HTMLElement;
-    expect(bar).toHaveTextContent(/^LogsStopRestartDeploy$/);
-    expect(within(bar).getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/apps/svc_web/logs");
+    expect(bar).toHaveTextContent(/^Deploy$/);
+    expect(screen.getByRole("button", { name: "Actions for web" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);
   });
 
-  it("goes to the logs from its tab, and from the header between Restart and Deploy on every tab", async () => {
-    const { router } = renderAt("/apps/svc_web", api());
+  it("keeps the app menu alongside Deploy and takes you to logs from the tab", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web", api());
     await screen.findByRole("heading", { level: 1, name: "web" });
-    const tab = within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" });
-    expect(tab).toBeVisible();
-    const links = screen.getAllByRole("link", { name: "Logs" });
-    expect(links).toHaveLength(2);
-    const header = links.find((l) => l !== tab) as HTMLElement;
-    expect(header).toHaveAttribute("href", "/apps/svc_web/logs");
-    // Between Restart and Deploy, as App-Overview has it.
-    expect(header.previousElementSibling).toHaveTextContent("Restart");
-    expect(header.nextElementSibling).toHaveTextContent("Deploy");
-    await act(() => router.navigate({ to: "/apps/$serviceId/logs", params: { serviceId: "svc_web" } }));
-    // On the Logs tab it stays where it was, as App-Logs has it, and says it's this page.
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Pause" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Stop" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Restart" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Delete app" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    const logs = screen.getByRole("link", { name: "Logs" });
+    await user.click(logs);
     await screen.findByRole("region", { name: "Logs" });
-    const there = screen.getAllByRole("link", { name: "Logs" });
-    expect(there).toHaveLength(2);
-    for (const link of there) expect(link).toHaveAttribute("aria-current", "page");
-    const kept = there.find((l) => l.classList.contains("dw-btn")) as HTMLElement;
-    expect(kept.previousElementSibling).toHaveTextContent("Restart");
-    expect(kept.nextElementSibling).toHaveTextContent("Deploy");
+    expect(logs).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Actions for web" })).toBeVisible();
+  });
+
+  it.each([
+    { desired: DesiredRunState.RUNNING, health: HealthState.NO_CHECK, action: "Stop", primary: "Deploy" },
+    { desired: DesiredRunState.PAUSED, health: HealthState.PAUSED, action: "Stop", primary: "Unpause" },
+    { desired: DesiredRunState.STOPPED, health: HealthState.NOT_RUNNING, action: "Start", primary: "Start" },
+  ])("plans $action for an app whose primary action is $primary", async ({ desired, health, action, primary }) => {
+    const user = userEvent.setup();
+    const app = anApp("web", "nginx", { desiredRunState: desired });
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        health: { listHealth: () => ({ services: [aHealth(app.id, { state: health })] }) },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      }),
+    );
+    const main = await screen.findByRole("button", { name: primary });
+    if (action === "Stop") {
+      await user.click(screen.getByRole("button", { name: "Actions for web" }));
+      const menu = screen.getByRole("menu");
+      expect(within(menu).queryByRole("menuitem", { name: "Pause" }) !== null).toBe(
+        desired === DesiredRunState.RUNNING,
+      );
+      await user.click(within(menu).getByRole("menuitem", { name: "Stop" }));
+    } else {
+      await user.click(screen.getByRole("button", { name: "Actions for web" }));
+      expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /^(Pause|Stop)$/ })).toBeNull();
+      await user.keyboard("{Escape}");
+      await user.click(main);
+    }
+    await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(proposed[0]?.summary).toBe(`${action} web`));
+    expect(proposed[0]?.edits[0]?.spec?.kind).toMatchObject({
+      case: "service",
+      value: {
+        runs: {
+          case: "app",
+          value: { desiredRunState: action === "Stop" ? DesiredRunState.STOPPED : DesiredRunState.RUNNING },
+        },
+      },
+    });
+  });
+
+  it("uses a start plan for a workload reporting that it is no longer running", async () => {
+    const user = userEvent.setup();
+    const app = anApp("web", "nginx", { desiredRunState: DesiredRunState.RUNNING });
+    const restarted: RestartServiceRequest[] = [];
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        health: { listHealth: () => ({ services: [aHealth(app.id, { state: HealthState.NOT_RUNNING })] }) },
+        changes: {
+          restartService: (req) => {
+            restarted.push(req);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      }),
+    );
+    const start = await screen.findByRole("button", { name: "Start" });
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /^(Pause|Restart)$/ })).toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(start);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(restarted[0]).toMatchObject({ id: app.id, summary: "Start web" }));
+  });
+
+  it("keeps workload controls out of a moving app's header", async () => {
+    const moving = anApp(
+      "web",
+      "nginx",
+      { desiredRunState: DesiredRunState.RUNNING },
+      {
+        deployments: [{ serverId: SERVER, state: DeploymentState.PENDING }],
+      },
+    );
+    renderAt("/apps/svc_web", api([moving]));
+    await screen.findByRole("heading", { level: 1, name: "web" });
+    expect(screen.queryByRole("button", { name: "Actions for web" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
   });
 
   it("shows the project it's in, once there is more than one", async () => {

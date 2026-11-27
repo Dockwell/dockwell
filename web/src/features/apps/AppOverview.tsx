@@ -230,13 +230,11 @@ function HealthNotice({
           {restart === RestartPolicy.ALWAYS ||
           restart === RestartPolicy.UNLESS_STOPPED ||
           restart === RestartPolicy.UNSPECIFIED ? (
-            <Trans>
-              Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy.
-            </Trans>
+            <Trans>Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy.</Trans>
           ) : restart === RestartPolicy.ON_FAILURE ? (
-            <Trans>Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy.</Trans>
+            <Trans>Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy.</Trans>
           ) : (
-            <Trans>Nothing starts it again on its own. Restart it, or deploy.</Trans>
+            <Trans>Nothing starts it again on its own. Start it, or deploy.</Trans>
           )}
         </Callout>
       );

@@ -45,6 +45,7 @@ import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertActions, serviceAt } from "./AlertActions";
 import { AlertAcknowledge, Sending } from "./AlertCards";
+import { useAlertKind } from "./alertKind";
 import { useChecks } from "./checks";
 import { useAlerts, useRules } from "./useAlerts";
 import "./Alerts.css";
@@ -189,6 +190,7 @@ function State({ alert }: { alert: Alert }) {
 
 /** Where it is and what it's about, each a link to its own page. */
 function Lead({ alert }: { alert: Alert }) {
+  const kind = useAlertKind()(alert.condition);
   const parts: ReactNode[] = [];
   if (alert.condition === Condition.SERVICE_DOWN && alert.subjectId) {
     parts.push(
@@ -204,7 +206,7 @@ function Lead({ alert }: { alert: Alert }) {
       </Link>,
     );
   }
-  parts.push(<code key="rule">{alert.ruleName}</code>);
+  parts.push(kind);
   return (
     <>
       {parts.map((part, i) => (
@@ -262,11 +264,17 @@ function Body({ alert }: { alert: Alert }) {
     [open ? t`Open for` : t`Lasted`, lasted],
   ];
   if (!open) facts.push([t`Resolved`, when(alert.resolveTime)]);
+  const kind = useAlertKind()(alert.condition);
   facts.push([
     t`Rule`,
     <span key="rule">
-      {rule?.title ? <>{rule.title} · </> : null}
-      <code>{rule?.expression || alert.ruleName}</code>
+      {rule?.title || kind}
+      {rule?.expression ? (
+        <>
+          {" "}
+          · <code>{rule.expression}</code>
+        </>
+      ) : null}
     </span>,
   ]);
   facts.push([

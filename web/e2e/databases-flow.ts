@@ -151,7 +151,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await external.getByRole("button", { name: "Cancel" }).click();
 
   step("databases: its users have a tab of their own, where its first user's password is Connect's secret");
-  await page.getByRole("link", { name: "Open Users" }).click();
+  await page.getByRole("link", { name: "Open users" }).click();
   await page.getByRole("table", { name: "Databases in postgres" }).getByText("app", { exact: true }).first().waitFor();
   const first = page
     .getByRole("table", { name: "Users of postgres" })

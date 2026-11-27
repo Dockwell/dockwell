@@ -175,11 +175,17 @@ function useFolded() {
       return new Set();
     }
   });
-  const toggle = (key: string) =>
+  const toggle = (key: string, openedByDefault: boolean) =>
     setFolded((was) => {
       const next = new Set(was);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+        next.add(`open:${key}`);
+      } else if (next.delete(`open:${key}`)) {
+        next.add(key);
+      } else {
+        next.add(openedByDefault ? key : `open:${key}`);
+      }
       remember(FOLDED_KEY, JSON.stringify([...next]));
       return next;
     });
@@ -222,7 +228,7 @@ export function AppsPage({
   const health = useHealth();
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
-  const [collapsed, toggle] = useFolded();
+  const [folded, toggleFolded] = useFolded();
   const place = useListPlace(search, onSearch, SORT_KEYS);
   const query = place.query;
 
@@ -324,6 +330,24 @@ export function AppsPage({
     }
     return out;
   }, [orderedGroups, query, domainNames]);
+  const largeOnPhone = (group: AppGroup) => phone && group.services.length > 12;
+  const collapsed = useMemo(
+    () =>
+      new Set(
+        matching.flatMap(({ group }) =>
+          group.stack &&
+          (folded.has(group.key) || (phone && group.services.length > 12 && !folded.has(`open:${group.key}`)))
+            ? [group.key]
+            : [],
+        ),
+      ),
+    [matching, folded, phone],
+  );
+  const toggle = (key: string) => {
+    const group = matching.find((item) => item.group.key === key)?.group;
+    toggleFolded(key, !group || !largeOnPhone(group));
+  };
+
   // Page over what shows on screen: a collapsed stack takes one row, so collapsing
   // a large stack never leaves a page half empty, and expanding fills the page.
   type PageSlot =
@@ -735,7 +759,11 @@ export function AppsPage({
               />
             ) : null}
             {phone && count > 0 ? (
-              <ListSortField place={place} columns={{ app: t`App`, deployed: t`Deployed` }} />
+              <ListSortField
+                className="apps-sort-filter"
+                place={place}
+                columns={{ app: t`App`, deployed: t`Deployed` }}
+              />
             ) : null}
             {choosing && envOptions.length <= SEGMENTS ? (
               <SegmentedControl

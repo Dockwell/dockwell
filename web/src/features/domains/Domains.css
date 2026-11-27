@@ -206,6 +206,7 @@
 }
 
 .domains-main {
+  container: domains-list / inline-size;
   flex: 3 1 640px;
   min-width: 0;
 }
@@ -391,4 +392,15 @@
 .domains-published .domain-step-state {
   display: flex;
   min-width: 0;
+}
+
+/* Reserve room for the name where the table can still give each other column its width. */
+@container domains-list (min-width: 780px) {
+  .domains-table .dw-table th:first-child {
+    width: 240px;
+  }
+}
+
+.domains-table .domains-name {
+  flex-wrap: wrap;
 }

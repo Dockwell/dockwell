@@ -100,7 +100,7 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
         compact={phone}
         stale={unread !== undefined || server.connection !== Connection.CONNECTED}
       />
-      <div className="overview-columns">
+      <div className="overview-columns dw-card-columns">
         <div className="overview-main">
           <OverviewApps />
           {/* On a phone, the updates follow what runs, as M-Overview-Single has them. */}

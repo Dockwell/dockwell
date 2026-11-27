@@ -685,18 +685,13 @@ function DatabasesTable({
   // A catalog install's database goes by the name the person gave the install (#796).
   const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
+  const placeFor = (db: Database) =>
+    databaseContext(db, shownName(db, "database").app, several ? places.label(db.resource?.scope ?? "") : "");
   const cells: Record<string, (db: Database) => ReactNode> = {
     name: (db) => (
       <div className="dw-cell">
         <span className="dw-cell-title databases-name">{shownName(db, "database").title}</span>
-        <span className="databases-sub">
-          {[
-            engineAndVersion(db),
-            shownName(db, "database").app || (several ? places.label(db.resource?.scope ?? "") : ""),
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </span>
+        <span className="databases-sub">{[engineAndVersion(db), placeFor(db)].filter(Boolean).join(" · ")}</span>
       </div>
     ),
     status: (db) => <DatabaseHealth db={db} health={health} />,
@@ -804,6 +799,10 @@ function DatabasesTable({
 }
 
 /** How a database runs, as its health checks say. */
+function databaseContext(db: Database, app: string | undefined, place: string): string {
+  return app?.toLowerCase() === engineName(db.engine).toLowerCase() ? place : app || place;
+}
+
 function DatabaseHealth({ db, health }: { db: Database; health: HealthView }) {
   return <HealthBadge health={health.of({ id: db.id })} />;
 }
@@ -874,6 +873,11 @@ function PhoneList({
         const runs = health.of({ id: db.id });
         const read = readOf(firstReading(db));
         const tone = `dw-tone-${STATUS[runs.status].tone}`;
+        const place = databaseContext(
+          db,
+          shownName(db, "database").app,
+          several ? places.label(db.resource?.scope ?? "") : "",
+        );
         return (
           <div key={db.id} className="databases-phone-item">
             <Link to="/databases/$serviceId" params={{ serviceId: db.id }} className="databases-phone-row">
@@ -886,10 +890,10 @@ function PhoneList({
                   <span className={cx("databases-phone-word", tone)}>{words.word(runs)}</span>
                   <span aria-hidden="true">·</span>
                   <span>{engineAndVersion(db)}</span>
-                  {shownName(db, "database").app || several ? (
+                  {place ? (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span>{shownName(db, "database").app || places.label(db.resource?.scope ?? "")}</span>
+                      <span>{place}</span>
                     </>
                   ) : null}
                   {read ? (
@@ -964,7 +968,7 @@ function rememberEngines(n: number) {
 }
 
 /** The narrowest an engine's tile reads well at, its logo, name and version on a line. */
-const TILE_MIN = 160;
+const TILE_MIN = 180;
 
 /**
  * How many columns count tiles take in a row width wide, with gap between them: as
@@ -1157,7 +1161,11 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
                       method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") || engineName(db.engine),
                       policy?.spec ? schedule(policy.spec) : t`not scheduled`,
                     ].join(", ");
-              const place = shownName(db, "database").app || (several ? places.label(db.resource?.scope ?? "") : "");
+              const place = databaseContext(
+                db,
+                shownName(db, "database").app,
+                several ? places.label(db.resource?.scope ?? "") : "",
+              );
               return (
                 <div key={db.id} className="databases-fact-item">
                   <code className="databases-fact-name">{shownName(db, "database").title}</code>

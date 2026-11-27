@@ -57,6 +57,8 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   // One flow for every update: the install's, with its backup first, which a switch leaves out (ADR 0080).
   const upgrade = () => upgrading.open();
   const notes = facts.filter((f) => !f.label);
+  const owner = ownerStatus(install);
+  const heldHere = owner === "held" && service.id === install.webServiceId;
   const rows: CardRow[] = [
     {
       key: "installed",
@@ -95,7 +97,18 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
         </RouterButtonLink>
       ) : undefined,
     },
-    ...facts.flatMap((f) => (f.label ? [{ key: f.key, label: f.label, value: f.text, action: f.action }] : [])),
+    ...facts.flatMap((f) =>
+      f.label
+        ? [
+            {
+              key: f.key,
+              label: f.label,
+              value: f.text,
+              action: heldHere && (f.key === "local" || f.key === "open") ? undefined : f.action,
+            },
+          ]
+        : [],
+    ),
     ...needRows,
     ...companionRows,
   ];
@@ -131,7 +144,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
       >
         {/* An install whose owner Dockwell makes, or that's held until a person sets it up, says
             which (ADR 0105); a hold of its own routes alone, as a new empty database's, is ADR 0084's. */}
-        {(ownerStatus(install) && ownerStatus(install) !== "made") || (install.owner?.unsetLeft.length ?? 0) > 0 ? (
+        {(owner && owner !== "made") || (install.owner?.unsetLeft.length ?? 0) > 0 ? (
           <OwnerCallout service={service} install={install} entry={entry} />
         ) : (
           <HeldRoutes service={service} install={install} />

@@ -505,10 +505,10 @@ describe("the databases list", () => {
   it("lays the tiles out in even rows at any width", () => {
     expect(balancedColumns(6, 1160, 16)).toBe(6);
     // Four fit, but two rows of three are even, where four and two aren't.
-    expect(balancedColumns(6, 760, 16)).toBe(3);
-    expect(balancedColumns(7, 760, 16)).toBe(4);
+    expect(balancedColumns(6, 780, 16)).toBe(3);
+    expect(balancedColumns(7, 780, 16)).toBe(4);
     expect(balancedColumns(4, 1160, 16)).toBe(4);
-    expect(balancedColumns(5, 358, 8)).toBe(2);
+    expect(balancedColumns(5, 358, 8)).toBe(1);
     expect(balancedColumns(1, 1160, 16)).toBe(1);
     expect(balancedColumns(3, 0, 16)).toBe(1);
   });
@@ -795,10 +795,10 @@ describe("a database's page", () => {
         "Data at 7.0's features, which its next upgrade raises · Runs alone: a backup isn't one moment while something writes",
       ),
     ).toBeVisible();
-    // Its users are counted here and listed on their tab, which the Overview doesn't repeat (#798).
+    // The overview previews users and links to their full list.
     expect(screen.queryByRole("table", { name: "Users of docs" })).toBeNull();
-    expect(screen.getByText("2 users · 1 database of your own")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Open Users" })).toHaveAttribute("href", "/databases/svc_docs/users");
+    expect(screen.getByRole("table", { name: "2 users · 1 database of your own" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open users" })).toHaveAttribute("href", "/databases/svc_docs/users");
     expect(screen.queryByText(/lets anyone in/)).toBeNull();
     // Nor a new password: MongoDB keeps its root user's in its data, which a new secret wouldn't change.
     expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();

@@ -134,7 +134,7 @@ export const flow: Flow = {
     if ((await docker()).some((item) => apps.includes(item.service) && item.running))
       throw new Error("The selected apps are still running on Docker after the batch stop");
 
-    step("row verbs: open a row menu on a phone, then start one app and find Stop beside Restart");
+    step("row verbs: open a row menu on a phone, then start one app and review Pause from its header");
     await atWidth(page, { width: 390, height: 844 });
     await page.getByRole("button", { name: `Actions for ${apps[0]}` }).click();
     await page.getByRole("menuitem", { name: "Start", exact: true }).click();
@@ -161,8 +161,10 @@ export const flow: Flow = {
     await row.press("Shift+F10");
     const context = page.getByRole("menu", { name: `Actions for ${apps[0]}` });
     await context.getByRole("menuitem", { name: "Open", exact: true }).click();
-    await page.getByRole("button", { name: "Restart", exact: true }).waitFor();
-    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await page.getByRole("button", { name: `Actions for ${apps[0]}` }).click();
+    const headerMenu = page.getByRole("menu", { name: `Actions for ${apps[0]}` });
+    await headerMenu.getByRole("menuitem", { name: "Restart", exact: true }).waitFor();
+    await headerMenu.getByRole("menuitem", { name: "Pause", exact: true }).click();
     await (await review(page))
       .getByText(apps[0] ?? "", { exact: true })
       .first()

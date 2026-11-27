@@ -170,16 +170,15 @@ export function isMoving(state: AppState): boolean {
   return state.kind === "deploying" || state.kind === "waiting";
 }
 
-/** Whether an app's current state allows restarting (not moving, unplaced, unreadable, stopped, or paused). */
+/** Whether the app has a readable placement and no change already moving it. */
+export function canChangeAppRunState(state: AppState): boolean {
+  return !isMoving(state) && state.kind !== "unplaced" && state.kind !== "unreadable";
+}
+
+/** Whether an app's current state allows restarting. */
 export function canRestartApp(service: ServiceInfo, state: AppState): boolean {
   const desired = appOf(service)?.desiredRunState;
-  return (
-    !isMoving(state) &&
-    state.kind !== "unplaced" &&
-    state.kind !== "unreadable" &&
-    desired !== DesiredRunState.STOPPED &&
-    desired !== DesiredRunState.PAUSED
-  );
+  return canChangeAppRunState(state) && desired !== DesiredRunState.STOPPED && desired !== DesiredRunState.PAUSED;
 }
 
 /**

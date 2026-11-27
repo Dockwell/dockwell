@@ -16,8 +16,8 @@
 }
 
 .catalog-search {
-  flex: 0 1 300px;
-  min-width: 220px;
+  flex: 0 1 232px;
+  min-width: 176px;
 }
 
 .catalog-from-pick {
@@ -54,16 +54,23 @@
 
 .catalog-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex: 1 1 320px;
+  gap: var(--space-2);
   min-width: 0;
-  margin: 0;
-  padding: 0;
+  margin: -4px;
+  padding: 4px;
   border: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.catalog-chips.has-more {
+  mask-image: linear-gradient(to right, currentColor calc(100% - 24px), transparent);
 }
 
 .catalog-chip {
   display: inline-flex;
+  flex: none;
   align-items: center;
   height: 28px;
   padding: 0 var(--space-3);
@@ -109,7 +116,7 @@
 .catalog-grid {
   display: grid;
   /* Four across at 1440, as Catalog draws it, so a screen shows a dozen apps or more. */
-  grid-template-columns: repeat(auto-fill, minmax(min(248px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: var(--space-4);
 }
 
@@ -151,6 +158,7 @@
 /* How many, and the order they come in, over the grid. */
 .catalog-count-row {
   display: flex;
+  margin-inline-start: auto;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
@@ -243,16 +251,11 @@
   max-width: 360px;
 }
 
-/* Two lines at most, so every card in a row is as tall as the next; the app's page says the rest. */
 .catalog-card-summary {
-  display: -webkit-box;
   min-height: 40px;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   color: var(--ink-muted);
   font: var(--text-body);
+  overflow-wrap: anywhere;
 }
 
 /* Where an install is reached, then the row under it, together at the card's foot. */
@@ -261,7 +264,6 @@
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
-  margin-top: auto;
   color: var(--ink-muted);
   font-size: 12px;
 }
@@ -951,27 +953,14 @@
     min-width: 0;
   }
 
-  /* Room for a chip's focus ring, which the scrolling row would otherwise clip. */
   .catalog-chips {
+    flex-basis: 100%;
+  }
+
+  .catalog-count-row {
     flex: 1 1 100%;
-    flex-wrap: nowrap;
-    margin: -4px;
-    padding: 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
 
-  /* While there's more of the row to scroll to, its end fades. */
-  .catalog-chips.has-more {
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-  }
-
-  .catalog-chip {
-    flex: none;
-  }
-
-  /* Compact rows on a phone (#792): the logo, the name and a line of what it does,
-     so a screen shows several apps, and the version stays on its page. */
   .catalog-grid {
     gap: var(--space-2);
   }
@@ -987,7 +976,10 @@
   }
 
   .catalog-card-summary {
+    display: -webkit-box;
     min-height: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
     line-clamp: 1;
   }

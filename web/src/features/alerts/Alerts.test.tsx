@@ -497,6 +497,7 @@ describe("Alerts and rules", () => {
                 id: "alt_2",
                 title: "hz-1's disk / is 93% full",
                 ruleName: "disk-full",
+                condition: Condition.DISK_FULL,
                 severity: Severity.WARNING,
                 state: AlertState.RESOLVED,
                 resolveTime: timestampFromDate(NOW),
@@ -505,6 +506,7 @@ describe("Alerts and rules", () => {
                 id: "alt_3",
                 title: "hz-1's disk / is 91% full",
                 ruleName: "disk-full",
+                condition: Condition.DISK_FULL,
                 severity: Severity.WARNING,
                 state: AlertState.RESOLVED,
                 resolveTime: timestampFromDate(THREE_DAYS_AGO),
@@ -519,13 +521,13 @@ describe("Alerts and rules", () => {
     const card = within(open).getByRole("article");
     expect(within(card).getByRole("heading", { level: 3 })).toHaveTextContent("web fails its health check on hz-1");
     expect(card).toHaveTextContent("Critical");
-    expect(card).toHaveTextContent("app-down");
+    expect(card).toHaveTextContent("App down");
     // What to do is a button, never a sentence of what to check (#794).
     expect(within(card).getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/apps/svc_web");
     // What resolved is beside it, with the way to the rest.
     const resolved = screen.getByRole("complementary", { name: "Resolved" });
     const [today, before] = within(resolved).getAllByRole("listitem");
-    expect(today).toHaveTextContent("disk-full");
+    expect(today).toHaveTextContent("Disk full");
     // When each resolved: the time today, the day before that, the whole of it on hover.
     const todayAt = today?.querySelector(".alerts-resolved-at");
     expect(todayAt).toHaveTextContent(formatClock(NOW, "en"));
@@ -991,7 +993,7 @@ describe("Alerts and rules", () => {
     const alert = within(open).getByRole("article");
     expect(alert).not.toHaveTextContent("Its visitors get an error there.");
     expect(alert).toHaveTextContent("Critical");
-    expect(alert).toHaveTextContent("app-down");
+    expect(alert).not.toHaveTextContent("app-down");
     first.unmount();
 
     renderAt("/alerts/rules", api([ops]));
