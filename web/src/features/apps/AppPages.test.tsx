@@ -579,7 +579,7 @@ describe("an app's frame", () => {
 
   it("keeps Open, Pause and Restart in the header when one server of a multi-server app is down (#952)", async () => {
     const user = userEvent.setup();
-    const hz2 = aServer({ id: "srv_2", name: "hz-2", inventory: { addresses: ["49.12.33.8"] } });
+    const hz2 = aServer({ id: "srv_2", name: "hz-2", inventory: { addresses: ["203.0.113.8"] } });
     const app = anApp(
       "web",
       "nginx",

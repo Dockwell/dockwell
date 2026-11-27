@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Button, cx, Icon, type IconName } from "@dockwell/ui";
+import { msg } from "@lingui/core/macro";
 import {
   type CSSProperties,
   type FocusEvent,
@@ -14,7 +15,26 @@ import {
   useState,
 } from "react";
 
+import { i18n } from "../../app/i18n";
 import "./ActionMenu.css";
+
+const UNAVAILABLE_FALLBACK = msg`No longer available`;
+
+/**
+ * Holds an open menu's slots and verbs steady across live refreshes (#956):
+ * an item whose verb still applies keeps its latest details, one that no longer
+ * applies turns disabled in place with its reason, and newly applicable verbs
+ * wait until the menu opens again.
+ */
+export function stabilizeMenuActions(opened: readonly MenuAction[], latest: readonly MenuAction[]): MenuAction[] {
+  const byId = new Map(latest.map((action) => [action.id, action]));
+  return opened.map((initial) => {
+    const current = byId.get(initial.id);
+    if (current) return current;
+    const reason = initial.off ?? initial.unavailable ?? i18n._(UNAVAILABLE_FALLBACK);
+    return { ...initial, off: reason, disabled: true };
+  });
+}
 
 /** The nearest focusable list region holding an element, to take focus back when its row goes away. */
 export function listContainerOf(el: HTMLElement | null): HTMLElement | null {
@@ -28,34 +48,157 @@ export function listContainerOf(el: HTMLElement | null): HTMLElement | null {
 /** Moves focus cleanly back to a list container without scrolling the page. */
 export function focusList(list: HTMLElement | null): void {
   if (!list?.isConnected) return;
-  if (!list.hasAttribute("tabindex") && list.tabIndex < 0) list.setAttribute("tabindex", "-1");
+  if (!list.hasAttribute("tabindex") && list.tabIndex < 0) {
+    list.setAttribute("tabindex", "-1");
+    list.addEventListener(
+      "blur",
+      () => {
+        if (list.getAttribute("tabindex") === "-1") list.removeAttribute("tabindex");
+      },
+      { once: true },
+    );
+  }
   list.focus({ preventScroll: true });
 }
 
-/** True when an element has measured dimensions and sits completely outside the viewport or a clipped ancestor. */
-export function isOutOfView(rect: DOMRect, el: HTMLElement): boolean {
-  if (rect.width === 0 && rect.height === 0) return false;
-  if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
-    return true;
-  }
-  for (let parent = el.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+/** Scroll-clipping ancestors and sticky chrome bars cached once when a menu opens. */
+export interface MenuClips {
+  ancestors: HTMLElement[];
+  topBars: HTMLElement[];
+  bottomBars: HTMLElement[];
+  thead: HTMLElement | null;
+}
+
+/** The visible region for an open menu's anchor and fixed viewport placement, excluding sticky chrome. */
+export interface VisibleBounds {
+  /** Anchor visibility bounds (viewport minus sticky chrome, clipping ancestors, and sticky table header). */
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  /** Fixed menu viewport bounds (viewport minus sticky page top/bottom chrome, never clipped by .dw-table-wrap). */
+  viewportTop: number;
+  viewportBottom: number;
+  /** Sticky chrome edges that close the menu if the anchor slides behind them. */
+  stickyTop: number;
+  stickyBottom: number;
+}
+
+/** Collects overflow-clipping ancestors and sticky chrome bars once on open so scroll frames avoid style walks. */
+export function collectMenuClips(el: HTMLElement | null): MenuClips {
+  const ancestors: HTMLElement[] = [];
+  for (let parent = el?.parentElement ?? null; parent && parent !== document.body; parent = parent.parentElement) {
     const style = getComputedStyle(parent);
-    if (!/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) continue;
-    const clip = parent.getBoundingClientRect();
-    if (clip.width === 0 && clip.height === 0) continue;
-    if (rect.bottom <= clip.top || rect.top >= clip.bottom || rect.right <= clip.left || rect.left >= clip.right) {
-      return true;
+    if (/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) {
+      ancestors.push(parent);
     }
   }
+  const notContaining = (bar: HTMLElement) => !el || !bar.contains(el);
+  const topBars = [...document.querySelectorAll<HTMLElement>(".topbar, .mobile-header")].filter(notContaining);
+  const bottomBars = [...document.querySelectorAll<HTMLElement>(".tabbar, .list-batch-bar")].filter(notContaining);
+  const tbody = el?.closest("tbody");
+  const thead = tbody ? (tbody.closest("table")?.querySelector<HTMLElement>("thead") ?? null) : null;
+  return { ancestors, topBars, bottomBars, thead };
+}
+
+/** Computes the visible anchor rect and fixed-menu viewport bounds minus sticky chrome and cached clips. */
+export function visibleBounds(clips: MenuClips | null): VisibleBounds {
+  let top = 0;
+  let bottom = window.innerHeight;
+  let left = 0;
+  let right = window.innerWidth;
+  let viewportTop = 0;
+  let viewportBottom = window.innerHeight;
+  let stickyTop = 0;
+  let stickyBottom = window.innerHeight;
+  if (!clips) return { top, bottom, left, right, viewportTop, viewportBottom, stickyTop, stickyBottom };
+
+  for (const bar of clips.topBars) {
+    if (!bar.isConnected) continue;
+    const rect = bar.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && rect.bottom > top && rect.top <= 4) {
+      top = Math.max(top, rect.bottom);
+      viewportTop = Math.max(viewportTop, rect.bottom);
+      stickyTop = Math.max(stickyTop, rect.bottom);
+    }
+  }
+  for (const bar of clips.bottomBars) {
+    if (!bar.isConnected) continue;
+    const rect = bar.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && rect.top < bottom && rect.bottom >= window.innerHeight - 40) {
+      bottom = Math.min(bottom, rect.top);
+      viewportBottom = Math.min(viewportBottom, rect.top);
+      stickyBottom = Math.min(stickyBottom, rect.top);
+    }
+  }
+  for (const parent of clips.ancestors) {
+    if (!parent.isConnected) continue;
+    const clip = parent.getBoundingClientRect();
+    if (clip.width === 0 && clip.height === 0) continue;
+    top = Math.max(top, clip.top);
+    bottom = Math.min(bottom, clip.bottom);
+    left = Math.max(left, clip.left);
+    right = Math.min(right, clip.right);
+  }
+  if (clips.thead?.isConnected) {
+    const rect = clips.thead.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && rect.bottom > top && rect.top <= top + 4) {
+      top = Math.max(top, rect.bottom);
+      stickyTop = Math.max(stickyTop, rect.bottom);
+    }
+  }
+  return { top, bottom, left, right, viewportTop, viewportBottom, stickyTop, stickyBottom };
+}
+
+/** True when an anchor has measured dimensions and has moved outside the visible bounds or under sticky chrome. */
+export function isAnchorOutOfView(rect: DOMRect, bounds: VisibleBounds): boolean {
+  if (rect.width === 0 && rect.height === 0) return false;
+  if (bounds.bottom <= bounds.top || bounds.right <= bounds.left) return true;
+  if (
+    rect.bottom <= bounds.top ||
+    rect.top >= bounds.bottom ||
+    rect.right <= bounds.left ||
+    rect.left >= bounds.right
+  ) {
+    return true;
+  }
+  if (bounds.stickyTop > 0 && rect.top < bounds.stickyTop) return true;
+  if (bounds.stickyBottom < window.innerHeight && rect.bottom > bounds.stickyBottom) return true;
   return false;
 }
 
-/** Finds a menu item by its action ID, or falls back to the first enabled item. */
-export function focusMenuItem(container: HTMLElement | null, actionId: string | null): void {
+/** Observes layout shifts on the anchor, list, and page main container while a menu is open. */
+export function observeLayoutShift(
+  anchor: HTMLElement | null,
+  list: HTMLElement | null,
+  onChange: () => void,
+): () => void {
+  if (typeof ResizeObserver === "undefined") return () => {};
+  const observer = new ResizeObserver(onChange);
+  const targets = new Set<HTMLElement>();
+  for (const el of [
+    anchor,
+    anchor?.parentElement ?? null,
+    list,
+    document.querySelector<HTMLElement>("main") ?? document.body,
+  ]) {
+    if (el?.isConnected) targets.add(el);
+  }
+  for (const el of targets) observer.observe(el);
+  return () => observer.disconnect();
+}
+
+/** Finds a menu item by its action ID, or falls back to the same index, then the first enabled item. */
+export function focusMenuItem(container: HTMLElement | null, actionId: string | null, fallbackIndex?: number): void {
   if (!container) return;
   const items = [...container.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  if (items.length === 0) return;
   const same = actionId ? items.find((item) => item.dataset["actionId"] === actionId) : undefined;
-  const target = same ?? items.find((item) => item.getAttribute("aria-disabled") !== "true") ?? items[0];
+  const atIndex =
+    !same && fallbackIndex !== undefined && fallbackIndex >= 0
+      ? items[Math.min(fallbackIndex, items.length - 1)]
+      : undefined;
+  const target = same ?? atIndex ?? items.find((item) => item.getAttribute("aria-disabled") !== "true") ?? items[0];
   target?.focus({ preventScroll: true });
 }
 
@@ -131,6 +274,8 @@ export type MenuAction = {
   badge?: ReactNode;
   /** Why it can't be done, said under its name, as a phone has no hover (ADR 0059). */
   off?: string | undefined;
+  /** Why it can't be done if a live refresh makes it inapplicable while the menu is already open (#956). */
+  unavailable?: string | undefined;
   /** Can't be done now, with nothing to say, such as while something loads. */
   disabled?: boolean;
 } & ({ onSelect: () => void; href?: undefined } | { href: string; onSelect?: undefined });
@@ -168,83 +313,103 @@ export function ActionMenu({
   trigger?: ((props: ActionMenuTriggerProps) => ReactNode) | undefined;
   onOpen?: (() => void) | undefined;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openedActions, setOpenedActions] = useState<readonly MenuAction[] | null>(null);
+  const open = openedActions !== null;
   const openRef = useRef(false);
   const root = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLElement | null>(null);
+  const clipsRef = useRef<MenuClips | null>(null);
   const focusedAction = useRef<string | null>(null);
+  const focusedIndex = useRef<number | undefined>(undefined);
   const id = useId();
+  const shown = openedActions ? stabilizeMenuActions(openedActions, actions) : actions;
   // Where it opens, on the viewport, so a table's scrolling box doesn't cut it off (#798):
-  // under the button, or over it where there's no room under it.
+  // under the button, or over it where there's no room under it, clamped inside sticky chrome.
   const [at, setAt] = useState<CSSProperties>();
   const place = useCallback(() => {
     const button = root.current?.querySelector("button")?.getBoundingClientRect();
     const box = menu.current?.getBoundingClientRect();
     if (!button || !box) return;
+    const bounds = visibleBounds(clipsRef.current);
     const gutter = 16;
     const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
-    const below = button.bottom + 4 + box.height <= window.innerHeight || button.top - 4 - box.height < 0;
-    const next: CSSProperties = below
-      ? { top: button.bottom + 4, right }
-      : { bottom: window.innerHeight - button.top + 4, right };
+    const fitsBelow = button.bottom + 4 + box.height <= bounds.viewportBottom;
+    const fitsAbove = button.top - 4 - box.height >= bounds.viewportTop;
+    let next: CSSProperties;
+    if (fitsBelow) {
+      next = { top: Math.max(bounds.viewportTop + 4, button.bottom + 4), right };
+    } else if (fitsAbove) {
+      next = {
+        bottom: Math.max(window.innerHeight - bounds.viewportBottom + 4, window.innerHeight - button.top + 4),
+        right,
+      };
+    } else {
+      const clampedTop = Math.max(
+        bounds.viewportTop + 4,
+        Math.min(button.bottom + 4, bounds.viewportBottom - box.height - 4),
+      );
+      next = { top: clampedTop, right };
+    }
     setAt((was) =>
       was && was.top === next.top && was.bottom === next.bottom && was.right === next.right ? was : next,
     );
   }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Re-measure and preserve focus when live actions update while open.
   useLayoutEffect(() => {
     openRef.current = open;
     if (!open) {
       setAt(undefined);
       return;
     }
-    if (actions.length === 0) {
-      openRef.current = false;
-      setOpen(false);
-      const button = root.current?.querySelector<HTMLButtonElement>("button");
-      if (button?.isConnected) button.focus({ preventScroll: true });
-      else focusList(listRef.current);
-      return;
-    }
+    if (!clipsRef.current) clipsRef.current = collectMenuClips(root.current);
     place();
-    // If a refresh replaced or removed the focused menu item, keep focus inside the open menu.
+    // If a refresh disabled an item (swapping <button> to <span>), keep focus on that exact item.
     const el = menu.current;
     if (
       el &&
       !el.contains(document.activeElement) &&
       (document.activeElement === document.body || document.activeElement === null)
     ) {
-      focusMenuItem(el, focusedAction.current);
+      focusMenuItem(el, focusedAction.current, focusedIndex.current);
     }
   }, [actions, open, place]);
   useEffect(() => {
     if (!open) {
+      clipsRef.current = null;
       focusedAction.current = null;
+      focusedIndex.current = undefined;
       return;
     }
+    const buttonEl = root.current?.querySelector("button") ?? null;
     listRef.current = listContainerOf(root.current);
-    focusMenuItem(menu.current ?? root.current, focusedAction.current);
+    clipsRef.current = collectMenuClips(buttonEl ?? root.current);
+    place();
+    focusMenuItem(menu.current ?? root.current, focusedAction.current, focusedIndex.current);
     const away = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) {
         openRef.current = false;
-        setOpen(false);
+        setOpenedActions(null);
       }
     };
-    // Follow the button across layout shifts and minor scrolls while it stays in view;
-    // close only once the button scrolls completely out of view or disconnects.
+    // Follow the button across layout shifts and scrolls while it stays in view outside sticky chrome;
+    // close once it disconnects, scrolls out of view, or goes under a sticky bar.
     const moved = () => {
-      const buttonEl = root.current?.querySelector("button");
-      if (!buttonEl?.isConnected || isOutOfView(buttonEl.getBoundingClientRect(), buttonEl)) {
+      const currentButton = root.current?.querySelector("button");
+      const bounds = visibleBounds(clipsRef.current);
+      if (!currentButton?.isConnected || isAnchorOutOfView(currentButton.getBoundingClientRect(), bounds)) {
         openRef.current = false;
-        setOpen(false);
+        setOpenedActions(null);
         return;
       }
       place();
     };
+    const stopResize = observeLayoutShift(buttonEl, listRef.current, moved);
     document.addEventListener("pointerdown", away);
     window.addEventListener("scroll", moved, true);
     window.addEventListener("resize", moved);
     return () => {
+      stopResize();
       document.removeEventListener("pointerdown", away);
       window.removeEventListener("scroll", moved, true);
       window.removeEventListener("resize", moved);
@@ -264,11 +429,11 @@ export function ActionMenu({
     },
     [],
   );
-  if (actions.length === 0) return null;
+  if (shown.length === 0 && !open) return null;
   const close = () => {
     openRef.current = false;
-    setOpen(false);
-    root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    setOpenedActions(null);
+    root.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
   };
   const keys = (e: KeyboardEvent<HTMLDivElement>) => {
     const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
@@ -287,8 +452,14 @@ export function ActionMenu({
     }
   };
   const focused = (e: FocusEvent<HTMLDivElement>) => {
-    const actionId = (e.target as HTMLElement | null)?.closest<HTMLElement>("[data-action-id]")?.dataset["actionId"];
-    if (actionId) focusedAction.current = actionId;
+    const el = (e.target as HTMLElement | null)?.closest<HTMLElement>("[data-action-id]");
+    const actionId = el?.dataset["actionId"];
+    if (actionId) {
+      focusedAction.current = actionId;
+      const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+      const idx = items.indexOf(el);
+      if (idx >= 0) focusedIndex.current = idx;
+    }
   };
   // Focus leaving the menu and its button, as a Tab past the last item, closes it.
   // An item unmounting during a refresh must not close the menu.
@@ -296,13 +467,17 @@ export function ActionMenu({
     if (!e.target.isConnected) return;
     if (!root.current?.contains(e.relatedTarget as Node | null)) {
       openRef.current = false;
-      setOpen(false);
+      setOpenedActions(null);
     }
   };
   const item = (action: MenuAction) =>
     menuItem(action, () => {
       openRef.current = false;
-      setOpen(false);
+      setOpenedActions(null);
+      // Restore focus to the trigger button before onSelect opens any sheet so closing returns here.
+      if (!action.href) {
+        root.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      }
     });
   const triggerProps: ActionMenuTriggerProps = {
     "aria-label": label,
@@ -310,9 +485,14 @@ export function ActionMenu({
     "aria-expanded": open,
     "aria-controls": open ? id : undefined,
     onClick: () => {
-      if (!open) onOpen?.();
-      openRef.current = !open;
-      setOpen(!open);
+      if (!open) {
+        onOpen?.();
+        openRef.current = true;
+        setOpenedActions(actions);
+      } else {
+        openRef.current = false;
+        setOpenedActions(null);
+      }
     },
   };
   return (
@@ -342,7 +522,7 @@ export function ActionMenu({
           onFocus={focused}
           onBlur={left}
         >
-          {actions.map(item)}
+          {shown.map(item)}
         </div>
       ) : null}
     </span>

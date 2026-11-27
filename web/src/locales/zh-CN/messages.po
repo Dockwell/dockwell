@@ -4588,6 +4588,12 @@ msgstr "{server} 上没有应用"
 msgid "No apps yet"
 msgstr "还没有应用"
 
+msgid "Not paused"
+msgstr "未暂停"
+
+msgid "Not running or already paused"
+msgstr "未运行或已暂停"
+
 msgid "Nothing matches"
 msgstr "没有匹配项"
 
@@ -17502,12 +17508,6 @@ msgstr "没有符合条件的容器"
 msgid "No sample"
 msgstr "暂无采样"
 
-msgid "Not paused"
-msgstr "未暂停"
-
-msgid "Not running or already paused"
-msgstr "未运行或已暂停"
-
 msgid "Open Apps"
 msgstr "打开应用列表"
 
@@ -25993,6 +25993,9 @@ msgstr "GitHub 的 Webhook 密钥与 Dockwell 的不一致，因此 Dockwell 自
 msgid "Pushes come through the GitHub App."
 msgstr "推送通过 GitHub 应用送达。"
 
+msgid "No longer available"
+msgstr "不再可用"
+
 msgid "Activity on {name}"
 msgstr "{name} 上的动态"
 
@@ -27806,6 +27809,10 @@ msgstr "{name} 的代理还不读取更新"
 
 msgid "{name}'s agent isn't connected"
 msgstr "{name} 的代理未连接"
+
+msgctxt "project running state"
+msgid "Can't tell what runs"
+msgstr "无法确认运行状态"
 
 msgid "Choose a project"
 msgstr "选择项目"

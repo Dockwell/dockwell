@@ -285,4 +285,49 @@ describe("Table", () => {
     );
     expect(apiRow).not.toHaveFocus();
   });
+
+  it("does not make a non-scrolling wrapper click-focusable, cleans up fallback tabindex, and never steals focus from an outside input", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const { container, rerender } = render(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={rows} onRowClick={onRowClick} />
+      </>,
+    );
+    const wrap = container.querySelector(".dw-table-wrap") as HTMLElement;
+    expect(wrap).not.toHaveAttribute("tabindex");
+
+    // Clicking a non-interactive table without onRowClick or a cell does not focus the wrapper.
+    await user.click(screen.getByText("3/3"));
+    expect(wrap).not.toHaveFocus();
+
+    // Moving focus to an outside input before a refresh must keep focus in the input.
+    const workerRow = screen.getByRole("row", { name: /worker/ });
+    const filter = screen.getByRole("textbox", { name: "Filter apps" });
+    workerRow.focus();
+    filter.focus();
+    rerender(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={rows.slice(0, 1)} onRowClick={onRowClick} />
+      </>,
+    );
+    expect(filter).toHaveFocus();
+
+    // When a focused row disappears with no list section above the table, the wrapper takes focus
+    // temporarily and drops its fallback tabindex once focus leaves it.
+    const apiRow = screen.getByRole("row", { name: /api/ });
+    apiRow.focus();
+    rerender(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={[]} onRowClick={onRowClick} />
+      </>,
+    );
+    expect(wrap).toHaveFocus();
+    expect(wrap).toHaveAttribute("tabindex", "-1");
+    filter.focus();
+    expect(wrap).not.toHaveAttribute("tabindex");
+  });
 });

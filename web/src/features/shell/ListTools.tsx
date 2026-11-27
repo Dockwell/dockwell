@@ -32,12 +32,17 @@ import {
 import type { Offer } from "../auth/may";
 import {
   ActionMenu,
+  collectMenuClips,
   focusList,
   focusMenuItem,
-  isOutOfView,
+  isAnchorOutOfView,
   listContainerOf,
   type MenuAction,
+  type MenuClips,
   menuItem,
+  observeLayoutShift,
+  stabilizeMenuActions,
+  visibleBounds,
 } from "./ActionMenu";
 import { EmptyState } from "./EmptyState";
 import {
@@ -715,21 +720,18 @@ interface RowMenuOpen<Row> {
   list: HTMLElement | null;
 }
 
-function defaultRowKey<Row>(row: Row): string | number | undefined {
-  const id = (row as { id?: unknown } | null | undefined)?.id;
-  return typeof id === "string" || typeof id === "number" ? id : undefined;
-}
-
 /**
  * A row's menu where it was asked for: on a right-click or Shift+F10, at that
  * point, with the same items its ⋯ button has. Open it from a Table's
  * onRowContextMenu, and put its element anywhere on the page. When given live
- * rows and a resolver, the open menu stays up to date across refreshes and
- * closes cleanly with focus back to the list if its row goes away.
+ * rows (with keyOf) and a resolver, the open menu keeps its row's name fresh,
+ * stabilizes open verbs in place so a refresh never swaps a verb under the
+ * pointer or keyboard, and closes cleanly with focus back to the list if its
+ * row goes away.
  */
 export function useRowMenu<Row>(
   resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions"> | undefined,
-  options?: { rows?: readonly Row[]; keyOf?: (row: Row) => string | number },
+  options?: { rows: readonly Row[]; keyOf: (row: Row) => string | number },
 ): {
   open: (
     row: Row,
@@ -742,7 +744,6 @@ export function useRowMenu<Row>(
   const [showing, setShowing] = useState<RowMenuOpen<Row> | null>(null);
   const showingRef = useRef<RowMenuOpen<Row> | null>(null);
   showingRef.current = showing;
-  const keyOf = options?.keyOf ?? defaultRowKey;
 
   const close = useCallback((returnTo: RowMenuClose) => {
     const current = showingRef.current;
@@ -760,7 +761,7 @@ export function useRowMenu<Row>(
     setShowing({
       ...menu,
       row,
-      key: keyOf(row),
+      key: options ? options.keyOf(row) : undefined,
       x: at.x,
       y: at.y,
       back: rowElement,
@@ -769,23 +770,23 @@ export function useRowMenu<Row>(
   };
 
   const liveRow =
-    showing && options?.rows && showing.key !== undefined
-      ? options.rows.find((candidate) => keyOf(candidate) === showing.key)
+    showing && options && showing.key !== undefined
+      ? options.rows.find((candidate) => options.keyOf(candidate) === showing.key)
       : showing?.row;
-  const missing = Boolean(showing && options?.rows && showing.key !== undefined && liveRow === undefined);
-  const menu = showing && liveRow !== undefined ? (resolve?.(liveRow) ?? showing) : undefined;
-  const gone = missing || (showing !== null && (!menu || menu.actions.length === 0));
+  const missing = Boolean(showing && options && showing.key !== undefined && liveRow === undefined);
+  const live = showing && !missing && liveRow !== undefined ? resolve?.(liveRow) : undefined;
+  const actions = showing ? (live ? stabilizeMenuActions(showing.actions, live.actions) : showing.actions) : [];
 
   useLayoutEffect(() => {
-    if (!showing || !gone) return;
-    close(missing ? "list" : "back");
-  }, [showing, gone, missing, close]);
+    if (!showing || !missing) return;
+    close("list");
+  }, [showing, missing, close]);
 
   const element =
-    showing && !gone && menu ? (
+    showing && !missing ? (
       <RowContextMenu
-        label={menu.label}
-        actions={menu.actions}
+        label={live?.label ?? showing.label}
+        actions={actions}
         x={showing.x}
         y={showing.y}
         anchor={showing.back}
@@ -815,7 +816,9 @@ function RowContextMenu({
   onClose: (returnTo: RowMenuClose) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const clipsRef = useRef<MenuClips | null>(null);
   const focusedAction = useRef<string | null>(null);
+  const focusedIndex = useRef<number | undefined>(undefined);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const offset = useRef<{ dx: number; dy: number } | null>(null);
@@ -831,9 +834,15 @@ function RowContextMenu({
       targetX = rect.left + offset.current.dx;
       targetY = rect.top + offset.current.dy;
     }
+    const bounds = visibleBounds(clipsRef.current);
     const gutter = 16;
+    const minTop = Math.max(gutter, bounds.viewportTop + 4);
+    const maxTop = Math.max(
+      minTop,
+      Math.min(window.innerHeight - box.height - gutter, bounds.viewportBottom - box.height - 4),
+    );
     const left = Math.max(gutter, Math.min(targetX, window.innerWidth - box.width - gutter));
-    const top = Math.max(gutter, Math.min(targetY, window.innerHeight - box.height - gutter));
+    const top = Math.max(minTop, Math.min(targetY, maxTop));
     setAt((was) => (was.left === left && was.top === top ? was : { left, top }));
   }, [anchor, x, y]);
 
@@ -852,6 +861,7 @@ function RowContextMenu({
       onCloseRef.current("list");
       return;
     }
+    if (!clipsRef.current) clipsRef.current = collectMenuClips(anchor);
     place();
     const el = root.current;
     if (
@@ -859,12 +869,15 @@ function RowContextMenu({
       !el.contains(document.activeElement) &&
       (document.activeElement === document.body || document.activeElement === null)
     ) {
-      focusMenuItem(el, focusedAction.current);
+      focusMenuItem(el, focusedAction.current, focusedIndex.current);
     }
   }, [actions, anchor, place]);
 
   useEffect(() => {
+    clipsRef.current = collectMenuClips(anchor);
     focusedAction.current = null;
+    focusedIndex.current = undefined;
+    place();
     focusMenuItem(root.current, null);
     const away = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) onCloseRef.current("none");
@@ -874,12 +887,13 @@ function RowContextMenu({
         onCloseRef.current("list");
         return;
       }
-      if (anchor && isOutOfView(anchor.getBoundingClientRect(), anchor)) {
+      if (anchor && isAnchorOutOfView(anchor.getBoundingClientRect(), visibleBounds(clipsRef.current))) {
         onCloseRef.current("none");
         return;
       }
       place();
     };
+    const stopResize = observeLayoutShift(anchor, list, moved);
     let observer: MutationObserver | undefined;
     if (anchor && typeof MutationObserver !== "undefined") {
       const watchTarget = list?.isConnected ? list : anchor.parentElement;
@@ -894,6 +908,7 @@ function RowContextMenu({
     window.addEventListener("scroll", moved, true);
     window.addEventListener("resize", moved);
     return () => {
+      stopResize();
       observer?.disconnect();
       document.removeEventListener("pointerdown", away);
       window.removeEventListener("scroll", moved, true);
@@ -918,10 +933,14 @@ function RowContextMenu({
     }
   };
   const focused = (event: FocusEvent<HTMLDivElement>) => {
-    const actionId = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-action-id]")?.dataset[
-      "actionId"
-    ];
-    if (actionId) focusedAction.current = actionId;
+    const el = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-action-id]");
+    const actionId = el?.dataset["actionId"];
+    if (actionId) {
+      focusedAction.current = actionId;
+      const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+      const idx = items.indexOf(el);
+      if (idx >= 0) focusedIndex.current = idx;
+    }
   };
   const left = (event: FocusEvent<HTMLDivElement>) => {
     if (!event.target.isConnected) return;
@@ -939,7 +958,7 @@ function RowContextMenu({
       onBlur={left}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {actions.map((action) => menuItem(action, () => onCloseRef.current("none")))}
+      {actions.map((action) => menuItem(action, () => onCloseRef.current(action.href ? "none" : "back")))}
     </div>
   );
 }

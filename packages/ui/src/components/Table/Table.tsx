@@ -229,9 +229,20 @@ export function Table<Row extends object = Record<string, unknown>>({
     }
     focusedRef.current = null;
     if (document.activeElement === document.body || document.activeElement === null) {
-      const list =
-        wrapRef.current?.closest<HTMLElement>('section[tabindex="-1"], [role="region"][tabindex]') ?? wrapRef.current;
-      list?.focus({ preventScroll: true });
+      const wrap = wrapRef.current;
+      const list = wrap?.closest<HTMLElement>('section[tabindex="-1"], [role="region"][tabindex]') ?? wrap;
+      if (!list) return;
+      if (list === wrap && !list.hasAttribute("tabindex")) {
+        list.setAttribute("tabindex", "-1");
+        list.addEventListener(
+          "blur",
+          () => {
+            if (list.getAttribute("tabindex") === "-1") list.removeAttribute("tabindex");
+          },
+          { once: true },
+        );
+      }
+      list.focus({ preventScroll: true });
     }
   }, [rows]);
   return (
@@ -242,9 +253,8 @@ export function Table<Row extends object = Record<string, unknown>>({
         className={cx("dw-table-wrap", waiting && "is-loading", className)}
         style={wrapStyle}
         aria-busy={waiting || undefined}
-        // A scrolling region needs to be reachable by keyboard when nothing inside it is;
-        // otherwise keep the wrapper programmatically focusable for focus recovery when a row leaves.
-        {...(scrolls && !clickable ? { tabIndex: 0, role: "region", "aria-label": caption } : { tabIndex: -1 })}
+        // A scrolling region needs to be reachable by keyboard when nothing inside it is.
+        {...(scrolls && !clickable ? { tabIndex: 0, role: "region", "aria-label": caption } : {})}
       >
         {/* Its shapes are for the eye: assistive technology hears the label, then the rows once they land. */}
         <table className={cx("dw-table", `dw-table-${density}`)} aria-hidden={waiting || undefined}>

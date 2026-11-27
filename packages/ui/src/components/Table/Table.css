@@ -8,7 +8,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
 }
-.dw-table-wrap:focus-visible {
+.dw-table-wrap[tabindex="0"]:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }

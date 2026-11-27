@@ -17,9 +17,12 @@ import { type QueryClient, type QueryKey, useQuery, useQueryClient } from "@tans
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { useEventsHub } from "../activity/EventsHub";
+import { DEFAULT_PROJECT, projectLabel } from "../projects/summary";
 import { readListPages } from "../shell/list";
 import { useWebsites } from "../websites/website";
 import { readHealthSoon } from "./health";
+
+export { DEFAULT_PROJECT };
 
 /** The most ListServices returns at once. */
 const PAGE_SIZE = 1000;
@@ -275,8 +278,6 @@ export interface Places {
 }
 
 /** The name of the project an install starts with (ADR 0014). */
-export const DEFAULT_PROJECT = "default";
-
 /** The environments and projects, read once and shared with the command bar. */
 export function usePlaces(): Places {
   const projectsQuery = useConnectQuery(ResourceService.method.listResources, { kind: "project" });
@@ -304,9 +305,9 @@ export function usePlaces(): Places {
       // wrote it: the person's name for it is the project's own, which leads (#796).
       const install = installs?.find((i) => i.projectId === scope);
       const app = install ? project?.displayName || install.pin?.entry || "" : "";
-      const projectLabel = install ? projectName : project?.displayName || projectName;
+      const shownProject = project ? projectLabel(project, Boolean(install)) : "";
       const own = (inProject.get(scope) ?? 0) > 1;
-      const label = !several || !projectLabel ? shown : own ? `${projectLabel} / ${shown}` : projectLabel;
+      const label = !several || !shownProject ? shown : own ? `${shownProject} / ${shown}` : shownProject;
       return {
         id: env.id,
         scope,

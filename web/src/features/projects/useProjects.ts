@@ -122,16 +122,10 @@ export function useProjects(): {
         const inside = byProject.get(project.id) ?? [];
         const own = services.filter((s) => envIds.has(environmentOf(s)));
         const website = websites?.find((w) => envIds.has(w.environmentId));
-        const name = project.resource?.name ?? project.id;
         const install = installs?.find((i) => i.projectId === project.id);
-        const summary = projectSummary(project, {
-          installs,
-          hasService: inside.some((r) => r.resource?.kind === "service"),
-          hasRoute: inside.some((r) => r.resource?.kind === "route"),
-        });
+        const summary = projectSummary(project, { installs, resources: inside });
         return {
           ...summary,
-          name,
           environments: envs,
           inside,
           apps: website ? [] : own.filter((s) => !dbIds.has(s.id)),

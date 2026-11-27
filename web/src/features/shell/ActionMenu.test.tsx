@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { ActionMenu } from "./ActionMenu";
@@ -91,5 +91,139 @@ describe("a row's actions in one menu (#795)", () => {
   it("is nothing when there's nothing to do", () => {
     const { container } = render(<ActionMenu label="Actions for nothing" actions={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("returns focus to its trigger button before onSelect runs so a sheet returns there on close (#956)", async () => {
+    const user = userEvent.setup();
+    let activeDuringSelect: Element | null = null;
+    render(
+      <ActionMenu
+        label="Actions for api"
+        actions={[
+          {
+            id: "stop",
+            icon: "stop",
+            label: "Stop",
+            onSelect: () => {
+              activeDuringSelect = document.activeElement;
+            },
+          },
+        ]}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: "Actions for api" });
+    await user.click(trigger);
+    await user.click(screen.getByRole("menuitem", { name: "Stop" }));
+    expect(activeDuringSelect).toBe(trigger);
+  });
+
+  it("closes when its trigger scrolls out of view or under the desktop top bar, and never draws over the top bar (#956)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("innerWidth", 1280);
+    vi.stubGlobal("innerHeight", 800);
+    let buttonTop = 80;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("topbar")) return new DOMRect(0, 0, 1280, 52);
+      if (this.getAttribute("role") === "menu") return new DOMRect(100, buttonTop + 32, 200, 120);
+      if (this.tagName === "BUTTON") return new DOMRect(300, buttonTop, 28, 28);
+      return new DOMRect(0, 0, 1280, 800);
+    });
+    render(
+      <div>
+        <header className="topbar" />
+        <ActionMenu label="Actions for api" actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />
+      </div>,
+    );
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    const menu = screen.getByRole("menu", { name: "Actions for api" });
+    expect(Number.parseFloat(menu.style.top)).toBeGreaterThanOrEqual(56);
+
+    // Row slides under the sticky top bar (button top < 52): menu closes instead of floating over the bar.
+    buttonTop = 30;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    // Re-open in view, then scroll fully off the bottom of the viewport: menu closes.
+    buttonTop = 200;
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
+    buttonTop = 900;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("closes under the phone header or tab bar at 390 px and never draws over them (#956)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("innerHeight", 844);
+    let buttonTop = 700;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("mobile-header")) return new DOMRect(0, 0, 390, 56);
+      if (this.classList.contains("tabbar")) return new DOMRect(0, 782, 390, 62);
+      if (this.getAttribute("role") === "menu") return new DOMRect(100, buttonTop - 124, 200, 120);
+      if (this.tagName === "BUTTON") return new DOMRect(320, buttonTop, 44, 44);
+      return new DOMRect(0, 0, 390, 844);
+    });
+    render(
+      <div>
+        <header className="mobile-header" />
+        <ActionMenu label="Actions for api" actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />
+        <nav className="tabbar" />
+      </div>,
+    );
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    const menu = screen.getByRole("menu", { name: "Actions for api" });
+    // Near the bottom tab bar, the menu opens above the button rather than drawing over .tabbar.
+    expect(menu.style.bottom).toBe("148px");
+
+    // Scrolling the button into .tabbar closes the menu.
+    buttonTop = 750;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    // Scrolling the button under .mobile-header also closes the menu.
+    buttonTop = 120;
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
+    buttonTop = 40;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("repositions on a layout shift observed by ResizeObserver without scroll or re-render (#956)", async () => {
+    const user = userEvent.setup();
+    let onResize: (() => void) | undefined;
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        onResize = () => cb([], this as unknown as ResizeObserver);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    vi.stubGlobal("innerHeight", 800);
+    let buttonTop = 300;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("role") === "menu") return new DOMRect(100, buttonTop + 32, 200, 100);
+      if (this.tagName === "BUTTON") return new DOMRect(300, buttonTop, 28, 28);
+      return new DOMRect(0, 0, 1280, 800);
+    });
+    render(<ActionMenu label="Actions for api" actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />);
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    const menu = screen.getByRole("menu", { name: "Actions for api" });
+    expect(menu).toHaveStyle({ top: "332px" });
+
+    // A callout above grows without scrolling or re-rendering this component.
+    buttonTop = 380;
+    act(() => {
+      onResize?.();
+    });
+    expect(menu).toHaveStyle({ top: "412px" });
   });
 });

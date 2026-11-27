@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CatalogInstall, Resource } from "@dockwell/api";
-import { DEFAULT_PROJECT } from "../apps/useServices";
+import type { CatalogInstall, Domain, Resource, ServiceInfo } from "@dockwell/api";
+
+/** The install's first project, where apps with no project live. */
+export const DEFAULT_PROJECT = "default";
+
+/** Whether a project is proven running, proven idle, still loading, or unknown because a read failed. */
+export type ProjectRunningState = "running" | "idle" | "loading" | "unknown";
 
 /** The identity and running state a project carries across Projects and Variables. */
 export interface ProjectSummary {
@@ -12,16 +17,23 @@ export interface ProjectSummary {
   label: string;
   /** Where apps with no project go: the install's first, named default. */
   isDefault: boolean;
+  /** Running state derived from the project's services and routes. */
+  runningState: ProjectRunningState;
   /**
    * Holds no service and no route: true when confirmed idle, false when something runs,
-   * undefined when what runs isn't known (such as while services or domains haven't loaded or failed).
+   * undefined while loading or when a read failed.
    */
   idle: boolean | undefined;
 }
 
-/** How a project is named on screen: an install keeps the name given to it, others use displayName first. */
-export function projectLabel(project: Resource, isInstall: boolean): string {
-  const name = project.resource?.name ?? project.id;
+/** How a project is named on screen: an install keeps the name given to it, others use displayName first (#796). */
+export function projectLabel(
+  project: Resource,
+  installs?: readonly Pick<CatalogInstall, "projectId">[] | boolean | undefined,
+): string {
+  const name = project.resource?.name || project.id;
+  const isInstall =
+    typeof installs === "boolean" ? installs : (installs?.some((item) => item.projectId === project.id) ?? false);
   return isInstall ? name : project.displayName || name;
 }
 
@@ -30,51 +42,90 @@ export function isDefaultProject(project: Resource): boolean {
   return (project.resource?.name ?? project.id) === DEFAULT_PROJECT;
 }
 
+/** Evidence of what runs in a project, either from its listed resources or from live services and domains queries. */
+export type ProjectEvidence =
+  | {
+      /** Resources inside the project's environments (from ListResources). */
+      resources: readonly Resource[];
+    }
+  | {
+      /** The project's own environment IDs. */
+      environmentIds: ReadonlySet<string> | readonly string[];
+      /** Services from useServices(), or undefined while loading or failed. */
+      services: readonly Pick<ServiceInfo, "resource">[] | undefined;
+      servicesFailed?: boolean;
+      /** Domains from listDomains(), or undefined while loading or failed. */
+      domains: readonly Pick<Domain, "environmentId" | "routes">[] | undefined;
+      domainsFailed?: boolean;
+    };
+
 /**
- * Whether a project has nothing running in it. Any confirmed service or route makes it running (false),
- * confirming both absent makes it idle (true), and missing/failed evidence leaves it unknown (undefined).
+ * Classifies whether a project has anything running.
+ * Any confirmed service or route makes it running; confirming both absent makes it idle;
+ * a failed read leaves it unknown; otherwise it is still loading.
  */
-export function projectIdle(hasService: boolean, hasRoute: boolean): boolean;
-export function projectIdle(hasService: boolean | undefined, hasRoute: boolean | undefined): boolean | undefined;
-export function projectIdle(hasService: boolean | undefined, hasRoute: boolean | undefined): boolean | undefined {
-  if (hasService === true || hasRoute === true) return false;
-  if (hasService === false && hasRoute === false) return true;
-  return undefined;
+export function projectRunningState(evidence: {
+  hasService: boolean | undefined;
+  hasRoute: boolean | undefined;
+  failed?: boolean;
+}): ProjectRunningState {
+  if (evidence.hasService === true || evidence.hasRoute === true) return "running";
+  if (evidence.hasService === false && evidence.hasRoute === false) return "idle";
+  return evidence.failed ? "unknown" : "loading";
+}
+
+function resolveEvidence(evidence: ProjectEvidence): ProjectRunningState {
+  if ("resources" in evidence) {
+    return projectRunningState({
+      hasService: evidence.resources.some((r) => r.resource?.kind === "service"),
+      hasRoute: evidence.resources.some((r) => r.resource?.kind === "route"),
+    });
+  }
+  const envIds = evidence.environmentIds instanceof Set ? evidence.environmentIds : new Set(evidence.environmentIds);
+  const hasService =
+    evidence.services !== undefined && !evidence.servicesFailed
+      ? evidence.services.some((service) => envIds.has(service.resource?.scope ?? ""))
+      : undefined;
+  const hasRoute =
+    evidence.domains !== undefined && !evidence.domainsFailed
+      ? evidence.domains.some((domain) => domain.routes.length > 0 && envIds.has(domain.environmentId))
+      : undefined;
+  return projectRunningState({
+    hasService,
+    hasRoute,
+    failed: Boolean(evidence.servicesFailed || evidence.domainsFailed),
+  });
 }
 
 export function projectSummary(
   project: Resource,
   options: {
     installs?: readonly Pick<CatalogInstall, "projectId">[] | undefined;
-    hasService: boolean;
-    hasRoute: boolean;
+    resources: readonly Resource[];
   },
-): ProjectSummary & { idle: boolean };
+): ProjectSummary & { idle: boolean; runningState: "running" | "idle" };
 export function projectSummary(
   project: Resource,
   options: {
     installs?: readonly Pick<CatalogInstall, "projectId">[] | undefined;
-    hasService: boolean | undefined;
-    hasRoute: boolean | undefined;
-  },
+  } & ProjectEvidence,
 ): ProjectSummary;
 export function projectSummary(
   project: Resource,
   options: {
     installs?: readonly Pick<CatalogInstall, "projectId">[] | undefined;
-    hasService: boolean | undefined;
-    hasRoute: boolean | undefined;
-  },
+  } & ProjectEvidence,
 ): ProjectSummary {
   const name = project.resource?.name ?? project.id;
-  const isInstall = options.installs?.some((item) => item.projectId === project.id) ?? false;
+  const runningState = resolveEvidence(options);
   return {
     project,
     id: project.id,
     name,
-    label: projectLabel(project, isInstall),
+    label: projectLabel(project, options.installs),
     isDefault: isDefaultProject(project),
-    idle: projectIdle(options.hasService, options.hasRoute),
+    runningState,
+    idle: runningState === "idle" ? true : runningState === "running" ? false : undefined,
   };
 }
 

@@ -97,7 +97,8 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
   );
   const row = query.data?.object;
   const net = row?.detail.case === "network" ? row.detail.value : undefined;
-  const choices = useDockerChoices(serverId, DockerObjectKind.CONTAINER, "", allowed && !!net?.attachments.length);
+  // Load server containers in parallel with the network so attachment menus have live ownership on first paint.
+  const choices = useDockerChoices(serverId, DockerObjectKind.CONTAINER, "", allowed);
   const containers = new Map(choices.data?.map((item) => [item.key?.engineId, item]));
   const [picker, setPicker] = useState<{ container?: DockerObject }>();
   const [taking, setTaking] = useState<DockerObject>();
@@ -106,6 +107,7 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
     if (net?.attachments.length) void choices.refetch();
   };
   const watch = useDockerWatch(allowed ? [serverId] : [], [], refresh, DockerObjectKind.NETWORK);
+  useDockerWatch(allowed && net?.attachments.length ? [serverId] : [], [], () => void choices.refetch());
   const plan = (container: DockerObject, network: DockerObject, action: DockerNetworkAttachmentAction) => {
     setPicker(undefined);
     sheet.open({
@@ -198,7 +200,7 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
       {!allowed ? (
         <EmptyState icon="lock" title={t`Docker inventory needs an admin`} />
-      ) : query.isPending ? (
+      ) : query.isPending || (!!net?.attachments.length && choices.isPending) ? (
         <StorageDetailLoading />
       ) : query.error ? (
         <Callout

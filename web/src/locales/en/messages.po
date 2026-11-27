@@ -4588,6 +4588,12 @@ msgstr "No apps on {server}"
 msgid "No apps yet"
 msgstr "No apps yet"
 
+msgid "Not paused"
+msgstr "Not paused"
+
+msgid "Not running or already paused"
+msgstr "Not running or already paused"
+
 msgid "Nothing matches"
 msgstr "Nothing matches"
 
@@ -17502,12 +17508,6 @@ msgstr "No containers match"
 msgid "No sample"
 msgstr "No sample"
 
-msgid "Not paused"
-msgstr "Not paused"
-
-msgid "Not running or already paused"
-msgstr "Not running or already paused"
-
 msgid "Open Apps"
 msgstr "Open Apps"
 
@@ -25993,6 +25993,9 @@ msgstr "GitHub's webhook secret isn't Dockwell's, so Dockwell checks for pushes 
 msgid "Pushes come through the GitHub App."
 msgstr "Pushes come through the GitHub App."
 
+msgid "No longer available"
+msgstr "No longer available"
+
 msgid "Activity on {name}"
 msgstr "Activity on {name}"
 
@@ -27806,6 +27809,10 @@ msgstr "{name}'s agent doesn't read updates yet"
 
 msgid "{name}'s agent isn't connected"
 msgstr "{name}'s agent isn't connected"
+
+msgctxt "project running state"
+msgid "Can't tell what runs"
+msgstr "Can't tell what runs"
 
 msgid "Choose a project"
 msgstr "Choose a project"

@@ -867,12 +867,30 @@ describe("the variables page, once there are several projects", () => {
     expect(screen.queryByText("Nothing running in old-shop")).toBeNull();
     await user.click(picker);
     const list = await screen.findByRole("dialog", { name: "Choose a project" });
-    // Blog still has a known service, so it stays under Projects; old-shop is Unknown.
+    // Blog still has a known service, so it stays under Projects; old-shop is under Can't tell what runs.
     const projectsRegion = within(list).getByRole("region", { name: "Projects" });
     expect(within(projectsRegion).getByRole("button", { name: /Blog/ })).toBeVisible();
     expect(within(projectsRegion).queryByRole("button", { name: /old-shop/ })).toBeNull();
-    const unknownRegion = within(list).getByRole("region", { name: "Unknown" });
+    const unknownRegion = within(list).getByRole("region", { name: "Can't tell what runs" });
     expect(within(unknownRegion).getByRole("button", { name: /old-shop/ })).toBeVisible();
+    expect(within(list).queryByRole("region", { name: "Nothing running" })).toBeNull();
+  });
+
+  it("keeps projects under Projects while domains are still loading (#952)", async () => {
+    const user = userEvent.setup();
+    renderAt("/variables?environment=env_old", {
+      ...several(),
+      domains: {
+        listDomains: () => new Promise(() => {}),
+      },
+    });
+    const picker = await screen.findByRole("button", { name: /Project old-shop/ });
+    expect(screen.queryByText("Nothing running in old-shop")).toBeNull();
+    await user.click(picker);
+    const list = await screen.findByRole("dialog", { name: "Choose a project" });
+    const projectsRegion = within(list).getByRole("region", { name: "Projects" });
+    expect(within(projectsRegion).getByRole("button", { name: /old-shop/ })).toBeVisible();
+    expect(within(list).queryByRole("region", { name: "Can't tell what runs" })).toBeNull();
     expect(within(list).queryByRole("region", { name: "Nothing running" })).toBeNull();
   });
 });

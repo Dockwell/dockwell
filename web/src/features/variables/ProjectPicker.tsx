@@ -62,9 +62,12 @@ export function ProjectPicker({
 
   const q = query.trim().toLowerCase();
   const matches = (view: VariablesProject) => q === "" || view.label.toLowerCase().includes(q) || view.name.includes(q);
-  const running = views.filter((v) => (v.idle === false || v.isDefault) && matches(v));
-  const unknown = views.filter((v) => v.idle === undefined && !v.isDefault && matches(v));
-  const idle = views.filter((v) => v.idle === true && !v.isDefault && matches(v));
+  // Pending reads stay under Projects while aria-busy is set; only a failed read groups under "Can't tell what runs".
+  const running = views.filter(
+    (v) => (v.runningState === "running" || v.runningState === "loading" || v.isDefault) && matches(v),
+  );
+  const unknown = views.filter((v) => v.runningState === "unknown" && !v.isDefault && matches(v));
+  const idle = views.filter((v) => v.runningState === "idle" && !v.isDefault && matches(v));
   const found = useMemo<Found[]>(() => {
     if (q.length < 2) return [];
     const out: Found[] = [];
@@ -168,9 +171,9 @@ export function ProjectPicker({
               </section>
             ) : null}
             {unknown.length > 0 ? (
-              <section aria-label={t`Unknown`}>
+              <section aria-label={t({ context: "project running state", message: "Can't tell what runs" })}>
                 <p className="variables-pick-head" aria-hidden="true">
-                  <Trans>Unknown</Trans>
+                  <Trans context="project running state">Can't tell what runs</Trans>
                 </p>
                 <ul className="variables-pick-list">{unknown.map(item)}</ul>
               </section>

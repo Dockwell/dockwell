@@ -352,6 +352,7 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
         id: start ? "start" : "stop",
         label,
         icon: start ? "play" : "stop",
+        unavailable: start ? t`Already running` : t`Already stopped`,
         ...mayPlan.off,
         ...(mayPlan.allowed && service && requireServicePlacement && !workloadServers
           ? { off: t`Dockwell couldn't read where this service runs. Refresh to try again.` }
@@ -367,6 +368,7 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
           id: pause ? "pause" : "unpause",
           label: pause ? t`Pause workload` : t`Unpause workload`,
           icon: pause ? "pause" : "play",
+          unavailable: pause ? t`Not running or already paused` : t`Not paused`,
           ...mayPlan.off,
           onSelect: () => changePause(resource, baseRevision, pause, onApplied),
         });
@@ -376,6 +378,7 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
           id: "restart",
           label: t`Restart this container`,
           icon: "refresh",
+          unavailable: t`Not running`,
           ...may(ChangeService.method.restartService, target.where).off,
           onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
         });
