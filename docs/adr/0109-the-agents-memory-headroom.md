@@ -75,15 +75,24 @@ Each change, measured on its own against the build before it:
 
 An uninstrumented run reached 39.5 MB during mixed artifact transfers and 39.6 MB by the final archive check. A heap profile during mixed transfers attributed 2.26 MiB to protobuf descriptors and their strings, and about 0.25 MiB to the two HTTP/2 frame readers. Counters in the diagnostic build recorded about 19.5 MB of allocations for 2 GiB of mixed artifact traffic, or at most 0.0091 allocated bytes per payload byte including profiler overhead. The peak had both resident binary pages and live or recently allocated transfer memory.
 
-File and artifact traffic can share one transfer connection with 144 KiB of receive credit per stream and 432 KiB in all. New file and artifact payloads use 31 KiB frames. The receivers still accept older 128 KiB payloads. HTTP/2 read frames are capped at 16 KiB independently of gRPC message sizing. Downloads reuse the generated Connect sender and their protobuf part requests. The collector and workload use the existing settings.
+File and artifact traffic use separate HTTP/2 connections. Files use their original 256 KiB stream and 1 MiB connection windows. Artifacts use their original 144 KiB stream and 432 KiB connection windows. Three stalled file uploads could fill the 432 KiB window on a shared connection and block an image or database import. Separate windows let an artifact receive proceed while a file waits on disk.
+
+New file and artifact payloads use 31 KiB frames. The receivers still accept older 128 KiB payloads. Both transfer connections cap HTTP/2 read frames at 16 KiB independently of gRPC message sizing. Downloads reuse the generated Connect sender and their protobuf part requests.
 
 In successive pilots, changing to 31 KiB payloads lowered the whole-run reading from 39.6 to 38.7 MB. Sharing the connection left the pilot whole-run peak at 38.7 MB and lowered artifact downloads from 38.6 to 38.3 MB. Capping the HTTP/2 frame reader and reusing send state lowered artifact uploads from 37.2 to 36.6 MB and the whole run to 38.6 MB. Streaming previews reduced the preview phase by 0.6 MB. Late artifact phases continued to set the whole-run peak, so previews keep their existing route.
 
-| Alternating runs | Whole-run peaks | Median |
+| Initial alternating runs | Whole-run peaks | Median |
 | --- | --- | ---: |
 | Main | 39.6, 39.3, 38.9 MB | 39.3 MB |
-| Transfer changes | 38.7, 38.7, 38.5 MB | 38.7 MB |
+| Transfer changes with a shared connection | 38.7, 38.7, 38.5 MB | 38.7 MB |
 
 The original follow-up gate called for a 1.5 MB median reduction and a peak of 38.5 MB or less in each run. The measured reduction was 0.6 MB and two runs peaked at 38.7 MB, so the original gate was missed.
 
-The changes are accepted for the measured improvement over main. Transfer peaks were lower in all three alternating pairs, with a 0.6 MB lower median. The idle standalone median was 34.3 MB on the branch and 34.7 MB on main, a reduction of 0.4 MB. Both builds reached 47.6 MB in the log search load and 37.8 MiB in the forwarding load.
+The initial version was accepted for a 0.6 MB reduction in median transfer peak and a 0.4 MB reduction in median idle RSS (34.3 MB versus 34.7 MB). Both builds reached 47.6 MB in the log search load and 37.8 MiB in the forwarding load.
+
+| Alternating runs after restoring separate connections | Whole-run peaks | Median |
+| --- | --- | ---: |
+| Main | 39.4, 38.9, 39.3 MB | 39.3 MB |
+| Transfer changes with separate connections | 38.8, 38.5, 38.6 MB | 38.6 MB |
+
+The restored connections meet the follow-up gate of a median at or below 38.9 MB and below main's median. The measured reduction is 0.7 MB. The regression test leaves a file upload unread while an artifact is received and committed over its own HTTP/2 connection.
