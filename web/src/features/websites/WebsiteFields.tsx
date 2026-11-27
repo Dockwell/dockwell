@@ -465,14 +465,15 @@ export function WebsiteFields({
   ) : null;
 }
 
+function folderPath(root: string): string {
+  return root.trim().replace(/\/+$/, "");
+}
+
 /**
  * A website's folder: the one chosen, on one line with what the server says of it, and
  * a picker behind Change that browses the server's folders, names a new one, or takes a
  * typed path. A folder that isn't there is made with the site.
  */
-function folderPath(root: string): string {
-  return root.trim().replace(/\/+$/, "");
-}
 
 function FolderField({
   settings: s,

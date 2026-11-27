@@ -90,6 +90,7 @@ export function PoliciesPanel({
               place={several ? places.label(policy.environmentId) : ""}
               onEdit={() => onEdit(policy)}
               onAddStorage={storage.ready && storage.items.length === 0 ? () => setAddingStorage(true) : undefined}
+              storageKnown={storage.ready}
             />
           ))}
         </ul>
@@ -106,11 +107,14 @@ function PolicyRow({
   place,
   onEdit,
   onAddStorage,
+  storageKnown,
 }: {
   policy: BackupPolicyInfo;
   place: string;
   onEdit: () => void;
   onAddStorage: (() => void) | undefined;
+  /** Whether storage has loaded, so the action knows where it leads. */
+  storageKnown: boolean;
 }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
@@ -175,7 +179,7 @@ function PolicyRow({
                 type="button"
                 className="domain-step-act"
                 onClick={onAddStorage ?? onEdit}
-                disabled={!mayCopy.allowed}
+                disabled={!mayCopy.allowed || !storageKnown}
                 title={mayCopy.reason || undefined}
               >
                 <Trans>Send copies off the server</Trans>

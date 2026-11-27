@@ -3620,6 +3620,12 @@ msgstr "Putting <0>{image}</0> back failed, {ago}"
 msgid "Restart {name}"
 msgstr "Restart {name}"
 
+msgid "Run again"
+msgstr "Run again"
+
+msgid "Run {name} again"
+msgstr "Run {name} again"
+
 msgid "Search logs"
 msgstr "Search logs"
 

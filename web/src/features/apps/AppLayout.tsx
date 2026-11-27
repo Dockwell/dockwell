@@ -270,7 +270,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const app = appOf(service);
   const isStopped = app?.desiredRunState === DesiredRunState.STOPPED;
   const isPaused = app?.desiredRunState === DesiredRunState.PAUSED;
-  const notRunning = health.kind === "not-running" || health.kind === "finished";
+  // Not running only where no server runs it: one server down on a multi-server app leaves the rest serving, so the
+  // header keeps Open, Pause and Restart rather than a Start that would restart the healthy ones too.
+  const downOn = (kind: string) => kind === "not-running" || kind === "finished";
+  const notRunning = health.servers.length > 0 ? health.servers.every((s) => downOn(s.kind)) : downOn(health.kind);
+  // A one-shot job that ran to its end runs again, rather than starting as if it never ran.
+  const ranToEnd =
+    health.servers.length > 0 ? health.servers.every((s) => s.kind === "finished") : health.kind === "finished";
   const runStateChangeable = !!app && !!service.resource && canChangeAppRunState(state);
   const stoppable = runStateChangeable && !isStopped;
   const pausable = stoppable && !isPaused && !notRunning;
@@ -281,7 +287,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       changeRun(service.resource, service.revision, true);
     } else {
       // The revision already says Running, so recovering a failed or finished workload needs a restart plan.
-      restartWorkload(service.id, undefined, t`Start ${name}`);
+      restartWorkload(service.id, undefined, ranToEnd ? t`Run ${name} again` : t`Start ${name}`);
     }
   };
   const pause = () => {
@@ -337,7 +343,15 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         ]
       : []),
     ...(startable && mayStart.allowed
-      ? [{ id: "start", icon: "play" as const, label: t`Start ${name}`, hint: t`Opens a plan`, run: start }]
+      ? [
+          {
+            id: "start",
+            icon: "play" as const,
+            label: !isStopped && ranToEnd ? t`Run ${name} again` : t`Start ${name}`,
+            hint: t`Opens a plan`,
+            run: start,
+          },
+        ]
       : []),
     ...(changeable && mayChange.allowed
       ? [
@@ -430,7 +444,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         onClick={resume ? pause : start}
         {...(resume ? mayEditRunState.off : mayStart.off)}
       >
-        {resume ? <Trans>Unpause</Trans> : <Trans>Start</Trans>}
+        {resume ? <Trans>Unpause</Trans> : !isStopped && ranToEnd ? <Trans>Run again</Trans> : <Trans>Start</Trans>}
       </Button>
     ) : changeable ? (
       <Button variant="primary" icon="deploy" size={size} onClick={deploy} {...mayChange.off}>

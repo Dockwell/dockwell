@@ -3620,6 +3620,12 @@ msgstr "恢复 <0>{image}</0> 失败，{ago}"
 msgid "Restart {name}"
 msgstr "重启 {name}"
 
+msgid "Run again"
+msgstr "再次运行"
+
+msgid "Run {name} again"
+msgstr "再次运行 {name}"
+
 msgid "Search logs"
 msgstr "搜索日志"
 

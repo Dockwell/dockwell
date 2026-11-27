@@ -273,7 +273,8 @@ export function TaskPanel({
             <Trans>Edit</Trans>
           </Button>
           {saved ? (
-            <Button variant="danger" icon="trash" onClick={() => onReview("delete")} {...mayEdit.off}>
+            // Quieter than the everyday actions beside it; the plan it opens is where it turns red.
+            <Button variant="ghost" icon="trash" onClick={() => onReview("delete")} {...mayEdit.off}>
               <Trans>Delete task</Trans>
             </Button>
           ) : null}
