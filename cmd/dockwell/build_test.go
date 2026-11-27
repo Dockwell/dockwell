@@ -108,7 +108,7 @@ var agentModules = []string{
 	"github.com/moby/patternmatcher",            // Docker's .dockerignore rules for folder build contexts
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
-	"golang.org/x/crypto",                       // OpenSSH key decoding and fingerprints, plus x/crypto/acme for forced HTTP-01 renewal (agent idle RSS 33.7 MB vs 40 MB budget; ~1.2 MB over ADR 0109's ~32.5 MB baseline)
+	"golang.org/x/crypto",                       // OpenSSH and ACME. Standalone idle RSS was 34.3 MB vs 34.7 MB on main in ADR 0109.
 	"golang.org/x/sys",                          // system calls, for x/term
 	"golang.org/x/term",                         // whether a person is at a terminal
 	"google.golang.org/genproto/googleapis/api", // google.api annotations, which the schema's files import

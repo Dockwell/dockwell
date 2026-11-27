@@ -70,3 +70,20 @@ Each change, measured on its own against the build before it:
   - **Fewer of the public API's files in the agent's protocol.** The agent links 23 of its files, `change.proto` the largest. Each message keeps four methods and its type, and each file's descriptor is unmarshalled in full the first time one of its messages goes over the stream.
   - **A preview over a transfer's stream.** Four 1 MiB previews at once each hold their bytes, and the main stream marshals each again, about 1 MB at the peak.
 - An agent on a server of more than 4 CPUs runs at most 4 of its goroutines at once. A backup sealed while three transfers run shares 4 CPUs with them, and may take longer on a large server than it did. `GOMAXPROCS` in the environment of the installed service lifts it.
+
+## Follow-up on main at 43a4a2cc1
+
+An uninstrumented run reached 39.5 MB during mixed artifact transfers and 39.6 MB by the final archive check. A heap profile during mixed transfers attributed 2.26 MiB to protobuf descriptors and their strings, and about 0.25 MiB to the two HTTP/2 frame readers. Counters in the diagnostic build recorded about 19.5 MB of allocations for 2 GiB of mixed artifact traffic, or at most 0.0091 allocated bytes per payload byte including profiler overhead. The peak had both resident binary pages and live or recently allocated transfer memory.
+
+File and artifact traffic can share one transfer connection with 144 KiB of receive credit per stream and 432 KiB in all. New file and artifact payloads use 31 KiB frames. The receivers still accept older 128 KiB payloads. HTTP/2 read frames are capped at 16 KiB independently of gRPC message sizing. Downloads reuse the generated Connect sender and their protobuf part requests. The collector and workload use the existing settings.
+
+In successive pilots, changing to 31 KiB payloads lowered the whole-run reading from 39.6 to 38.7 MB. Sharing the connection left the pilot whole-run peak at 38.7 MB and lowered artifact downloads from 38.6 to 38.3 MB. Capping the HTTP/2 frame reader and reusing send state lowered artifact uploads from 37.2 to 36.6 MB and the whole run to 38.6 MB. Streaming previews reduced the preview phase by 0.6 MB. Late artifact phases continued to set the whole-run peak, so previews keep their existing route.
+
+| Alternating runs | Whole-run peaks | Median |
+| --- | --- | ---: |
+| Main | 39.6, 39.3, 38.9 MB | 39.3 MB |
+| Transfer changes | 38.7, 38.7, 38.5 MB | 38.7 MB |
+
+The median dropped by 0.6 MB. The follow-up gate needs a 1.5 MB median reduction and a peak of 38.5 MB or less in each run. The branch remains local because the measured reduction and two peaks missed those targets.
+
+The idle standalone median was 34.3 MB on the branch and 34.7 MB on main. Both builds reached 47.6 MB in the log search load and 37.8 MiB in the forwarding load.
