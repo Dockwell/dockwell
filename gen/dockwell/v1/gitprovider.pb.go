@@ -1055,8 +1055,12 @@ type GitRepository struct {
 	AppId          string `protobuf:"bytes,5,opt,name=app_id,json=appId,proto3" json:"app_id,omitempty"`
 	InstallationId int64  `protobuf:"varint,6,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
 	Account        string `protobuf:"bytes,7,opt,name=account,proto3" json:"account,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// True when another project has an app building from or a deploy token bound
+	// to this repository, so only an install admin may bind a deploy token in
+	// this project to it.
+	ClaimedByOtherProject bool `protobuf:"varint,8,opt,name=claimed_by_other_project,json=claimedByOtherProject,proto3" json:"claimed_by_other_project,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *GitRepository) Reset() {
@@ -1136,6 +1140,13 @@ func (x *GitRepository) GetAccount() string {
 		return x.Account
 	}
 	return ""
+}
+
+func (x *GitRepository) GetClaimedByOtherProject() bool {
+	if x != nil {
+		return x.ClaimedByOtherProject
+	}
+	return false
 }
 
 // RotateGitHubWebhookSecretRequest names an App and proves a passkey.
@@ -1956,8 +1967,12 @@ type GitLabProject struct {
 	Url               string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
 	ConnectionId      string                 `protobuf:"bytes,3,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	ConnectionName    string                 `protobuf:"bytes,4,opt,name=connection_name,json=connectionName,proto3" json:"connection_name,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// True when another project has an app building from or a deploy token bound
+	// to this repository, so only an install admin may bind a deploy token in
+	// this project to it.
+	ClaimedByOtherProject bool `protobuf:"varint,5,opt,name=claimed_by_other_project,json=claimedByOtherProject,proto3" json:"claimed_by_other_project,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *GitLabProject) Reset() {
@@ -2018,13 +2033,26 @@ func (x *GitLabProject) GetConnectionName() string {
 	return ""
 }
 
+func (x *GitLabProject) GetClaimedByOtherProject() bool {
+	if x != nil {
+		return x.ClaimedByOtherProject
+	}
+	return false
+}
+
 // GitLabProjectConnection summarizes a GitLab connection reachable by the project.
 type GitLabProjectConnection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
-	PathPrefix    string                 `protobuf:"bytes,4,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name       string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Url        string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
+	PathPrefix string                 `protobuf:"bytes,4,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
+	// Live state from listing or checking this connection.
+	State GitLabConnectionState `protobuf:"varint,5,opt,name=state,proto3,enum=dockwell.v1.GitLabConnectionState" json:"state,omitempty"`
+	// Optional failure detail when state is not connected.
+	Detail string `protobuf:"bytes,6,opt,name=detail,proto3" json:"detail,omitempty"`
+	// True when GitLab has more projects beyond the returned page (search narrows).
+	HasMore       bool `protobuf:"varint,7,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2085,6 +2113,27 @@ func (x *GitLabProjectConnection) GetPathPrefix() string {
 		return x.PathPrefix
 	}
 	return ""
+}
+
+func (x *GitLabProjectConnection) GetState() GitLabConnectionState {
+	if x != nil {
+		return x.State
+	}
+	return GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNSPECIFIED
+}
+
+func (x *GitLabProjectConnection) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *GitLabProjectConnection) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
 }
 
 var File_dockwell_v1_gitprovider_proto protoreflect.FileDescriptor
@@ -2160,7 +2209,7 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x1aListGitRepositoriesRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\"]\n" +
 	"\x1bListGitRepositoriesResponse\x12>\n" +
-	"\frepositories\x18\x01 \x03(\v2\x1a.dockwell.v1.GitRepositoryR\frepositories\"\xd9\x01\n" +
+	"\frepositories\x18\x01 \x03(\v2\x1a.dockwell.v1.GitRepositoryR\frepositories\"\x92\x02\n" +
 	"\rGitRepository\x12\x1b\n" +
 	"\tfull_name\x18\x01 \x01(\tR\bfullName\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x18\n" +
@@ -2168,7 +2217,8 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x0edefault_branch\x18\x04 \x01(\tR\rdefaultBranch\x12\x15\n" +
 	"\x06app_id\x18\x05 \x01(\tR\x05appId\x12'\n" +
 	"\x0finstallation_id\x18\x06 \x01(\x03R\x0einstallationId\x12\x18\n" +
-	"\aaccount\x18\a \x01(\tR\aaccount\"H\n" +
+	"\aaccount\x18\a \x01(\tR\aaccount\x127\n" +
+	"\x18claimed_by_other_project\x18\b \x01(\bR\x15claimedByOtherProject\"H\n" +
 	" RotateGitHubWebhookSecretRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05proof\x18\x02 \x01(\tR\x05proof\"@\n" +
@@ -2226,18 +2276,22 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x05query\x18\x02 \x01(\tR\x05query\"\x9c\x01\n" +
 	"\x1aListGitLabProjectsResponse\x126\n" +
 	"\bprojects\x18\x01 \x03(\v2\x1a.dockwell.v1.GitLabProjectR\bprojects\x12F\n" +
-	"\vconnections\x18\x02 \x03(\v2$.dockwell.v1.GitLabProjectConnectionR\vconnections\"\x9f\x01\n" +
+	"\vconnections\x18\x02 \x03(\v2$.dockwell.v1.GitLabProjectConnectionR\vconnections\"\xd8\x01\n" +
 	"\rGitLabProject\x12.\n" +
 	"\x13path_with_namespace\x18\x01 \x01(\tR\x11pathWithNamespace\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12#\n" +
 	"\rconnection_id\x18\x03 \x01(\tR\fconnectionId\x12'\n" +
-	"\x0fconnection_name\x18\x04 \x01(\tR\x0econnectionName\"p\n" +
+	"\x0fconnection_name\x18\x04 \x01(\tR\x0econnectionName\x127\n" +
+	"\x18claimed_by_other_project\x18\x05 \x01(\bR\x15claimedByOtherProject\"\xdd\x01\n" +
 	"\x17GitLabProjectConnection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1f\n" +
 	"\vpath_prefix\x18\x04 \x01(\tR\n" +
-	"pathPrefix*\x8f\x02\n" +
+	"pathPrefix\x128\n" +
+	"\x05state\x18\x05 \x01(\x0e2\".dockwell.v1.GitLabConnectionStateR\x05state\x12\x16\n" +
+	"\x06detail\x18\x06 \x01(\tR\x06detail\x12\x19\n" +
+	"\bhas_more\x18\a \x01(\bR\ahasMore*\x8f\x02\n" +
 	"\x15GitLabConnectionState\x12(\n" +
 	"$GIT_LAB_CONNECTION_STATE_UNSPECIFIED\x10\x00\x12$\n" +
 	" GIT_LAB_CONNECTION_STATE_UNKNOWN\x10\x01\x12&\n" +
@@ -2337,33 +2391,34 @@ var file_dockwell_v1_gitprovider_proto_depIdxs = []int32{
 	0,  // 13: dockwell.v1.CheckGitLabConnectionResponse.state:type_name -> dockwell.v1.GitLabConnectionState
 	29, // 14: dockwell.v1.ListGitLabProjectsResponse.projects:type_name -> dockwell.v1.GitLabProject
 	30, // 15: dockwell.v1.ListGitLabProjectsResponse.connections:type_name -> dockwell.v1.GitLabProjectConnection
-	2,  // 16: dockwell.v1.GitProviderService.StartGitHubApp:input_type -> dockwell.v1.StartGitHubAppRequest
-	4,  // 17: dockwell.v1.GitProviderService.FinishGitHubApp:input_type -> dockwell.v1.FinishGitHubAppRequest
-	6,  // 18: dockwell.v1.GitProviderService.AddGitHubInstallation:input_type -> dockwell.v1.AddGitHubInstallationRequest
-	8,  // 19: dockwell.v1.GitProviderService.ListGitProviders:input_type -> dockwell.v1.ListGitProvidersRequest
-	13, // 20: dockwell.v1.GitProviderService.ListGitRepositories:input_type -> dockwell.v1.ListGitRepositoriesRequest
-	16, // 21: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:input_type -> dockwell.v1.RotateGitHubWebhookSecretRequest
-	18, // 22: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:input_type -> dockwell.v1.ReplaceGitHubPrivateKeyRequest
-	20, // 23: dockwell.v1.GitProviderService.RemoveGitHubApp:input_type -> dockwell.v1.RemoveGitHubAppRequest
-	22, // 24: dockwell.v1.GitProviderService.RefreshGitHubApp:input_type -> dockwell.v1.RefreshGitHubAppRequest
-	25, // 25: dockwell.v1.GitProviderService.CheckGitLabConnection:input_type -> dockwell.v1.CheckGitLabConnectionRequest
-	27, // 26: dockwell.v1.GitProviderService.ListGitLabProjects:input_type -> dockwell.v1.ListGitLabProjectsRequest
-	3,  // 27: dockwell.v1.GitProviderService.StartGitHubApp:output_type -> dockwell.v1.StartGitHubAppResponse
-	5,  // 28: dockwell.v1.GitProviderService.FinishGitHubApp:output_type -> dockwell.v1.FinishGitHubAppResponse
-	7,  // 29: dockwell.v1.GitProviderService.AddGitHubInstallation:output_type -> dockwell.v1.AddGitHubInstallationResponse
-	9,  // 30: dockwell.v1.GitProviderService.ListGitProviders:output_type -> dockwell.v1.ListGitProvidersResponse
-	14, // 31: dockwell.v1.GitProviderService.ListGitRepositories:output_type -> dockwell.v1.ListGitRepositoriesResponse
-	17, // 32: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:output_type -> dockwell.v1.RotateGitHubWebhookSecretResponse
-	19, // 33: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:output_type -> dockwell.v1.ReplaceGitHubPrivateKeyResponse
-	21, // 34: dockwell.v1.GitProviderService.RemoveGitHubApp:output_type -> dockwell.v1.RemoveGitHubAppResponse
-	23, // 35: dockwell.v1.GitProviderService.RefreshGitHubApp:output_type -> dockwell.v1.RefreshGitHubAppResponse
-	26, // 36: dockwell.v1.GitProviderService.CheckGitLabConnection:output_type -> dockwell.v1.CheckGitLabConnectionResponse
-	28, // 37: dockwell.v1.GitProviderService.ListGitLabProjects:output_type -> dockwell.v1.ListGitLabProjectsResponse
-	27, // [27:38] is the sub-list for method output_type
-	16, // [16:27] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	0,  // 16: dockwell.v1.GitLabProjectConnection.state:type_name -> dockwell.v1.GitLabConnectionState
+	2,  // 17: dockwell.v1.GitProviderService.StartGitHubApp:input_type -> dockwell.v1.StartGitHubAppRequest
+	4,  // 18: dockwell.v1.GitProviderService.FinishGitHubApp:input_type -> dockwell.v1.FinishGitHubAppRequest
+	6,  // 19: dockwell.v1.GitProviderService.AddGitHubInstallation:input_type -> dockwell.v1.AddGitHubInstallationRequest
+	8,  // 20: dockwell.v1.GitProviderService.ListGitProviders:input_type -> dockwell.v1.ListGitProvidersRequest
+	13, // 21: dockwell.v1.GitProviderService.ListGitRepositories:input_type -> dockwell.v1.ListGitRepositoriesRequest
+	16, // 22: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:input_type -> dockwell.v1.RotateGitHubWebhookSecretRequest
+	18, // 23: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:input_type -> dockwell.v1.ReplaceGitHubPrivateKeyRequest
+	20, // 24: dockwell.v1.GitProviderService.RemoveGitHubApp:input_type -> dockwell.v1.RemoveGitHubAppRequest
+	22, // 25: dockwell.v1.GitProviderService.RefreshGitHubApp:input_type -> dockwell.v1.RefreshGitHubAppRequest
+	25, // 26: dockwell.v1.GitProviderService.CheckGitLabConnection:input_type -> dockwell.v1.CheckGitLabConnectionRequest
+	27, // 27: dockwell.v1.GitProviderService.ListGitLabProjects:input_type -> dockwell.v1.ListGitLabProjectsRequest
+	3,  // 28: dockwell.v1.GitProviderService.StartGitHubApp:output_type -> dockwell.v1.StartGitHubAppResponse
+	5,  // 29: dockwell.v1.GitProviderService.FinishGitHubApp:output_type -> dockwell.v1.FinishGitHubAppResponse
+	7,  // 30: dockwell.v1.GitProviderService.AddGitHubInstallation:output_type -> dockwell.v1.AddGitHubInstallationResponse
+	9,  // 31: dockwell.v1.GitProviderService.ListGitProviders:output_type -> dockwell.v1.ListGitProvidersResponse
+	14, // 32: dockwell.v1.GitProviderService.ListGitRepositories:output_type -> dockwell.v1.ListGitRepositoriesResponse
+	17, // 33: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:output_type -> dockwell.v1.RotateGitHubWebhookSecretResponse
+	19, // 34: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:output_type -> dockwell.v1.ReplaceGitHubPrivateKeyResponse
+	21, // 35: dockwell.v1.GitProviderService.RemoveGitHubApp:output_type -> dockwell.v1.RemoveGitHubAppResponse
+	23, // 36: dockwell.v1.GitProviderService.RefreshGitHubApp:output_type -> dockwell.v1.RefreshGitHubAppResponse
+	26, // 37: dockwell.v1.GitProviderService.CheckGitLabConnection:output_type -> dockwell.v1.CheckGitLabConnectionResponse
+	28, // 38: dockwell.v1.GitProviderService.ListGitLabProjects:output_type -> dockwell.v1.ListGitLabProjectsResponse
+	28, // [28:39] is the sub-list for method output_type
+	17, // [17:28] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_gitprovider_proto_init() }

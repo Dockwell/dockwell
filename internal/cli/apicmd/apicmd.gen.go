@@ -236,11 +236,12 @@ func Methods() []*apicli.Method {
 			Noun:      "api-tokens",
 			Verb:      "set-deploy-repository",
 			Short:     "Bind a deploy token to the HTTPS repository whose commits it may report deploy status to",
-			Long:      "Bind a deploy token to the HTTPS repository whose commits it may report deploy\nstatus to, or clears the binding when empty (ADR 0111).",
+			Long:      "Bind a deploy token to the HTTPS repository whose commits it may report deploy\nstatus to, or clears the binding when empty (ADR 0111). Requires a proof from\nAuthService.dockwell sessions finish-step-up for creating a token and developer\naccess on the token's app.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The deploy token's ID.", Arg: true},
 				{Path: "deploy_repository", Help: "Normalized HTTPS repository URL, or empty to disable status reporting."},
+				{Path: "proof", Help: "The proof from AuthService.dockwell sessions finish-step-up, for creating a token."},
 			},
 			Call: apicli.Unary[v1.SetTokenDeployRepositoryRequest, v1.SetTokenDeployRepositoryResponse](dockwellv1connect.TokenServiceSetTokenDeployRepositoryProcedure),
 		},

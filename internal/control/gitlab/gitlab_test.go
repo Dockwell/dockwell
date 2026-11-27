@@ -4,6 +4,7 @@ package gitlab_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -149,12 +150,28 @@ func TestListProjects(t *testing.T) {
 	t.Cleanup(fake.Close)
 	client := &gitlab.Client{HTTP: fake.Client(), TestBase: fake.URL}
 
-	all, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "")
-	if err != nil || len(all) != 2 {
-		t.Fatalf("ListProjects() = %+v, %v", all, err)
+	all, more, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "")
+	if err != nil || len(all) != 2 || more {
+		t.Fatalf("ListProjects() = %+v, more=%v, %v", all, more, err)
 	}
-	filtered, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "web")
-	if err != nil || len(filtered) != 1 || filtered[0].PathWithNamespace != "acme/web" {
-		t.Fatalf("ListProjects(web) = %+v, %v", filtered, err)
+	filtered, more, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "web")
+	if err != nil || len(filtered) != 1 || filtered[0].PathWithNamespace != "acme/web" || more {
+		t.Fatalf("ListProjects(web) = %+v, more=%v, %v", filtered, more, err)
+	}
+
+	// Beyond 100 projects, X-Next-Page signals hasMore=true and search narrows on the server.
+	many := make([]gltest.Project, 105)
+	for i := range many {
+		path := fmt.Sprintf("acme/svc-%03d", i+1)
+		many[i] = gltest.Project{PathWithNamespace: path, WebURL: "https://gitlab.example.com/" + path}
+	}
+	gl.SetProjects(many)
+	page1, hasMore, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "")
+	if err != nil || len(page1) != 100 || !hasMore {
+		t.Fatalf("ListProjects(>100) len=%d, hasMore=%v, err=%v", len(page1), hasMore, err)
+	}
+	found, hasMore, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "svc-105")
+	if err != nil || len(found) != 1 || found[0].PathWithNamespace != "acme/svc-105" || hasMore {
+		t.Fatalf("ListProjects(svc-105) = %+v, more=%v, %v", found, hasMore, err)
 	}
 }

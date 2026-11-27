@@ -235,6 +235,62 @@ func (t *Tx) SetAPITokenDeployRepository(ctx context.Context, userID, id, reposi
 	return tok, nil
 }
 
+// DeployTokenBinding pairs a live deploy token's project with its bound status repository.
+type DeployTokenBinding struct {
+	ProjectID  string
+	Repository string
+}
+
+// LiveDeployTokenRepositories lists every live (not revoked, not expired) deploy
+// token that has a bound status repository.
+func (t *Tx) LiveDeployTokenRepositories(ctx context.Context, now time.Time) ([]DeployTokenBinding, error) {
+	rows, err := t.query(ctx, `SELECT projects, deploy_repository FROM api_tokens
+		WHERE deploy_repository != '' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`, millis(now))
+	if err != nil {
+		return nil, fmt.Errorf("listing live deploy token repositories: %w", err)
+	}
+	defer rows.Close()
+	var out []DeployTokenBinding
+	for rows.Next() {
+		var projectsCol sql.NullString
+		var repo string
+		if err := rows.Scan(&projectsCol, &repo); err != nil {
+			return nil, err
+		}
+		for _, p := range projectsFrom(projectsCol) {
+			if p != "" {
+				out = append(out, DeployTokenBinding{ProjectID: p, Repository: repo})
+			}
+		}
+	}
+	return out, rows.Err()
+}
+
+// APITokenOwners returns the owning user_id for each named API token ID in one query.
+func (t *Tx) APITokenOwners(ctx context.Context, ids []string) (map[string]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT id, user_id FROM api_tokens WHERE id IN (`+marks(len(ids))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("reading API token owners: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]string, len(ids))
+	for rows.Next() {
+		var id, userID string
+		if err := rows.Scan(&id, &userID); err != nil {
+			return nil, err
+		}
+		out[id] = userID
+	}
+	return out, rows.Err()
+}
+
 // TouchAPIToken records that a token was used at at from ip.
 func (t *Tx) TouchAPIToken(ctx context.Context, id string, at time.Time, ip string) error {
 	if _, err := t.exec(ctx, `UPDATE api_tokens SET last_used_at = ?, last_ip = ? WHERE id = ? AND revoked_at IS NULL`,

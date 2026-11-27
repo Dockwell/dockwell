@@ -61,7 +61,8 @@ type TokenServiceClient interface {
 	RevokeToken(context.Context, *connect.Request[v1.RevokeTokenRequest]) (*connect.Response[v1.RevokeTokenResponse], error)
 	// SetTokenDeployRepository binds a deploy token to the HTTPS repository
 	// whose commits it may report deploy status to, or clears the binding when
-	// empty (ADR 0111).
+	// empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+	// creating a token and developer access on the token's app.
 	SetTokenDeployRepository(context.Context, *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error)
 }
 
@@ -145,7 +146,8 @@ type TokenServiceHandler interface {
 	RevokeToken(context.Context, *connect.Request[v1.RevokeTokenRequest]) (*connect.Response[v1.RevokeTokenResponse], error)
 	// SetTokenDeployRepository binds a deploy token to the HTTPS repository
 	// whose commits it may report deploy status to, or clears the binding when
-	// empty (ADR 0111).
+	// empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+	// creating a token and developer access on the token's app.
 	SetTokenDeployRepository(context.Context, *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error)
 }
 

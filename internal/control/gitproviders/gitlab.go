@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,17 @@ import (
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
+
+const (
+	gitlabProjectsCacheTTL     = 60 * time.Second
+	gitlabProjectsCacheMaxKeys = 256
+)
+
+type gitlabProjectsCache struct {
+	projects  []gitlab.Project
+	hasMore   bool
+	expiresAt time.Time
+}
 
 type gitlabCheck struct {
 	revision  int
@@ -149,6 +161,7 @@ func (h *Handler) CheckGitLabConnection(ctx context.Context, req *connect.Reques
 		savedURL, _ := gitlabconnection.NormalizeURL(saved.spec.GetInstanceUrl())
 		if savedURL == normURL && (usingSavedToken || token == saved.spec.GetToken()) {
 			h.NoteGitLabStatus(saved.r.ID, saved.r.Revision, state, detail)
+			h.invalidateGitLabProjectsCache(saved.r.ID)
 		}
 	}
 	return connect.NewResponse(&dockwellv1.CheckGitLabConnectionResponse{
@@ -186,10 +199,62 @@ func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabCon
 	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name
 }
 
+func (h *Handler) invalidateGitLabProjectsCache(connID string) {
+	prefix := connID + "\x00"
+	h.mu.Lock()
+	for k := range h.gitlabProjects {
+		if strings.HasPrefix(k, prefix) {
+			delete(h.gitlabProjects, k)
+		}
+	}
+	h.mu.Unlock()
+}
+
+func (h *Handler) listGitLabProjectsCached(ctx context.Context, k keptGitLab, baseURL, query string) (projects []gitlab.Project, hasMore bool, err error) {
+	key := k.r.ID + "\x00" + strconv.Itoa(k.r.Revision) + "\x00" + strings.ToLower(query)
+	now := h.now()
+	h.mu.Lock()
+	if entry, ok := h.gitlabProjects[key]; ok && now.Before(entry.expiresAt) {
+		h.mu.Unlock()
+		return entry.projects, entry.hasMore, nil
+	}
+	h.mu.Unlock()
+
+	projects, hasMore, err = h.cfg.GitLab.ListProjects(ctx, baseURL, k.spec.GetToken(), query)
+	if err != nil {
+		return nil, false, err
+	}
+
+	h.mu.Lock()
+	if len(h.gitlabProjects) >= gitlabProjectsCacheMaxKeys {
+		for ck, cv := range h.gitlabProjects {
+			if !now.Before(cv.expiresAt) {
+				delete(h.gitlabProjects, ck)
+			}
+		}
+		if len(h.gitlabProjects) >= gitlabProjectsCacheMaxKeys {
+			clear(h.gitlabProjects)
+		}
+	}
+	h.gitlabProjects[key] = gitlabProjectsCache{
+		projects:  projects,
+		hasMore:   hasMore,
+		expiresAt: now.Add(gitlabProjectsCacheTTL),
+	}
+	h.mu.Unlock()
+	return projects, hasMore, nil
+}
+
 // ListGitLabProjects returns the GitLab projects reachable by a project's
 // connected GitLab instances, filtered by each connection's path prefix.
+// Listings are cached per connection for 60 s (N8), failed connections report
+// their state instead of being dropped silently, and has_more indicates when
+// server-side search should be used beyond 100 projects.
 func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[dockwellv1.ListGitLabProjectsRequest]) (*connect.Response[dockwellv1.ListGitLabProjectsResponse], error) {
-	var reachable []keptGitLab
+	var (
+		reachable []keptGitLab
+		claimed   map[string]bool
+	)
 	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
@@ -214,7 +279,8 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 				reachable = append(reachable, k)
 			}
 		}
-		return nil
+		claimed, err = h.claimedByOtherProjectSet(ctx, tx, project)
+		return err
 	})
 	var ce *connect.Error
 	if errors.As(err, &ce) {
@@ -228,16 +294,24 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 	seen := map[string]bool{}
 	for _, k := range reachable {
 		baseURL := strings.TrimRight(k.spec.GetInstanceUrl(), "/")
-		out.Connections = append(out.Connections, &dockwellv1.GitLabProjectConnection{
+		connInfo := &dockwellv1.GitLabProjectConnection{
 			Id:         k.r.ID,
 			Name:       k.r.Name,
 			Url:        baseURL,
 			PathPrefix: k.spec.GetPathPrefix(),
-		})
-		projects, err := h.cfg.GitLab.ListProjects(ctx, baseURL, k.spec.GetToken(), query)
+			State:      dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+		}
+		projects, hasMore, err := h.listGitLabProjectsCached(ctx, k, baseURL, query)
 		if err != nil {
+			state, detail, _, _ := classifyGitLabCheck(gitlab.TokenInfo{}, err)
+			connInfo.State = state
+			connInfo.Detail = detail
+			h.NoteGitLabStatus(k.r.ID, k.r.Revision, state, detail)
+			out.Connections = append(out.Connections, connInfo)
 			continue
 		}
+		connInfo.HasMore = hasMore
+		out.Connections = append(out.Connections, connInfo)
 		for _, p := range projects {
 			if !gitlab.MatchesPrefix(p.PathWithNamespace, k.spec.GetPathPrefix()) {
 				continue
@@ -256,10 +330,11 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 			}
 			seen[key] = true
 			out.Projects = append(out.Projects, &dockwellv1.GitLabProject{
-				PathWithNamespace: p.PathWithNamespace,
-				Url:               norm,
-				ConnectionId:      k.r.ID,
-				ConnectionName:    k.r.Name,
+				PathWithNamespace:     p.PathWithNamespace,
+				Url:                   norm,
+				ConnectionId:          k.r.ID,
+				ConnectionName:        k.r.Name,
+				ClaimedByOtherProject: claimed[key],
 			})
 		}
 	}

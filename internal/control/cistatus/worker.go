@@ -509,6 +509,24 @@ func (w *Worker) deliverEntry(ctx context.Context, entry store.CIStatusEntry) (d
 	case dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS:
 		out = w.deliverGitHub(ctx, entry)
 	case dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI:
+		// N10: GitLab keys commit statuses by (sha, name) without external_id.
+		// Never post an older change's transition (such as a retried discard)
+		// once a newer change for the same commit and status name has already
+		// delivered a status.
+		var newerDelivered bool
+		if err := w.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			var err error
+			newerDelivered, err = tx.CIStatusHasNewerDeliveredForName(ctx, entry)
+			return err
+		}); err != nil {
+			return false, false, err
+		}
+		if newerDelivered {
+			err := w.cfg.DB.Update(ctx, func(tx *store.Tx) error {
+				return tx.CIStatusMarkSuperseded(ctx, entry.ID, w.now())
+			})
+			return true, false, err
+		}
 		out = w.deliverGitLab(ctx, entry)
 	default:
 		out = deliveryOutcome{skipped: true, reasonCode: store.CIStatusReasonProviderUnsupported}

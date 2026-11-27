@@ -770,8 +770,10 @@ type SetTokenDeployRepositoryRequest struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Normalized HTTPS repository URL, or empty to disable status reporting.
 	DeployRepository string `protobuf:"bytes,2,opt,name=deploy_repository,json=deployRepository,proto3" json:"deploy_repository,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The proof from AuthService.FinishStepUp, for creating a token.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetTokenDeployRepositoryRequest) Reset() {
@@ -814,6 +816,13 @@ func (x *SetTokenDeployRepositoryRequest) GetId() string {
 func (x *SetTokenDeployRepositoryRequest) GetDeployRepository() string {
 	if x != nil {
 		return x.DeployRepository
+	}
+	return ""
+}
+
+func (x *SetTokenDeployRepositoryRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
 	}
 	return ""
 }
@@ -913,10 +922,11 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x06tokens\x18\x01 \x03(\v2\x12.dockwell.v1.TokenR\x06tokens\"$\n" +
 	"\x12RevokeTokenRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13RevokeTokenResponse\"^\n" +
+	"\x13RevokeTokenResponse\"t\n" +
 	"\x1fSetTokenDeployRepositoryRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12+\n" +
-	"\x11deploy_repository\x18\x02 \x01(\tR\x10deployRepository\"L\n" +
+	"\x11deploy_repository\x18\x02 \x01(\tR\x10deployRepository\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"L\n" +
 	" SetTokenDeployRepositoryResponse\x12(\n" +
 	"\x05token\x18\x01 \x01(\v2\x12.dockwell.v1.TokenR\x05token*x\n" +
 	"\n" +

@@ -11006,7 +11006,8 @@ paths:
             description: |-
                 SetTokenDeployRepository binds a deploy token to the HTTPS repository
                  whose commits it may report deploy status to, or clears the binding when
-                 empty (ADR 0111).
+                 empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+                 creating a token and developer access on the token's app.
             operationId: TokenService_SetTokenDeployRepository
             parameters:
                 - name: id
@@ -23872,6 +23873,12 @@ components:
                     type: string
                 connectionName:
                     type: string
+                claimedByOtherProject:
+                    type: boolean
+                    description: |-
+                        True when another project has an app building from or a deploy token bound
+                         to this repository, so only an install admin may bind a deploy token in
+                         this project to it.
             description: GitLabProject is one repository reachable through a GitLab connection.
         GitLabProjectConnection:
             type: object
@@ -23884,6 +23891,23 @@ components:
                     type: string
                 pathPrefix:
                     type: string
+                state:
+                    enum:
+                        - GIT_LAB_CONNECTION_STATE_UNSPECIFIED
+                        - GIT_LAB_CONNECTION_STATE_UNKNOWN
+                        - GIT_LAB_CONNECTION_STATE_CONNECTED
+                        - GIT_LAB_CONNECTION_STATE_MISSING_SCOPE
+                        - GIT_LAB_CONNECTION_STATE_AUTH_FAILED
+                        - GIT_LAB_CONNECTION_STATE_UNREACHABLE
+                    type: string
+                    description: Live state from listing or checking this connection.
+                    format: enum
+                detail:
+                    type: string
+                    description: Optional failure detail when state is not connected.
+                hasMore:
+                    type: boolean
+                    description: True when GitLab has more projects beyond the returned page (search narrows).
             description: GitLabProjectConnection summarizes a GitLab connection reachable by the project.
         GitRepository:
             type: object
@@ -23905,6 +23929,12 @@ components:
                     type: string
                 account:
                     type: string
+                claimedByOtherProject:
+                    type: boolean
+                    description: |-
+                        True when another project has an app building from or a deploy token bound
+                         to this repository, so only an install admin may bind a deploy token in
+                         this project to it.
             description: GitRepository is a repository a project's apps may build from, through an App.
         GitSource:
             type: object
@@ -35116,6 +35146,9 @@ components:
                 deployRepository:
                     type: string
                     description: Normalized HTTPS repository URL, or empty to disable status reporting.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for creating a token.
             description: |-
                 SetTokenDeployRepositoryRequest updates the status-reporting repository
                  bound to one of your deploy tokens.

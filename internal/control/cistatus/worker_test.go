@@ -754,3 +754,115 @@ func TestMissingInstallationSkips(t *testing.T) {
 		t.Fatalf("unexpected skipped state: %+v", latest[chgID])
 	}
 }
+
+// N10: On GitLab, a retried discard from an older change (A) that backed off on
+// a transient error must NOT overwrite a newer change (B)'s delivered success
+// for the same commit and status name.
+func TestGitLabN10RetriedDiscardSkippedAfterNewerSuccess(t *testing.T) {
+	t.Parallel()
+	db, _ := storetest.Open(t, store.SQLite)
+	gl := gltest.New()
+	srv := httptest.NewServer(gl)
+	t.Cleanup(srv.Close)
+
+	clk := &fakeClock{t: time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)}
+	glClient := &gitlab.Client{HTTP: srv.Client(), TestBase: srv.URL}
+	targets := &fakeTargets{
+		gl: &cistatus.GitLabTarget{
+			ConnectionID: "glc_1", Revision: 1, Name: "self-managed",
+			BaseURL: "https://gitlab.example.com", Token: gltest.TokenAPI,
+			ProjectPath: "acme/web", CredentialRef: "gitlab_connection:glc_1",
+		},
+	}
+	w := cistatus.New(cistatus.Config{
+		DB: db, Targets: targets, GitLab: glClient, Now: clk.now,
+		BaseBackoff: 5 * time.Second, MaxBackoff: 30 * time.Second,
+	})
+
+	svcID := id.New(id.Service)
+	chgA := id.New(id.Change)
+	chgB := id.New(id.Change)
+	commit := strings.Repeat("a", 40)
+
+	// Enqueue A's discarded transition first (simulating B superseding A).
+	if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error {
+		if err := tx.CreateChange(t.Context(), store.Change{
+			ID: chgA, Summary: "Deploy web A", Actor: "tok_1", State: store.ChangePlanned,
+			CreatedAt: clk.now(), Plan: []byte(`{}`), Fingerprint: "fpA",
+		}); err != nil {
+			return err
+		}
+		if err := tx.RecordCIDeploy(t.Context(), store.CIDeployOrigin{
+			CIDeployKey: store.CIDeployKey{Service: svcID, Digest: "sha256:" + strings.Repeat("1", 64), Commit: commit},
+			Provider:    int32(dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI),
+			Repository:  "https://gitlab.example.com/acme/web",
+			Ref:         "refs/heads/main",
+			Image:       "registry.gitlab.example.com/acme/web:1",
+		}, chgA); err != nil {
+			return err
+		}
+		_, err := tx.EnqueueCIStatusForChange(t.Context(), chgA, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{
+			ServiceName: "web", EnvironmentName: "production", AllowedRepository: "https://gitlab.example.com/acme/web",
+		}, clk.now())
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// First attempt for A hits a transient 503 and backs off.
+	gl.FailNext(1)
+	if err := w.DeliverOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Newer change B (created 1s later for the same commit + env + service) succeeds and delivers!
+	clk.advance(time.Second)
+	if err := db.Revise(t.Context(), func(tx *store.RevisionTx) error {
+		if err := tx.CreateChange(t.Context(), store.Change{
+			ID: chgB, Summary: "Deploy web B", Actor: "tok_1", State: store.ChangeApplied,
+			CreatedAt: clk.now(), Plan: []byte(`{}`), Fingerprint: "fpB",
+		}); err != nil {
+			return err
+		}
+		if err := tx.RecordCIDeploy(t.Context(), store.CIDeployOrigin{
+			CIDeployKey: store.CIDeployKey{Service: svcID, Digest: "sha256:" + strings.Repeat("2", 64), Commit: commit},
+			Provider:    int32(dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI),
+			Repository:  "https://gitlab.example.com/acme/web",
+			Ref:         "refs/heads/main",
+			Image:       "registry.gitlab.example.com/acme/web:2",
+		}, chgB); err != nil {
+			return err
+		}
+		_, err := tx.EnqueueCIStatusForChange(t.Context(), chgB, store.CIStatusHealthy, store.CIStatusEnqueueOpts{
+			ServiceName: "web", EnvironmentName: "production", AllowedRepository: "https://gitlab.example.com/acme/web",
+		}, clk.now())
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.DeliverOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Advance past A's backoff -> A's retry MUST be superseded without posting canceled!
+	clk.advance(10 * time.Second)
+	if err := w.DeliverOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	statuses := gl.Statuses()
+	if len(statuses) != 1 || statuses[0].State != "success" {
+		t.Fatalf("GitLab statuses = %+v, want only [success] (no stale canceled overwrite)", statuses)
+	}
+	var latest map[string]store.CIStatusEntry
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		var err error
+		latest, err = tx.CIStatusLatest(t.Context(), []string{chgA, chgB})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if latest[chgA].DeliveryState != store.CIStatusDeliverySuperseded || latest[chgB].DeliveryState != store.CIStatusDeliveryDelivered {
+		t.Fatalf("latest states = (A:%s, B:%s), want (superseded, delivered)", latest[chgA].DeliveryState, latest[chgB].DeliveryState)
+	}
+}

@@ -4,9 +4,11 @@ import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  GitLabConnectionState,
   GitProviderService,
   ResourceService,
   Role,
+  ServiceService,
   StepUpAction,
   type Token,
   TokenGrant,
@@ -22,6 +24,7 @@ import {
   Panel,
   PHONE_QUERY,
   SelectField,
+  type SelectOption,
   Sheet,
   Skeleton,
   StatusBadge,
@@ -574,6 +577,14 @@ function RevokeButton({
   );
 }
 
+function normalizeRepoKey(value: string): string {
+  return value
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\.git$/i, "")
+    .toLowerCase();
+}
+
 /** Binds a deploy token to the HTTPS repository whose commits it may report status to (ADR 0111). */
 function TokenRepositorySheet({ token, onClose, onSaved }: { token: Token; onClose: () => void; onSaved: () => void }) {
   const { t } = useLingui();
@@ -581,8 +592,21 @@ function TokenRepositorySheet({ token, onClose, onSaved }: { token: Token; onClo
   const explain = useAuthError();
   const may = useMay();
   const projectId = token.projects[0]?.id ?? "";
+  const mayCheckGitLab = may(GitProviderService.method.checkGitLabConnection);
+  const isInstallAdmin = mayCheckGitLab.allowed;
   const mayGitHub = may(GitProviderService.method.listGitRepositories, projectId ? { project: projectId } : undefined);
   const mayGitLab = may(GitProviderService.method.listGitLabProjects, projectId ? { project: projectId } : undefined);
+  const [glSearch, setGlSearch] = useState("");
+  const [checkingConnId, setCheckingConnId] = useState<string>();
+  const services = useQuery(
+    ServiceService.method.listServices,
+    { project: projectId },
+    { enabled: Boolean(projectId) && Boolean(token.deployService) },
+  );
+  const tokenService = (services.data?.services ?? []).find((s) => s.id === token.deployService);
+  const buildRepo = tokenService?.spec?.build?.source.case === "git" ? tokenService.spec.build.source.value.url : "";
+  const normalizedBuildRepo = buildRepo ? normalizeRepoKey(buildRepo) : "";
+
   const ghRepos = useQuery(
     GitProviderService.method.listGitRepositories,
     { project: projectId },
@@ -590,36 +614,80 @@ function TokenRepositorySheet({ token, onClose, onSaved }: { token: Token; onClo
   );
   const glProjects = useQuery(
     GitProviderService.method.listGitLabProjects,
-    { project: projectId },
+    { project: projectId, query: glSearch.trim() },
     { enabled: Boolean(projectId) && mayGitLab.allowed },
   );
 
-  const options: { value: string; label: string }[] = [
-    ...(ghRepos.data?.repositories ?? []).map((r) => ({
-      value: r.url.startsWith("https://") ? r.url : `https://github.com/${r.fullName}`,
-      label: `GitHub · ${r.fullName}`,
-    })),
-    ...(glProjects.data?.projects ?? []).map((p) => ({ value: p.url, label: `GitLab · ${p.pathWithNamespace}` })),
+  const options: SelectOption[] = [
+    ...(ghRepos.data?.repositories ?? []).map((r) => {
+      const value = r.url.startsWith("https://") ? r.url : `https://github.com/${r.fullName}`;
+      const ownSource =
+        Boolean(normalizedBuildRepo) &&
+        (normalizeRepoKey(value) === normalizedBuildRepo || normalizeRepoKey(r.url) === normalizedBuildRepo);
+      const adminOnly = !isInstallAdmin && (normalizedBuildRepo ? !ownSource : r.claimedByOtherProject);
+      const baseLabel = `GitHub · ${r.fullName}`;
+      return {
+        value,
+        label: adminOnly ? t`${baseLabel} · An admin chooses this` : baseLabel,
+        disabled: adminOnly,
+      };
+    }),
+    ...(glProjects.data?.projects ?? []).map((p) => {
+      const ownSource = Boolean(normalizedBuildRepo) && normalizeRepoKey(p.url) === normalizedBuildRepo;
+      const adminOnly = !isInstallAdmin && (normalizedBuildRepo ? !ownSource : p.claimedByOtherProject);
+      const baseLabel = `GitLab · ${p.pathWithNamespace}`;
+      return {
+        value: p.url,
+        label: adminOnly ? t`${baseLabel} · An admin chooses this` : baseLabel,
+        disabled: adminOnly,
+      };
+    }),
   ];
   const [selected, setSelected] = useState(token.deployRepository);
   const [custom, setCustom] = useState(token.deployRepository);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
 
+  const glConnections = glProjects.data?.connections ?? [];
+  const failedGlConnections = glConnections.filter(
+    (c) =>
+      c.state === GitLabConnectionState.AUTH_FAILED ||
+      c.state === GitLabConnectionState.MISSING_SCOPE ||
+      c.state === GitLabConnectionState.UNREACHABLE,
+  );
+  const showGlSearch = glConnections.some((c) => c.hasMore) || glSearch.trim().length > 0;
+
   const hasOptions = options.length > 0;
-  const selectOptions =
+  const selectOptions: SelectOption[] =
     token.deployRepository && !options.some((o) => o.value === token.deployRepository)
       ? [{ value: token.deployRepository, label: shortRepoLabel(token.deployRepository) }, ...options]
       : options;
+
+  const checkGitLabConn = async (name: string, url: string, id: string) => {
+    setCheckingConnId(id);
+    setProblem(undefined);
+    try {
+      await createClient(GitProviderService, transport).checkGitLabConnection({ name, url });
+      await glProjects.refetch();
+    } catch (err) {
+      setProblem(explain(err));
+    } finally {
+      setCheckingConnId(undefined);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
     setProblem(undefined);
     try {
-      await createClient(TokenService, transport).setTokenDeployRepository({
-        id: token.id,
-        deployRepository: hasOptions ? selected : custom.trim(),
-      });
+      const nextRepo = hasOptions ? selected : custom.trim();
+      await withStepUpIfAsked(transport, StepUpAction.CREATE_TOKEN, "", (proof) =>
+        createClient(TokenService, transport).setTokenDeployRepository({
+          id: token.id,
+          deployRepository: nextRepo,
+          proof,
+        }),
+      );
       onSaved();
     } catch (err) {
       setProblem(explain(err));
@@ -646,6 +714,38 @@ function TokenRepositorySheet({ token, onClose, onSaved }: { token: Token; onClo
       }
     >
       <div className="tokens-form">
+        {failedGlConnections.map((conn) => {
+          const badge =
+            conn.state === GitLabConnectionState.MISSING_SCOPE
+              ? { status: "degraded" as const, label: t`Missing api scope` }
+              : conn.state === GitLabConnectionState.AUTH_FAILED
+                ? { status: "down" as const, label: t`Token refused` }
+                : { status: "down" as const, label: t`Unreachable` };
+          return (
+            <div key={conn.id} className="tokens-reach-summary">
+              <span>{conn.name}</span>
+              <StatusBadge status={badge.status} label={badge.label} />
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="refresh"
+                loading={checkingConnId === conn.id}
+                {...mayCheckGitLab.off}
+                onClick={() => void checkGitLabConn(conn.name, conn.url, conn.id)}
+              >
+                <Trans>Check</Trans>
+              </Button>
+            </div>
+          );
+        })}
+        {showGlSearch ? (
+          <TextField
+            label={t`Search GitLab projects`}
+            value={glSearch}
+            onChange={(event) => setGlSearch(event.target.value)}
+            placeholder={t`Filter by group or project name`}
+          />
+        ) : null}
         {hasOptions ? (
           <SelectField
             label={t`Status repository`}

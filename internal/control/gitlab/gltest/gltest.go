@@ -45,12 +45,13 @@ type Project struct {
 
 // Server is the fake GitLab API server.
 type Server struct {
-	mu       sync.Mutex
-	tokens   map[string]Token
-	projects []Project
-	statuses []RecordedStatus
-	nextID   int64
-	failNext int
+	mu            sync.Mutex
+	tokens        map[string]Token
+	projects      []Project
+	statuses      []RecordedStatus
+	nextID        int64
+	failNext      int
+	projectsCalls int
 }
 
 // Default test tokens registered by New().
@@ -99,6 +100,13 @@ func (s *Server) FailNext(n int) {
 	s.failNext = n
 }
 
+// ProjectsCalls returns how many GET /api/v4/projects requests the stand-in received.
+func (s *Server) ProjectsCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.projectsCalls
+}
+
 // Statuses returns a snapshot of every posted commit status.
 func (s *Server) Statuses() []RecordedStatus {
 	s.mu.Lock()
@@ -129,6 +137,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.SetProjects(projects)
 		w.WriteHeader(http.StatusNoContent)
 	case p == "/api/v4/projects" && r.Method == http.MethodGet:
+		s.mu.Lock()
+		s.projectsCalls++
+		s.mu.Unlock()
 		tok, ok := s.auth(r)
 		if !ok || !tok.Active || tok.Revoked {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "401 Unauthorized"})
@@ -143,6 +154,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		s.mu.Unlock()
+		if len(out) > 100 {
+			w.Header().Set("X-Next-Page", "2")
+			out = out[:100]
+		}
 		if out == nil {
 			out = []Project{}
 		}

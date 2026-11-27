@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,6 +311,107 @@ func TestGitHubInstallationPermissionsRoundTrip(t *testing.T) {
 		}
 		if got.Permissions["checks"] != "write" || got.Permissions["contents"] != "read" {
 			t.Fatalf("permissions = %+v", got.Permissions)
+		}
+	})
+}
+
+// N9: Once a change has a terminal status (discarded, healthy, rolled_back),
+// enqueuing a second discard posts nothing.
+// N10: CIStatusHasNewerDeliveredForName detects when a newer change for the
+// same (provider, repository, commit, environment, service) has delivered.
+func TestCIStatusN9OneFinalAndN10NewerDelivered(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		ctx := t.Context()
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		svcID := id.New(id.Service)
+		chgA := id.New(id.Change)
+		chgB := id.New(id.Change)
+		commit := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+		seed := func(cid, digest string, at time.Time) {
+			t.Helper()
+			if err := db.Revise(ctx, func(tx *store.RevisionTx) error {
+				if err := tx.CreateChange(ctx, store.Change{
+					ID: cid, Summary: "Deploy web", Actor: "tok_1", State: store.ChangePlanned,
+					CreatedAt: at, Plan: []byte(`{}`), Fingerprint: "fp-" + cid,
+				}); err != nil {
+					return err
+				}
+				if err := tx.RecordCIDeploy(ctx, store.CIDeployOrigin{
+					CIDeployKey: store.CIDeployKey{Service: svcID, Digest: digest, Commit: commit},
+					Provider:    2, Repository: "https://gitlab.example.com/acme/web",
+					Ref: "refs/heads/main", Image: "registry.gitlab.example.com/acme/web:1",
+				}, cid); err != nil {
+					return err
+				}
+				_, err := tx.EnqueueCIStatusForChange(ctx, cid, store.CIStatusQueued, store.CIStatusEnqueueOpts{
+					ServiceName: "web", EnvironmentName: "production", AllowedRepository: "https://gitlab.example.com/acme/web",
+				}, at)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seed(chgA, "sha256:"+strings.Repeat("1", 64), now)
+		seed(chgB, "sha256:"+strings.Repeat("2", 64), now.Add(time.Second))
+
+		// N9: First discard enqueues; second discard is a no-op.
+		var firstOK, secondOK bool
+		if err := db.Revise(ctx, func(tx *store.RevisionTx) error {
+			var err error
+			firstOK, err = tx.EnqueueCIStatusForChange(ctx, chgA, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{Summary: "superseded"}, now.Add(2*time.Second))
+			if err != nil {
+				return err
+			}
+			secondOK, err = tx.EnqueueCIStatusForChange(ctx, chgA, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{Summary: "discarded again"}, now.Add(3*time.Second))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !firstOK || secondOK {
+			t.Fatalf("discard enqueues = (%v, %v), want (true, false)", firstOK, secondOK)
+		}
+
+		// Deliver chgB's healthy transition, then verify chgA sees a newer delivered status (N10).
+		if err := db.Revise(ctx, func(tx *store.RevisionTx) error {
+			_, err := tx.EnqueueCIStatusForChange(ctx, chgB, store.CIStatusHealthy, store.CIStatusEnqueueOpts{}, now.Add(4*time.Second))
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var bAll, aAll []store.CIStatusEntry
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			bAll, err = tx.CIStatusAllForChange(ctx, chgB)
+			if err != nil {
+				return err
+			}
+			aAll, err = tx.CIStatusAllForChange(ctx, chgA)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			lastB := bAll[len(bAll)-1]
+			return tx.CIStatusMarkDelivered(ctx, lastB.ID, chgB, lastB.Transition, "900", "https://gitlab.example.com/acme/web/-/pipelines/900", "glc_1", now.Add(5*time.Second))
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var newerForA, newerForB bool
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			newerForA, err = tx.CIStatusHasNewerDeliveredForName(ctx, aAll[len(aAll)-1])
+			if err != nil {
+				return err
+			}
+			newerForB, err = tx.CIStatusHasNewerDeliveredForName(ctx, bAll[len(bAll)-1])
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !newerForA || newerForB {
+			t.Fatalf("CIStatusHasNewerDeliveredForName = (A:%v, B:%v), want (true, false)", newerForA, newerForB)
 		}
 	})
 }

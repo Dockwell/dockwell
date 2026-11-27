@@ -849,6 +849,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 				Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
 			})
 			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
+			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
 			appSources.SetApps(apps)
 			ch.SetGitLogins(apps)
 			if cfg.Agents != nil {

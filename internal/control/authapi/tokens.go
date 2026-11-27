@@ -179,7 +179,8 @@ func (h *Handler) SetTokenDeployRepository(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	tok, err := h.auth.SetTokenDeployRepository(ctx, p, req.Msg.GetId(), req.Msg.GetDeployRepository())
+	client, _ := ClientFrom(ctx)
+	tok, err := h.auth.SetTokenDeployRepository(ctx, client, p, req.Msg.GetId(), req.Msg.GetDeployRepository(), req.Msg.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

@@ -95,6 +95,8 @@ type Handler struct {
 	appPerms map[string]map[string]string
 	// gitlabChecks caches the latest connection check per gitlab.connection resource ID.
 	gitlabChecks map[string]gitlabCheck
+	// gitlabProjects caches GET /api/v4/projects per (connection ID, revision, query) for 60s (N8).
+	gitlabProjects map[string]gitlabProjectsCache
 	// watch is whether each App's deliveries reach the panel, by resource ID;
 	// branches what the last check of each hook's branch said, by hook ID; and
 	// pusher what deploys a push polling finds.
@@ -135,7 +137,8 @@ func New(cfg Config) *Handler {
 	return &Handler{
 		cfg: cfg, starting: map[string]starting{}, apps: map[string]*actingApp{}, gone: map[string]bool{},
 		appPerms: map[string]map[string]string{}, gitlabChecks: map[string]gitlabCheck{},
-		watch: map[string]*watching{}, branches: map[string]branch{},
+		gitlabProjects: map[string]gitlabProjectsCache{},
+		watch:          map[string]*watching{}, branches: map[string]branch{},
 	}
 }
 
@@ -716,6 +719,10 @@ func (h *Handler) ListGitRepositories(ctx context.Context, req *connect.Request[
 		if err != nil {
 			return err
 		}
+		claimed, err := h.claimedByOtherProjectSet(ctx, tx, project)
+		if err != nil {
+			return err
+		}
 		for _, a := range apps {
 			ins, err := tx.GitHubInstallationsOf(ctx, a.r.ID)
 			if err != nil {
@@ -727,9 +734,12 @@ func (h *Handler) ListGitRepositories(ctx context.Context, req *connect.Request[
 					continue
 				}
 				for _, r := range in.Repositories {
+					repoURL := strings.TrimSuffix(h.cfg.Web, "/") + "/" + r.FullName
+					norm := h.canonicalRepo(repoURL)
 					out.Repositories = append(out.Repositories, &dockwellv1.GitRepository{
-						FullName: r.FullName, Url: strings.TrimSuffix(h.cfg.Web, "/") + "/" + r.FullName, Private: r.Private,
+						FullName: r.FullName, Url: repoURL, Private: r.Private,
 						DefaultBranch: r.DefaultBranch, AppId: a.r.ID, InstallationId: in.ID, Account: in.Account,
+						ClaimedByOtherProject: norm != "" && claimed[strings.ToLower(norm)],
 					})
 				}
 			}

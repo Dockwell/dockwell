@@ -4,9 +4,11 @@ package control
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"hash/crc32"
 	"log/slog"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -21,6 +23,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/cistatus"
 	"github.com/dockwell/dockwell/internal/control/github/ghtest"
 	"github.com/dockwell/dockwell/internal/control/gitlab/gltest"
@@ -28,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -584,9 +588,10 @@ func TestCIStatusH1TokenRepositoryBindingAndPrivacy(t *testing.T) {
 			t.Fatalf("slice-1 token reason = %v, want NO_TOKEN_REPOSITORY", gotS1.Msg.GetChange().GetDeployStatus().GetReason())
 		}
 
-		// Set repository on the slice-1 token via SetTokenDeployRepository, then RetryDeployStatus -> delivers!
+		// Set repository on the slice-1 token via SetTokenDeployRepository (with step-up, N7), then RetryDeployStatus -> delivers!
 		updatedTok, err := tokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
 			Id: s1Tok.GetId(), DeployRepository: "https://github.com/acme/web",
+			Proof: stepUpFor(t, b, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
 		}))
 		if err != nil || updatedTok.Msg.GetToken().GetDeployRepository() != "https://github.com/acme/web" {
 			t.Fatalf("SetTokenDeployRepository = %+v, %v", updatedTok, err)
@@ -889,4 +894,357 @@ func doneChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *v1.Ch
 		t.Fatalf("change %s ended %v: %s", got.GetId(), got.GetState(), got.GetError())
 	}
 	return got
+}
+
+// N6 & N7: A developer in project A cannot bind a deploy token to project B's
+// repository (GitHub or GitLab, on create or change); an install admin can
+// (with step-up, audited with the repository named). Reach is checked on create
+// and change without revealing whether a repository exists. Changing a token's
+// repository requires step-up and developer access on the token's app.
+func TestCIStatusN6N7TokenRepoOwnershipReachAndStepUp(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		gh, err := ghtest.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh.SetRepos([]ghtest.Repository{
+			{FullName: "acme/alpha", Path: "alpha.git", Private: true, DefaultBranch: "main"},
+			{FullName: "acme/beta", Path: "beta.git", Private: true, DefaultBranch: "main"},
+			{FullName: "acme/unclaimed", Path: "unclaimed.git", Private: true, DefaultBranch: "main"},
+		})
+		gh.SeedCode("code-1", "dockwell-e2e")
+		ghSrv := httptest.NewServer(gh)
+		t.Cleanup(ghSrv.Close)
+
+		gl := gltest.New()
+		gl.SetProjects([]gltest.Project{
+			{PathWithNamespace: "acme/alpha", WebURL: "https://gitlab.example.com/acme/alpha"},
+			{PathWithNamespace: "acme/beta", WebURL: "https://gitlab.example.com/acme/beta"},
+			{PathWithNamespace: "acme/unclaimed", WebURL: "https://gitlab.example.com/acme/unclaimed"},
+		})
+		glSrv := httptest.NewServer(gl)
+		t.Cleanup(glSrv.Close)
+
+		cert, roots := selfSigned(t, "panel.example.com")
+		f := startFullConfig(t, backend, &https.Static{Name: "panel.example.com", Cert: cert}, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+			cfg.GitHub = GitHubConfig{API: ghSrv.URL, Web: ghSrv.URL, Client: ghSrv.Client()}
+			cfg.GitLab = GitLabConfig{Base: glSrv.URL, Client: glSrv.Client()}
+			cfg.PanelURL = "https://panel.example.com"
+			cfg.ManualCIStatus = true
+		})
+		_, port, _ := net.SplitHostPort(f.https)
+		origin := "https://panel.example.com:" + port
+		owner := newBrowser(t, origin, f.https, roots)
+		link, err := f.auth.CreateClaimLink(t.Context(), "test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		owner.claim(t, link.Token)
+		f.addDockerServer(t)
+
+		c := changeClient(owner, origin)
+		cc := dockwellv1connect.NewComposeServiceClient(owner, origin, connect.WithProtoJSON())
+		s := dockwellv1connect.NewServiceServiceClient(owner, origin, connect.WithProtoJSON())
+		gp := dockwellv1connect.NewGitProviderServiceClient(owner, origin, connect.WithProtoJSON())
+		members := dockwellv1connect.NewMemberServiceClient(owner, origin, connect.WithProtoJSON())
+		ownerTokens := dockwellv1connect.NewTokenServiceClient(owner, origin, connect.WithProtoJSON())
+		if _, err := members.ConfirmProtections(t.Context(), connect.NewRequest(&v1.ConfirmProtectionsRequest{})); err != nil {
+			t.Fatal(err)
+		}
+
+		// Connect GitHub App and GitLab connection reaching every project.
+		connectFakeGitHubApp(t, gp, c, owner)
+		glProp, err := c.ProposeChange(t.Context(), connect.NewRequest(&v1.ProposeChangeRequest{
+			Summary: "Connect GitLab",
+			Edits: []*v1.Edit{{
+				Resource: &v1.ResourceRef{Kind: "gitlab.connection", Name: "corp-gitlab"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenAPI,
+					PathPrefix:  "acme",
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doneChange(t, c, glProp.Msg.GetChange())
+
+		// Create project A ("alpha") and project B ("beta") with an app each.
+		impA, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Project: "alpha", Compose: shopFile}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		chgA := doneChange(t, c, impA.Msg.GetChange())
+		projA := projectOf(chgA)
+		scopeA := serviceScope(chgA)
+
+		impB, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Project: "beta", Compose: shopFile}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		chgB := doneChange(t, c, impB.Msg.GetChange())
+		scopeB := serviceScope(chgB)
+
+		listedSvcs, err := s.ListServices(t.Context(), connect.NewRequest(&v1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var svcA, svcB string
+		for _, svc := range listedSvcs.Msg.GetServices() {
+			switch svc.GetResource().GetScope() {
+			case scopeA:
+				svcA = svc.GetId()
+			case scopeB:
+				svcB = svc.GetId()
+			}
+		}
+		if svcA == "" || svcB == "" {
+			t.Fatalf("missing svcA=%q or svcB=%q", svcA, svcB)
+		}
+
+		// Project B claims acme/beta on both GitHub and GitLab via its deploy tokens.
+		makeDeployToken(t, owner, svcB, "https://github.com/acme/beta")
+		makeDeployToken(t, owner, svcB, "https://gitlab.example.com/acme/beta")
+
+		// Verify ListGitRepositories(alpha) and ListGitLabProjects(alpha) flag acme/beta as claimed by another project.
+		ghList, err := gp.ListGitRepositories(t.Context(), connect.NewRequest(&v1.ListGitRepositoriesRequest{Project: projA}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		claimedGH := map[string]bool{}
+		for _, r := range ghList.Msg.GetRepositories() {
+			claimedGH[r.GetFullName()] = r.GetClaimedByOtherProject()
+		}
+		if !claimedGH["acme/beta"] || claimedGH["acme/unclaimed"] {
+			t.Fatalf("ListGitRepositories ClaimedByOtherProject = %+v, want beta=true unclaimed=false", claimedGH)
+		}
+		glList, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: projA}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		claimedGL := map[string]bool{}
+		for _, p := range glList.Msg.GetProjects() {
+			claimedGL[p.GetPathWithNamespace()] = p.GetClaimedByOtherProject()
+		}
+		if !claimedGL["acme/beta"] || claimedGL["acme/unclaimed"] {
+			t.Fatalf("ListGitLabProjects ClaimedByOtherProject = %+v, want beta=true unclaimed=false", claimedGL)
+		}
+
+		// Invite a developer on project A alone.
+		inviteProof := stepUpFor(t, owner, v1.StepUpAction_STEP_UP_ACTION_INVITE, auth.InviteTarget("dev@example.com", "developer", projA))
+		inv, err := members.CreateInvite(t.Context(), connect.NewRequest(&v1.CreateInviteRequest{
+			Email: "dev@example.com", Role: v1.Role_ROLE_DEVELOPER, Project: "alpha", Proof: inviteProof,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dev := newBrowser(t, origin, f.https, roots)
+		devJoined, err := accept(t, dev, secretOf(t, inv.Msg.GetLink()), "Dev Alpha")
+		if err != nil {
+			t.Fatal(err)
+		}
+		devTokens := dockwellv1connect.NewTokenServiceClient(dev, origin, connect.WithProtoJSON())
+
+		// N7: Unreached repository is refused on CreateToken with one non-enumerating line.
+		if _, err := devTokens.CreateToken(t.Context(), connect.NewRequest(&v1.CreateTokenRequest{
+			Name: "unreached", Scope: v1.TokenScope_TOKEN_SCOPE_DEPLOY, DeployService: svcA,
+			DeployRepository: "https://github.com/acme/does-not-exist",
+			Proof:            stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		})); connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "no GitHub App or GitLab connection connected to this project reaches that repository") {
+			t.Fatalf("CreateToken(unreached) = %v, want InvalidArgument reach refusal", err)
+		}
+
+		// N6: Developer in project A CANNOT create a deploy token bound to project B's GitHub or GitLab repo.
+		for _, forbidden := range []string{"https://github.com/acme/beta", "https://gitlab.example.com/acme/beta"} {
+			if _, err := devTokens.CreateToken(t.Context(), connect.NewRequest(&v1.CreateTokenRequest{
+				Name: "steal " + forbidden, Scope: v1.TokenScope_TOKEN_SCOPE_DEPLOY, DeployService: svcA,
+				DeployRepository: forbidden,
+				Proof:            stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+			})); connect.CodeOf(err) != connect.CodePermissionDenied {
+				t.Fatalf("developer CreateToken(%s) = %v, want PermissionDenied", forbidden, err)
+			}
+		}
+
+		// N6: Developer CAN create a deploy token bound to an unclaimed repo on an image-only app.
+		devMade, err := devTokens.CreateToken(t.Context(), connect.NewRequest(&v1.CreateTokenRequest{
+			Name: "dev unclaimed", Scope: v1.TokenScope_TOKEN_SCOPE_DEPLOY, DeployService: svcA,
+			DeployRepository: "https://github.com/acme/unclaimed",
+			Proof:            stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		}))
+		if err != nil || devMade.Msg.GetToken().GetDeployRepository() != "https://github.com/acme/unclaimed" {
+			t.Fatalf("developer CreateToken(unclaimed) = %+v, %v", devMade, err)
+		}
+		devTokID := devMade.Msg.GetToken().GetId()
+
+		// N7: SetTokenDeployRepository without step-up proof is refused.
+		if _, err := devTokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+			Id: devTokID, DeployRepository: "https://gitlab.example.com/acme/unclaimed",
+		})); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("SetTokenDeployRepository without proof = %v, want PermissionDenied", err)
+		}
+
+		// N7: SetTokenDeployRepository to an unreached repo is refused.
+		if _, err := devTokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+			Id: devTokID, DeployRepository: "https://gitlab.example.com/other/unreached",
+			Proof: stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("SetTokenDeployRepository(unreached) = %v, want InvalidArgument", err)
+		}
+
+		// N6: Developer CANNOT rebind their token to project B's GitHub or GitLab repo.
+		for _, forbidden := range []string{"https://github.com/acme/beta", "https://gitlab.example.com/acme/beta"} {
+			if _, err := devTokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+				Id: devTokID, DeployRepository: forbidden,
+				Proof: stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+			})); connect.CodeOf(err) != connect.CodePermissionDenied {
+				t.Fatalf("developer SetTokenDeployRepository(%s) = %v, want PermissionDenied", forbidden, err)
+			}
+		}
+
+		// N6: Install admin CAN bind project A's token to project B's GitHub and GitLab repos (create + change).
+		adminMade, err := ownerTokens.CreateToken(t.Context(), connect.NewRequest(&v1.CreateTokenRequest{
+			Name: "admin override gh", Scope: v1.TokenScope_TOKEN_SCOPE_DEPLOY, DeployService: svcA,
+			DeployRepository: "https://github.com/acme/beta",
+			Proof:            stepUpFor(t, owner, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		}))
+		if err != nil || adminMade.Msg.GetToken().GetDeployRepository() != "https://github.com/acme/beta" {
+			t.Fatalf("admin CreateToken(beta GH) = %+v, %v", adminMade, err)
+		}
+		adminChanged, err := ownerTokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+			Id: adminMade.Msg.GetToken().GetId(), DeployRepository: "https://gitlab.example.com/acme/beta",
+			Proof: stepUpFor(t, owner, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		}))
+		if err != nil || adminChanged.Msg.GetToken().GetDeployRepository() != "https://gitlab.example.com/acme/beta" {
+			t.Fatalf("admin SetTokenDeployRepository(beta GL) = %+v, %v", adminChanged, err)
+		}
+
+		// Verify audit log recorded both repository bindings with the repository URL named.
+		var sawCreateAudit, sawSetAudit bool
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			evs, err := tx.ListEvents(t.Context(), 100)
+			if err != nil {
+				return err
+			}
+			for _, ev := range evs {
+				if ev.Action == "token.create" && strings.Contains(ev.Detail, "https://github.com/acme/beta") {
+					sawCreateAudit = true
+				}
+				if ev.Action == "token.deploy_repository" && strings.Contains(ev.Detail, "https://gitlab.example.com/acme/beta") {
+					sawSetAudit = true
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !sawCreateAudit || !sawSetAudit {
+			t.Fatalf("missing repository audit details: create=%v set=%v", sawCreateAudit, sawSetAudit)
+		}
+
+		// N7: Demoting dev to viewer blocks SetTokenDeployRepository even on unclaimed repos.
+		if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.SetGrant(t.Context(), store.Grant{
+				UserID: devJoined.GetUser().GetId(), ProjectID: projA, Role: store.RoleViewer, CreatedAt: time.Now().UTC(),
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := devTokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+			Id: devTokID, DeployRepository: "https://gitlab.example.com/acme/unclaimed",
+			Proof: stepUpFor(t, dev, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+		})); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("demoted viewer SetTokenDeployRepository = %v, want PermissionDenied", err)
+		}
+	})
+}
+
+// N8: ListGitLabProjects caches per connection for 60 s, exposes per-connection
+// failure state instead of dropping errors, and signals has_more beyond 100
+// projects so server search finds any reachable project.
+func TestCIStatusN8GitLabProjectCacheStateAndSearch(t *testing.T) {
+	t.Parallel()
+	gl := gltest.New()
+	many := make([]gltest.Project, 105)
+	for i := range many {
+		p := fmt.Sprintf("acme/svc-%03d", i+1)
+		many[i] = gltest.Project{PathWithNamespace: p, WebURL: "https://gitlab.example.com/" + p}
+	}
+	gl.SetProjects(many)
+	glSrv := httptest.NewServer(gl)
+	t.Cleanup(glSrv.Close)
+
+	now := time.Date(2026, 11, 27, 1, 0, 0, 0, time.UTC)
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+		cfg.GitHub = GitHubConfig{Now: func() time.Time { return now }}
+		cfg.GitLab = GitLabConfig{Base: glSrv.URL, Client: glSrv.Client()}
+		cfg.ManualCIStatus = true
+	})
+	b := signedIn(t, f)
+	f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	imp, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Compose: shopFile}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doneChange(t, c, imp.Msg.GetChange())
+
+	glProp, err := c.ProposeChange(t.Context(), connect.NewRequest(&v1.ProposeChangeRequest{
+		Summary: "Connect GitLab",
+		Edits: []*v1.Edit{{
+			Resource: &v1.ResourceRef{Kind: "gitlab.connection", Name: "big-gl"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+				InstanceUrl: "https://gitlab.example.com",
+				Token:       gltest.TokenAPI,
+				PathPrefix:  "acme",
+			}}},
+		}},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doneChange(t, c, glProp.Msg.GetChange())
+
+	// First call hits GitLab once, returns 100 projects with has_more=true and state=CONNECTED.
+	r1, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r1.Msg.GetProjects()) != 100 || len(r1.Msg.GetConnections()) != 1 ||
+		!r1.Msg.GetConnections()[0].GetHasMore() || r1.Msg.GetConnections()[0].GetState() != v1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
+		t.Fatalf("first ListGitLabProjects = len:%d conns:%+v", len(r1.Msg.GetProjects()), r1.Msg.GetConnections())
+	}
+	if calls := gl.ProjectsCalls(); calls != 1 {
+		t.Fatalf("ProjectsCalls after first call = %d, want 1", calls)
+	}
+
+	// Second call within 60 s hits the cache without calling GitLab.
+	now = now.Add(30 * time.Second)
+	r2, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: "shop"}))
+	if err != nil || len(r2.Msg.GetProjects()) != 100 {
+		t.Fatalf("cached ListGitLabProjects = %d, %v", len(r2.Msg.GetProjects()), err)
+	}
+	if calls := gl.ProjectsCalls(); calls != 1 {
+		t.Fatalf("ProjectsCalls after cached call = %d, want 1", calls)
+	}
+
+	// Server-side search finds project #105 past the first 100.
+	rSearch, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: "shop", Query: "svc-105"}))
+	if err != nil || len(rSearch.Msg.GetProjects()) != 1 || rSearch.Msg.GetProjects()[0].GetPathWithNamespace() != "acme/svc-105" {
+		t.Fatalf("ListGitLabProjects(svc-105) = %+v, %v", rSearch.Msg.GetProjects(), err)
+	}
+
+	// After 61 s the cache expires; if the token is now revoked, ListGitLabProjects surfaces AUTH_FAILED.
+	gl.SetToken(gltest.Token{Value: gltest.TokenAPI, Name: "dockwell-ci", Scopes: []string{"api"}, Active: false, Revoked: true})
+	now = now.Add(61 * time.Second)
+	rFail, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rFail.Msg.GetConnections()) != 1 || rFail.Msg.GetConnections()[0].GetState() != v1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED {
+		t.Fatalf("failed connection state = %+v, want AUTH_FAILED", rFail.Msg.GetConnections())
+	}
 }

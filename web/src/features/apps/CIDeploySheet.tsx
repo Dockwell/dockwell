@@ -4,6 +4,7 @@ import { durationFromMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  GitLabConnectionState,
   GitProviderService,
   type ServiceInfo,
   StepUpAction,
@@ -11,7 +12,17 @@ import {
   TokenScope,
   TokenService,
 } from "@dockwell/api";
-import { Button, Callout, CopyButton, SegmentedControl, SelectField, Sheet, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  CopyButton,
+  SegmentedControl,
+  SelectField,
+  type SelectOption,
+  Sheet,
+  StatusBadge,
+  TextField,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -106,6 +117,8 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
   const [provider, setProvider] = useState<Provider>("github");
   const [pickedRepo, setPickedRepo] = useState<string>();
   const [customRepo, setCustomRepo] = useState("");
+  const [glSearch, setGlSearch] = useState("");
+  const [checkingConnId, setCheckingConnId] = useState<string>();
   const [release, setRelease] = useState<string>();
   const [made, setMade] = useState<{ secret: string; hint: string; repository: string }>();
   const [shown, setShown] = useState(false);
@@ -116,6 +129,8 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
   const templateRef = tag === bundledTag && /^[0-9a-f]{40}$/.test(build?.commit ?? "") ? build?.commit : undefined;
   const workflow = deployWorkflow(provider, window.location.origin, service.id, tag || "vX.Y.Z", templateRef);
 
+  const mayCheckGitLab = may(GitProviderService.method.checkGitLabConnection);
+  const isInstallAdmin = mayCheckGitLab.allowed;
   const mayGitHub = may(GitProviderService.method.listGitRepositories, projectId ? { project: projectId } : undefined);
   const mayGitLab = may(GitProviderService.method.listGitLabProjects, projectId ? { project: projectId } : undefined);
   const ghRepos = useQuery(
@@ -125,30 +140,70 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
   );
   const glProjects = useQuery(
     GitProviderService.method.listGitLabProjects,
-    { project: projectId },
+    { project: projectId, query: glSearch.trim() },
     { enabled: Boolean(projectId) && provider === "gitlab" && mayGitLab.allowed },
   );
 
-  const repoOptions: { value: string; label: string }[] =
+  const normalizedBuildRepo = buildRepo ? normalizeRepoCompare(buildRepo) : "";
+  const repoOptions: SelectOption[] =
     provider === "github"
-      ? (ghRepos.data?.repositories ?? []).map((r) => ({
-          value: canonicalGitHubRepoUrl(r.url, r.fullName),
-          label: r.fullName,
-        }))
-      : (glProjects.data?.projects ?? []).map((p) => ({ value: p.url, label: p.pathWithNamespace }));
+      ? (ghRepos.data?.repositories ?? []).map((r) => {
+          const value = canonicalGitHubRepoUrl(r.url, r.fullName);
+          const ownSource =
+            Boolean(normalizedBuildRepo) &&
+            (normalizeRepoCompare(value) === normalizedBuildRepo ||
+              normalizeRepoCompare(r.url) === normalizedBuildRepo);
+          const adminOnly = !isInstallAdmin && (normalizedBuildRepo ? !ownSource : r.claimedByOtherProject);
+          return {
+            value,
+            label: adminOnly ? t`${r.fullName} · An admin chooses this` : r.fullName,
+            disabled: adminOnly,
+          };
+        })
+      : (glProjects.data?.projects ?? []).map((p) => {
+          const ownSource = Boolean(normalizedBuildRepo) && normalizeRepoCompare(p.url) === normalizedBuildRepo;
+          const adminOnly = !isInstallAdmin && (normalizedBuildRepo ? !ownSource : p.claimedByOtherProject);
+          return {
+            value: p.url,
+            label: adminOnly ? t`${p.pathWithNamespace} · An admin chooses this` : p.pathWithNamespace,
+            disabled: adminOnly,
+          };
+        });
 
   const defaultRepo = (() => {
-    if (buildRepo) {
-      const target = normalizeRepoCompare(buildRepo);
-      const matched = repoOptions.find((opt) => normalizeRepoCompare(opt.value) === target);
+    if (normalizedBuildRepo) {
+      const matched = repoOptions.find(
+        (opt) => !opt.disabled && normalizeRepoCompare(opt.value) === normalizedBuildRepo,
+      );
       if (matched) return matched.value;
     }
-    return repoOptions[0]?.value ?? "";
+    return repoOptions.find((opt) => !opt.disabled)?.value ?? "";
   })();
 
-  const hasGitLabConnections = provider === "gitlab" && (glProjects.data?.connections.length ?? 0) > 0;
+  const glConnections = provider === "gitlab" ? (glProjects.data?.connections ?? []) : [];
+  const failedGlConnections = glConnections.filter(
+    (c) =>
+      c.state === GitLabConnectionState.AUTH_FAILED ||
+      c.state === GitLabConnectionState.MISSING_SCOPE ||
+      c.state === GitLabConnectionState.UNREACHABLE,
+  );
+  const showGlSearch = provider === "gitlab" && (glConnections.some((c) => c.hasMore) || glSearch.trim().length > 0);
+  const hasGitLabConnections = glConnections.length > 0;
   const selectedRepo =
     repoOptions.length > 0 ? (pickedRepo ?? defaultRepo) : hasGitLabConnections ? customRepo.trim() : "";
+
+  async function checkGitLabConn(name: string, url: string, id: string) {
+    setCheckingConnId(id);
+    setProblem(undefined);
+    try {
+      await createClient(GitProviderService, transport).checkGitLabConnection({ name, url });
+      await glProjects.refetch();
+    } catch (error) {
+      setProblem(explain(error));
+    } finally {
+      setCheckingConnId(undefined);
+    }
+  }
 
   async function createToken() {
     setBusy(true);
@@ -221,6 +276,41 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
         </Link>
         {made ? null : (
           <>
+            {failedGlConnections.map((conn) => {
+              const badge =
+                conn.state === GitLabConnectionState.MISSING_SCOPE
+                  ? { status: "degraded" as const, label: t`Missing api scope` }
+                  : conn.state === GitLabConnectionState.AUTH_FAILED
+                    ? { status: "down" as const, label: t`Token refused` }
+                    : { status: "down" as const, label: t`Unreachable` };
+              return (
+                <div key={conn.id} className="ci-deploy-row">
+                  <span>{conn.name}</span>
+                  <StatusBadge status={badge.status} label={badge.label} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="refresh"
+                    loading={checkingConnId === conn.id}
+                    {...mayCheckGitLab.off}
+                    onClick={() => void checkGitLabConn(conn.name, conn.url, conn.id)}
+                  >
+                    <Trans>Check</Trans>
+                  </Button>
+                </div>
+              );
+            })}
+            {showGlSearch ? (
+              <TextField
+                label={t`Search GitLab projects`}
+                value={glSearch}
+                onChange={(event) => {
+                  setGlSearch(event.target.value);
+                  setPickedRepo(undefined);
+                }}
+                placeholder={t`Filter by group or project name`}
+              />
+            ) : null}
             {repoOptions.length > 0 ? (
               <SelectField
                 label={t`Status repository`}

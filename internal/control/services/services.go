@@ -135,11 +135,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	}
 	res := &dockwellv1.ListServicesResponse{}
 	var subjects []serviceupdates.Subject
-	var needPermURL []struct {
-		status    *dockwellv1.DeployStatus
-		serviceID string
-		repo      string
-	}
+	var needPermURL []changes.DeployStatusPermTarget
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		// One more than asked for says whether there is a next page.
 		list, err := tx.PageResources(ctx, string(service.Kind), in, after.ID, size+1)
@@ -195,6 +191,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		}
 		names := serverNames{tx: tx, known: map[string]string{}}
 		subjects = make([]serviceupdates.Subject, 0, len(list))
+		var toHydrate []changes.DeployStatusHydrateItem
 		for i := range list {
 			r := &list[i]
 			info := &dockwellv1.ServiceInfo{
@@ -236,14 +233,9 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			if origin := ciOrigins[r.ChangeID]; origin.Service == r.ID {
 				var statusProto *dockwellv1.DeployStatus
 				if st, ok := ciStatuses[r.ChangeID]; ok {
-					statusProto = changes.CIDeployStatusProto(&st)
-					if changes.HydrateDeployStatusInTx(ctx, tx, &st, statusProto) {
-						needPermURL = append(needPermURL, struct {
-							status    *dockwellv1.DeployStatus
-							serviceID string
-							repo      string
-						}{statusProto, st.ServiceID, st.Repository})
-					}
+					entry := st
+					statusProto = changes.CIDeployStatusProto(&entry)
+					toHydrate = append(toHydrate, changes.DeployStatusHydrateItem{Entry: &entry, Status: statusProto})
 				}
 				for _, deployment := range info.Deployments {
 					deployment.DeployOrigin = changes.CIDeployOriginProto(origin)
@@ -257,6 +249,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			}
 			res.Services = append(res.Services, info)
 		}
+		needPermURL = changes.HydrateDeployStatusesInTx(ctx, tx, toHydrate)
 		return nil
 	})
 	if err != nil {
@@ -264,7 +257,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	}
 	if h.GitHubPermissionsURL != nil {
 		for _, item := range needPermURL {
-			item.status.ActionUrl = h.GitHubPermissionsURL(ctx, item.serviceID, item.repo)
+			item.Status.ActionUrl = h.GitHubPermissionsURL(ctx, item.ServiceID, item.Repository)
 		}
 	}
 	// What's newer is a nicety of the list: one that can't be read leaves it out,

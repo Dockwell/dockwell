@@ -1627,14 +1627,11 @@ func noServerNamed(fleet []store.Server, given string) error {
 // protos are records for the schema, with their actors named in one read.
 func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*dockwellv1.Change, error) {
 	out := make([]*dockwellv1.Change, len(records))
-	var needPermURL []struct {
-		status    *dockwellv1.DeployStatus
-		serviceID string
-		repo      string
-	}
+	var needPermURL []DeployStatusPermTarget
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		names := actors.New().In(ctx, tx)
 		placer := place.NewPlacer(tx)
+		var toHydrate []DeployStatusHydrateItem
 		for i, r := range records {
 			out[i] = Proto(r, names.Actor)
 			// What reaches a project the reader holds no role in is narrowed to theirs.
@@ -1642,13 +1639,7 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 				return err
 			}
 			if out[i].DeployStatus != nil && r.CIStatus != nil {
-				if HydrateDeployStatusInTx(ctx, tx, r.CIStatus, out[i].DeployStatus) {
-					needPermURL = append(needPermURL, struct {
-						status    *dockwellv1.DeployStatus
-						serviceID string
-						repo      string
-					}{out[i].DeployStatus, r.CIStatus.ServiceID, r.CIStatus.Repository})
-				}
+				toHydrate = append(toHydrate, DeployStatusHydrateItem{Entry: r.CIStatus, Status: out[i].DeployStatus})
 			}
 			if r.State != store.ChangePlanned {
 				continue
@@ -1662,6 +1653,7 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 				return err
 			}
 		}
+		needPermURL = HydrateDeployStatusesInTx(ctx, tx, toHydrate)
 		return nil
 	})
 	if err != nil {
@@ -1669,7 +1661,7 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 	}
 	if h.GitHubPermissionsURL != nil {
 		for _, item := range needPermURL {
-			item.status.ActionUrl = h.GitHubPermissionsURL(ctx, item.serviceID, item.repo)
+			item.Status.ActionUrl = h.GitHubPermissionsURL(ctx, item.ServiceID, item.Repository)
 		}
 	}
 	return out, nil
@@ -1836,29 +1828,74 @@ func CIDeployStatusProto(e *store.CIStatusEntry) *dockwellv1.DeployStatus {
 	return out
 }
 
-// HydrateDeployStatusInTx fills caller-scoped fields on a DeployStatus inside
-// an existing read transaction: token_repository only when the caller owns the
-// deploy token, and reports true when the caller is an install admin who should
-// receive the GitHub permissions action_url.
-func HydrateDeployStatusInTx(ctx context.Context, tx *store.Tx, e *store.CIStatusEntry, out *dockwellv1.DeployStatus) (wantsPermissionsURL bool) {
-	if e == nil || out == nil {
-		return false
+// DeployStatusHydrateItem pairs a stored CIStatusEntry with the DeployStatus
+// proto to populate caller-scoped fields on.
+type DeployStatusHydrateItem struct {
+	Entry  *store.CIStatusEntry
+	Status *dockwellv1.DeployStatus
+}
+
+// DeployStatusPermTarget identifies a DeployStatus that needs the install
+// admin's GitHub permissions action_url populated after the read transaction.
+type DeployStatusPermTarget struct {
+	Status     *dockwellv1.DeployStatus
+	ServiceID  string
+	Repository string
+}
+
+// HydrateDeployStatusesInTx fills caller-scoped fields on a batch of
+// DeployStatus protos inside an existing read transaction (N11): reads token
+// ownership in a single query and caller grants at most once per call.
+func HydrateDeployStatusesInTx(ctx context.Context, tx *store.Tx, items []DeployStatusHydrateItem) []DeployStatusPermTarget {
+	if len(items) == 0 {
+		return nil
 	}
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
-		return false
+		return nil
 	}
-	if e.TokenID != "" && e.AllowedRepository != "" {
-		if tok, err := tx.GetAPIToken(ctx, e.TokenID); err == nil && tok.UserID == p.User.ID {
-			out.TokenRepository = e.AllowedRepository
+	var tokenIDs []string
+	seenTok := map[string]bool{}
+	anyMissingChecks := false
+	for _, it := range items {
+		if it.Entry == nil || it.Status == nil {
+			continue
+		}
+		if it.Entry.TokenID != "" && it.Entry.AllowedRepository != "" && !seenTok[it.Entry.TokenID] {
+			seenTok[it.Entry.TokenID] = true
+			tokenIDs = append(tokenIDs, it.Entry.TokenID)
+		}
+		if it.Status.Reason == dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION {
+			anyMissingChecks = true
 		}
 	}
-	if out.Reason == dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION {
+	var owners map[string]string
+	if len(tokenIDs) > 0 {
+		owners, _ = tx.APITokenOwners(ctx, tokenIDs)
+	}
+	isAdmin := false
+	if anyMissingChecks {
 		if grants, err := tx.Grants(ctx, p.User.ID); err == nil && store.RoleRank(place.Holds(grants, place.Place{})) >= store.RoleRank(store.RoleAdmin) {
-			return true
+			isAdmin = true
 		}
 	}
-	return false
+	var needPerm []DeployStatusPermTarget
+	for _, it := range items {
+		if it.Entry == nil || it.Status == nil {
+			continue
+		}
+		if it.Entry.TokenID != "" && it.Entry.AllowedRepository != "" && owners[it.Entry.TokenID] == p.User.ID {
+			it.Status.TokenRepository = it.Entry.AllowedRepository
+		}
+		if isAdmin && it.Status.Reason == dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION {
+			needPerm = append(needPerm, DeployStatusPermTarget{
+				Status:     it.Status,
+				ServiceID:  it.Entry.ServiceID,
+				Repository: it.Entry.Repository,
+			})
+		}
+	}
+	return needPerm
 }
 
 // confirmationOf is what a change waits for: the confirmation one of its

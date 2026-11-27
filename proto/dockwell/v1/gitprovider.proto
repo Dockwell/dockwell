@@ -376,6 +376,10 @@ message GitRepository {
   string app_id = 5;
   int64 installation_id = 6;
   string account = 7;
+  // True when another project has an app building from or a deploy token bound
+  // to this repository, so only an install admin may bind a deploy token in
+  // this project to it.
+  bool claimed_by_other_project = 8;
 }
 
 // RotateGitHubWebhookSecretRequest names an App and proves a passkey.
@@ -506,6 +510,10 @@ message GitLabProject {
   string url = 2;
   string connection_id = 3;
   string connection_name = 4;
+  // True when another project has an app building from or a deploy token bound
+  // to this repository, so only an install admin may bind a deploy token in
+  // this project to it.
+  bool claimed_by_other_project = 5;
 }
 
 // GitLabProjectConnection summarizes a GitLab connection reachable by the project.
@@ -514,4 +522,10 @@ message GitLabProjectConnection {
   string name = 2;
   string url = 3;
   string path_prefix = 4;
+  // Live state from listing or checking this connection.
+  GitLabConnectionState state = 5;
+  // Optional failure detail when state is not connected.
+  string detail = 6;
+  // True when GitLab has more projects beyond the returned page (search narrows).
+  bool has_more = 7;
 }

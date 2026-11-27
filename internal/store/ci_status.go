@@ -152,12 +152,18 @@ func (t *RevisionTx) EnqueueCIStatusForChange(ctx context.Context, changeID, sta
 	if err := t.queryRow(ctx, `SELECT COALESCE(MAX(transition), 0) FROM ci_status_outbox WHERE change_id = ?`, changeID).Scan(&lastTransition); err != nil {
 		return false, fmt.Errorf("reading CI status transition for %s: %w", changeID, err)
 	}
-	var prevRemoteID, prevRemoteURL, prevCred, prevServiceName, prevEnvName, prevTokenID, prevAllowedRepo, prevChangeURL string
+	var prevState, prevRemoteID, prevRemoteURL, prevCred, prevServiceName, prevEnvName, prevTokenID, prevAllowedRepo, prevChangeURL string
 	if lastTransition > 0 {
-		_ = t.queryRow(ctx, `SELECT remote_id, remote_url, credential_ref, service_name, environment_name, token_id, allowed_repository, change_url
+		_ = t.queryRow(ctx, `SELECT state, remote_id, remote_url, credential_ref, service_name, environment_name, token_id, allowed_repository, change_url
 			FROM ci_status_outbox WHERE change_id = ? ORDER BY transition DESC LIMIT 1`, changeID).Scan(
-			&prevRemoteID, &prevRemoteURL, &prevCred, &prevServiceName, &prevEnvName, &prevTokenID, &prevAllowedRepo, &prevChangeURL,
+			&prevState, &prevRemoteID, &prevRemoteURL, &prevCred, &prevServiceName, &prevEnvName, &prevTokenID, &prevAllowedRepo, &prevChangeURL,
 		)
+		// One final status per change (N9): healthy, rolled_back, and discarded
+		// never enqueue a second terminal transition (e.g. discarding a change
+		// that was already marked discarded when superseded).
+		if prevState == CIStatusHealthy || prevState == CIStatusRolledBack || prevState == CIStatusDiscarded {
+			return false, nil
+		}
 	}
 	serviceName := opts.ServiceName
 	if serviceName == "" {
@@ -459,6 +465,43 @@ func (t *Tx) CIStatusAllForChange(ctx context.Context, changeID string) ([]CISta
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// CIStatusHasNewerDeliveredForName reports whether a newer change for the same
+// provider, repository, commit, environment, and service name has already
+// delivered a status (N10). GitLab keys commit statuses by (sha, name) without
+// an external_id, so a retried transition from an older change (such as a
+// backed-off discard) must never overwrite a newer deploy's delivered status.
+func (t *Tx) CIStatusHasNewerDeliveredForName(ctx context.Context, entry CIStatusEntry) (bool, error) {
+	var exists int
+	err := t.queryRow(ctx, `SELECT 1 FROM ci_status_outbox o
+		WHERE o.provider = ?
+		  AND LOWER(o.repository) = LOWER(?)
+		  AND o.commit_sha = ?
+		  AND o.environment_name = ?
+		  AND o.service_name = ?
+		  AND o.delivery_state = ?
+		  AND o.change_id != ?
+		  AND (
+			(SELECT MIN(a.created_at) FROM ci_status_outbox a WHERE a.change_id = o.change_id) >
+			(SELECT MIN(b.created_at) FROM ci_status_outbox b WHERE b.change_id = ?)
+			OR (
+				(SELECT MIN(a.created_at) FROM ci_status_outbox a WHERE a.change_id = o.change_id) =
+				(SELECT MIN(b.created_at) FROM ci_status_outbox b WHERE b.change_id = ?)
+				AND o.change_id > ?
+			)
+		  )
+		LIMIT 1`,
+		entry.Provider, entry.Repository, entry.Commit, entry.EnvironmentName, entry.ServiceName,
+		CIStatusDeliveryDelivered, entry.ChangeID, entry.ChangeID, entry.ChangeID, entry.ChangeID,
+	).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("checking newer delivered CI status for %s: %w", entry.ChangeID, err)
+	}
+	return true, nil
 }
 
 // CIStatusRequeueLatest schedules another delivery of the latest transition for

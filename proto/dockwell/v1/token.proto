@@ -62,7 +62,8 @@ service TokenService {
 
   // SetTokenDeployRepository binds a deploy token to the HTTPS repository
   // whose commits it may report deploy status to, or clears the binding when
-  // empty (ADR 0111).
+  // empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+  // creating a token and developer access on the token's app.
   rpc SetTokenDeployRepository(SetTokenDeployRepositoryRequest) returns (SetTokenDeployRepositoryResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_VIEWER;
@@ -222,6 +223,8 @@ message SetTokenDeployRepositoryRequest {
   string id = 1;
   // Normalized HTTPS repository URL, or empty to disable status reporting.
   string deploy_repository = 2;
+  // The proof from AuthService.FinishStepUp, for creating a token.
+  string proof = 3;
 }
 
 // SetTokenDeployRepositoryResponse returns the updated token.

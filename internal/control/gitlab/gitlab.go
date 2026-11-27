@@ -96,21 +96,26 @@ func (c *Client) endpoint(baseURL, apiPath string) (string, error) {
 }
 
 func (c *Client) call(ctx context.Context, method, baseURL, apiPath, token string, body, into any) error {
+	_, err := c.callWithHeaders(ctx, method, baseURL, apiPath, token, body, into)
+	return err
+}
+
+func (c *Client) callWithHeaders(ctx context.Context, method, baseURL, apiPath, token string, body, into any) (http.Header, error) {
 	target, err := c.endpoint(baseURL, apiPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var payload io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		payload = bytes.NewReader(b)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Dockwell")
@@ -123,31 +128,31 @@ func (c *Client) call(ctx context.Context, method, baseURL, apiPath, token strin
 	res, err := c.http().Do(req)
 	if err != nil {
 		if errors.Is(err, netguard.ErrForbidden) {
-			return fmt.Errorf("won't reach GitLab: %s: %w", netguard.Words(err), netguard.ErrForbidden)
+			return nil, fmt.Errorf("won't reach GitLab: %s: %w", netguard.Words(err), netguard.ErrForbidden)
 		}
-		return fmt.Errorf("can't reach GitLab: %s", netguard.Words(err))
+		return nil, fmt.Errorf("can't reach GitLab: %s", netguard.Words(err))
 	}
 	defer func() { _ = res.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(res.Body, maxBody+1))
 	if err != nil {
-		return fmt.Errorf("can't read GitLab's answer: %s", netguard.Words(err))
+		return nil, fmt.Errorf("can't read GitLab's answer: %s", netguard.Words(err))
 	}
 	if len(raw) > maxBody {
-		return fmt.Errorf("GitLab's answer is past %d MiB", maxBody>>20)
+		return nil, fmt.Errorf("GitLab's answer is past %d MiB", maxBody>>20)
 	}
 	if res.StatusCode >= 300 {
 		var retry time.Duration
 		if s, err := strconv.Atoi(res.Header.Get("Retry-After")); err == nil && s > 0 {
 			retry = time.Duration(s) * time.Second
 		}
-		return &Error{Status: res.StatusCode, Message: extractMessage(raw), RetryAfter: retry}
+		return nil, &Error{Status: res.StatusCode, Message: extractMessage(raw), RetryAfter: retry}
 	}
 	if into != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, into); err != nil {
-			return fmt.Errorf("can't read GitLab's answer: %w", err)
+			return nil, fmt.Errorf("can't read GitLab's answer: %w", err)
 		}
 	}
-	return nil
+	return res.Header, nil
 }
 
 func extractMessage(raw []byte) string {
@@ -287,17 +292,21 @@ type Project struct {
 	WebURL            string `json:"web_url"`
 }
 
-// ListProjects lists GitLab projects accessible to token, filtered by an optional search query.
-func (c *Client) ListProjects(ctx context.Context, baseURL, token, query string) ([]Project, error) {
+// ListProjects lists up to 100 GitLab projects accessible to token, filtered by
+// an optional search query. hasMore reports whether GitLab indicated another
+// page beyond the returned 100 projects so callers can offer server search.
+func (c *Client) ListProjects(ctx context.Context, baseURL, token, query string) (projects []Project, hasMore bool, err error) {
 	apiPath := "/api/v4/projects?membership=true&simple=true&per_page=100"
 	if q := strings.TrimSpace(query); q != "" {
 		apiPath += "&search=" + url.QueryEscape(q)
 	}
 	var list []Project
-	if err := c.call(ctx, http.MethodGet, baseURL, apiPath, token, nil, &list); err != nil {
-		return nil, err
+	headers, err := c.callWithHeaders(ctx, http.MethodGet, baseURL, apiPath, token, nil, &list)
+	if err != nil {
+		return nil, false, err
 	}
-	return list, nil
+	more := strings.TrimSpace(headers.Get("X-Next-Page")) != "" || len(list) >= 100
+	return list, more, nil
 }
 
 // CommitStatusURL builds the HTTPS link to a GitLab pipeline or commit status

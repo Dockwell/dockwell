@@ -4771,6 +4771,9 @@ msgstr "Dockwell reports commit and PR status only to this repository."
 msgid "Don't report status"
 msgstr "Don't report status"
 
+msgid "Filter by group or project name"
+msgstr "Filter by group or project name"
+
 msgid "Hide the token"
 msgstr "Hide the token"
 
@@ -4783,6 +4786,9 @@ msgstr "In 90 days"
 msgid "Manage API tokens"
 msgstr "Manage API tokens"
 
+msgid "Missing api scope"
+msgstr "Missing api scope"
+
 msgid "Optional. Dockwell reports commit status only to this repository."
 msgstr "Optional. Dockwell reports commit status only to this repository."
 
@@ -4792,6 +4798,9 @@ msgstr "Release tag"
 #. placeholder {0}: made.repository
 msgid "Reports deploy status to {0}."
 msgstr "Reports deploy status to {0}."
+
+msgid "Search GitLab projects"
+msgstr "Search GitLab projects"
 
 msgid "Show the whole token"
 msgstr "Show the whole token"
@@ -4808,11 +4817,22 @@ msgstr "Token copied"
 msgid "Token expires"
 msgstr "Token expires"
 
+msgid "Token refused"
+msgstr "Token refused"
+
+msgid "Unreachable"
+msgstr "Unreachable"
+
 msgid "Workflow"
 msgstr "Workflow"
 
 msgid "Workflow copied"
 msgstr "Workflow copied"
+
+#. placeholder {0}: p.pathWithNamespace
+#. placeholder {0}: r.fullName
+msgid "{0} · An admin chooses this"
+msgstr "{0} · An admin chooses this"
 
 msgid "A new one for {name}"
 msgstr "A new one for {name}"
@@ -24467,9 +24487,6 @@ msgstr "Limit which projects' deploys can report statuses through this connectio
 msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
 msgstr "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
 
-msgid "Missing api scope"
-msgstr "Missing api scope"
-
 msgid "Optional, such as acme or acme/platform"
 msgstr "Optional, such as acme or acme/platform"
 
@@ -24496,16 +24513,10 @@ msgstr "Review removal"
 msgid "This token can post commit statuses to {0}."
 msgstr "This token can post commit statuses to {0}."
 
-msgid "Token refused"
-msgstr "Token refused"
-
 #. placeholder {0}: checked.tokenName
 #. placeholder {1}: checked.url
 msgid "Token {0} can post commit statuses to {1}."
 msgstr "Token {0} can post commit statuses to {1}."
-
-msgid "Unreachable"
-msgstr "Unreachable"
 
 msgid "Update the GitLab connection {trimmedName}"
 msgstr "Update the GitLab connection {trimmedName}"
@@ -25402,6 +25413,9 @@ msgstr "status"
 #. placeholder {0}: list.length
 msgid "{0} tokens"
 msgstr "{0} tokens"
+
+msgid "{baseLabel} · An admin chooses this"
+msgstr "{baseLabel} · An admin chooses this"
 
 msgid "{count} · 1 expires soon"
 msgstr "{count} · 1 expires soon"

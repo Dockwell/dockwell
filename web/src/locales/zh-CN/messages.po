@@ -4771,6 +4771,9 @@ msgstr "Dockwell 只会向此仓库上报提交和 PR 状态。"
 msgid "Don't report status"
 msgstr "不上报状态"
 
+msgid "Filter by group or project name"
+msgstr "按群组或项目名称筛选"
+
 msgid "Hide the token"
 msgstr "隐藏令牌"
 
@@ -4783,6 +4786,9 @@ msgstr "90 天后"
 msgid "Manage API tokens"
 msgstr "管理 API 令牌"
 
+msgid "Missing api scope"
+msgstr "缺少 api 作用域"
+
 msgid "Optional. Dockwell reports commit status only to this repository."
 msgstr "可选。Dockwell 只会向此仓库上报提交状态。"
 
@@ -4792,6 +4798,9 @@ msgstr "发行版本标签"
 #. placeholder {0}: made.repository
 msgid "Reports deploy status to {0}."
 msgstr "将部署状态上报到 {0}。"
+
+msgid "Search GitLab projects"
+msgstr "搜索 GitLab 项目"
 
 msgid "Show the whole token"
 msgstr "显示完整令牌"
@@ -4808,11 +4817,22 @@ msgstr "令牌已复制"
 msgid "Token expires"
 msgstr "令牌有效期"
 
+msgid "Token refused"
+msgstr "令牌被拒绝"
+
+msgid "Unreachable"
+msgstr "无法访问"
+
 msgid "Workflow"
 msgstr "工作流"
 
 msgid "Workflow copied"
 msgstr "已复制工作流"
+
+#. placeholder {0}: p.pathWithNamespace
+#. placeholder {0}: r.fullName
+msgid "{0} · An admin chooses this"
+msgstr "{0} · 由管理员选择"
 
 msgid "A new one for {name}"
 msgstr "为 {name} 新建一个"
@@ -24467,9 +24487,6 @@ msgstr "限制哪些项目的部署可以通过此连接上报状态。"
 msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
 msgstr "小写字母、数字和连字符，例如 gitlab 或 acme-gitlab。"
 
-msgid "Missing api scope"
-msgstr "缺少 api 作用域"
-
 msgid "Optional, such as acme or acme/platform"
 msgstr "可选，例如 acme 或 acme/platform"
 
@@ -24496,16 +24513,10 @@ msgstr "审查移除"
 msgid "This token can post commit statuses to {0}."
 msgstr "此令牌可向 {0} 发布提交状态。"
 
-msgid "Token refused"
-msgstr "令牌被拒绝"
-
 #. placeholder {0}: checked.tokenName
 #. placeholder {1}: checked.url
 msgid "Token {0} can post commit statuses to {1}."
 msgstr "令牌 {0} 可向 {1} 发布提交状态。"
-
-msgid "Unreachable"
-msgstr "无法访问"
 
 msgid "Update the GitLab connection {trimmedName}"
 msgstr "更新 GitLab 连接 {trimmedName}"
@@ -25402,6 +25413,9 @@ msgstr "状态"
 #. placeholder {0}: list.length
 msgid "{0} tokens"
 msgstr "{0} 个令牌"
+
+msgid "{baseLabel} · An admin chooses this"
+msgstr "{baseLabel} · 由管理员选择"
 
 msgid "{count} · 1 expires soon"
 msgstr "{count} · 1 个即将过期"
