@@ -327,8 +327,12 @@ describe("scheduled tasks", () => {
     ).toBeVisible();
     expect(panel).not.toHaveTextContent("Dockwell:");
     expect(panel).toHaveTextContent("Its schedule came round 2 times while it ran");
-    expect(panel).toHaveTextContent("interrupted: the agent stopped while it ran");
-    expect(panel).toHaveTextContent("failed: it answered 503, and the task expects 200");
+    expect(within(panel).getByRole("button", { name: /interrupted: the agent stopped while it ran/ })).toBeVisible();
+    const failed = within(panel).getByRole("button", { name: /failed: it answered 503, and the task expects 200/ });
+    await userEvent.click(failed);
+    expect(failed).toHaveAttribute("aria-pressed", "true");
+    expect(within(panel).getByText("Run output")).toBeVisible();
+    expect(panel).not.toHaveTextContent("Its schedule came round 2 times while it ran");
     // Its schedule reads in its own zone, which isn't the viewer's.
     const table = screen.getByRole("table", { name: "Scheduled tasks" });
     expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Every 5 minutes, Pacific/Chatham time");

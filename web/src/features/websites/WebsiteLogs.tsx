@@ -51,7 +51,13 @@ export function WebsiteLogs({
           />
         ) : null}
         {/* Each service's logs are their own reading, so a switch starts afresh. */}
-        <LogsPage key={id} id={id} search={search} onSearch={onSearch} />
+        <LogsPage
+          key={id}
+          id={id}
+          search={search}
+          onSearch={onSearch}
+          missingTitle={t`These website logs aren't available`}
+        />
       </div>
     );
   }

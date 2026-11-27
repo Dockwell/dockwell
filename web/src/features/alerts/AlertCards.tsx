@@ -13,7 +13,7 @@ import {
   type Server,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import { Button, Callout, cx, Icon, type IconName, Sparkline, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, cx, Glyph, Icon, Sparkline, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -28,24 +28,7 @@ import { useSignedInUser } from "../auth/useAuthState";
 import { trend } from "../servers/history";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
 import { AlertActions } from "./AlertActions";
-
-/** What an alert is about, as its card's mark draws it. */
-const MARK: Partial<Record<Condition, IconName>> = {
-  [Condition.SERVICE_DOWN]: "service",
-  [Condition.SERVER_UNREACHABLE]: "server",
-  [Condition.DISK_FULL]: "server",
-  [Condition.MEMORY_HIGH]: "server",
-  [Condition.CERTIFICATE_EXPIRING]: "link",
-  [Condition.CERTIFICATE_FAILED]: "link",
-  [Condition.BACKUP_FAILED]: "archive",
-  [Condition.BACKUP_LATE]: "archive",
-  [Condition.CHANGE_FAILED]: "activity",
-  [Condition.RESTORE_DRILL_FAILED]: "archive",
-  [Condition.RESTORE_DRILL_LATE]: "archive",
-  [Condition.UPDATE_AVAILABLE]: "arrow-up",
-  [Condition.CATALOG_SOURCE_STUCK]: "branch",
-  [Condition.DOMAIN_UNPUBLISHED]: "globe",
-};
+import { useAlertKind } from "./alertKind";
 
 const ms = (a: { seconds: bigint } | undefined) => (a ? Number(a.seconds) * 1000 : undefined);
 
@@ -173,6 +156,7 @@ function AlertCard({
   const failed = acknowledge.failed.get(alert.id);
   const critical = alert.severity === Severity.CRITICAL;
   const title = alertTitle(alert, i18n);
+  const kind = useAlertKind()(alert.condition);
   const opened = ms(alert.openTime);
   const lasted = opened === undefined ? "" : words.span(Math.max(0, now - opened));
   const since = alert.openTime ? formatClock(timestampDate(alert.openTime), i18n.locale) : "";
@@ -180,7 +164,7 @@ function AlertCard({
   return (
     <article className={cx("dw-panel", "alerts-card", critical ? "is-critical" : "is-warning")}>
       <span className="alerts-card-mark" aria-hidden="true">
-        <Icon name={MARK[alert.condition] ?? "alert"} size={18} />
+        <Glyph shape={critical ? "square" : "triangle"} size={12} />
       </span>
       <div className="alerts-card-head">
         <h3 className="alerts-card-title">
@@ -226,7 +210,7 @@ function AlertCard({
         </span>
         <span className="alerts-card-spacer" />
         <span className="alerts-muted">
-          <code>{alert.ruleName}</code>
+          {kind}
           {" · "}
           <Sending alert={alert} sent={sent} />
         </span>
@@ -313,6 +297,7 @@ function MemoryTrend({ alert, server }: { alert: Alert; server: Server | undefin
 /** What resolved, newest first, beside what's open: what it was, when it ended and how long it lasted. */
 export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
   const { i18n } = useLingui();
+  const kind = useAlertKind();
   const words = useTimeWords();
   // The list's own clock, so a row resolved before midnight turns to its day as the day turns.
   const now = useControlPlaneNow(60_000);
@@ -344,7 +329,9 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
                 {alertTitle(alert, i18n)}
               </Link>
               <ResolvedAt time={alert.resolveTime} now={now} />
-              <span className="alerts-resolved-meta">{[lasted, alert.ruleName].filter(Boolean).join(" · ")}</span>
+              <span className="alerts-resolved-meta">
+                {[lasted, kind(alert.condition)].filter(Boolean).join(" · ")}
+              </span>
             </li>
           );
         })}

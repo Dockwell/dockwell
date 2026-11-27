@@ -120,7 +120,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
 
   return (
     <div className="website-tab">
-      <div className="website-columns">
+      <div className="website-columns dw-card-columns">
         <div className="website-settings">
           <Panel title={<Trans>What it serves</Trans>}>
             <div className="website-fields">
@@ -175,7 +175,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
               {refusal ? (
                 <>
                   <span className="dw-tone-critical">
-                    <Glyph shape="triangle" size={10} />
+                    <Glyph shape="square" size={10} />
                   </span>
                   <strong>
                     <Trans>Not valid</Trans>

@@ -476,35 +476,28 @@ describe("an app's frame", () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
     expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
-    // On a phone, Stop and Restart stay beside each other in the app action bar.
     const bar = container.querySelector(".app-actionbar") as HTMLElement;
-    expect(bar).toHaveTextContent(/^LogsStopRestartDeploy$/);
-    expect(within(bar).getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/apps/svc_web/logs");
+    expect(bar).toHaveTextContent(/^Deploy$/);
+    expect(screen.getByRole("button", { name: "Actions for web" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);
   });
 
-  it("goes to the logs from its tab, and from the header between Restart and Deploy on every tab", async () => {
-    const { router } = renderAt("/apps/svc_web", api());
+  it("keeps the app menu alongside Deploy and takes you to logs from the tab", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web", api());
     await screen.findByRole("heading", { level: 1, name: "web" });
-    const tab = within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" });
-    expect(tab).toBeVisible();
-    const links = screen.getAllByRole("link", { name: "Logs" });
-    expect(links).toHaveLength(2);
-    const header = links.find((l) => l !== tab) as HTMLElement;
-    expect(header).toHaveAttribute("href", "/apps/svc_web/logs");
-    // Between Restart and Deploy, as App-Overview has it.
-    expect(header.previousElementSibling).toHaveTextContent("Restart");
-    expect(header.nextElementSibling).toHaveTextContent("Deploy");
-    await act(() => router.navigate({ to: "/apps/$serviceId/logs", params: { serviceId: "svc_web" } }));
-    // On the Logs tab it stays where it was, as App-Logs has it, and says it's this page.
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Pause" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Restart" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Delete app" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    const logs = screen.getByRole("link", { name: "Logs" });
+    await user.click(logs);
     await screen.findByRole("region", { name: "Logs" });
-    const there = screen.getAllByRole("link", { name: "Logs" });
-    expect(there).toHaveLength(2);
-    for (const link of there) expect(link).toHaveAttribute("aria-current", "page");
-    const kept = there.find((l) => l.classList.contains("dw-btn")) as HTMLElement;
-    expect(kept.previousElementSibling).toHaveTextContent("Restart");
-    expect(kept.nextElementSibling).toHaveTextContent("Deploy");
+    expect(logs).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Actions for web" })).toBeVisible();
   });
 
   it("shows the project it's in, once there is more than one", async () => {

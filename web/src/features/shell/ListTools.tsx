@@ -187,11 +187,20 @@ export function SortHeader({ label, sortKey, place }: { label: string; sortKey: 
   );
 }
 
-export function ListSortField({ place, columns }: { place: ListPlace; columns: Record<string, string> }) {
+export function ListSortField({
+  place,
+  columns,
+  className,
+}: {
+  place: ListPlace;
+  columns: Record<string, string>;
+  className?: string;
+}) {
   const { t } = useLingui();
   return (
     <SelectField
       aria-label={t`Sort by`}
+      className={className}
       size="sm"
       value={sortParam(place.sort) ?? ""}
       onChange={(event) => place.setSort(readSort(event.target.value, Object.keys(columns)))}

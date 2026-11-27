@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Independent columns keep their natural height. Cards sharing a row can align their actions. */
+.dw-card-columns > * {
+  align-self: start;
+}
+
+.dw-card-row {
+  align-items: stretch;
+}
+
+.dw-card-row > .dw-panel,
+.dw-card-row > .dw-panel > .dw-panel-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dw-card-row > .dw-panel > .dw-panel-body {
+  flex: 1;
+}
+
+.dw-card-row .dw-card-footer {
+  margin-top: auto;
+}

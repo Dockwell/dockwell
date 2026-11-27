@@ -108,7 +108,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   // Its install planned it, a line of its own, kept on the server as no storage is connected yet (#793).
   const daily = schedules.getByRole("listitem").filter({ hasText: "Daily at 03:00" }).first();
   await daily.waitFor({ timeout: 15_000 });
-  await daily.getByText("Kept only on the server, unencrypted").waitFor();
+  await page.getByText("On each server's disk alone, unencrypted", { exact: true }).waitFor();
   await daily.getByRole("button", { name: "Edit this schedule" }).click();
   const schedule = page.getByRole("dialog", { name: "Change the schedule" });
   await schedule.getByText(/takes about/).waitFor({ timeout: 20_000 });

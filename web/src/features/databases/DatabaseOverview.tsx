@@ -26,6 +26,7 @@ import {
   PHONE_QUERY,
   Skeleton,
   StatusBadge,
+  Table,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -61,7 +62,6 @@ import {
   engineName,
   firstReading,
   firstUser,
-  makesUsers,
   policiesOf,
   readOf,
   speaksSQL,
@@ -89,7 +89,7 @@ export function DatabaseOverview() {
       <DatabaseUpdate db={db} />
       {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
       <Numbers db={db} reading={reading} read={read} />
-      <div className="database-panels">
+      <div className="database-panels dw-card-row">
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
@@ -101,40 +101,51 @@ export function DatabaseOverview() {
   );
 }
 
-/**
- * Who and what is in it, counted on one line, as the Users tab lists them (#798): the
- * Overview doesn't repeat that tab.
- */
+/** The first five people and services that can sign in, with the full list one step away. */
 function WhoIsIn({ db, read }: { db: Database; read: DatabaseReading }) {
   const { t } = useLingui();
-  const users = read.users.filter((u) => !u.system).length;
+  const users = read.users.filter((u) => !u.system);
   const own = read.databases.filter((d) => !d.system).length;
   const counts = [
-    plural(users, { one: "# user", other: "# users" }),
+    plural(users.length, { one: "# user", other: "# users" }),
     plural(own, { one: "# database of your own", other: "# databases of your own" }),
   ].join(" · ");
   return (
     <Panel
       title={t`Users`}
+      flush={users.length > 0}
       actions={
-        <>
-          {makesUsers(db.engine) ? (
-            <RouterButtonLink
-              to="/databases/$serviceId/databases"
-              params={{ serviceId: db.id }}
-              size="sm"
-              variant="ghost"
-            >
-              <Trans>Open Databases</Trans>
-            </RouterButtonLink>
-          ) : null}
-          <RouterButtonLink to="/databases/$serviceId/users" params={{ serviceId: db.id }} size="sm" variant="ghost">
-            <Trans>Open Users</Trans>
-          </RouterButtonLink>
-        </>
+        <RouterButtonLink to="/databases/$serviceId/users" params={{ serviceId: db.id }} size="sm" variant="ghost">
+          <Trans>Open users</Trans>
+        </RouterButtonLink>
       }
     >
-      <p className="database-line">{counts}</p>
+      {users.length > 0 ? (
+        <Table
+          caption={counts}
+          density="compact"
+          rows={users.slice(0, 5).map((user) => ({
+            ...user,
+            id: JSON.stringify([user.name, user.host, user.authDatabase]),
+          }))}
+          rowKey="id"
+          columns={[
+            { key: "name", header: t`User`, render: (user) => <code>{user.name}</code> },
+            {
+              key: "role",
+              header: t`Access`,
+              render: (user) => (user.superuser ? t`Can do anything` : user.canSignIn ? t`Signs in` : t`Can't sign in`),
+            },
+            {
+              key: "databases",
+              header: t`Databases`,
+              render: (user) => (user.databases.length > 0 ? <code>{user.databases.join(", ")}</code> : "—"),
+            },
+          ]}
+        />
+      ) : (
+        <p className="database-line">{t`No users yet`}</p>
+      )}
     </Panel>
   );
 }
@@ -292,7 +303,7 @@ export function NoBackups({ db, className }: { db: Database; className?: string 
         )}
       </p>
       {db.volumeExternal ? null : (
-        <div className="databases-panel-actions">
+        <div className="databases-panel-actions dw-card-footer">
           <RouterButtonLink to="/apps/$serviceId/settings" params={{ serviceId: db.id }} size="sm">
             <Trans>Give it a volume</Trans>
           </RouterButtonLink>
@@ -535,7 +546,7 @@ function BackupsPanel({ db }: { db: Database }) {
           </dd>
         </div>
       </dl>
-      <div className="databases-panel-actions">
+      <div className="databases-panel-actions dw-card-footer">
         <Button size="sm" icon="archive" onClick={() => setTaking(true)}>
           <Trans>Back up now</Trans>
         </Button>

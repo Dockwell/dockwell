@@ -42,7 +42,7 @@ import { cantMakeSecret, cantShare, type EnvRow, envEdits, envRows } from "../ap
 import { useServices } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
-import { useProjects } from "../projects/useProjects";
+import { useAllResources, useProjects } from "../projects/useProjects";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
@@ -155,12 +155,15 @@ function defaultEnvironment(
   envs: readonly Resource[],
   projects: readonly Resource[],
   apps: ReadonlyMap<string, number>,
+  populated: ReadonlySet<string>,
 ): Resource | undefined {
   const first = projects[0]?.id;
   const usual =
     envs.find((e) => e.resource?.scope === first && e.resource?.name === "production") ??
     envs.find((e) => e.resource?.scope === first) ??
     envs[0];
+  const withValues = envs.filter((e) => populated.has(e.id));
+  if (withValues.length > 0) return withValues.find((e) => e.id === usual?.id) ?? withValues[0];
   if (usual && (apps.get(usual.id) ?? 0) > 0) return usual;
   // Where the apps are, never an empty default while they live elsewhere (#796): the
   // environment with the most, by name where two have as many.
@@ -243,6 +246,7 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   const projects = projectList.data?.resources ?? [];
   const environments = envs.data?.resources ?? [];
   const views = useProjects().projects;
+  const resources = useAllResources();
   const [last] = useState(remembered);
   const services = useServices();
   const appsIn = useMemo(() => {
@@ -253,10 +257,23 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
     }
     return out;
   }, [services.data]);
+  const populated = useMemo(() => {
+    const out = new Set<string>();
+    for (const item of resources.data ?? []) {
+      const ref = item.resource;
+      if (ref?.scope && (ref.kind === "variable" || ref.kind === "secret")) out.add(ref.scope);
+    }
+    for (const s of services.data ?? []) {
+      if (s.resource?.scope && rowsOf([], [s]).length > 0) out.add(s.resource.scope);
+    }
+    return out;
+  }, [resources.data, services.data]);
   const chosen =
     environments.find((e) => e.id === environment) ??
     environments.find((e) => e.id === last) ??
-    defaultEnvironment(environments, projects, appsIn);
+    (resources.isPending || services.isPending
+      ? undefined
+      : defaultEnvironment(environments, projects, appsIn, populated));
   const view = views?.find((v) => v.id === chosen?.resource?.scope);
   const siblings = environments.filter((e) => e.resource?.scope === chosen?.resource?.scope);
   // A choice made here is remembered; a link that names an environment isn't one.
@@ -343,8 +360,16 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   const opened = chosen !== undefined && adding === chosen.id;
   const showForm = chosen !== undefined && list.data !== undefined && (!empty || opened || editing !== undefined);
   useEffect(() => {
+    if (opened && showForm) keyRef.current?.focus();
+  }, [opened, showForm]);
+
+  const mayAdd = chosen ? may(ChangeService.method.proposeChange, { environment: chosen.id }) : undefined;
+  const add = () => {
+    if (!chosen) return;
+    setEditing(undefined);
+    setAdding(chosen.id);
     if (opened) keyRef.current?.focus();
-  }, [opened]);
+  };
 
   return (
     <Page
@@ -357,6 +382,25 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
             What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it,
             once you apply its plan.
           </Trans>
+        ) : undefined
+      }
+      actions={
+        chosen ? (
+          <Button variant="primary" icon="plus" aria-label={t`New variable or secret`} onClick={add} {...mayAdd?.off}>
+            <Trans>New</Trans>
+          </Button>
+        ) : undefined
+      }
+      phoneAction={
+        chosen ? (
+          <Button
+            variant="ghost"
+            icon="plus"
+            className="mobile-header-button"
+            aria-label={t`New variable or secret`}
+            onClick={add}
+            {...mayAdd?.off}
+          />
         ) : undefined
       }
       className="variables-page"
@@ -513,20 +557,7 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
             />
           ) : shown.length === 0 && chosen ? (
             opened ? null : (
-              <EmptyState
-                icon="key"
-                title={t`No variables or secrets in ${envName} yet`}
-                action={
-                  // Opens the form, with the cursor in its key, or says why you can't.
-                  <Button
-                    icon="plus"
-                    onClick={() => setAdding(chosen.id)}
-                    off={may(ChangeService.method.proposeChange, { environment: chosen.id }).reason || undefined}
-                  >
-                    <Trans>Add the first</Trans>
-                  </Button>
-                }
-              />
+              <EmptyState icon="key" title={t`No variables or secrets in ${envName} yet`} />
             )
           ) : phone ? (
             <>

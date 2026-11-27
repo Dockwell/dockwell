@@ -12,15 +12,11 @@ import {
 } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
-import { StateLine } from "../apps/DomainStep";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
-import { useStorage } from "./storage";
 import { useScheduleWords, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
@@ -101,8 +97,6 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const words = useScheduleWords();
   const when = useWhen();
   const now = useControlPlaneNow(30_000);
-  const storage = useStorage();
-  const [addingStorage, setAddingStorage] = useState(false);
   const websiteOf = useWebsiteOfEnvironment(Boolean(policy.spec?.websiteFolder));
   const website = policy.spec?.websiteFolder ? websiteOf?.(policy.environmentId) : undefined;
   // An app's database alone goes by its need's link (ADR 0084); a website folder shows its domain.
@@ -120,9 +114,6 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
   const may = useMay();
   const mayRemove = may(ChangeService.method.proposeChange, { environment: policy.environmentId });
-  const mayAddStorage = may(ChangeService.method.proposeChange, { install: true });
-  const actOff = mayRemove.allowed ? {} : { disabled: true, title: mayRemove.reason || undefined };
-  const addOff = mayAddStorage.allowed ? {} : { disabled: true, title: mayAddStorage.reason || undefined };
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -133,7 +124,13 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
     <li className="backup-policy">
       <div className="backup-state">
         <span>
-          <code>{volume}</code>
+          <code>{policy.name}</code>
+          {volume && volume !== policy.name ? (
+            <span className="backup-why">
+              {" "}
+              · <code>{volume}</code>
+            </span>
+          ) : null}
           {place ? <span className="backup-why backup-place"> · {place}</span> : null}
         </span>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
@@ -147,27 +144,7 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
               ? t`Tests a restore monthly`
               : t`Never tests a restore`}
         </span>
-        {sentTo ? (
-          <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span>
-        ) : (
-          // Kept on the disk it would be lost with: a warning, with the one thing that fixes it (#793).
-          <StateLine
-            status="degraded"
-            action={
-              storage.items.length > 0 ? (
-                <button type="button" className="domain-step-act" onClick={onEdit} {...actOff}>
-                  <Trans>Send copies off the server</Trans>
-                </button>
-              ) : (
-                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)} {...addOff}>
-                  <Trans>Add storage</Trans>
-                </button>
-              )
-            }
-          >
-            {t`Kept only on the server, unencrypted`}
-          </StateLine>
-        )}
+        {sentTo ? <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span> : null}
       </div>
       <div className="backup-state">
         {policy.last ? (
@@ -219,9 +196,6 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
           {...mayRemove.off}
         />
       </div>
-      {addingStorage ? (
-        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
-      ) : null}
     </li>
   );
 }

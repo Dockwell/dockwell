@@ -5,11 +5,13 @@ import {
   cx,
   FleetGrid,
   type FleetServer,
+  Glyph,
   Metric,
   type MetricProps,
   Panel,
   PHONE_QUERY,
   SegmentedControl,
+  STATUS,
   StatusBadge,
   useMediaQuery,
   useUIStrings,
@@ -113,7 +115,7 @@ export function FleetOverview({ servers: fleet, status }: { servers: readonly Se
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : <FleetCallout servers={fleet} />}
       <FleetMetrics servers={servers} compact={phone} />
-      <div className="overview-fleet-row">
+      <div className="overview-fleet-row dw-card-row">
         {/* By region where there's room, as Overview-Fleet has it; one block on a phone, as M-Overview-Fleet does. */}
         <FleetMap servers={servers} compact={phone} byRegion={shown === ALL && regions.length > 0 && !phone} />
         <RecentChanges kinds={FLEET_EVENTS} className="overview-fleet-changes" unboxed={phone} />
@@ -134,6 +136,7 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
   const words = useTimeWords();
   const locale = i18n.locale;
   const counts = fleetCounts(servers);
+  const tiles = useServerTiles(servers, useFleetUnread() !== undefined);
   const numbers = fleetNumbers(servers);
   const of = (total: string) => t`of ${total}`;
   const usedOf = (used: string, total: string) => t`${used} of ${total}`;
@@ -197,6 +200,17 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
       {metrics.map(({ id, data, caption, ...metric }) => (
         <div key={id} className="dw-panel metrics-panel">
           <Metric {...metric} data={compact ? undefined : data} caption={compact ? undefined : caption} />
+          {id === "serving" ? (
+            <div className="overview-serving-tiles" aria-hidden="true">
+              {byNeed(tiles, tileStatus)
+                .slice(0, 12)
+                .map((server) => (
+                  <span key={server.id} className={`overview-serving-tile dw-tone-${STATUS[server.status].tone}`}>
+                    <Glyph shape={STATUS[server.status].shape} size={8} />
+                  </span>
+                ))}
+            </div>
+          ) : null}
         </div>
       ))}
     </div>

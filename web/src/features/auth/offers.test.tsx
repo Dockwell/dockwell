@@ -80,10 +80,14 @@ describe("what the panel offers, by what you hold", () => {
     renderAt("/apps/svc_web", api(as(["prj_1", Role.VIEWER])));
     const deploy = await screen.findByRole("button", { name: "Deploy" });
     expectOff(deploy, DEVELOPERS);
-    expectOff(screen.getByRole("button", { name: "Restart" }), DEVELOPERS);
-    // Tab reaches it, and pressing it does nothing.
-    document.body.focus();
     const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    const restart = screen.getByRole("menuitem", { name: /^Restart/ });
+    expect(restart).toHaveAttribute("aria-disabled", "true");
+    expect(restart).toHaveTextContent(DEVELOPERS);
+    await user.keyboard("{Escape}");
+    // Tab reaches Deploy, and pressing it does nothing.
+    document.body.focus();
     for (let i = 0; i < 40 && document.activeElement !== deploy; i++) await user.tab();
     expect(deploy).toHaveFocus();
     await user.click(deploy);
@@ -152,7 +156,8 @@ describe("what the panel offers, by what you hold", () => {
   it("offers a developer their project's actions, in a protected environment too, where the plan then waits", async () => {
     renderAt("/apps/svc_web", api(as(["prj_1", Role.DEVELOPER]), true));
     expect(await screen.findByRole("button", { name: "Deploy" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Restart" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Actions for web" }));
+    expect(screen.getByRole("menuitem", { name: "Restart" })).toBeEnabled();
   });
 
   it("reads no image for someone who views this environment, whatever they are elsewhere", async () => {

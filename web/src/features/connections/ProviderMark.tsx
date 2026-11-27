@@ -4,7 +4,7 @@ import { type BackupDestinationInfo, type ConnectionInfo, LinkKind } from "@dock
 import { BrandMark } from "@dockwell/ui";
 
 import { type MailProviderId, mailPlaceOf, mailProvider } from "./mail";
-import { type ProviderId, placeOf, provider } from "./providers";
+import { hostOf, type ProviderId, placeOf, provider } from "./providers";
 
 /** A storage provider's own mark, or the product's archive icon for another S3-compatible store. */
 export function StorageMark({ id, size }: { id?: ProviderId | undefined; size?: number }) {
@@ -16,6 +16,14 @@ export function MailMark({ id, size }: { id?: MailProviderId | undefined; size?:
   return <BrandMark brand={id ? mailProvider(id).brand : undefined} icon="mail" size={size} />;
 }
 
+/** Recognize custom and jurisdiction-specific R2 endpoints without rewriting them when edited. */
+function storageProvider(endpoint: string, region?: string): ProviderId {
+  const host = hostOf(endpoint).toLowerCase();
+  return /^(?:[a-z0-9-]+\.)+r2\.cloudflarestorage\.com(?::\d+)?$/.test(host)
+    ? "r2"
+    : placeOf(endpoint, region).provider;
+}
+
 /** A connection's mark: its storage provider's or mail service's, from where it points. */
 export function ConnectionMark({ connection, size }: { connection: ConnectionInfo; size?: number }) {
   if (connection.kind === LinkKind.SMTP) {
@@ -23,7 +31,7 @@ export function ConnectionMark({ connection, size }: { connection: ConnectionInf
   }
   return (
     <StorageMark
-      id={connection.endpoint ? placeOf(connection.endpoint, connection.region).provider : undefined}
+      id={connection.endpoint ? storageProvider(connection.endpoint, connection.region) : undefined}
       size={size}
     />
   );
@@ -31,5 +39,5 @@ export function ConnectionMark({ connection, size }: { connection: ConnectionInf
 
 /** A standalone legacy backup destination's storage provider's mark. */
 export function DestinationMark({ destination, size }: { destination: BackupDestinationInfo; size?: number }) {
-  return <StorageMark id={destination.endpoint ? placeOf(destination.endpoint).provider : undefined} size={size} />;
+  return <StorageMark id={destination.endpoint ? storageProvider(destination.endpoint) : undefined} size={size} />;
 }

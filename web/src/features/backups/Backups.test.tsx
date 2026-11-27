@@ -1801,7 +1801,7 @@ describe("the backups page, laid out as its mock (#793)", () => {
     const runs = screen.getByRole("region", { name: "Recent runs" });
     expect(within(runs).getByText("5 min ago")).toBeVisible();
     const schedules = screen.getByRole("region", { name: "Schedules" });
-    expect(schedules).toHaveTextContent("Kept only on the server, unencrypted");
+    expect(schedules).toHaveTextContent("orders-daily · orders");
     await user.click(within(schedules).getByRole("button", { name: "Edit this schedule" }));
     expect(await screen.findByRole("dialog", { name: "Change the schedule" })).toBeVisible();
   });

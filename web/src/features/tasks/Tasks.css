@@ -274,9 +274,23 @@ code.tasks-sub,
 .tasks-strip-run {
   display: grid;
   place-items: center;
-  height: 28px;
+  width: 100%;
+  height: var(--control-sm);
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-xs);
   background: var(--surface-sunken);
+  cursor: pointer;
+}
+
+.tasks-strip-run:hover,
+.tasks-strip-run[aria-pressed="true"] {
+  border-color: currentColor;
+}
+
+.tasks-strip-run:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .tasks-strip-run.is-good {
@@ -466,10 +480,4 @@ code.tasks-sub,
   .tasks-axis > span:first-child {
     display: none;
   }
-}
-
-/* On, said plainly: the healthy glyph is for how something runs (#796). */
-.tasks-enabled {
-  color: var(--ink-muted);
-  font-size: 13px;
 }

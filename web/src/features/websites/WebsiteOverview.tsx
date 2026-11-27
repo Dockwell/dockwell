@@ -83,7 +83,7 @@ export function WebsiteOverview() {
           )}
         </Callout>
       ) : null}
-      <div className="website-columns">
+      <div className="website-columns dw-card-columns">
         <div className="website-settings">
           <Panel title={<Trans>How it serves</Trans>} flush>
             <ul className="website-parts">
@@ -157,8 +157,8 @@ function WebsiteBackupsCard() {
             <Trans>Back up this website's folder on demand or on a schedule in Backups.</Trans>
           </p>
         )}
-        <RouterButtonLink to="/backups" size="sm" variant="ghost">
-          <Trans>Open Backups</Trans>
+        <RouterButtonLink to="/backups" size="sm" variant="ghost" className="website-backups-link">
+          <Trans>Open backups</Trans>
         </RouterButtonLink>
       </div>
       {backingUp ? (
@@ -284,8 +284,8 @@ function WhatItServes({ kind }: { kind: ReturnType<typeof kindOf> }) {
           {(p.user || "82:82") === "82:82" ? <span className="websites-muted"> · www-data</span> : null}
         </span>,
       ],
-      [t`Upload limit`, t`${p.uploadLimitMb || 64} MiB`],
-      [t`Memory limit`, t`${p.memoryLimitMb || 128} MiB`],
+      [t`Upload limit`, formatBytes((p.uploadLimitMb || 64) * 1024 ** 2, i18n.locale)],
+      [t`Memory limit`, formatBytes((p.memoryLimitMb || 128) * 1024 ** 2, i18n.locale)],
       [t`What isn't a file`, p.filesOnly ? t`Gets a 404` : t`Goes to index.php`],
     );
   }

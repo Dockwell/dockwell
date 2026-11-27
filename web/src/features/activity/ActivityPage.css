@@ -18,31 +18,6 @@
   margin-top: calc(-1 * var(--space-3));
 }
 
-/* The actor filter: a select laid over a button that shows its choice. */
-.activity-select {
-  position: relative;
-  max-width: 100%;
-}
-
-.activity-select > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.activity-select select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  cursor: pointer;
-  font: inherit;
-}
-
-.activity-select:has(select:focus-visible) {
-  box-shadow: var(--focus-ring);
-}
-
 /* The list and the selected event side by side, the event below on narrow screens. */
 .activity-layout {
   display: flex;

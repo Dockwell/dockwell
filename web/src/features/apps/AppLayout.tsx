@@ -30,7 +30,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
-import { ActionMenu } from "../shell/ActionMenu";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { usePageCommands } from "../shell/CommandMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -51,6 +51,7 @@ import {
 } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { DeploySheet } from "./DeploySheet";
+import { useDeleteApp } from "./deleteApp";
 import { AppDeployAction } from "./deployAction";
 import { lookOf, useAppDomains, visitorUrl } from "./domains";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
@@ -278,7 +279,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const pause = () => {
     if (service.resource) changePause(service.resource, service.revision, !isPaused);
   };
-  const pauseLabel = isPaused ? t`Unpause workload` : t`Pause workload`;
+  const pauseLabel = isPaused ? t`Unpause` : t`Pause`;
   const stop = () => {
     if (service.resource) changeRun(service.resource, service.revision, false);
   };
@@ -301,6 +302,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const restartable = restartCheck.offered;
   const mayRestart = restartCheck.grant;
   const mayStart = may(ChangeService.method.proposeChange, here);
+  const remove = useDeleteApp(service);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
   // One Open, in the header, to the app's domain once it serves and anyone may reach it (#797):
@@ -310,7 +312,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       ? domain.routes.filter((route) => !route.held && route.path === "").map((route) => visitorUrl(domain, route))
       : [],
   );
-  const opensAt = stopped ? undefined : reached[0];
+  const opensAt = isStopped || isPaused ? undefined : reached[0];
   // The command bar offers what the header does, first (#795): only what the reader may do.
   const navigate = useNavigate();
   const mayChange = runtime ? mayChangeVersion : mayDeploy;
@@ -338,7 +340,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           },
         ]
       : []),
-    ...(controllable && service.resource && mayStart.allowed
+    ...(controllable && !pausable && service.resource && mayStart.allowed
       ? [{ id: "stop", icon: "stop" as const, label: t`Stop ${name}`, hint: t`Opens a plan`, run: stop }]
       : []),
     ...(pausable && mayStart.allowed
@@ -368,6 +370,51 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       run: () => void navigate({ to: "/apps/$serviceId/environment", params: { serviceId } }),
     },
   ]);
+  const deployLabel = runtime ? t`Change version` : t`Deploy`;
+  const resume = pausable && isPaused;
+  const menuActions: MenuAction[] = [];
+  if (changeable && (opensAt || startable || resume)) {
+    menuActions.push({ id: "deploy", icon: "deploy", label: deployLabel, ...mayChange.off, onSelect: deploy });
+  }
+  if (pausable && !isPaused) {
+    menuActions.push({
+      id: "pause",
+      icon: isPaused ? "play" : "pause",
+      label: pauseLabel,
+      ...mayStart.off,
+      onSelect: pause,
+    });
+  } else if (!pausable && controllable && service.resource) {
+    menuActions.push({ id: "stop", icon: "stop", label: t`Stop`, ...mayStart.off, onSelect: stop });
+  }
+  if (restartable) {
+    menuActions.push({ id: "restart", icon: "refresh", label: t`Restart`, ...mayRestart.off, onSelect: restart });
+  }
+  if (service.resource && !moving && changeable) {
+    menuActions.push({
+      id: "delete",
+      icon: "trash",
+      label: t`Delete app`,
+      danger: true,
+      ...mayStart.off,
+      onSelect: remove.open,
+    });
+  }
+  const menu = <ActionMenu label={t`Actions for ${name}`} actions={menuActions} />;
+  const primary = (size: "md" | "lg" = "md") =>
+    opensAt ? (
+      <ButtonLink href={opensAt} target="_blank" rel="noreferrer" icon="external" variant="primary" size={size}>
+        <Trans context="open an app at its domain">Open</Trans>
+      </ButtonLink>
+    ) : startable || resume ? (
+      <Button variant="primary" icon="play" size={size} onClick={resume ? pause : start} {...mayStart.off}>
+        {resume ? pauseLabel : <Trans>Start</Trans>}
+      </Button>
+    ) : changeable ? (
+      <Button variant="primary" icon="deploy" size={size} onClick={deploy} {...mayChange.off}>
+        {deployLabel}
+      </Button>
+    ) : null;
   // Where it answers, on every tab, as soon as it publishes a port anyone outside the server reaches.
   const { servers: fleet } = useFleetView();
   const published = appOf(service)?.ports.find(
@@ -483,66 +530,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       }
       actions={
         <>
-          {opensAt ? (
-            <ButtonLink href={opensAt} target="_blank" rel="noreferrer" icon="external">
-              <Trans context="open an app at its domain">Open</Trans>
-            </ButtonLink>
-          ) : null}
-          {controllable && service.resource ? (
-            <Button icon="stop" onClick={stop} {...mayStart.off}>
-              <Trans>Stop</Trans>
-            </Button>
-          ) : null}
-          {pausable ? (
-            <Button icon={isPaused ? "play" : "pause"} onClick={pause} {...mayStart.off}>
-              {pauseLabel}
-            </Button>
-          ) : null}
-          {restartable ? (
-            <Button icon="refresh" onClick={restart} {...mayRestart.off}>
-              <Trans>Restart</Trans>
-            </Button>
-          ) : null}
-          {/*
-            As App-Overview has it, between Restart and Deploy. It stays on the Logs tab too, as App-Logs has it,
-            so the buttons don't move from tab to tab; there the router marks it as the current page.
-          */}
-          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
-            <Trans>Logs</Trans>
-          </RouterButtonLink>
-          {changeable ? (
-            <Button
-              variant={startable ? "secondary" : "primary"}
-              icon="deploy"
-              onClick={deploy}
-              {...(runtime ? mayChangeVersion : mayDeploy).off}
-            >
-              {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
-            </Button>
-          ) : null}
-          {startable ? (
-            <Button variant="primary" icon="play" onClick={start} {...mayStart.off}>
-              <Trans>Start</Trans>
-            </Button>
-          ) : null}
+          {primary()}
+          {menu}
         </>
       }
-      phoneAction={
-        pausable ? (
-          <ActionMenu
-            label={t`Actions for ${name}`}
-            actions={[
-              {
-                id: "pause",
-                icon: isPaused ? "play" : "pause",
-                label: pauseLabel,
-                ...mayStart.off,
-                onSelect: pause,
-              },
-            ]}
-          />
-        ) : undefined
-      }
+      phoneAction={menu}
       {...(phone && onLogs
         ? {
             phoneTitle: t`${name} logs`,
@@ -569,38 +561,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
         </AppDeployAction.Provider>
       </LogsSearchButton>
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
-      {phone && !onLogs && changeable ? (
-        <div className="app-actionbar">
-          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
-            <Trans>Logs</Trans>
-          </RouterButtonLink>
-          {controllable && service.resource ? (
-            <Button icon="stop" size="lg" onClick={stop} {...mayStart.off}>
-              <Trans>Stop</Trans>
-            </Button>
-          ) : null}
-          {restartable ? (
-            <Button icon="refresh" size="lg" onClick={restart} {...mayRestart.off}>
-              <Trans>Restart</Trans>
-            </Button>
-          ) : null}
-          {startable ? (
-            <Button variant="primary" icon="play" size="lg" onClick={start} {...mayStart.off}>
-              <Trans>Start</Trans>
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              icon="deploy"
-              size="lg"
-              onClick={deploy}
-              {...(runtime ? mayChangeVersion : mayDeploy).off}
-            >
-              {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
-            </Button>
-          )}
-        </div>
-      ) : null}
+      {phone && !onLogs && changeable ? <div className="app-actionbar">{primary("lg")}</div> : null}
       {deploying && runtime ? <RuntimeSheet service={service} onClose={() => setDeploying(false)} /> : null}
       {deploying && !runtime ? <DeploySheet service={service} onClose={() => setDeploying(false)} /> : null}
     </Page>

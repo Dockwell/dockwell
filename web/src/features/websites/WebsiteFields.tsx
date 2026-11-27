@@ -33,13 +33,13 @@ export function useMissingWords(): (m: Missing) => string {
       case "user":
         return t`Give the user and group by number, such as 1000:1000.`;
       case "upload":
-        return t`Give a number of MiB, such as 64.`;
+        return t`Give a number of MB, such as 64.`;
       case "memoryLimit":
-        return t`Use a memory limit from 32 to 4096 MiB.`;
+        return t`Use a memory limit from 32 to 4096 MB.`;
       case "maxExecutionTime":
         return t`Use an execution time from 5 to 3600 seconds.`;
       case "postMaxSize":
-        return t`Use a post max size from 1 to 4096 MiB.`;
+        return t`Use a post max size from 1 to 4096 MB.`;
       case "fpmMaxChildren":
         return t`Use a PHP-FPM pool size from 1 to 200.`;
       case "basicAuthPassword":
@@ -139,8 +139,8 @@ function useAdvancedSummary(): (s: Settings) => string {
     const who = s.user.trim() || "www-data";
     const mb = Number(s.uploadMB) || 64;
     return s.filesOnly
-      ? t`Runs as ${who} · ${mb} MiB uploads · only files answer`
-      : t`Runs as ${who} · ${mb} MiB uploads`;
+      ? t`Runs as ${who} · ${mb} MB uploads · only files answer`
+      : t`Runs as ${who} · ${mb} MB uploads`;
   };
 }
 
@@ -287,12 +287,12 @@ export function WebsiteFields({
               label={t`Upload limit`}
               inputMode="numeric"
               placeholder="64"
-              suffix="MiB"
+              suffix="MB"
               value={s.uploadMB}
               error={errors.uploadMB}
               hint={
                 same && was && (Number(s.uploadMB) || 64) !== (Number(was.uploadMB) || 64) ? (
-                  <WasHint>{t`Was ${Number(was.uploadMB) || 64} MiB`}</WasHint>
+                  <WasHint>{t`Was ${Number(was.uploadMB) || 64} MB`}</WasHint>
                 ) : undefined
               }
               onChange={(event) => onChange({ ...s, uploadMB: event.target.value })}
@@ -316,10 +316,10 @@ export function WebsiteFields({
               label={t`Memory limit`}
               inputMode="numeric"
               placeholder="128"
-              suffix="MiB"
+              suffix="MB"
               value={s.memoryLimitMB}
               error={errors.memoryLimitMB}
-              hint={t`PHP memory_limit, 32 to 4096 MiB.`}
+              hint={t`PHP memory_limit, 32 to 4096 MB.`}
               onChange={(event) => onChange({ ...s, memoryLimitMB: event.target.value })}
             />
             <TextField
@@ -336,10 +336,10 @@ export function WebsiteFields({
               label={t`Post max size`}
               inputMode="numeric"
               placeholder={s.uploadMB || "64"}
-              suffix="MiB"
+              suffix="MB"
               value={s.postMaxSizeMB}
               error={errors.postMaxSizeMB}
-              hint={t`PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit.`}
+              hint={t`PHP post_max_size, 1 to 4096 MB. Empty matches upload limit.`}
               onChange={(event) => onChange({ ...s, postMaxSizeMB: event.target.value })}
             />
             <TextField
@@ -524,7 +524,7 @@ function FolderField({
               onOwner={
                 s.serves === "folder"
                   ? (owner) => {
-                      if (owner !== s.owner) onChange({ ...s, owner });
+                      if ((!existing || s.root.trim() !== was?.root) && owner !== s.owner) onChange({ ...s, owner });
                     }
                   : undefined
               }
@@ -535,6 +535,7 @@ function FolderField({
                       // PHP runs as the folder's owner, following the folder picked, until
                       // someone types who it runs as: what's typed stays, and the note says
                       // when PHP can't write there.
+                      if (existing && s.root.trim() === was?.root) return;
                       const typed = s.user.trim();
                       if (typed !== "" && typed !== filled.current) return;
                       filled.current = owner;
@@ -547,7 +548,15 @@ function FolderField({
           ) : null}
         </>
       }
-      onChange={(root) => onChange({ ...s, root })}
+      onChange={(root) => {
+        const returnsToSaved = was && root.trim() === was.root;
+        onChange({
+          ...s,
+          root,
+          ...(returnsToSaved && s.serves === "folder" ? { owner: was.owner } : {}),
+          ...(returnsToSaved && s.serves === "php" && s.user === filled.current ? { user: was.user } : {}),
+        });
+      }}
     />
   );
 }
@@ -598,7 +607,8 @@ export function FolderNote({
   onRunAs?: (owner: string) => void;
 }) {
   const { t } = useLingui();
-  const path = useSettled(root.trim().replace(/\/+$/, ""), READ_AFTER_MS);
+  const requested = root.trim().replace(/\/+$/, "");
+  const path = useSettled(requested, READ_AFTER_MS);
   // The folder by its own path, so one under a folder of any size is found (#588). The
   // folder above not being there either means the same, as Docker makes both.
   const lookup = useFolderLookup(server, path);
@@ -611,20 +621,22 @@ export function FolderNote({
   // Each is said once as it's found, so what someone types after stays theirs.
   const toldOwner = useRef<string>(undefined);
   useEffect(() => {
-    if (!missing || toldOwner.current === owner) return;
-    toldOwner.current = owner;
+    const read = `${path}:${owner}`;
+    if (path !== requested || !missing || toldOwner.current === read) return;
+    toldOwner.current = read;
     onOwner?.(owner);
-  }, [missing, owner, onOwner]);
+  }, [path, requested, missing, owner, onOwner]);
   // A folder that's there, for PHP to run as its owner, unless that's root.
   const listedDir = lookup.listing?.directory;
   const folderOwner =
     listedDir && listedDir.uid !== 0 && listedDir.gid !== 0 ? `${listedDir.uid}:${listedDir.gid}` : "";
   const toldFolderOwner = useRef("");
   useEffect(() => {
-    if (!folderOwner || toldFolderOwner.current === folderOwner) return;
-    toldFolderOwner.current = folderOwner;
+    const read = `${path}:${folderOwner}`;
+    if (path !== requested || !folderOwner || toldFolderOwner.current === read) return;
+    toldFolderOwner.current = read;
     onFolderOwner?.(folderOwner);
-  }, [folderOwner, onFolderOwner]);
+  }, [path, requested, folderOwner, onFolderOwner]);
   if (!lookup.state) return null;
   // One line: what's there as a state, and nothing a person has to go and run.
   const say = (tone: "new" | "ok" | "warning", words: ReactNode) => (

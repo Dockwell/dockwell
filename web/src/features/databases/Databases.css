@@ -165,7 +165,7 @@
  */
 .databases-engine-grid {
   display: grid;
-  grid-template-columns: repeat(var(--databases-engine-columns, auto-fit), minmax(min(160px, 100%), 1fr));
+  grid-template-columns: repeat(var(--databases-engine-columns, auto-fit), minmax(min(180px, 100%), 1fr));
   gap: var(--space-4);
   margin: 0;
   padding: 0;
@@ -221,7 +221,6 @@ a.databases-engine:focus-visible {
   min-width: 0;
 }
 
-.databases-engine-name,
 .databases-engine-version {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -229,6 +228,7 @@ a.databases-engine:focus-visible {
 }
 
 .databases-engine-name {
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 550;
   line-height: 20px;
@@ -408,7 +408,6 @@ a.databases-engine:hover .databases-engine-plus {
 }
 
 .databases-backups .databases-panel-actions,
-.database-backups .databases-panel-actions,
 .database-backups-card .databases-panel-actions {
   margin-top: auto;
   padding-top: var(--space-3);
@@ -583,28 +582,10 @@ a.databases-engine:hover .databases-engine-plus {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: var(--space-4);
-  align-items: stretch;
 }
 
-.database-backups {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/*
- * It stands as tall as Connect beside it, so its hairline-divided facts sit at the top and its actions at its foot over
- * a rule, matching Backups and Recent activity on the list.
- */
-.database-backups > .dw-panel-body {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
+.database-backups,
 .database-connection {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
 }
 

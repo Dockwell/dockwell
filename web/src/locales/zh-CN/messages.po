@@ -805,9 +805,6 @@ msgstr "告警触发：{title}"
 msgid "An update of {subject} is out: {where}"
 msgstr "{subject} 有可用更新：{where}"
 
-msgid "Asked for a passkey to apply {change}, and none came"
-msgstr "应用 {change} 时要求验证通行密钥，但未收到"
-
 msgid "Asked for a passkey to compress {path} on {server}, and none came"
 msgstr "压缩 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
@@ -1221,6 +1218,12 @@ msgstr "未使用通行密钥确认更改 {server} 上 {path} 的权限或所有
 
 msgid "No passkey confirmed downloading {path} to {server}"
 msgstr "未使用通行密钥确认将 {path} 下载到 {server}"
+
+msgid "No passkey confirmed the plan"
+msgstr "计划未通过通行密钥确认"
+
+msgid "No passkey confirmed the plan “{summary}”"
+msgstr "计划“{summary}”未通过通行密钥确认"
 
 msgid "No restore check of {subject} has passed lately"
 msgstr "{subject} 最近没有通过的恢复检查"
@@ -2783,6 +2786,51 @@ msgstr "{n, plural, other {# 次失败}}"
 msgid "{n, plural, one {down after # failure} other {down after # failures}}"
 msgstr "{n, plural, other {连续 # 次失败判定为宕机}}"
 
+msgid "App down"
+msgstr "应用离线"
+
+msgid "Backup failed"
+msgstr "备份失败"
+
+msgid "Backup late"
+msgstr "备份逾期"
+
+msgid "Catalog source stalled"
+msgstr "目录来源更新停滞"
+
+msgid "Certificate expiring"
+msgstr "证书即将到期"
+
+msgid "Certificate renewal failed"
+msgstr "证书续期失败"
+
+msgid "Change failed"
+msgstr "变更失败"
+
+msgid "Disk full"
+msgstr "磁盘已满"
+
+msgid "Domain unpublished"
+msgstr "域名未发布"
+
+msgid "High memory use"
+msgstr "内存用量过高"
+
+msgid "Restore test failed"
+msgstr "恢复测试失败"
+
+msgid "Restore test late"
+msgstr "恢复测试逾期"
+
+msgid "Server offline"
+msgstr "服务器离线"
+
+msgid "Update available"
+msgstr "有可用更新"
+
+msgid "Uptime check"
+msgstr "可用性监测"
+
 msgctxt "check state"
 msgid "Down"
 msgstr "宕机"
@@ -3002,9 +3050,6 @@ msgstr "将 {checkedZone} 设为完全（严格）"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "<0>127.0.0.1</0> 上的隧道，用来识别访问者"
-
-msgid "Uptime check"
-msgstr "可用性监测"
 
 msgid "Use {webPort}"
 msgstr "改用 {webPort}"
@@ -3510,6 +3555,9 @@ msgstr "更改 {name} 的版本"
 msgid "Change version"
 msgstr "更改版本"
 
+msgid "Delete app"
+msgstr "删除应用"
+
 msgid "Deploy"
 msgstr "部署"
 
@@ -3563,9 +3611,6 @@ msgstr "会打开计划"
 msgid "Overview"
 msgstr "概览"
 
-msgid "Pause workload"
-msgstr "暂停工作负载"
-
 msgid "Pause {name}"
 msgstr "暂停 {name}"
 
@@ -3593,8 +3638,8 @@ msgstr "停止"
 msgid "Stop {name}"
 msgstr "停止 {name}"
 
-msgid "Unpause workload"
-msgstr "取消暂停工作负载"
+msgid "Unpause"
+msgstr "取消暂停"
 
 msgid "Unpause {name}"
 msgstr "取消暂停 {name}"
@@ -4569,9 +4614,6 @@ msgstr "停止 {count} 项"
 
 msgid "Unfold {title}"
 msgstr "展开 {title}"
-
-msgid "Unpause"
-msgstr "取消暂停"
 
 msgid "Update"
 msgstr "更新"
@@ -7129,9 +7171,6 @@ msgstr "推迟至 {0}"
 msgid "Up to date"
 msgstr "已是最新"
 
-msgid "Update available"
-msgstr "有可用更新"
-
 msgid "Update available: {change}, {kind}"
 msgstr "有可用更新：{change}，{kind}"
 
@@ -8855,9 +8894,6 @@ msgstr "只有它的应用的数据库"
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "保留 {0} 份，当前有 {1} 份（{2}）"
 
-msgid "Kept only on the server, unencrypted"
-msgstr "仅保存在服务器上，未加密"
-
 msgid "Last copy failed"
 msgstr "上次副本发送失败"
 
@@ -8878,9 +8914,6 @@ msgstr "按计划运行"
 
 msgid "Schedules"
 msgstr "备份计划"
-
-msgid "Send copies off the server"
-msgstr "把副本发送到服务器之外"
 
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
@@ -8941,6 +8974,9 @@ msgstr "时区 {zone}"
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 msgid "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
 msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。放不下的备份会失败。"
+
+msgid "Kept only on the server, unencrypted"
+msgstr "仅保存在服务器上，未加密"
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
@@ -15082,6 +15118,9 @@ msgstr "没有按计划备份"
 msgid "Restoring"
 msgstr "恢复"
 
+msgid "Send copies off the server"
+msgstr "把副本发送到服务器之外"
+
 msgid "Sent to {sentTo}, encrypted"
 msgstr "加密后发送到 {sentTo}"
 
@@ -15150,6 +15189,9 @@ msgstr "复制其文件，会短暂停止它"
 
 msgid "All its backups"
 msgstr "它的全部备份"
+
+msgid "Can do anything"
+msgstr "拥有全部权限"
 
 msgid "Change password"
 msgstr "修改密码"
@@ -15220,6 +15262,9 @@ msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT
 msgid "Newest"
 msgstr "最新"
 
+msgid "No users yet"
+msgstr "暂无用户"
+
 msgid "Not scheduled"
 msgstr "未安排"
 
@@ -15229,8 +15274,8 @@ msgstr "尚未读取任何数据"
 msgid "One is running now"
 msgstr "正在进行一次备份"
 
-msgid "Open Users"
-msgstr "打开用户"
+msgid "Open users"
+msgstr "查看用户"
 
 msgid "Reads served from memory"
 msgstr "从内存读取的比例"
@@ -15276,6 +15321,10 @@ msgstr "原始信息"
 msgid "of {mostWords}"
 msgstr "/ {mostWords}"
 
+#. placeholder {0}: users.length
+msgid "{0, plural, one {# user} other {# users}}"
+msgstr "{0, plural, other {# 个用户}}"
+
 msgid "{databases, plural, one {On disk, in # database} other {On disk, across # databases}}"
 msgstr "{databases, plural, other {磁盘占用，共 # 个数据库}}"
 
@@ -15302,9 +15351,6 @@ msgstr "{servers}，并加密存放在 {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}，未加密"
-
-msgid "{users, plural, one {# user} other {# users}}"
-msgstr "{users, plural, other {# 个用户}}"
 
 msgid "Create a database to import into"
 msgstr "请先创建一个用于导入的数据库"
@@ -15356,9 +15402,6 @@ msgstr "{who} 的操作"
 
 msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
 msgstr "应用使用密码登录。在它自己的容器内，不需要密码"
-
-msgid "Can do anything"
-msgstr "拥有全部权限"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell 暂时无法添加 MongoDB 用户。请在 <1>mongosh</1> 中用 <0>db.createUser</0> 添加。"
@@ -15743,9 +15786,6 @@ msgstr "未读取"
 
 msgid "Not read yet"
 msgstr "尚未读取"
-
-msgid "Server offline"
-msgstr "服务器离线"
 
 msgid "Starting up"
 msgstr "正在启动"
@@ -16949,6 +16989,9 @@ msgstr "打开 {serviceName}"
 msgid "Paste docker run"
 msgstr "粘贴 docker run 命令"
 
+msgid "Pause workload"
+msgstr "暂停工作负载"
+
 msgid "Refresh containers"
 msgstr "刷新容器"
 
@@ -16979,6 +17022,9 @@ msgstr "接管容器"
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
 msgstr "{0} 的终端"
+
+msgid "Unpause workload"
+msgstr "取消暂停工作负载"
 
 msgid "Update to {version}"
 msgstr "更新到 {version}"
@@ -20121,6 +20167,9 @@ msgstr "复制这一行"
 
 msgid "Deployment"
 msgstr "部署"
+
+msgid "Dockwell has no logs for this website."
+msgstr "Dockwell 未保存此网站的日志。"
 
 msgid "Download these lines"
 msgstr "下载这些日志"
@@ -25627,6 +25676,9 @@ msgstr "{n} 分钟"
 msgid "All runs"
 msgstr "全部运行"
 
+msgid "Delete task"
+msgstr "删除任务"
+
 msgid "Enabled"
 msgstr "已启用"
 
@@ -25664,10 +25716,16 @@ msgstr "立即运行于"
 msgid "Run now"
 msgstr "立即运行"
 
+msgid "Run output"
+msgstr "运行输出"
+
 msgid "Runs in"
 msgstr "运行于"
 
-#. placeholder {0}: newest.outputCutBytes
+msgid "Show output: {what}"
+msgstr "查看输出：{what}"
+
+#. placeholder {0}: selected.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
 msgstr "在此之前输出的 {0} 字节没有保留。"
 
@@ -27101,9 +27159,6 @@ msgstr "，密钥"
 msgid "Add a variable or secret to {envName}"
 msgstr "向 {envName} 添加变量或密钥"
 
-msgid "Add the first"
-msgstr "添加第一个"
-
 msgid "Add the secret {trimmed}"
 msgstr "添加密钥 {trimmed}"
 
@@ -27165,6 +27220,9 @@ msgstr "将 {trimmed} 改为变量"
 
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
+
+msgid "New variable or secret"
+msgstr "新建变量或密钥"
 
 msgid "No app in {envName} sets a value of its own"
 msgstr "{envName} 中没有应用设置自己的值"
@@ -27946,8 +28004,8 @@ msgstr "适用于服务多个主机名的后端。关闭时，它收到此网站
 msgid "Gets a 404"
 msgstr "返回 404"
 
-msgid "Give a number of MiB, such as 64."
-msgstr "请填写 MiB 数，例如 64。"
+msgid "Give a number of MB, such as 64."
+msgstr "输入以 MB 为单位的数值，例如 64。"
 
 msgid "Give every new Basic Auth user a password."
 msgstr "请为每个新增的基础认证用户设置密码。"
@@ -28009,11 +28067,11 @@ msgstr "PHP"
 msgid "PHP max_execution_time, 5 to 3600 seconds."
 msgstr "PHP max_execution_time，5 至 3600 秒。"
 
-msgid "PHP memory_limit, 32 to 4096 MiB."
-msgstr "PHP memory_limit，32 至 4096 MiB。"
+msgid "PHP memory_limit, 32 to 4096 MB."
+msgstr "PHP memory_limit，范围为 32 到 4096 MB。"
 
-msgid "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
-msgstr "PHP post_max_size，1 至 4096 MiB。留空则与上传限制一致。"
+msgid "PHP post_max_size, 1 to 4096 MB. Empty matches upload limit."
+msgstr "PHP post_max_size，范围为 1 到 4096 MB。留空时与上传上限相同。"
 
 msgid "PHP runs as {user} and can't write there."
 msgstr "PHP 以 {user} 运行，无法写入此处。"
@@ -28040,11 +28098,11 @@ msgstr "POST 最大提交大小"
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
 
-msgid "Runs as {who} · {mb} MiB uploads"
-msgstr "以 {who} 运行 · 上传上限 {mb} MiB"
+msgid "Runs as {who} · {mb} MB uploads"
+msgstr "以 {who} 运行 · 上传上限 {mb} MB"
 
-msgid "Runs as {who} · {mb} MiB uploads · only files answer"
-msgstr "以 {who} 运行 · 上传上限 {mb} MiB · 仅响应文件"
+msgid "Runs as {who} · {mb} MB uploads · only files answer"
+msgstr "以 {who} 运行 · 上传上限 {mb} MB · 仅提供文件"
 
 msgid "Send the URL's own name as Host"
 msgstr "将 URL 自己的主机名作为 Host 发送"
@@ -28076,11 +28134,11 @@ msgstr "上传上限"
 msgid "Use a PHP-FPM pool size from 1 to 200."
 msgstr "请使用 1 至 200 之间的 PHP-FPM 进程池大小。"
 
-msgid "Use a memory limit from 32 to 4096 MiB."
-msgstr "请使用 32 至 4096 MiB 之间的内存限制。"
+msgid "Use a memory limit from 32 to 4096 MB."
+msgstr "内存上限应在 32 到 4096 MB 之间。"
 
-msgid "Use a post max size from 1 to 4096 MiB."
-msgstr "请使用 1 至 4096 MiB 之间的 POST 最大提交大小。"
+msgid "Use a post max size from 1 to 4096 MB."
+msgstr "POST 大小上限应在 1 到 4096 MB 之间。"
 
 msgid "Use an execution time from 5 to 3600 seconds."
 msgstr "请使用 5 至 3600 秒之间的执行时间。"
@@ -28104,8 +28162,8 @@ msgid "Was index.php index.html"
 msgstr "原为 index.php index.html"
 
 #. placeholder {0}: Number(was.uploadMB) || 64
-msgid "Was {0} MiB"
-msgstr "原为 {0} MiB"
+msgid "Was {0} MB"
+msgstr "之前为 {0} MB"
 
 #. placeholder {0}: was.port
 msgid "Was {0} · whatever listens there sees every visitor as local"
@@ -28190,6 +28248,9 @@ msgstr "它现在没有自己的 Web 服务器。"
 msgid "Nothing here writes logs"
 msgstr "这里没有写日志的程序"
 
+msgid "These website logs aren't available"
+msgstr "无法查看此网站的日志"
+
 msgid "Web server"
 msgstr "Web 服务器"
 
@@ -28228,6 +28289,9 @@ msgstr "最近一次文件夹备份失败。"
 msgid "Latest folder backup: {0} ({1})."
 msgstr "最近一次文件夹备份：{0}（{1}）。"
 
+msgid "Open backups"
+msgstr "查看备份"
+
 #. placeholder {0}: rules.rateLimit.requestsPerMinute || 60
 msgid "Rate limit ({0}/min)"
 msgstr "速率限制（{0}/分钟）"
@@ -28253,11 +28317,6 @@ msgstr "访客当前会收到纯 503 响应。域名、证书和文件均保持�
 
 msgid "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
 msgstr "访客当前会看到 503 维护页面。域名、证书和文件均保持不变。"
-
-#. placeholder {0}: p.memoryLimitMb || 128
-#. placeholder {0}: p.uploadLimitMb || 64
-msgid "{0} MiB"
-msgstr "{0} MiB"
 
 #. placeholder {0}: rules.headers.length
 msgid "{0} headers"

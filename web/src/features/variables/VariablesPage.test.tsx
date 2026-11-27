@@ -220,14 +220,42 @@ describe("the variables and secrets page", () => {
     expect(await screen.findByText(/No variables or secrets in Staging yet/)).toBeVisible();
   });
 
+  it("defaults to an environment that has variables", async () => {
+    const base = api([production, staging]);
+    renderAt("/variables", {
+      ...base,
+      resources: {
+        listResources: (req, context) =>
+          req.kind
+            ? (base.resources?.listResources?.(req, context) ?? {})
+            : {
+                resources: [
+                  {
+                    id: "var_staging",
+                    resource: { kind: "variable", name: "LOG_LEVEL", scope: "env_staging" },
+                  },
+                ],
+              },
+      },
+      variables: {
+        listVariables: ({ environment }) => ({
+          environmentId: environment,
+          variables: environment === "env_staging" ? [logLevel] : [],
+        }),
+      },
+    });
+    expect(await screen.findByRole("form", { name: "Add a variable or secret to Staging" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New variable or secret" })).toBeVisible();
+  });
+
   it("says an environment has nothing yet, and opens the form to add the first, saying nothing twice", async () => {
     const user = userEvent.setup();
     renderAt("/variables?environment=env_staging", api([production, staging]));
     const empty = await screen.findByRole("heading", { name: "No variables or secrets in Staging yet" });
     expect(empty).toBeVisible();
-    // The empty state is the way in; the form waits for it.
+    // New opens the form with focus on its key.
     expect(screen.queryByRole("form", { name: "Add a variable or secret to Staging" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Add the first" }));
+    await user.click(screen.getByRole("button", { name: "New variable or secret" }));
     expect(await screen.findByRole("form", { name: "Add a variable or secret to Staging" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Key" })).toHaveFocus();
     expect(screen.queryByRole("heading", { name: "No variables or secrets in Staging yet" })).toBeNull();
@@ -642,7 +670,7 @@ describe("each app's own values beside the shared ones", () => {
     expect(
       await screen.findByRole("heading", { name: "No variables or secrets in production yet" }, { timeout: 5000 }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Add the first" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New variable or secret" })).toBeVisible();
     expect(screen.queryByRole("radiogroup", { name: "Where values come from" })).toBeNull();
   });
 

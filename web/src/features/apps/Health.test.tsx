@@ -1323,7 +1323,8 @@ describe("restarting an app", () => {
           },
         }),
       );
-      await user.click(await screen.findByRole("button", { name: "Restart" }));
+      await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+      await user.click(await screen.findByRole("menuitem", { name: "Restart" }));
       const sheet = await screen.findByRole("dialog", { name: "Review plan" });
       expect(asked[0]?.id).toBe("svc_web");
       expect(sheet).toHaveTextContent(reads);
@@ -1350,7 +1351,8 @@ describe("restarting an app", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Restart" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(await screen.findByRole("menuitem", { name: "Restart" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(sheet).toHaveTextContent(
       "Nothing checks it, so it has to keep running for 5 s. If it doesn't, the new one goes, and what was stopped stays stopped",

@@ -196,7 +196,6 @@ export function AppSettings() {
         key={id}
         id={id}
         title={label[id]}
-        wide={id === "mounts"}
         editing={open !== undefined}
         inPlace={inPlace}
         editRef={(el) => editButtons.current.set(id, el)}
@@ -257,7 +256,7 @@ export function AppSettings() {
           ))}
         </nav>
       )}
-      <div className="app-settings-main">
+      <div className="app-settings-main dw-card-columns">
         {/* For someone who may not plan here, its settings are there to read, with why (ADR 0059). */}
         <MayEdit offer={mayPlan}>
           {section(
@@ -314,10 +313,10 @@ export function AppSettings() {
                 true,
               )
             : null}
-          <div id="move" className="app-settings-anchor is-wide">
+          <div id="move" className="app-settings-anchor">
             <MoveApp service={service} title={label.move} />
           </div>
-          <div id="danger" className="app-settings-anchor is-wide">
+          <div id="danger" className="app-settings-anchor">
             <DangerZone service={service} title={label.danger} />
           </div>
         </MayEdit>
@@ -370,7 +369,6 @@ function useCurrentSection(ids: readonly SectionId[]): SectionId | "move" | "dan
 function Section({
   id,
   title,
-  wide,
   editing,
   inPlace = false,
   editRef,
@@ -379,8 +377,6 @@ function Section({
 }: {
   id: SectionId;
   title: string;
-  /** Spans both columns, as what it lists runs wide. */
-  wide?: boolean;
   editing: boolean;
   /** Its form is open as it is, so there's no Edit. */
   inPlace?: boolean;
@@ -398,11 +394,7 @@ function Section({
       ?.focus();
   }, [editing]);
   return (
-    <div
-      id={id}
-      ref={body}
-      className={cx("app-settings-anchor", (wide || editing) && "is-wide", editing && "is-editing")}
-    >
+    <div id={id} ref={body} className={cx("app-settings-anchor", editing && "is-editing")}>
       <Panel
         title={title}
         className={cx("app-settings-section", editing && "is-editing")}

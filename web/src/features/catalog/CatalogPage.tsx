@@ -8,7 +8,18 @@ import {
   type Entry,
   type ServiceInfo,
 } from "@dockwell/api";
-import { Button, Callout, cx, Icon, Loading, SegmentedControl, SelectField, Skeleton, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  cx,
+  Glyph,
+  Icon,
+  Loading,
+  SegmentedControl,
+  SelectField,
+  Skeleton,
+  TextField,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -249,6 +260,27 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               ))}
             </fieldset>
           ) : null}
+          {shown.length > 0 ? (
+            <div className="catalog-count-row">
+              {from ? null : (
+                // Narrowed to one catalog, its own line says how many.
+                <p className="catalog-count" aria-live="polite">
+                  {plural(catalog.total ?? shown.length, { one: "# app", other: "# apps" })}
+                </p>
+              )}
+              <SegmentedControl
+                className="catalog-order"
+                size="sm"
+                label={t`Order`}
+                value={search.sort ?? "popular"}
+                options={[
+                  { value: "popular", label: t`Popular first` },
+                  { value: "name", label: t`By name` },
+                ]}
+                onChange={(order) => onSearch?.({ ...search, sort: order === "name" ? "name" : undefined })}
+              />
+            </div>
+          ) : null}
         </div>
         {from ? (
           <div className="catalog-from">
@@ -269,7 +301,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         ) : null}
         {catalog.error ? null : !entries ? (
           // Where the cards go, while the first page is read: no spinner over the grid.
-          <Loading label={t`Reading the catalog`} className="catalog-grid">
+          <Loading label={t`Reading the catalog`} className="catalog-grid dw-card-row">
             {Array.from({ length: 12 }, (_, i) => `placeholder-${i}`).map((key, index) => (
               <span key={key} className="dw-panel catalog-card is-placeholder" aria-hidden="true">
                 <span className="catalog-card-head">
@@ -345,26 +377,10 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
           )
         ) : (
           <>
-            <div className="catalog-count-row">
-              {from ? null : (
-                // Narrowed to one catalog, its own line says how many.
-                <p className="catalog-count" aria-live="polite">
-                  {plural(catalog.total ?? shown.length, { one: "# app", other: "# apps" })}
-                </p>
-              )}
-              <SegmentedControl
-                className="catalog-order"
-                size="sm"
-                label={t`Order`}
-                value={search.sort ?? "popular"}
-                options={[
-                  { value: "popular", label: t`Popular first` },
-                  { value: "name", label: t`By name` },
-                ]}
-                onChange={(order) => onSearch?.({ ...search, sort: order === "name" ? "name" : undefined })}
-              />
-            </div>
-            <div className="catalog-grid" aria-busy={catalog.isPlaceholderData || catalog.settling || undefined}>
+            <div
+              className="catalog-grid dw-card-row"
+              aria-busy={catalog.isPlaceholderData || catalog.settling || undefined}
+            >
               {shown.map((entry) => (
                 <Card
                   key={entry.id}
@@ -513,7 +529,10 @@ function Card({
           {category ? <span className="catalog-card-category">{category}</span> : null}
         </span>
         {waiting ? (
-          <span className="catalog-installed is-held">{waiting}</span>
+          <span className="catalog-installed is-held">
+            <Glyph shape="triangle" size={10} />
+            {waiting}
+          </span>
         ) : behind ? (
           <span className="catalog-installed is-behind">{sameVersion ? t`Update out` : t`Upgrade to ${latest}`}</span>
         ) : first ? (
@@ -524,7 +543,7 @@ function Card({
         ) : null}
       </span>
       <span className="catalog-card-summary">{words.summary}</span>
-      <span className="catalog-card-end">
+      <span className="catalog-card-end dw-card-footer">
         {where ? (
           // Where it's reached, on a line of its own, so a long domain or server name
           // never crowds the version, its catalog or Open off the row under it.

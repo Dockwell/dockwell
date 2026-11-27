@@ -122,6 +122,7 @@ export function LogsPage({
   server = "",
   sourceId,
   onInspectLogging,
+  missingTitle,
   search,
   onSearch,
 }: {
@@ -129,6 +130,7 @@ export function LogsPage({
   server?: string;
   sourceId?: string;
   onInspectLogging?: () => void;
+  missingTitle?: string;
   search: LogsSearch;
   onSearch: (next: LogsSearch) => void;
 }) {
@@ -503,10 +505,15 @@ export function LogsPage({
   }
   if (missing) {
     return (
-      <EmptyState icon="service" title={server ? t`This container isn't here` : t`This app isn't here`}>
+      <EmptyState
+        icon="service"
+        title={missingTitle ?? (server ? t`This container isn't here` : t`This app isn't here`)}
+      >
         <p>
           {server ? (
             <Trans>It may have been removed. Docker keeps a container's log only as long as the container.</Trans>
+          ) : missingTitle ? (
+            <Trans>Dockwell has no logs for this website.</Trans>
           ) : (
             <Trans>It may have been deleted. Dockwell has no logs under this address.</Trans>
           )}

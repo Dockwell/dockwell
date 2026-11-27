@@ -914,7 +914,7 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Couldn't save \/etc\/cron\.d\/job on hz-1/ });
     await screen.findByRole("row", { name: /May have saved \/etc\/hosts on hz-1/ });
     await screen.findByRole("row", { name: /Asked for a passkey to save \/etc\/crontab on hz-1, and none came/ });
-    await screen.findByRole("row", { name: /Asked for a passkey to apply chg_1, and none came/ });
+    await screen.findByRole("row", { name: /No passkey confirmed the plan/ });
     await screen.findByRole("row", {
       name: /Saved \/root\/\.ssh\/authorized_keys on hz-1, which can let someone back in/,
     });
