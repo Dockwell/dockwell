@@ -410,7 +410,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       onSelect: remove.open,
     });
   }
-  const menu = <ActionMenu label={t`Actions for ${name}`} actions={menuActions} className="app-header-menu" />;
+  const menu = (
+    <ActionMenu
+      label={t`Actions for ${name}`}
+      actions={menuActions}
+      trigger={(props) => <Button variant="secondary" size="md" icon="more" {...props} />}
+    />
+  );
   const primary = (size: "md" | "lg" = "md") =>
     opensAt ? (
       <ButtonLink href={opensAt} target="_blank" rel="noreferrer" icon="external" variant="primary" size={size}>

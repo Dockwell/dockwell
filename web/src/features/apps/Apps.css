@@ -1543,18 +1543,6 @@
 }
 
 /* Phones keep Deploy in reach of a thumb, above the tab bar. */
-.app-header-menu .action-menu-button {
-  --h: var(--control-md);
-  border-color: var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 0 var(--line);
-}
-
-.app-header-menu .action-menu-button:hover:not(:disabled) {
-  border-color: var(--line-strong);
-}
-
 .app-actionbar {
   position: sticky;
   bottom: var(--tabbar-height);

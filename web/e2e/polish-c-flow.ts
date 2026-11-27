@@ -8,7 +8,7 @@ import { proposeFixture } from "./row-verbs-shots.ts";
 import { atWidth, onTop } from "./sheets.ts";
 
 async function apply(plan: Locator) {
-  const button = plan.getByRole("button", { name: /Apply plan/ });
+  const button = plan.getByRole("button", { name: /Apply plan|^Delete / });
   await button.waitFor();
   const gate = plan.locator(".plan-gate input");
   if (await gate.isVisible()) await gate.fill(await plan.locator(".plan-gate code").first().innerText());
@@ -41,6 +41,7 @@ export const flow: Flow = {
       .getByRole("row", { name: /polish-web/ })
       .click();
     await page.getByRole("heading", { level: 1, name: app }).waitFor();
+    const appUrl = page.url();
     await page.getByRole("button", { name: "Deploy", exact: true }).waitFor();
     const menuTrigger = page.getByRole("button", { name: `Actions for ${app}` });
     await menuTrigger.click();
@@ -93,9 +94,15 @@ export const flow: Flow = {
     step("polish-c: remove the app and task fixtures");
     await panel.getByRole("button", { name: "Delete task" }).click();
     await apply(plan);
-    await page.getByRole("button", { name: "Done", exact: true }).click({ timeout: 30_000 });
-    await proposeFixture(page, "Remove the app used for the header menu", [
-      { resource: { kind: "service", name: app, scope }, delete: true },
-    ]);
+    const done = page.getByRole("button", { name: "Done", exact: true });
+    await done.click({ timeout: 30_000 });
+    await panel.waitFor({ state: "hidden" });
+
+    await page.goto(appUrl);
+    await menuTrigger.click();
+    await menu.getByRole("menuitem", { name: "Delete app" }).click();
+    await apply(plan);
+    await done.click({ timeout: 30_000 });
+    await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
   },
 };
