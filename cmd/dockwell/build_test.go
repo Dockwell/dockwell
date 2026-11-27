@@ -44,6 +44,7 @@ var agentPackages = []string{
 	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
 	"internal/agent/nftables",   // Dockwell's own nftables table, written with nft (ADR 0052)
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
+	"internal/agent/pageout",    // returning clean executable pages at idle (ADR 0109)
 	"internal/agent/panels",     // reading what Coolify or Dokploy runs, for an import (ADR 0089)
 	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
 	"internal/agent/signin",     // a route's sign-in with its provider, which the agent answers Caddy for (ADR 0087)

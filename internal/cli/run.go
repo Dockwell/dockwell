@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/pageout"
 	"github.com/dockwell/dockwell/internal/agent/panels"
 	"github.com/dockwell/dockwell/internal/agent/signin"
 	"github.com/dockwell/dockwell/internal/agent/system"
@@ -171,6 +172,9 @@ const agentGC = 25
 func runAgentAlone(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
 	defer collectAsAnAgent(stdio)()
 	defer runOnAgentCPUs(stdio)()
+	pageout.Enable()
+	startup := time.AfterFunc(10*time.Second, pageout.Executable)
+	defer startup.Stop()
 	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil, nil)
 }
 

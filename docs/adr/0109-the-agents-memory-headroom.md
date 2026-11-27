@@ -96,3 +96,13 @@ The initial version was accepted for a 0.6 MB reduction in median transfer peak 
 | Transfer changes with separate connections | 38.8, 38.5, 38.6 MB | 38.6 MB |
 
 The restored connections meet the follow-up gate of a median at or below 38.9 MB and below main's median. The measured reduction is 0.7 MB. The regression test leaves a file upload unread while an artifact is received and committed over its own HTTP/2 connection.
+
+## Reclaiming clean executable pages
+
+On Linux, standalone startup explicitly enables executable pageout for the process. The agent asks the kernel to page out clean executable pages ten seconds after startup and when the existing transfer settle timer fires. The calls share a five-second minimum interval. The agent matches private, read-only mappings in `/proc/self/maps` by the executable's device and inode. It checks `smaps` for dirty or anonymous pages before using `MADV_PAGEOUT`. Unsupported advice or a syscall filter disables further attempts.
+
+On Linux 6.8, five paired idle samples at 180 seconds put the standalone median at 29.9 MB with pageout and 34.5 MB on headroom-2. Anonymous RSS was 11.8 and 11.9 MB respectively. The full builds with their embedded agents measured 101.4 and 101.9 MB.
+
+Three alternating `make transfers-load` pairs peaked at 35.83, 35.77 and 39.10 MB with pageout, and 38.76, 38.90 and 38.66 MB on headroom-2. The median was 2.93 MB lower with pageout. Savings varied with when the transfers settled and when later work touched those pages again. The median process CPU time was 49.57 s versus 48.64 s, and median fault counts were 374 major and 9,521 minor versus zero major and 8,803 minor.
+
+In two follow-up forwarding pairs, total agent CPU was 6.67 and 9.61 s with pageout, versus 6.33 and 8.66 s on headroom-2. About 180 of the roughly 190 major faults occurred before the 16 measured connections opened, with the first burst at the ten-second startup timer. A second comparison used the same build with the startup timer removed. That eliminated major faults and raised the peak by 4.8 to 5.1 MB. During forwarding, the measured CPU difference with the timer on was −4 and +44 ms per connection across those two pairs. All runs took 21 to 22 seconds to forward the requests.
