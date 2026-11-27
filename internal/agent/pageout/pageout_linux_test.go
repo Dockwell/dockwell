@@ -63,8 +63,32 @@ Private_Dirty:         0 kB
 	}
 }
 
+func TestPageoutRequiresEnable(t *testing.T) {
+	var r reclaimer
+	at := time.Unix(1, 0)
+	advised, lookedUp := 0, 0
+	mappings := func() []mapping {
+		lookedUp++
+		return []mapping{{0x400000, 0x401000}}
+	}
+	advise := func(mapping) error {
+		advised++
+		return nil
+	}
+	r.reclaim(at, mappings, advise)
+	if advised != 0 || lookedUp != 0 {
+		t.Fatalf("before enable, got %d advice calls and %d lookups, want zero", advised, lookedUp)
+	}
+	r.enabled.Store(true)
+	r.reclaim(at, mappings, advise)
+	if advised != 1 || lookedUp != 1 {
+		t.Errorf("after enable, got %d advice calls and %d lookups, want 1 of each", advised, lookedUp)
+	}
+}
+
 func TestUnsupportedPageoutSkipsFurtherCalls(t *testing.T) {
 	var r reclaimer
+	r.enabled.Store(true)
 	at := time.Unix(1, 0)
 	advised, lookedUp := 0, 0
 	mappings := func() []mapping {
@@ -84,6 +108,7 @@ func TestUnsupportedPageoutSkipsFurtherCalls(t *testing.T) {
 
 func TestRateLimitsPageout(t *testing.T) {
 	var r reclaimer
+	r.enabled.Store(true)
 	at := time.Unix(1, 0)
 	advised := 0
 	mappings := func() []mapping { return []mapping{{0x400000, 0x401000}} }

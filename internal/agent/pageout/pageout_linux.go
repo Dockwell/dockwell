@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -19,6 +20,11 @@ const interval = 5 * time.Second
 
 var executable reclaimer
 
+// Enable allows executable pageout for this standalone agent process.
+func Enable() {
+	executable.enabled.Store(true)
+}
+
 // Executable asks Linux to reclaim clean, read-only pages mapped from this
 // process's executable. Faults bring those pages back as they are used.
 func Executable() {
@@ -26,12 +32,16 @@ func Executable() {
 }
 
 type reclaimer struct {
+	enabled  atomic.Bool
 	mu       sync.Mutex
 	last     time.Time
 	disabled bool
 }
 
 func (r *reclaimer) reclaim(now time.Time, mappings func() []mapping, advise func(mapping) error) {
+	if !r.enabled.Load() {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.disabled || now.Sub(r.last) < interval {

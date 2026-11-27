@@ -99,7 +99,7 @@ The restored connections meet the follow-up gate of a median at or below 38.9 MB
 
 ## Reclaiming clean executable pages
 
-On Linux, the standalone agent asks the kernel to page out clean executable pages ten seconds after startup and when the existing transfer settle timer fires. The calls share a five-second minimum interval. The agent matches private, read-only mappings in `/proc/self/maps` by the executable's device and inode. It checks `smaps` for dirty or anonymous pages before using `MADV_PAGEOUT`. Unsupported advice or a syscall filter disables further attempts. Embedded agents share their process with the control plane and use the existing memory behaviour.
+On Linux, standalone startup explicitly enables executable pageout for the process. The agent asks the kernel to page out clean executable pages ten seconds after startup and when the existing transfer settle timer fires. The calls share a five-second minimum interval. The agent matches private, read-only mappings in `/proc/self/maps` by the executable's device and inode. It checks `smaps` for dirty or anonymous pages before using `MADV_PAGEOUT`. Unsupported advice or a syscall filter disables further attempts.
 
 On Linux 6.8, five paired idle samples at 180 seconds put the standalone median at 29.9 MB with pageout and 34.5 MB on headroom-2. Anonymous RSS was 11.8 and 11.9 MB respectively. The full builds with their embedded agents measured 101.4 and 101.9 MB.
 
