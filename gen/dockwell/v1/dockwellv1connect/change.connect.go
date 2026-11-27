@@ -90,6 +90,9 @@ const (
 	// ChangeServiceAdoptDriftProcedure is the fully-qualified name of the ChangeService's AdoptDrift
 	// RPC.
 	ChangeServiceAdoptDriftProcedure = "/dockwell.v1.ChangeService/AdoptDrift"
+	// ChangeServiceRetryDeployStatusProcedure is the fully-qualified name of the ChangeService's
+	// RetryDeployStatus RPC.
+	ChangeServiceRetryDeployStatusProcedure = "/dockwell.v1.ChangeService/RetryDeployStatus"
 )
 
 // ChangeServiceClient is a client for the dockwell.v1.ChangeService service.
@@ -230,6 +233,10 @@ type ChangeServiceClient interface {
 	// new revision that matches it. Nothing changes on that server; any other
 	// server the resource runs on is brought to match, and the plan shows it.
 	AdoptDrift(context.Context, *connect.Request[v1.AdoptDriftRequest]) (*connect.Response[v1.AdoptDriftResponse], error)
+	// RetryDeployStatus queues another delivery attempt for the latest CI deploy
+	// status of a change that carries a deploy origin, such as after fixing a
+	// missing GitHub App permission or connecting GitLab (ADR 0111).
+	RetryDeployStatus(context.Context, *connect.Request[v1.RetryDeployStatusRequest]) (*connect.Response[v1.RetryDeployStatusResponse], error)
 }
 
 // NewChangeServiceClient constructs a client for the dockwell.v1.ChangeService service. By default,
@@ -360,6 +367,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("AdoptDrift")),
 			connect.WithClientOptions(opts...),
 		),
+		retryDeployStatus: connect.NewClient[v1.RetryDeployStatusRequest, v1.RetryDeployStatusResponse](
+			httpClient,
+			baseURL+ChangeServiceRetryDeployStatusProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("RetryDeployStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -384,6 +397,7 @@ type changeServiceClient struct {
 	listDrift               *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
 	revertDrift             *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
 	adoptDrift              *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
+	retryDeployStatus       *connect.Client[v1.RetryDeployStatusRequest, v1.RetryDeployStatusResponse]
 }
 
 // ProposeChange calls dockwell.v1.ChangeService.ProposeChange.
@@ -479,6 +493,11 @@ func (c *changeServiceClient) RevertDrift(ctx context.Context, req *connect.Requ
 // AdoptDrift calls dockwell.v1.ChangeService.AdoptDrift.
 func (c *changeServiceClient) AdoptDrift(ctx context.Context, req *connect.Request[v1.AdoptDriftRequest]) (*connect.Response[v1.AdoptDriftResponse], error) {
 	return c.adoptDrift.CallUnary(ctx, req)
+}
+
+// RetryDeployStatus calls dockwell.v1.ChangeService.RetryDeployStatus.
+func (c *changeServiceClient) RetryDeployStatus(ctx context.Context, req *connect.Request[v1.RetryDeployStatusRequest]) (*connect.Response[v1.RetryDeployStatusResponse], error) {
+	return c.retryDeployStatus.CallUnary(ctx, req)
 }
 
 // ChangeServiceHandler is an implementation of the dockwell.v1.ChangeService service.
@@ -619,6 +638,10 @@ type ChangeServiceHandler interface {
 	// new revision that matches it. Nothing changes on that server; any other
 	// server the resource runs on is brought to match, and the plan shows it.
 	AdoptDrift(context.Context, *connect.Request[v1.AdoptDriftRequest]) (*connect.Response[v1.AdoptDriftResponse], error)
+	// RetryDeployStatus queues another delivery attempt for the latest CI deploy
+	// status of a change that carries a deploy origin, such as after fixing a
+	// missing GitHub App permission or connecting GitLab (ADR 0111).
+	RetryDeployStatus(context.Context, *connect.Request[v1.RetryDeployStatusRequest]) (*connect.Response[v1.RetryDeployStatusResponse], error)
 }
 
 // NewChangeServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -745,6 +768,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("AdoptDrift")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServiceRetryDeployStatusHandler := connect.NewUnaryHandler(
+		ChangeServiceRetryDeployStatusProcedure,
+		svc.RetryDeployStatus,
+		connect.WithSchema(changeServiceMethods.ByName("RetryDeployStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ChangeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ChangeServiceProposeChangeProcedure:
@@ -785,6 +814,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServiceRevertDriftHandler.ServeHTTP(w, r)
 		case ChangeServiceAdoptDriftProcedure:
 			changeServiceAdoptDriftHandler.ServeHTTP(w, r)
+		case ChangeServiceRetryDeployStatusProcedure:
+			changeServiceRetryDeployStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -868,4 +899,8 @@ func (UnimplementedChangeServiceHandler) RevertDrift(context.Context, *connect.R
 
 func (UnimplementedChangeServiceHandler) AdoptDrift(context.Context, *connect.Request[v1.AdoptDriftRequest]) (*connect.Response[v1.AdoptDriftResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.AdoptDrift is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) RetryDeployStatus(context.Context, *connect.Request[v1.RetryDeployStatusRequest]) (*connect.Response[v1.RetryDeployStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.RetryDeployStatus is not implemented"))
 }

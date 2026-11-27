@@ -184,6 +184,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           };
         case "task.run":
           return { title: task ? t`Asked to run ${task}` : t`Asked to run a scheduled task`, icon: "clock" };
+        case "ci_status.failed":
+          return {
+            title: name ? t`Couldn't report deploy status for ${name}` : t`Couldn't report deploy status`,
+            icon: "commit",
+            tone: "warning",
+          };
         case "server.join":
           return event.actor?.kind === ActorKind.DOCKWELL
             ? { title: t`${server} joined as the control server`, icon: "server" }

@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -155,6 +156,42 @@ service GitProviderService {
       body: "*"
     };
   }
+
+  // RefreshGitHubApp reads a GitHub App and its installations from GitHub again,
+  // updating cached repositories and accepted permissions such as Checks write.
+  rpc RefreshGitHubApp(RefreshGitHubAppRequest) returns (RefreshGitHubAppResponse) {
+    option (dockwell.v1.command) = {
+      noun: "git-providers"
+      verb: "refresh-github-app"
+    };
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {
+      post: "/v1/git-providers/{id}:refresh"
+      body: "*"
+    };
+  }
+
+  // CheckGitLabConnection checks a GitLab host and access token from the control
+  // plane without saving anything, verifying connectivity and the api scope
+  // required for commit statuses (ADR 0111).
+  rpc CheckGitLabConnection(CheckGitLabConnectionRequest) returns (CheckGitLabConnectionResponse) {
+    option (dockwell.v1.command) = {
+      noun: "git-providers"
+      verb: "check-gitlab"
+    };
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-providers/gitlab:check"
+      body: "*"
+    };
+  }
 }
 
 // StartGitHubAppRequest names the account the App is for, and proves a passkey.
@@ -208,9 +245,10 @@ message AddGitHubInstallationResponse {
 // ListGitProvidersRequest asks for every connected App.
 message ListGitProvidersRequest {}
 
-// ListGitProvidersResponse is every connected App.
+// ListGitProvidersResponse is every connected GitHub App and GitLab connection.
 message ListGitProvidersResponse {
   repeated GitHubAppInfo apps = 1;
+  repeated GitLabConnectionInfo gitlab_connections = 2;
 }
 
 // GitHubAppInfo is a connected GitHub App, as anyone may see it: its key and webhook
@@ -240,6 +278,12 @@ message GitHubAppInfo {
   // names as its base_revision, so it can't put back what another made since.
   // An admin's alone.
   int64 revision = 12;
+  // True when the App or an active installation lacks Checks write permission
+  // needed to report CI deploy status back to pull requests and commits.
+  bool checks_permission_missing = 13;
+  // Where on GitHub the owner grants or accepts the missing permission.
+  // An admin's alone.
+  string permissions_url = 14;
 }
 
 // GitHubDelivery is whether GitHub's deliveries reach the panel, and so whether
@@ -290,6 +334,8 @@ message GitHubInstallation {
   bool every_project = 9;
   // Its settings on GitHub, where repositories are added.
   string settings_url = 10;
+  // True when this installation has not yet granted Checks write permission.
+  bool checks_permission_missing = 11;
 }
 
 // ListGitRepositoriesRequest names a project.
@@ -368,4 +414,59 @@ message RemoveGitHubAppResponse {
   string delete_url = 2;
   // The change that removes it.
   string change_id = 3;
+}
+
+// RefreshGitHubAppRequest names a GitHub App to refresh from GitHub.
+message RefreshGitHubAppRequest {
+  // The App, by ID or name.
+  string id = 1;
+}
+
+// RefreshGitHubAppResponse carries the refreshed GitHub App view.
+message RefreshGitHubAppResponse {
+  GitHubAppInfo app = 1;
+}
+
+// GitLabConnectionState says how a GitLab connection checked out.
+enum GitLabConnectionState {
+  GIT_LAB_CONNECTION_STATE_UNSPECIFIED = 0;
+  GIT_LAB_CONNECTION_STATE_UNKNOWN = 1;
+  GIT_LAB_CONNECTION_STATE_CONNECTED = 2;
+  GIT_LAB_CONNECTION_STATE_MISSING_SCOPE = 3;
+  GIT_LAB_CONNECTION_STATE_AUTH_FAILED = 4;
+  GIT_LAB_CONNECTION_STATE_UNREACHABLE = 5;
+}
+
+// GitLabConnectionInfo is a connected GitLab instance without its token.
+message GitLabConnectionInfo {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  string path_prefix = 4;
+  repeated string projects = 5;
+  bool every_project = 6;
+  int64 revision = 7;
+  GitLabConnectionState state = 8;
+  string detail = 9;
+  google.protobuf.Timestamp checked_time = 10;
+}
+
+// CheckGitLabConnectionRequest checks a typed or saved GitLab connection.
+message CheckGitLabConnectionRequest {
+  // Optional saved gitlab.connection name whose token is reused when token is empty.
+  string name = 1;
+  string url = 2 [(dockwell.v1.flag) = "gitlab-url"];
+  string token = 3 [
+    (dockwell.resource.v1alpha1.sensitive) = true,
+    (dockwell.v1.flag) = "gitlab-token"
+  ];
+}
+
+// CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
+message CheckGitLabConnectionResponse {
+  GitLabConnectionState state = 1;
+  string detail = 2;
+  string url = 3;
+  string token_name = 4;
+  repeated string scopes = 5;
 }

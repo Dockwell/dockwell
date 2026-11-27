@@ -603,6 +603,11 @@ func main() {
 	if addr := os.Getenv("FAKEDOCKER_GITHUB"); addr != "" {
 		serveGitHub(addr)
 	}
+	// GitLab's API, for the control plane to verify connections and report CI
+	// deploy commit statuses, where a test names one (DOCKWELL_TEST_GITLAB, ADR 0111).
+	if addr := os.Getenv("FAKEDOCKER_GITLAB"); addr != "" {
+		serveGitLab(addr)
+	}
 	e.BindError = func(source string) string {
 		if strings.HasPrefix(source, "/readonly") {
 			return "mkdir " + source + ": read-only file system"

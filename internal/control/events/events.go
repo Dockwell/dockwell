@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/cistatus"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/domains"
@@ -121,8 +122,9 @@ var (
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites, jailActions)
 	healthActions = []string{health.Action, publish.ActionGone, publish.ActionReplaced, publish.ActionKept}
-	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104).
-	changeActions = []string{publish.ActionWrite}
+	// What a change wrote at Cloudflare is on its record, beside its steps (ADR 0104),
+	// and a CI status delivery failure is on the timeline alongside it (ADR 0111).
+	changeActions = []string{publish.ActionWrite, cistatus.ActionFailed}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	// Shared terminal commands live in settings too and are audited there (ADR 0108).
 	settingsActions = slices.Concat(settings.Actions, terminals.CommandActions)
@@ -780,6 +782,11 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 				e.Health.Since = timestamppb.New(*told.Since)
 			}
 		}
+		return e
+	}
+	if a.Action == cistatus.ActionFailed {
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_CHANGE
+		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 		return e
 	}
 	if cf, ok := publish.ReadEvent(a); ok {

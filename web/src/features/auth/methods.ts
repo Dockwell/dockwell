@@ -143,6 +143,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ChangeService.planHostToolbox": { within: "ServerService.getHostToolbox" },
   "ChangeService.planSystemServiceAction": "may",
   "ChangeService.restartService": "may",
+  "ChangeService.retryDeployStatus": "may",
   "ChangeService.revertDrift": "unused",
   "ChangeService.undoChange": "may",
   "ChangeService.watchChange": "read",
@@ -267,9 +268,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   // GitHub sends the browser back to these once the connect sheet, which asks, posted to it.
   "GitProviderService.addGitHubInstallation": { within: "GitProviderService.startGitHubApp" },
+  "GitProviderService.checkGitLabConnection": "may",
   "GitProviderService.finishGitHubApp": { within: "GitProviderService.startGitHubApp" },
   "GitProviderService.listGitProviders": "may",
   "GitProviderService.listGitRepositories": "may",
+  "GitProviderService.refreshGitHubApp": "may",
   "GitProviderService.removeGitHubApp": "may",
   "GitProviderService.replaceGitHubPrivateKey": "may",
   "GitProviderService.rotateGitHubWebhookSecret": "may",

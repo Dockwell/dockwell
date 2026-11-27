@@ -9,6 +9,8 @@ import {
   type GitHubAppInfo,
   GitHubAppInfoSchema,
   GitHubDelivery_State,
+  GitLabConnectionInfoSchema,
+  GitLabConnectionState,
   type ProposeChangeRequest,
   type WatchChangeResponse,
 } from "@dockwell/api";
@@ -76,7 +78,7 @@ describe("GitHub in Integrations", () => {
     const { container } = renderAt("/settings/integrations", api([], { gitProviders: { startGitHubApp: started } }));
     const card = await screen.findByRole("article", { name: "GitHub" });
     expect(card).toHaveTextContent("Not connected");
-    expect(card).toHaveTextContent("Private repositories, and deploy on push");
+    expect(card).toHaveTextContent("Private repositories, deploy on push, and PR status");
     // What comes later is a line, never a card to connect.
     expect(screen.getByText("Cloud providers come later.")).toBeVisible();
     await user.click(within(card).getByRole("button", { name: "Connect" }));
@@ -375,5 +377,101 @@ describe("Back from GitHub", () => {
     );
     expect(await screen.findByText("The organization's owner approves it first")).toBeVisible();
     expect(added).not.toHaveBeenCalled();
+  });
+
+  it("flags missing Checks permission on the GitHub card and refreshes via Check again", async () => {
+    const user = userEvent.setup();
+    let missing = true;
+    const refreshed = vi.fn(() => {
+      missing = false;
+      return { app: acme({ checksPermissionMissing: false }) };
+    });
+    renderAt(
+      "/settings/integrations",
+      api([], {
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [
+              acme({
+                checksPermissionMissing: missing,
+                permissionsUrl: "https://github.com/organizations/acme/settings/apps/dockwell-deploy/permissions",
+              }),
+            ],
+          }),
+          refreshGitHubApp: refreshed,
+        },
+      }),
+    );
+    const card = await screen.findByRole("article", { name: "GitHub" });
+    expect(card).toHaveTextContent("Missing Checks");
+    expect(within(card).getByRole("link", { name: "Update permissions on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/organizations/acme/settings/apps/dockwell-deploy/permissions",
+    );
+    await user.click(within(card).getByRole("button", { name: "Check again" }));
+    await waitFor(() =>
+      expect(refreshed).toHaveBeenCalledWith(expect.objectContaining({ id: "gha_1" }), expect.anything()),
+    );
+    await waitFor(() => expect(card).toHaveTextContent("Connected"));
+  });
+
+  it("connects a GitLab instance with live token check and proposes a gitlab.connection edit", async () => {
+    const user = userEvent.setup();
+    const checked = vi.fn(() => ({
+      state: GitLabConnectionState.CONNECTED,
+      url: "https://gitlab.example.com",
+      tokenName: "dockwell-ci",
+      scopes: ["api"],
+    }));
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return {
+        change: create(ChangeSchema, { id: "chg_gl", state: ChangeState.PLANNED, plan: { fingerprint: "gl1" } }),
+      };
+    });
+    const existing = create(GitLabConnectionInfoSchema, {
+      id: "glc_1",
+      name: "team-gitlab",
+      url: "https://gitlab.example.com",
+      pathPrefix: "acme",
+      everyProject: true,
+      state: GitLabConnectionState.CONNECTED,
+      revision: 1n,
+    });
+    const { unmount } = renderAt(
+      "/settings/integrations",
+      api([], {
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+        gitProviders: { checkGitLabConnection: checked },
+      }),
+    );
+    const card = await screen.findByRole("article", { name: "GitLab" });
+    await user.click(within(card).getByRole("button", { name: "Connect" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connect GitLab" });
+    await user.clear(within(sheet).getByLabelText("Name"));
+    await user.type(within(sheet).getByLabelText("Name"), "self-managed");
+    await user.clear(within(sheet).getByLabelText("GitLab URL"));
+    await user.type(within(sheet).getByLabelText("GitLab URL"), "https://gitlab.example.com");
+    await user.type(within(sheet).getByLabelText("Access token"), "glpat-test-token");
+    await user.click(within(sheet).getByRole("button", { name: "Check connection" }));
+    expect(await within(sheet).findByText("Connected to GitLab")).toBeVisible();
+    expect(checked).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "https://gitlab.example.com", token: "glpat-test-token" }),
+      expect.anything(),
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource).toMatchObject({ kind: "gitlab.connection", name: "self-managed" });
+    expect(edit?.spec?.kind.case).toBe("gitlabConnection");
+
+    unmount();
+    renderAt(
+      "/settings/integrations",
+      api([], { gitProviders: { listGitProviders: () => ({ apps: [], gitlabConnections: [existing] }) } }),
+    );
+    const saved = await screen.findByRole("article", { name: "GitLab team-gitlab" });
+    expect(saved).toHaveTextContent("gitlab.example.com/acme");
+    expect(saved).toHaveTextContent("Connected");
   });
 });

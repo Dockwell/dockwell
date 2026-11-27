@@ -1001,6 +1001,12 @@ msgstr "Couldn't open {path} on {server}"
 msgid "Couldn't put back {path} on {server}"
 msgstr "Couldn't put back {path} on {server}"
 
+msgid "Couldn't report deploy status"
+msgstr "Couldn't report deploy status"
+
+msgid "Couldn't report deploy status for {name}"
+msgstr "Couldn't report deploy status for {name}"
+
 msgid "Couldn't save {path} on {server}"
 msgstr "Couldn't save {path} on {server}"
 
@@ -11177,8 +11183,29 @@ msgstr "{name}'s agent isn't connected, so it puts back its firewall when its ti
 msgid "CI run"
 msgstr "CI run"
 
+msgid "Couldn't report deploy status."
+msgstr "Couldn't report deploy status."
+
 msgid "From {link} on {shortRef}"
 msgstr "From {link} on {shortRef}"
+
+msgid "Reported to {providerLabel}"
+msgstr "Reported to {providerLabel}"
+
+msgid "Reporting status"
+msgstr "Reporting status"
+
+msgid "Reporting to {providerLabel}"
+msgstr "Reporting to {providerLabel}"
+
+msgid "Retrying status"
+msgstr "Retrying status"
+
+msgid "Retrying status on {providerLabel}"
+msgstr "Retrying status on {providerLabel}"
+
+msgid "Status reported"
+msgstr "Status reported"
 
 msgid "Checking download access"
 msgstr "Checking download access"
@@ -24081,8 +24108,8 @@ msgstr "What this install is called, its time zone and how its panel is served Â
 msgid "Your tunnel or proxy, which ends TLS and sends it here"
 msgstr "Your tunnel or proxy, which ends TLS and sends it here"
 
-msgid "1 app"
-msgstr "1 app"
+msgid "1 connection"
+msgstr "1 connection"
 
 msgid "An organization"
 msgstr "An organization"
@@ -24093,6 +24120,9 @@ msgstr "As a GitHub App Dockwell makes, which you install on the repositories yo
 msgid "Connect GitHub"
 msgstr "Connect GitHub"
 
+msgid "Connect GitLab"
+msgstr "Connect GitLab"
+
 msgid "Create on GitHub"
 msgstr "Create on GitHub"
 
@@ -24102,8 +24132,8 @@ msgstr "Delete it on GitHub"
 msgid "Deleted on GitHub"
 msgstr "Deleted on GitHub"
 
-msgid "Dockwell can't list its GitHub Apps"
-msgstr "Dockwell can't list its GitHub Apps"
+msgid "Dockwell can't list its Git providers"
+msgstr "Dockwell can't list its Git providers"
 
 msgid "Dockwell uninstalled it from 1 account and forgot its key."
 msgstr "Dockwell uninstalled it from 1 account and forgot its key."
@@ -24127,14 +24157,20 @@ msgstr "GitHub isn't connected"
 msgid "GitHub keeps the App until you delete it there"
 msgstr "GitHub keeps the App until you delete it there"
 
+msgid "Grant Checks (read and write) to report CI deploy status."
+msgstr "Grant Checks (read and write) to report CI deploy status."
+
 msgid "Install on GitHub"
 msgstr "Install on GitHub"
 
 msgid "Its repositories need an App it owns."
 msgstr "Its repositories need an App it owns."
 
-msgid "Loading GitHub Apps"
-msgstr "Loading GitHub Apps"
+msgid "Loading Git providers"
+msgstr "Loading Git providers"
+
+msgid "Missing Checks"
+msgstr "Missing Checks"
 
 msgid "New webhook secret"
 msgstr "New webhook secret"
@@ -24145,8 +24181,8 @@ msgstr "Organization"
 msgid "Owned by"
 msgstr "Owned by"
 
-msgid "Private repositories, and deploy on push"
-msgstr "Private repositories, and deploy on push"
+msgid "Private repositories, deploy on push, and PR status"
+msgstr "Private repositories, deploy on push, and PR status"
 
 msgid "The GitHub App isn't installed on an account yet."
 msgstr "The GitHub App isn't installed on an account yet."
@@ -24154,14 +24190,20 @@ msgstr "The GitHub App isn't installed on an account yet."
 msgid "The webhook secret didn't change."
 msgstr "The webhook secret didn't change."
 
-msgid "{live} apps"
-msgstr "{live} apps"
+msgid "Update permissions on GitHub"
+msgstr "Update permissions on GitHub"
+
+msgid "{live} connections"
+msgstr "{live} connections"
 
 msgid "1 repository"
 msgstr "1 repository"
 
 msgid "Apps that build through it can't fetch their private repository until it's connected again."
 msgstr "Apps that build through it can't fetch their private repository until it's connected again."
+
+msgid "Couldn't check permissions on GitHub"
+msgstr "Couldn't check permissions on GitHub"
 
 #. placeholder {0}: newKey.oldFingerprint
 msgid "Delete the old one on GitHub: <0>{0}</0>"
@@ -24180,6 +24222,9 @@ msgstr "GitHub App {0}"
 msgid "GitHub has the new webhook secret"
 msgstr "GitHub has the new webhook secret"
 
+msgid "Grant Checks (read and write) on GitHub so Dockwell can report CI deploy status on commits and pull requests."
+msgstr "Grant Checks (read and write) on GitHub so Dockwell can report CI deploy status on commits and pull requests."
+
 msgid "Install on another account"
 msgstr "Install on another account"
 
@@ -24193,6 +24238,9 @@ msgstr "Let every project build through {0}"
 #. placeholder {0}: i.account
 msgid "Let only some projects build through {0}"
 msgstr "Let only some projects build through {0}"
+
+msgid "Missing Checks permission"
+msgstr "Missing Checks permission"
 
 msgid "New private key"
 msgstr "New private key"
@@ -24250,9 +24298,9 @@ msgstr "Webhook secret"
 msgid "every repository"
 msgstr "every repository"
 
+#. placeholder {0}: connection.projects.length
 #. placeholder {0}: i.projects.length
 #. placeholder {0}: l.projects.length
-#. placeholder {0}: p.projects.length
 msgid "{0} projects"
 msgstr "{0} projects"
 
@@ -24289,6 +24337,92 @@ msgstr "Keeping the App GitHub made"
 
 msgid "The organization's owner approves it first"
 msgstr "The organization's owner approves it first"
+
+msgid "Check connection"
+msgstr "Check connection"
+
+msgid "Commit statuses for GitLab CI deploys"
+msgstr "Commit statuses for GitLab CI deploys"
+
+msgid "Connect GitLab {trimmedName}"
+msgstr "Connect GitLab {trimmedName}"
+
+msgid "Connected to GitLab"
+msgstr "Connected to GitLab"
+
+msgid "Connection check failed"
+msgstr "Connection check failed"
+
+msgid "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
+msgstr "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
+
+msgid "Enter a token for the new GitLab URL. Needs the api scope."
+msgstr "Enter a token for the new GitLab URL. Needs the api scope."
+
+msgid "GitLab URL"
+msgstr "GitLab URL"
+
+#. placeholder {0}: editing.name
+msgid "GitLab connection {0}"
+msgstr "GitLab connection {0}"
+
+msgid "Leave blank to keep the saved token"
+msgstr "Leave blank to keep the saved token"
+
+msgid "Leave blank to match every repository on this GitLab host."
+msgstr "Leave blank to match every repository on this GitLab host."
+
+msgid "Limit which projects' deploys can report statuses through this connection."
+msgstr "Limit which projects' deploys can report statuses through this connection."
+
+msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
+msgstr "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
+
+msgid "Missing api scope"
+msgstr "Missing api scope"
+
+msgid "Optional, such as acme or acme/platform"
+msgstr "Optional, such as acme or acme/platform"
+
+msgid "Path prefix"
+msgstr "Path prefix"
+
+msgid "Personal, group or project access token with the api scope."
+msgstr "Personal, group or project access token with the api scope."
+
+#. placeholder {0}: editing.name
+msgid "Remove the GitLab connection {0}"
+msgstr "Remove the GitLab connection {0}"
+
+msgid "Remove this GitLab connection?"
+msgstr "Remove this GitLab connection?"
+
+msgid "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
+msgstr "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
+
+msgid "Review removal"
+msgstr "Review removal"
+
+#. placeholder {0}: checked.url
+msgid "This token can post commit statuses to {0}."
+msgstr "This token can post commit statuses to {0}."
+
+msgid "Token refused"
+msgstr "Token refused"
+
+#. placeholder {0}: checked.tokenName
+#. placeholder {1}: checked.url
+msgid "Token {0} can post commit statuses to {1}."
+msgstr "Token {0} can post commit statuses to {1}."
+
+msgid "Unreachable"
+msgstr "Unreachable"
+
+msgid "Update the GitLab connection {trimmedName}"
+msgstr "Update the GitLab connection {trimmedName}"
+
+msgid "Use https://gitlab.com or your self-managed instance base URL."
+msgstr "Use https://gitlab.com or your self-managed instance base URL."
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -25631,9 +25765,6 @@ msgstr "The control plane is running"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
-
-msgid "Unreachable"
-msgstr "Unreachable"
 
 msgid "At minute"
 msgstr "At minute"
@@ -27597,9 +27728,6 @@ msgstr "New password (optional)"
 
 msgid "One origin per line, or * for any origin."
 msgstr "One origin per line, or * for any origin."
-
-msgid "Path prefix"
-msgstr "Path prefix"
 
 msgid "Permanent (301)"
 msgstr "Permanent (301)"

@@ -386,6 +386,24 @@ service ChangeService {
       body: "*"
     };
   }
+
+  // RetryDeployStatus queues another delivery attempt for the latest CI deploy
+  // status of a change that carries a deploy origin, such as after fixing a
+  // missing GitHub App permission or connecting GitLab (ADR 0111).
+  rpc RetryDeployStatus(RetryDeployStatusRequest) returns (RetryDeployStatusResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "changes"
+      verb: "retry-deploy-status"
+    };
+    option (google.api.http) = {
+      post: "/v1/changes/{id}:retryDeployStatus"
+      body: "*"
+    };
+  }
 }
 
 // ProposeChangeRequest is a set of edits to plan together.
@@ -1235,6 +1253,8 @@ message Change {
   bool discards = 24;
   // Source and immutable image of an external CI deploy, if supplied.
   DeployOrigin deploy_origin = 25;
+  // Latest delivery status of reporting this CI deploy back to its Git host.
+  DeployStatus deploy_status = 26;
   // What the change waits for, while a change to a server's firewall waits
   // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
   // open work adds to this message.
@@ -1278,6 +1298,61 @@ enum DeployProvider {
   DEPLOY_PROVIDER_GITHUB_ACTIONS = 1;
   DEPLOY_PROVIDER_GITLAB_CI = 2;
   DEPLOY_PROVIDER_OTHER = 3;
+}
+
+// RetryDeployStatusRequest names a CI deploy change whose latest status should
+// be reported to its Git provider again.
+message RetryDeployStatusRequest {
+  // The change's ID.
+  string id = 1;
+}
+
+// RetryDeployStatusResponse carries the updated change.
+message RetryDeployStatusResponse {
+  Change change = 1;
+}
+
+// DeployStatusState is how reporting a CI deploy's status to its Git host stands.
+enum DeployStatusState {
+  DEPLOY_STATUS_STATE_UNSPECIFIED = 0;
+  // Queued for delivery or waiting for the next retry attempt.
+  DEPLOY_STATUS_STATE_PENDING = 1;
+  // Delivered to GitHub or GitLab.
+  DEPLOY_STATUS_STATE_DELIVERED = 2;
+  // Not reported because no matching integration reaches the repository.
+  DEPLOY_STATUS_STATE_SKIPPED = 3;
+  // Reporting failed due to missing permissions, auth refusal or exhausted retries.
+  DEPLOY_STATUS_STATE_FAILED = 4;
+}
+
+// DeployStatusTransition is the deploy lifecycle state being reported.
+enum DeployStatusTransition {
+  DEPLOY_STATUS_TRANSITION_UNSPECIFIED = 0;
+  DEPLOY_STATUS_TRANSITION_QUEUED = 1;
+  DEPLOY_STATUS_TRANSITION_APPLYING = 2;
+  DEPLOY_STATUS_TRANSITION_HEALTHY = 3;
+  DEPLOY_STATUS_TRANSITION_FAILED = 4;
+  DEPLOY_STATUS_TRANSITION_ROLLED_BACK = 5;
+}
+
+// DeployStatus records how Dockwell reported a CI deploy back to its Git provider.
+message DeployStatus {
+  DeployStatusState state = 1;
+  DeployStatusTransition transition = 2;
+  int32 transition_number = 3;
+  DeployProvider provider = 4;
+  // Provider's remote check run or commit status ID once created.
+  string remote_id = 5;
+  // HTTPS link to the check run or commit status on the provider.
+  string remote_url = 6;
+  int32 attempts = 7;
+  // One-line reason why the status could not be reported or is retrying.
+  string error = 8;
+  google.protobuf.Timestamp next_attempt_time = 9;
+  google.protobuf.Timestamp deliver_time = 10;
+  google.protobuf.Timestamp update_time = 11;
+  // True when retrying delivery may succeed after fixing permissions or connectivity.
+  bool can_retry = 12;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for

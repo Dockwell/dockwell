@@ -55,4 +55,12 @@ Rerunning a job with the same service, digest and commit follows an active chang
 | 6 | Rolled back |
 | 7 | Discarded |
 
+## Status back to GitHub and GitLab
+
+Dockwell reports each CI deploy's state (`queued`, `applying`, `healthy`, `failed`, or `rolled_back`) back to the source commit with a link to the change in the panel.
+
+- **GitHub:** Uses the connected GitHub App in **Settings -> Integrations** to create and update a Check Run named `Dockwell / <app>`. The App needs the `Checks` (read and write) permission and an installation reaching the repository and project. If the permission is missing, **Settings -> Integrations** shows a direct link to update it on GitHub and a **Check again** button.
+- **GitLab:** Uses a GitLab connection in **Settings -> Integrations** (for `gitlab.com` or a self-managed HTTPS instance) with an access token carrying the `api` scope.
+- **Retries:** Delivery runs through a durable outbox with exponential backoff and survives control-plane restarts. Deployments and Activity show the provider link once delivered, or a one-line reason with a **Retry** button when skipped or failed.
+
 See [ADR 0111](adr/0111-ci-deploys-of-prebuilt-images.md) and [verify a Dockwell release](releasing.md#verify-a-release).

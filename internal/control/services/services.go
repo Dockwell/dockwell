@@ -159,6 +159,13 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
+		var ciStatuses map[string]store.CIStatusEntry
+		if len(ciOrigins) > 0 {
+			ciStatuses, err = tx.CIStatusLatest(ctx, changeIDs)
+			if err != nil {
+				return err
+			}
+		}
 		specs := make([]store.StoredSpec, len(list))
 		for i := range list {
 			specs[i] = store.StoredSpec{At: store.InRevision(list[i].ID, list[i].Kind, list[i].Revision), Spec: list[i].Spec}
@@ -219,8 +226,13 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				return err
 			}
 			if origin := ciOrigins[r.ChangeID]; origin.Service == r.ID {
+				var statusProto *dockwellv1.DeployStatus
+				if st, ok := ciStatuses[r.ChangeID]; ok {
+					statusProto = changes.CIDeployStatusProto(&st)
+				}
 				for _, deployment := range info.Deployments {
 					deployment.DeployOrigin = changes.CIDeployOriginProto(origin)
+					deployment.DeployStatus = statusProto
 				}
 			}
 			c := origins[r.ChangeID]
@@ -379,6 +391,7 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			if c := rev.Change; c != nil && r.Record != nil && r.Record.CIOrigin.Service == target.ID {
 				for _, deployment := range rev.Deployments {
 					deployment.DeployOrigin = c.DeployOrigin
+					deployment.DeployStatus = c.DeployStatus
 				}
 			}
 			if rev.ServersAdded, err = names.names(ctx, r.ServersAdded); err != nil {

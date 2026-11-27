@@ -42,6 +42,7 @@
   "change.discarded",
   "change.failed",
   "change.planned",
+  "ci_status.failed",
   "claim_link.create",
   "cloudflare.gone",
   "cloudflare.kept",

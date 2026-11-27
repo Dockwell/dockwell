@@ -182,14 +182,15 @@ func clip(s string) string {
 
 // Conversion is what GitHub gives for a manifest's code, once: the App it made.
 type Conversion struct {
-	ID            int64  `json:"id"`
-	Slug          string `json:"slug"`
-	Name          string `json:"name"`
-	ClientID      string `json:"client_id"`
-	WebhookSecret string `json:"webhook_secret"`
-	PEM           string `json:"pem"`
-	HTMLURL       string `json:"html_url"`
-	Owner         Owner  `json:"owner"`
+	ID            int64             `json:"id"`
+	Slug          string            `json:"slug"`
+	Name          string            `json:"name"`
+	ClientID      string            `json:"client_id"`
+	WebhookSecret string            `json:"webhook_secret"`
+	PEM           string            `json:"pem"`
+	HTMLURL       string            `json:"html_url"`
+	Owner         Owner             `json:"owner"`
+	Permissions   map[string]string `json:"permissions"`
 }
 
 // Owner is who an App, or an installation, belongs to.
@@ -283,9 +284,10 @@ type Installation struct {
 	AppID   int64 `json:"app_id"`
 	Account Owner `json:"account"`
 	// Selection is "all", every repository the account has, or "selected".
-	Selection string     `json:"repository_selection"`
-	Suspended *time.Time `json:"suspended_at"`
-	HTMLURL   string     `json:"html_url"`
+	Selection   string            `json:"repository_selection"`
+	Permissions map[string]string `json:"permissions"`
+	Suspended   *time.Time        `json:"suspended_at"`
+	HTMLURL     string            `json:"html_url"`
 }
 
 // Installation is the App's installation id, which says it is the App's: GitHub
@@ -320,15 +322,29 @@ const (
 	Contents Permission = "contents"
 	// Metadata lists repositories.
 	Metadata Permission = "metadata"
+	// Checks writes CI deploy check runs on commits and pull requests (ADR 0111).
+	Checks Permission = "checks"
 )
 
 // Token is a token for installation, narrowed to repositories by ID and to reading
 // what perms names. It's kept in memory until 10 minutes before it ends, for the
 // same question, and asked for again after. None is ever written down.
 func (a *App) Token(ctx context.Context, installation int64, repositories []int64, perms ...Permission) (string, error) {
+	asked := make(map[Permission]string, len(perms))
+	for _, p := range perms {
+		asked[p] = "read"
+	}
+	return a.TokenWith(ctx, installation, repositories, asked)
+}
+
+// TokenWith is Token with explicit permission levels (such as checks: write).
+func (a *App) TokenWith(ctx context.Context, installation int64, repositories []int64, perms map[Permission]string) (string, error) {
 	repos := slices.Clone(repositories)
 	slices.Sort(repos)
-	ps := slices.Clone(perms)
+	ps := make([]string, 0, len(perms))
+	for p, level := range perms {
+		ps = append(ps, string(p)+":"+level)
+	}
 	slices.Sort(ps)
 	key := fmt.Sprint(installation, repos, ps)
 	now := a.now()
@@ -342,10 +358,10 @@ func (a *App) Token(ctx context.Context, installation int64, repositories []int6
 	if len(repos) > 0 {
 		body["repository_ids"] = repos
 	}
-	if len(ps) > 0 {
-		asked := map[string]string{}
-		for _, p := range ps {
-			asked[string(p)] = "read"
+	if len(perms) > 0 {
+		asked := make(map[string]string, len(perms))
+		for p, level := range perms {
+			asked[string(p)] = level
 		}
 		body["permissions"] = asked
 	}

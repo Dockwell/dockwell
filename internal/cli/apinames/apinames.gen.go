@@ -59,6 +59,7 @@ func Commands() []string {
 		"git-providers",
 		"git-repositories",
 		"github-apps",
+		"gitlab-connections",
 		"health",
 		"images",
 		"import",

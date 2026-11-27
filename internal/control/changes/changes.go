@@ -82,6 +82,8 @@ type Handler struct {
 	Address func(ctx context.Context, edits []revision.Edit) ([]revision.Edit, []revision.Note, error)
 	// DiscardDockerArchives releases staging for a discarded Docker archive action.
 	DiscardDockerArchives func(context.Context, *dockwellv1.Change)
+	// RetryCIStatus requeues the latest CI deploy status transition for delivery.
+	RetryCIStatus func(ctx context.Context, changeID string) error
 }
 
 // GitLogins checks a build's git login, as a plan is made: one named must reach
@@ -1172,6 +1174,39 @@ func (h *Handler) ExistingCIDeploy(ctx context.Context, changeID string) (*dockw
 	return h.change(ctx, changeID)
 }
 
+// RetryDeployStatus requeues reporting a CI deploy's latest status back to its
+// Git provider.
+func (h *Handler) RetryDeployStatus(ctx context.Context, req *connect.Request[dockwellv1.RetryDeployStatusRequest]) (*connect.Response[dockwellv1.RetryDeployStatusResponse], error) {
+	_, p, err := by(ctx)
+	if err != nil {
+		return nil, err
+	}
+	r, err := h.engine.Change(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if err := h.checkDeployToken(ctx, p, r); err != nil {
+		return nil, err
+	}
+	if r.CIOrigin.Service == "" {
+		return nil, authapi.Invalid(errors.New("this change isn't a CI deploy, so it has no Git provider status to report"))
+	}
+	if h.RetryCIStatus == nil {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("CI deploy status reporting isn't configured on this control plane"), "not_configured")
+	}
+	if err := h.RetryCIStatus(ctx, r.ID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, authapi.ReasonError(connect.CodeNotFound, errors.New("no CI deploy status is recorded for this change"), "not_found")
+		}
+		return nil, h.rpcError(ctx, err)
+	}
+	c, err := h.change(ctx, r.ID)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RetryDeployStatusResponse{Change: c}), nil
+}
+
 func (h *Handler) checkDeployToken(ctx context.Context, p auth.Principal, r *revision.Record) error {
 	if p.Token == nil || p.Token.DeployService == "" {
 		return nil
@@ -1681,6 +1716,7 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback), Because: r.Brief.Because, Restart: r.Brief.Restart,
 	}
 	c.DeployOrigin = CIDeployOriginProto(r.CIOrigin)
+	c.DeployStatus = CIDeployStatusProto(r.CIStatus)
 	if !r.AppliedAt.IsZero() {
 		c.ApplyTime = timestamppb.New(r.AppliedAt)
 	}
@@ -1703,6 +1739,55 @@ func CIDeployOriginProto(o store.CIDeployOrigin) *dockwellv1.DeployOrigin {
 		Provider: dockwellv1.DeployProvider(o.Provider), Repository: o.Repository, Commit: o.Commit,
 		Ref: o.Ref, RunUrl: o.RunURL, CommitUrl: o.CommitURL, Image: o.Image, Digest: o.Digest,
 	}
+}
+
+var ciStatusStates = map[string]dockwellv1.DeployStatusState{
+	store.CIStatusDeliveryPending:    dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_PENDING,
+	store.CIStatusDeliveryDelivered:  dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED,
+	store.CIStatusDeliverySkipped:    dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_SKIPPED,
+	store.CIStatusDeliveryFailed:     dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_FAILED,
+	store.CIStatusDeliverySuperseded: dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED,
+}
+
+var ciStatusTransitions = map[string]dockwellv1.DeployStatusTransition{
+	store.CIStatusQueued:     dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_QUEUED,
+	store.CIStatusApplying:   dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_APPLYING,
+	store.CIStatusHealthy:    dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_HEALTHY,
+	store.CIStatusFailed:     dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_FAILED,
+	store.CIStatusRolledBack: dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_ROLLED_BACK,
+}
+
+// CIDeployStatusProto converts the latest durable CI status outbox entry for
+// display on a change or deployment.
+func CIDeployStatusProto(e *store.CIStatusEntry) *dockwellv1.DeployStatus {
+	if e == nil || e.ID == "" {
+		return nil
+	}
+	provider := dockwellv1.DeployProvider(e.Provider)
+	state := ciStatusStates[e.DeliveryState]
+	canRetry := (provider == dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS || provider == dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI) &&
+		(state == dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_FAILED || state == dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_SKIPPED)
+	out := &dockwellv1.DeployStatus{
+		Provider:         provider,
+		State:            state,
+		Transition:       ciStatusTransitions[e.State],
+		TransitionNumber: int32(min(e.Transition, math.MaxInt32)), //nolint:gosec // small monotonic counter
+		RemoteId:         e.RemoteID,
+		RemoteUrl:        e.RemoteURL,
+		Error:            e.LastError,
+		Attempts:         int32(min(e.Attempts, math.MaxInt32)), //nolint:gosec // small count
+		CanRetry:         canRetry,
+	}
+	if !e.UpdatedAt.IsZero() {
+		out.UpdateTime = timestamppb.New(e.UpdatedAt)
+	}
+	if e.DeliveredAt != nil && !e.DeliveredAt.IsZero() {
+		out.DeliverTime = timestamppb.New(*e.DeliveredAt)
+	}
+	if state == dockwellv1.DeployStatusState_DEPLOY_STATUS_STATE_PENDING && !e.NextAttemptAt.IsZero() {
+		out.NextAttemptTime = timestamppb.New(e.NextAttemptAt)
+	}
+	return out
 }
 
 // confirmationOf is what a change waits for: the confirmation one of its

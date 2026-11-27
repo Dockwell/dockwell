@@ -2061,6 +2061,9 @@ message Spec {
     // A GitHub App Dockwell made, kind "github.app" (ADR 0098). Numbered in the
     // block Git providers hold, 130 to 139.
     GitHubApp github_app = 130;
+    // A GitLab connection for CI commit statuses, kind "gitlab.connection"
+    // (ADR 0111). Numbered in the block Git providers hold, 130 to 139.
+    GitLabConnection gitlab_connection = 131;
   }
 }
 
@@ -2362,6 +2365,25 @@ message GitHubInstallationReach {
   int64 installation_id = 1;
   // The projects, by ID. Empty is none.
   repeated string projects = 2;
+}
+
+// GitLabConnection is a GitLab host and access token used by the control plane
+// to report CI deploy commit statuses, kind "gitlab.connection" (ADR 0111). It
+// lives in the organization: an admin saves it as a change, with a plan, and
+// may narrow it to named projects. Its token stays on the control plane.
+message GitLabConnection {
+  // Base HTTPS URL of the GitLab instance, such as "https://gitlab.com" or
+  // "https://gitlab.example.com". No user, query or fragment.
+  string instance_url = 1;
+  // Project, group or personal access token with api scope for commit statuses.
+  // Leave out of an update to keep the saved token while instance_url stays the same.
+  string token = 2 [(sensitive) = true];
+  // Optional group or project path prefix on this host, such as "acme" or
+  // "acme/web". Empty matches any repository on this host.
+  string path_prefix = 3;
+  // Projects whose apps may report through this connection, by ID. Empty for
+  // every project.
+  repeated string projects = 4;
 }
 
 // Task is work that runs on a schedule, on each server it's placed on, kind "task"

@@ -64,6 +64,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
+	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
 	serverhost "github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -494,6 +495,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		CatalogFollow: !isSet(stdio.Getenv(envTest)),
 		DNSAPI:        dnsAPI(stdio.Getenv, logger),
 		GitHub:        gitHub(stdio.Getenv, logger),
+		GitLab:        gitLab(stdio.Getenv, logger),
 		// Certificates by DNS come from the panel's CA, and a test with none of its
 		// own gets none (ADR 0088).
 		CertificateCA:          f.acmeDirector,
@@ -708,7 +710,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string, saved func() string) *resource.Registry {
-	return resource.NewRegistry(&dockerdaemon.Driver{}, &container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, link.Type{}, appowner.Type{}, &database.UserDriver{}, &database.LogicalDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
+	return resource.NewRegistry(&dockerdaemon.Driver{}, &container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, gitlabconnection.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, link.Type{}, appowner.Type{}, &database.UserDriver{}, &database.LogicalDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,
@@ -1185,6 +1187,22 @@ func gitHub(getenv func(string) string, logger *slog.Logger) control.GitHubConfi
 	}
 	logger.Info("this is a test, so the control plane reaches the stand-in for GitHub that "+envTestGitHub+" names, and not GitHub", "stand_in", base)
 	return control.GitHubConfig{API: base, Web: base, Client: &http.Client{Timeout: 15 * time.Second}}
+}
+
+// envTestGitLab names, in a test, a stand-in for GitLab's API so tests never
+// touch the network (ADR 0111).
+const envTestGitLab = "DOCKWELL_TEST_GITLAB"
+
+func gitLab(getenv func(string) string, logger *slog.Logger) control.GitLabConfig {
+	if !isSet(getenv(envTest)) {
+		return control.GitLabConfig{}
+	}
+	base := getenv(envTestGitLab)
+	if base == "" {
+		return control.GitLabConfig{Base: "http://gitlab.invalid"}
+	}
+	logger.Info("this is a test, so the control plane reaches the stand-in for GitLab that "+envTestGitLab+" names, and not GitLab", "stand_in", base)
+	return control.GitLabConfig{Base: base, Client: &http.Client{Timeout: 15 * time.Second}}
 }
 
 // caClient reaches the CA certificates by DNS come from, trusting the roots in the

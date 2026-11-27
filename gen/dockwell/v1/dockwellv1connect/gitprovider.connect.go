@@ -59,6 +59,12 @@ const (
 	// GitProviderServiceRemoveGitHubAppProcedure is the fully-qualified name of the
 	// GitProviderService's RemoveGitHubApp RPC.
 	GitProviderServiceRemoveGitHubAppProcedure = "/dockwell.v1.GitProviderService/RemoveGitHubApp"
+	// GitProviderServiceRefreshGitHubAppProcedure is the fully-qualified name of the
+	// GitProviderService's RefreshGitHubApp RPC.
+	GitProviderServiceRefreshGitHubAppProcedure = "/dockwell.v1.GitProviderService/RefreshGitHubApp"
+	// GitProviderServiceCheckGitLabConnectionProcedure is the fully-qualified name of the
+	// GitProviderService's CheckGitLabConnection RPC.
+	GitProviderServiceCheckGitLabConnectionProcedure = "/dockwell.v1.GitProviderService/CheckGitLabConnection"
 )
 
 // GitProviderServiceClient is a client for the dockwell.v1.GitProviderService service.
@@ -101,6 +107,13 @@ type GitProviderServiceClient interface {
 	// the answer links to its settings, where you delete it. It needs a proof from
 	// AuthService.FinishStepUp for removing a GitHub App, with its ID as the target.
 	RemoveGitHubApp(context.Context, *connect.Request[v1.RemoveGitHubAppRequest]) (*connect.Response[v1.RemoveGitHubAppResponse], error)
+	// RefreshGitHubApp reads a GitHub App and its installations from GitHub again,
+	// updating cached repositories and accepted permissions such as Checks write.
+	RefreshGitHubApp(context.Context, *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error)
+	// CheckGitLabConnection checks a GitLab host and access token from the control
+	// plane without saving anything, verifying connectivity and the api scope
+	// required for commit statuses (ADR 0111).
+	CheckGitLabConnection(context.Context, *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error)
 }
 
 // NewGitProviderServiceClient constructs a client for the dockwell.v1.GitProviderService service.
@@ -164,6 +177,18 @@ func NewGitProviderServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(gitProviderServiceMethods.ByName("RemoveGitHubApp")),
 			connect.WithClientOptions(opts...),
 		),
+		refreshGitHubApp: connect.NewClient[v1.RefreshGitHubAppRequest, v1.RefreshGitHubAppResponse](
+			httpClient,
+			baseURL+GitProviderServiceRefreshGitHubAppProcedure,
+			connect.WithSchema(gitProviderServiceMethods.ByName("RefreshGitHubApp")),
+			connect.WithClientOptions(opts...),
+		),
+		checkGitLabConnection: connect.NewClient[v1.CheckGitLabConnectionRequest, v1.CheckGitLabConnectionResponse](
+			httpClient,
+			baseURL+GitProviderServiceCheckGitLabConnectionProcedure,
+			connect.WithSchema(gitProviderServiceMethods.ByName("CheckGitLabConnection")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -177,6 +202,8 @@ type gitProviderServiceClient struct {
 	rotateGitHubWebhookSecret *connect.Client[v1.RotateGitHubWebhookSecretRequest, v1.RotateGitHubWebhookSecretResponse]
 	replaceGitHubPrivateKey   *connect.Client[v1.ReplaceGitHubPrivateKeyRequest, v1.ReplaceGitHubPrivateKeyResponse]
 	removeGitHubApp           *connect.Client[v1.RemoveGitHubAppRequest, v1.RemoveGitHubAppResponse]
+	refreshGitHubApp          *connect.Client[v1.RefreshGitHubAppRequest, v1.RefreshGitHubAppResponse]
+	checkGitLabConnection     *connect.Client[v1.CheckGitLabConnectionRequest, v1.CheckGitLabConnectionResponse]
 }
 
 // StartGitHubApp calls dockwell.v1.GitProviderService.StartGitHubApp.
@@ -219,6 +246,16 @@ func (c *gitProviderServiceClient) RemoveGitHubApp(ctx context.Context, req *con
 	return c.removeGitHubApp.CallUnary(ctx, req)
 }
 
+// RefreshGitHubApp calls dockwell.v1.GitProviderService.RefreshGitHubApp.
+func (c *gitProviderServiceClient) RefreshGitHubApp(ctx context.Context, req *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error) {
+	return c.refreshGitHubApp.CallUnary(ctx, req)
+}
+
+// CheckGitLabConnection calls dockwell.v1.GitProviderService.CheckGitLabConnection.
+func (c *gitProviderServiceClient) CheckGitLabConnection(ctx context.Context, req *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error) {
+	return c.checkGitLabConnection.CallUnary(ctx, req)
+}
+
 // GitProviderServiceHandler is an implementation of the dockwell.v1.GitProviderService service.
 type GitProviderServiceHandler interface {
 	// StartGitHubApp begins connecting GitHub: the manifest the browser posts to
@@ -259,6 +296,13 @@ type GitProviderServiceHandler interface {
 	// the answer links to its settings, where you delete it. It needs a proof from
 	// AuthService.FinishStepUp for removing a GitHub App, with its ID as the target.
 	RemoveGitHubApp(context.Context, *connect.Request[v1.RemoveGitHubAppRequest]) (*connect.Response[v1.RemoveGitHubAppResponse], error)
+	// RefreshGitHubApp reads a GitHub App and its installations from GitHub again,
+	// updating cached repositories and accepted permissions such as Checks write.
+	RefreshGitHubApp(context.Context, *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error)
+	// CheckGitLabConnection checks a GitLab host and access token from the control
+	// plane without saving anything, verifying connectivity and the api scope
+	// required for commit statuses (ADR 0111).
+	CheckGitLabConnection(context.Context, *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error)
 }
 
 // NewGitProviderServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -318,6 +362,18 @@ func NewGitProviderServiceHandler(svc GitProviderServiceHandler, opts ...connect
 		connect.WithSchema(gitProviderServiceMethods.ByName("RemoveGitHubApp")),
 		connect.WithHandlerOptions(opts...),
 	)
+	gitProviderServiceRefreshGitHubAppHandler := connect.NewUnaryHandler(
+		GitProviderServiceRefreshGitHubAppProcedure,
+		svc.RefreshGitHubApp,
+		connect.WithSchema(gitProviderServiceMethods.ByName("RefreshGitHubApp")),
+		connect.WithHandlerOptions(opts...),
+	)
+	gitProviderServiceCheckGitLabConnectionHandler := connect.NewUnaryHandler(
+		GitProviderServiceCheckGitLabConnectionProcedure,
+		svc.CheckGitLabConnection,
+		connect.WithSchema(gitProviderServiceMethods.ByName("CheckGitLabConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.GitProviderService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GitProviderServiceStartGitHubAppProcedure:
@@ -336,6 +392,10 @@ func NewGitProviderServiceHandler(svc GitProviderServiceHandler, opts ...connect
 			gitProviderServiceReplaceGitHubPrivateKeyHandler.ServeHTTP(w, r)
 		case GitProviderServiceRemoveGitHubAppProcedure:
 			gitProviderServiceRemoveGitHubAppHandler.ServeHTTP(w, r)
+		case GitProviderServiceRefreshGitHubAppProcedure:
+			gitProviderServiceRefreshGitHubAppHandler.ServeHTTP(w, r)
+		case GitProviderServiceCheckGitLabConnectionProcedure:
+			gitProviderServiceCheckGitLabConnectionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -375,4 +435,12 @@ func (UnimplementedGitProviderServiceHandler) ReplaceGitHubPrivateKey(context.Co
 
 func (UnimplementedGitProviderServiceHandler) RemoveGitHubApp(context.Context, *connect.Request[v1.RemoveGitHubAppRequest]) (*connect.Response[v1.RemoveGitHubAppResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.GitProviderService.RemoveGitHubApp is not implemented"))
+}
+
+func (UnimplementedGitProviderServiceHandler) RefreshGitHubApp(context.Context, *connect.Request[v1.RefreshGitHubAppRequest]) (*connect.Response[v1.RefreshGitHubAppResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.GitProviderService.RefreshGitHubApp is not implemented"))
+}
+
+func (UnimplementedGitProviderServiceHandler) CheckGitLabConnection(context.Context, *connect.Request[v1.CheckGitLabConnectionRequest]) (*connect.Response[v1.CheckGitLabConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.GitProviderService.CheckGitLabConnection is not implemented"))
 }

@@ -131,6 +131,21 @@ func (h *Handler) CheckDeliveries(ctx context.Context) {
 		if err != nil {
 			continue
 		}
+		if self, err := app.Self(ctx); err == nil {
+			h.setAppPermissions(k.r.ID, self.Permissions)
+		}
+		var ins []store.GitHubInstallation
+		if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			var err error
+			ins, err = tx.GitHubInstallationsOf(ctx, k.r.ID)
+			return err
+		}); err == nil {
+			for i := range ins {
+				if ins[i].RemovedAt == nil && len(ins[i].Permissions) == 0 {
+					_, _ = h.Refresh(ctx, k, ins[i].ID)
+				}
+			}
+		}
 		deliveries, err := app.Deliveries(ctx)
 		h.noted(k.r.ID, err)
 		if err != nil {
