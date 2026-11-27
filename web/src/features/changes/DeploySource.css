@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.ci-deploy-source {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.ci-deploy-status {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: normal;
+}
+
+.ci-deploy-status.is-delivered a {
+  color: var(--healthy);
+}
+
+.ci-deploy-status.is-failed,
+.ci-deploy-status.is-skipped {
+  color: var(--warning);
+}
+
+.ci-deploy-status-reason {
+  overflow-wrap: anywhere;
+}

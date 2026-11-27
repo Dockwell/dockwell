@@ -56,6 +56,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/checks"
+	"github.com/dockwell/dockwell/internal/control/cistatus"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/connections"
 	"github.com/dockwell/dockwell/internal/control/containers"
@@ -68,6 +69,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/github"
+	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/control/gitproviders"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/history"
@@ -154,6 +156,12 @@ type Config struct {
 	// GitHub is where GitHub's API and pages are, and the client that reaches
 	// them, in place of github.com through netguard's, for tests (ADR 0098).
 	GitHub GitHubConfig
+	// GitLab is where GitLab calls go in tests, in place of netguard's client
+	// (ADR 0111).
+	GitLab GitLabConfig
+	// ManualCIStatus leaves draining ci_status_outbox to a test calling
+	// Server.CIStatus().DeliverOnce directly.
+	ManualCIStatus bool
 	// ManualAlerts leaves evaluating alert rules to whoever calls the evaluator,
 	// as a test does by its own clock. The install's first rules are made all the
 	// same.
@@ -326,6 +334,9 @@ type Server struct {
 	// apps are the GitHub Apps Dockwell made, which check their deliveries and
 	// poll for pushes where GitHub can't reach the panel (ADR 0098).
 	apps *gitproviders.Handler
+	// ciStatus delivers durable CI deploy status transitions to GitHub and GitLab (ADR 0111).
+	ciStatus       *cistatus.Worker
+	manualCIStatus bool
 	// tasks reads scheduled tasks' runs from the agents that run them.
 	tasks *tasks.Handler
 	// certificates gets and renews certificates by DNS (ADR 0088).
@@ -376,6 +387,7 @@ func New(cfg Config) (*Server, error) {
 	var controlBackup *controlbackup.Manager
 	var hooks *githooks.Handler
 	var gitApps *gitproviders.Handler
+	var ciStatusWorker *cistatus.Worker
 	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
@@ -465,7 +477,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Identity != nil && cfg.Store != nil && cfg.Fleet != nil {
 		histRecorder = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
 	}
-	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &controlBackup, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
+	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &controlBackup, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps, &ciStatusWorker)
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +486,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, ciStatus: ciStatusWorker, manualCIStatus: cfg.ManualCIStatus, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
@@ -534,7 +546,10 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, controlBackupOut **controlbackup.Manager, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
+// CIStatus returns the CI deploy status delivery worker, if configured.
+func (s *Server) CIStatus() *cistatus.Worker { return s.ciStatus }
+
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, controlBackupOut **controlbackup.Manager, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler, ciStatusOut **cistatus.Worker) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -823,14 +838,18 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		(*autoupdates).Updates = serviceHandler.Updates
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		var apps *gitproviders.Handler
+		glClient := &gitlab.Client{HTTP: cfg.GitLab.Client, TestBase: cfg.GitLab.Base}
 		if cfg.Auth != nil && cfg.Secrets != nil {
 			// GitHub as an App Dockwell makes: connecting it, its installations, and
-			// the repositories a project's apps may build from (ADR 0098).
+			// the repositories a project's apps may build from (ADR 0098), plus GitLab
+			// connections for CI deploy status reporting (ADR 0111).
 			apps = gitproviders.New(gitproviders.Config{
 				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
-				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
+				API: cfg.GitHub.API, Web: cfg.GitHub.Web, Client: cfg.GitHub.Client, GitLab: glClient,
+				Now: cfg.GitHub.Now, BeforeChange: cfg.GitHub.BeforeChange,
 			})
 			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
+			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
 			appSources.SetApps(apps)
 			ch.SetGitLogins(apps)
 			if cfg.Agents != nil {
@@ -841,6 +860,27 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 				// A form's readings fetch a private repository as the plan will.
 				buildHandler.SetGitLogins(apps)
 			}
+		}
+		if cfg.Store != nil {
+			panelFn := func() string { return livePanelLinkBase(cfg) }
+			cfg.Changes.SetPanelURL(panelFn)
+			var targets cistatus.Targets
+			if apps != nil {
+				targets = ciStatusTargets{apps: apps}
+				ch.GitHubPermissionsURL = apps.GitHubPermissionsURL
+				serviceHandler.GitHubPermissionsURL = apps.GitHubPermissionsURL
+			}
+			worker := cistatus.New(cistatus.Config{
+				DB:       cfg.Store,
+				Targets:  targets,
+				GitLab:   glClient,
+				Logger:   cfg.Logger,
+				PanelURL: panelFn,
+				Now:      cfg.GitHub.Now,
+			})
+			cfg.Changes.OnCIStatus(worker.Wake)
+			ch.RetryCIStatus = worker.Retry
+			*ciStatusOut = worker
 		}
 		if cfg.Auth != nil {
 			// Deploy on push: the API that turns it on, and the receivers its hooks'
@@ -1278,6 +1318,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.apps != nil {
 		api.Go(func() { s.apps.KeepWatching(apiCtx) })
 	}
+	if s.ciStatus != nil && !s.manualCIStatus {
+		api.Go(func() { s.ciStatus.Run(apiCtx) })
+	}
 	if s.owners != nil && !s.manualOwners {
 		api.Go(func() { s.owners.Run(apiCtx) })
 	}
@@ -1574,4 +1617,74 @@ type GitHubConfig struct {
 	// BeforeChange runs between reading an App and keeping a change to it: a
 	// test's, to land another change there.
 	BeforeChange func()
+}
+
+// GitLabConfig points GitLab calls elsewhere, for tests. Empty fields use
+// netguard against the configured GitLab URL.
+type GitLabConfig struct {
+	Base   string
+	Client gitlab.Doer
+}
+
+// livePanelLinkBase returns the panel's public HTTPS base URL for outbound links
+// (such as GitHub Check Run details_url and GitLab Commit Status target_url).
+// It reads the live panel_domain setting when configured and returns "" when no
+// public address is set, never leaking a private listen address.
+func livePanelLinkBase(cfg Config) string {
+	switch {
+	case cfg.PanelURL != "":
+		return strings.TrimRight(cfg.PanelURL, "/")
+	case cfg.PanelDomain.BehindProxy != "":
+		return "https://" + strings.TrimRight(cfg.PanelDomain.BehindProxy, "/")
+	}
+	if cfg.Store != nil {
+		if d, err := settings.PanelDomain(context.Background(), cfg.Store); err == nil && strings.TrimSpace(d) != "" {
+			return "https://" + strings.TrimRight(strings.TrimSpace(d), "/")
+		}
+	}
+	return ""
+}
+
+type ciStatusTargets struct {
+	apps *gitproviders.Handler
+}
+
+func (t ciStatusTargets) FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID string) (*cistatus.GitHubTarget, string, error) {
+	got, skip, err := t.apps.FindGitHubStatusTarget(ctx, repoURL, serviceID)
+	if err != nil || got == nil {
+		return nil, skip, err
+	}
+	return &cistatus.GitHubTarget{
+		App:            got.App,
+		AppID:          got.AppID,
+		AppName:        got.AppName,
+		InstallationID: got.InstallationID,
+		RepositoryID:   got.RepositoryID,
+		FullName:       got.FullName,
+		CredentialRef:  got.CredentialRef,
+	}, "", nil
+}
+
+func (t ciStatusTargets) VerifyChecksPermission(ctx context.Context, appID string, installationID int64) bool {
+	return t.apps.VerifyChecksPermission(ctx, appID, installationID)
+}
+
+func (t ciStatusTargets) FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID string) (*cistatus.GitLabTarget, string, error) {
+	got, skip, err := t.apps.FindGitLabStatusTarget(ctx, repoURL, serviceID)
+	if err != nil || got == nil {
+		return nil, skip, err
+	}
+	return &cistatus.GitLabTarget{
+		ConnectionID:  got.ConnectionID,
+		Revision:      got.Revision,
+		Name:          got.Name,
+		BaseURL:       got.BaseURL,
+		Token:         got.Token,
+		ProjectPath:   got.ProjectPath,
+		CredentialRef: got.CredentialRef,
+	}, "", nil
+}
+
+func (t ciStatusTargets) NoteGitLabStatus(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string) {
+	t.apps.NoteGitLabStatus(connID, rev, state, detail)
 }

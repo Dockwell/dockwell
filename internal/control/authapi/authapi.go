@@ -910,6 +910,8 @@ var codes = []struct {
 	{auth.ErrHookNotYours, connect.CodePermissionDenied, "hook_not_yours"},
 	{auth.ErrHookThroughApp, connect.CodeFailedPrecondition, "hook_through_app"},
 	{auth.ErrHookAdminOnly, connect.CodePermissionDenied, ReasonNeedsRole},
+	{auth.ErrDeployRepoAdminOnly, connect.CodePermissionDenied, ReasonNeedsRole},
+	{auth.ErrDeployRepoNotDeveloper, connect.CodePermissionDenied, ReasonNeedsRole},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

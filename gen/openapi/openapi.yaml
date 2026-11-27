@@ -2185,6 +2185,41 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/changes/{id}:retryDeployStatus:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                RetryDeployStatus queues another delivery attempt for the latest CI deploy
+                 status of a change that carries a deploy origin, such as after fixing a
+                 missing GitHub App permission or connecting GitLab (ADR 0111).
+            operationId: ChangeService_RetryDeployStatus
+            parameters:
+                - name: id
+                  in: path
+                  description: The change's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RetryDeployStatusRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RetryDeployStatusResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes/{id}:undo:
         post:
             tags:
@@ -4884,6 +4919,34 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/git-providers/gitlab:check:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                CheckGitLabConnection checks a GitLab host and access token from the control
+                 plane without saving anything, verifying connectivity and the api scope
+                 required for commit statuses (ADR 0111).
+            operationId: GitProviderService_CheckGitLabConnection
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckGitLabConnectionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckGitLabConnectionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/git-providers/{id}/installations:
         post:
             tags:
@@ -4913,6 +4976,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/AddGitHubInstallationResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-providers/{id}:refresh:
+        post:
+            tags:
+                - GitProviderService
+            description: |-
+                RefreshGitHubApp reads a GitHub App and its installations from GitHub again,
+                 updating cached repositories and accepted permissions such as Checks write.
+            operationId: GitProviderService_RefreshGitHubApp
+            parameters:
+                - name: id
+                  in: path
+                  description: The App, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RefreshGitHubAppRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RefreshGitHubAppResponse'
                 default:
                     description: Default error response
                     content:
@@ -5965,6 +6062,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListGitRepositoriesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/projects/{project}/gitlab-projects:
+        get:
+            tags:
+                - GitProviderService
+            description: |-
+                ListGitLabProjects returns the GitLab projects reachable by a project's
+                 connected GitLab instances, filtered by each connection's path prefix.
+            operationId: GitProviderService_ListGitLabProjects
+            parameters:
+                - name: project
+                  in: path
+                  description: The project, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+                - name: query
+                  in: query
+                  description: Optional search query forwarded to GitLab.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGitLabProjectsResponse'
                 default:
                     description: Default error response
                     content:
@@ -10869,6 +10999,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/tokens/{id}:setDeployRepository:
+        post:
+            tags:
+                - TokenService
+            description: |-
+                SetTokenDeployRepository binds a deploy token to the HTTPS repository
+                 whose commits it may report deploy status to, or clears the binding when
+                 empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+                 creating a token and developer access on the token's app.
+            operationId: TokenService_SetTokenDeployRepository
+            parameters:
+                - name: id
+                  in: path
+                  description: The deploy token's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetTokenDeployRepositoryRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetTokenDeployRepositoryResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/totp:
         get:
             tags:
@@ -14839,6 +15005,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/DeployOrigin'
                     description: Source and immutable image of an external CI deploy, if supplied.
+                deployStatus:
+                    allOf:
+                        - $ref: '#/components/schemas/DeployStatus'
+                    description: Latest delivery status of reporting this CI deploy back to its Git host.
                 confirmation:
                     allOf:
                         - $ref: '#/components/schemas/ChangeConfirmation'
@@ -15404,6 +15574,41 @@ components:
                          provider's zone holds it. For a zone outside the project, only the state and,
                          for admins, the provider and zone are returned. Unset for unconnected names (ADR 0104).
             description: CheckDomainResponse says what DNS says of it.
+        CheckGitLabConnectionRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Optional saved gitlab.connection name whose token is reused when token is empty.
+                url:
+                    type: string
+                token:
+                    type: string
+            description: CheckGitLabConnectionRequest checks a typed or saved GitLab connection.
+        CheckGitLabConnectionResponse:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - GIT_LAB_CONNECTION_STATE_UNSPECIFIED
+                        - GIT_LAB_CONNECTION_STATE_UNKNOWN
+                        - GIT_LAB_CONNECTION_STATE_CONNECTED
+                        - GIT_LAB_CONNECTION_STATE_MISSING_SCOPE
+                        - GIT_LAB_CONNECTION_STATE_AUTH_FAILED
+                        - GIT_LAB_CONNECTION_STATE_UNREACHABLE
+                    type: string
+                    format: enum
+                detail:
+                    type: string
+                url:
+                    type: string
+                tokenName:
+                    type: string
+                scopes:
+                    type: array
+                    items:
+                        type: string
+            description: CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
         CheckInviteRequest:
             type: object
             properties:
@@ -17574,6 +17779,11 @@ components:
                     description: |-
                         Required for deploy scope. A service ID; Dockwell sets its project,
                          environment and developer cap from the service.
+                deployRepository:
+                    type: string
+                    description: |-
+                        Optional for deploy scope. Normalized HTTPS repository URL whose commits
+                         deploys made with this token may report status to.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -18294,6 +18504,94 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change and its plan, with its current state.
             description: DeployServiceResponse carries the proposed deploy or the one a CI retry found.
+        DeployStatus:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - DEPLOY_STATUS_STATE_UNSPECIFIED
+                        - DEPLOY_STATUS_STATE_PENDING
+                        - DEPLOY_STATUS_STATE_DELIVERED
+                        - DEPLOY_STATUS_STATE_SKIPPED
+                        - DEPLOY_STATUS_STATE_FAILED
+                    type: string
+                    format: enum
+                transition:
+                    enum:
+                        - DEPLOY_STATUS_TRANSITION_UNSPECIFIED
+                        - DEPLOY_STATUS_TRANSITION_QUEUED
+                        - DEPLOY_STATUS_TRANSITION_APPLYING
+                        - DEPLOY_STATUS_TRANSITION_HEALTHY
+                        - DEPLOY_STATUS_TRANSITION_FAILED
+                        - DEPLOY_STATUS_TRANSITION_ROLLED_BACK
+                        - DEPLOY_STATUS_TRANSITION_DISCARDED
+                    type: string
+                    format: enum
+                transitionNumber:
+                    type: integer
+                    format: int32
+                provider:
+                    enum:
+                        - DEPLOY_PROVIDER_UNSPECIFIED
+                        - DEPLOY_PROVIDER_GITHUB_ACTIONS
+                        - DEPLOY_PROVIDER_GITLAB_CI
+                        - DEPLOY_PROVIDER_OTHER
+                    type: string
+                    format: enum
+                remoteId:
+                    type: string
+                    description: Provider's remote check run or commit status ID once created.
+                remoteUrl:
+                    type: string
+                    description: HTTPS link to the check run or commit status on the provider.
+                attempts:
+                    type: integer
+                    format: int32
+                error:
+                    type: string
+                    description: Provider error detail when reporting failed or is retrying.
+                nextAttemptTime:
+                    type: string
+                    format: date-time
+                deliverTime:
+                    type: string
+                    format: date-time
+                updateTime:
+                    type: string
+                    format: date-time
+                canRetry:
+                    type: boolean
+                    description: True when retrying delivery may succeed after fixing permissions or connectivity.
+                reason:
+                    enum:
+                        - DEPLOY_STATUS_REASON_UNSPECIFIED
+                        - DEPLOY_STATUS_REASON_NO_TOKEN_REPOSITORY
+                        - DEPLOY_STATUS_REASON_REPOSITORY_MISMATCH
+                        - DEPLOY_STATUS_REASON_PROVIDER_UNSUPPORTED
+                        - DEPLOY_STATUS_REASON_NO_GITHUB_APP
+                        - DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION
+                        - DEPLOY_STATUS_REASON_GITHUB_NOT_REACHED
+                        - DEPLOY_STATUS_REASON_GITHUB_AUTH_FAILED
+                        - DEPLOY_STATUS_REASON_NO_GITLAB_CONNECTION
+                        - DEPLOY_STATUS_REASON_GITLAB_NOT_REACHED
+                        - DEPLOY_STATUS_REASON_GITLAB_AUTH_FAILED
+                        - DEPLOY_STATUS_REASON_GITLAB_MISSING_SCOPE
+                        - DEPLOY_STATUS_REASON_NETGUARD_BLOCKED
+                        - DEPLOY_STATUS_REASON_GAVE_UP
+                    type: string
+                    description: Structured reason when state is skipped, failed, or retrying.
+                    format: enum
+                tokenRepository:
+                    type: string
+                    description: |-
+                        Repository bound to the deploy token that created this deploy, populated
+                         only for a caller who may see that token.
+                actionUrl:
+                    type: string
+                    description: |-
+                        Direct HTTPS link to fix a provider issue, such as GitHub App permissions,
+                         populated only for install admins.
+            description: DeployStatus records how Dockwell reported a CI deploy back to its Git provider.
         DetectBuildRequest:
             type: object
             properties:
@@ -23402,6 +23700,16 @@ components:
                         The App's revision, which an edit of which projects its installations reach
                          names as its base_revision, so it can't put back what another made since.
                          An admin's alone.
+                checksPermissionMissing:
+                    type: boolean
+                    description: |-
+                        True when the App or an active installation lacks Checks write permission
+                         needed to report CI deploy status back to pull requests and commits.
+                permissionsUrl:
+                    type: string
+                    description: |-
+                        Where on GitHub the owner grants or accepts the missing permission.
+                         An admin's alone.
             description: |-
                 GitHubAppInfo is a connected GitHub App, as anyone may see it: its key and webhook
                  secret are never in an answer.
@@ -23471,6 +23779,9 @@ components:
                 settingsUrl:
                     type: string
                     description: Its settings on GitHub, where repositories are added.
+                checksPermissionMissing:
+                    type: boolean
+                    description: True when this installation has not yet granted Checks write permission.
             description: GitHubInstallation is where a GitHub App is installed.
         GitHubInstallationReach:
             type: object
@@ -23486,6 +23797,118 @@ components:
             description: |-
                 GitHubInstallationReach is which projects one of a GitHub App's installations
                  reaches: their apps may build from its repositories.
+        GitLabConnection:
+            type: object
+            properties:
+                instanceUrl:
+                    type: string
+                    description: |-
+                        Base HTTPS URL of the GitLab instance, such as "https://gitlab.com" or
+                         "https://gitlab.example.com". No user, query or fragment.
+                token:
+                    type: string
+                    description: |-
+                        Project, group or personal access token with api scope for commit statuses.
+                         Leave out of an update to keep the saved token while instance_url stays the same.
+                pathPrefix:
+                    type: string
+                    description: |-
+                        Optional group or project path prefix on this host, such as "acme" or
+                         "acme/web". Empty matches any repository on this host.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Projects whose apps may report through this connection, by ID. Empty for
+                         every project.
+            description: |-
+                GitLabConnection is a GitLab host and access token used by the control plane
+                 to report CI deploy commit statuses, kind "gitlab.connection" (ADR 0111). It
+                 lives in the organization: an admin saves it as a change, with a plan, and
+                 may narrow it to named projects. Its token stays on the control plane.
+        GitLabConnectionInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                url:
+                    type: string
+                pathPrefix:
+                    type: string
+                projects:
+                    type: array
+                    items:
+                        type: string
+                everyProject:
+                    type: boolean
+                revision:
+                    type: string
+                state:
+                    enum:
+                        - GIT_LAB_CONNECTION_STATE_UNSPECIFIED
+                        - GIT_LAB_CONNECTION_STATE_UNKNOWN
+                        - GIT_LAB_CONNECTION_STATE_CONNECTED
+                        - GIT_LAB_CONNECTION_STATE_MISSING_SCOPE
+                        - GIT_LAB_CONNECTION_STATE_AUTH_FAILED
+                        - GIT_LAB_CONNECTION_STATE_UNREACHABLE
+                    type: string
+                    format: enum
+                detail:
+                    type: string
+                checkedTime:
+                    type: string
+                    format: date-time
+            description: GitLabConnectionInfo is a connected GitLab instance without its token.
+        GitLabProject:
+            type: object
+            properties:
+                pathWithNamespace:
+                    type: string
+                url:
+                    type: string
+                connectionId:
+                    type: string
+                connectionName:
+                    type: string
+                claimedByOtherProject:
+                    type: boolean
+                    description: |-
+                        True when another project has an app building from or a deploy token bound
+                         to this repository, so only an install admin may bind a deploy token in
+                         this project to it.
+            description: GitLabProject is one repository reachable through a GitLab connection.
+        GitLabProjectConnection:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                url:
+                    type: string
+                pathPrefix:
+                    type: string
+                state:
+                    enum:
+                        - GIT_LAB_CONNECTION_STATE_UNSPECIFIED
+                        - GIT_LAB_CONNECTION_STATE_UNKNOWN
+                        - GIT_LAB_CONNECTION_STATE_CONNECTED
+                        - GIT_LAB_CONNECTION_STATE_MISSING_SCOPE
+                        - GIT_LAB_CONNECTION_STATE_AUTH_FAILED
+                        - GIT_LAB_CONNECTION_STATE_UNREACHABLE
+                    type: string
+                    description: Live state from listing or checking this connection.
+                    format: enum
+                detail:
+                    type: string
+                    description: Optional failure detail when state is not connected.
+                hasMore:
+                    type: boolean
+                    description: True when GitLab has more projects beyond the returned page (search narrows).
+            description: GitLabProjectConnection summarizes a GitLab connection reachable by the project.
         GitRepository:
             type: object
             properties:
@@ -23506,6 +23929,12 @@ components:
                     type: string
                 account:
                     type: string
+                claimedByOtherProject:
+                    type: boolean
+                    description: |-
+                        True when another project has an app building from or a deploy token bound
+                         to this repository, so only an install admin may bind a deploy token in
+                         this project to it.
             description: GitRepository is a repository a project's apps may build from, through an App.
         GitSource:
             type: object
@@ -26056,6 +26485,18 @@ components:
                          open work adds to this message.
                     format: uint32
             description: ListFilesResponse is what a directory holds.
+        ListGitLabProjectsResponse:
+            type: object
+            properties:
+                projects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitLabProject'
+                connections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitLabProjectConnection'
+            description: ListGitLabProjectsResponse carries reachable GitLab projects and connections.
         ListGitProvidersResponse:
             type: object
             properties:
@@ -26063,7 +26504,11 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/GitHubAppInfo'
-            description: ListGitProvidersResponse is every connected App.
+                gitlabConnections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitLabConnectionInfo'
+            description: ListGitProvidersResponse is every connected GitHub App and GitLab connection.
         ListGitRepositoriesResponse:
             type: object
             properties:
@@ -30657,6 +31102,19 @@ components:
                     type: boolean
                     description: True when a search stopped at its bound, so older lines may match.
             description: ReadSystemLogResponse is a page of a server's system log, newest first.
+        RefreshGitHubAppRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The App, by ID or name.
+            description: RefreshGitHubAppRequest names a GitHub App to refresh from GitHub.
+        RefreshGitHubAppResponse:
+            type: object
+            properties:
+                app:
+                    $ref: '#/components/schemas/GitHubAppInfo'
+            description: RefreshGitHubAppResponse carries the refreshed GitHub App view.
         RegenerateRecoveryCodesRequest:
             type: object
             properties:
@@ -31273,6 +31731,21 @@ components:
                 owner:
                     $ref: '#/components/schemas/CatalogOwner'
             description: RetryCatalogOwnerResponse says how it stands now.
+        RetryDeployStatusRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The change's ID.
+            description: |-
+                RetryDeployStatusRequest names a CI deploy change whose latest status should
+                 be reported to its Git provider again.
+        RetryDeployStatusResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: RetryDeployStatusResponse carries the updated change.
         RevealCatalogOwnerPendingPasswordRequest:
             type: object
             properties:
@@ -33763,6 +34236,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/DeployOrigin'
                     description: Source of this revision, when it was deployed from external CI.
+                deployStatus:
+                    allOf:
+                        - $ref: '#/components/schemas/DeployStatus'
+                    description: Latest delivery status of reporting this CI deploy back to its Git host.
             description: ServiceDeployment is one revision of a service placed on one server.
         ServiceHealth:
             type: object
@@ -34660,6 +35137,27 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetTimeZoneResponse carries the settings as they now are.
+        SetTokenDeployRepositoryRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The deploy token's ID.
+                deployRepository:
+                    type: string
+                    description: Normalized HTTPS repository URL, or empty to disable status reporting.
+                proof:
+                    type: string
+                    description: The proof from AuthService.FinishStepUp, for creating a token.
+            description: |-
+                SetTokenDeployRepositoryRequest updates the status-reporting repository
+                 bound to one of your deploy tokens.
+        SetTokenDeployRepositoryResponse:
+            type: object
+            properties:
+                token:
+                    $ref: '#/components/schemas/Token'
+            description: SetTokenDeployRepositoryResponse returns the updated token.
         SetUpCatalogInstallRequest:
             type: object
             properties:
@@ -35254,6 +35752,12 @@ components:
                     description: |-
                         A GitHub App Dockwell made, kind "github.app" (ADR 0098). Numbered in the
                          block Git providers hold, 130 to 139.
+                gitlabConnection:
+                    allOf:
+                        - $ref: '#/components/schemas/GitLabConnection'
+                    description: |-
+                        A GitLab connection for CI commit statuses, kind "gitlab.connection"
+                         (ADR 0111). Numbered in the block Git providers hold, 130 to 139.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -36363,6 +36867,12 @@ components:
                     description: |-
                         Current name of the app where the token still works. Empty if its bound
                          service has moved, gone away, or is no longer visible to its maker.
+                deployRepository:
+                    type: string
+                    description: |-
+                        Normalized HTTPS repository URL this deploy token may report CI deploy
+                         status to. Empty disables commit/check-run reporting for deploys made by
+                         this token.
             description: Token is an API token, without its secret.
         TokenProject:
             type: object

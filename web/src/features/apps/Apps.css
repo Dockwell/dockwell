@@ -3307,8 +3307,7 @@
   gap: var(--space-5);
 }
 
-.ci-deploy-row,
-.ci-deploy-source {
+.ci-deploy-row {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;

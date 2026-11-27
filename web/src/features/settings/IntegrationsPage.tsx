@@ -127,7 +127,11 @@ export function IntegrationsPage({ search, onSearch }: ListRouteProps) {
   // counts none of its own.
   const mayListApps = may(GitProviderService.method.listGitProviders).allowed;
   const apps = useGitHubApps();
-  const appCount = apps.data ? apps.data.apps.filter((a) => !a.gone).length : mayListApps ? undefined : 0;
+  const appCount = apps.data
+    ? apps.data.apps.filter((a) => !a.gone).length + apps.data.gitlabConnections.length
+    : mayListApps
+      ? undefined
+      : 0;
   const counts = [
     read ? connected : undefined,
     logins.data ? loginList.length : undefined,

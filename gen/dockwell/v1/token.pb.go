@@ -173,8 +173,12 @@ type Token struct {
 	// Current name of the app where the token still works. Empty if its bound
 	// service has moved, gone away, or is no longer visible to its maker.
 	DeployServiceName string `protobuf:"bytes,14,opt,name=deploy_service_name,json=deployServiceName,proto3" json:"deploy_service_name,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Normalized HTTPS repository URL this deploy token may report CI deploy
+	// status to. Empty disables commit/check-run reporting for deploys made by
+	// this token.
+	DeployRepository string `protobuf:"bytes,15,opt,name=deploy_repository,json=deployRepository,proto3" json:"deploy_repository,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Token) Reset() {
@@ -305,6 +309,13 @@ func (x *Token) GetDeployServiceName() string {
 	return ""
 }
 
+func (x *Token) GetDeployRepository() string {
+	if x != nil {
+		return x.DeployRepository
+	}
+	return ""
+}
+
 // TokenProject is a project a token acts in.
 type TokenProject struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -391,8 +402,11 @@ type CreateTokenRequest struct {
 	// Required for deploy scope. A service ID; Dockwell sets its project,
 	// environment and developer cap from the service.
 	DeployService string `protobuf:"bytes,9,opt,name=deploy_service,json=deployService,proto3" json:"deploy_service,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Optional for deploy scope. Normalized HTTPS repository URL whose commits
+	// deploys made with this token may report status to.
+	DeployRepository string `protobuf:"bytes,10,opt,name=deploy_repository,json=deployRepository,proto3" json:"deploy_repository,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CreateTokenRequest) Reset() {
@@ -495,6 +509,13 @@ func (x *CreateTokenRequest) GetRole() TokenRole {
 func (x *CreateTokenRequest) GetDeployService() string {
 	if x != nil {
 		return x.DeployService
+	}
+	return ""
+}
+
+func (x *CreateTokenRequest) GetDeployRepository() string {
+	if x != nil {
+		return x.DeployRepository
 	}
 	return ""
 }
@@ -741,11 +762,121 @@ func (*RevokeTokenResponse) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{7}
 }
 
+// SetTokenDeployRepositoryRequest updates the status-reporting repository
+// bound to one of your deploy tokens.
+type SetTokenDeployRepositoryRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The deploy token's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Normalized HTTPS repository URL, or empty to disable status reporting.
+	DeployRepository string `protobuf:"bytes,2,opt,name=deploy_repository,json=deployRepository,proto3" json:"deploy_repository,omitempty"`
+	// The proof from AuthService.FinishStepUp, for creating a token.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetTokenDeployRepositoryRequest) Reset() {
+	*x = SetTokenDeployRepositoryRequest{}
+	mi := &file_dockwell_v1_token_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetTokenDeployRepositoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetTokenDeployRepositoryRequest) ProtoMessage() {}
+
+func (x *SetTokenDeployRepositoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_token_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetTokenDeployRepositoryRequest.ProtoReflect.Descriptor instead.
+func (*SetTokenDeployRepositoryRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SetTokenDeployRepositoryRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SetTokenDeployRepositoryRequest) GetDeployRepository() string {
+	if x != nil {
+		return x.DeployRepository
+	}
+	return ""
+}
+
+func (x *SetTokenDeployRepositoryRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// SetTokenDeployRepositoryResponse returns the updated token.
+type SetTokenDeployRepositoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         *Token                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetTokenDeployRepositoryResponse) Reset() {
+	*x = SetTokenDeployRepositoryResponse{}
+	mi := &file_dockwell_v1_token_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetTokenDeployRepositoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetTokenDeployRepositoryResponse) ProtoMessage() {}
+
+func (x *SetTokenDeployRepositoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_token_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetTokenDeployRepositoryResponse.ProtoReflect.Descriptor instead.
+func (*SetTokenDeployRepositoryResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_token_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SetTokenDeployRepositoryResponse) GetToken() *Token {
+	if x != nil {
+		return x.Token
+	}
+	return nil
+}
+
 var File_dockwell_v1_token_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x04\n" +
+	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x94\x05\n" +
 	"\x05Token\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -763,10 +894,11 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x04role\x18\v \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\x12%\n" +
 	"\x0edeploy_service\x18\f \x01(\tR\rdeployService\x12-\n" +
 	"\x12deploy_environment\x18\r \x01(\tR\x11deployEnvironment\x12.\n" +
-	"\x13deploy_service_name\x18\x0e \x01(\tR\x11deployServiceName\"2\n" +
+	"\x13deploy_service_name\x18\x0e \x01(\tR\x11deployServiceName\x12+\n" +
+	"\x11deploy_repository\x18\x0f \x01(\tR\x10deployRepository\"2\n" +
 	"\fTokenProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\x96\x03\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xc3\x03\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x17.dockwell.v1.TokenScopeR\x05scope\x12=\n" +
@@ -777,7 +909,9 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x06grants\x18\x06 \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\x12'\n" +
 	"\bprojects\x18\a \x03(\tB\v\xa2\xbb\x18\aprojectR\bprojects\x12*\n" +
 	"\x04role\x18\b \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\x12%\n" +
-	"\x0edeploy_service\x18\t \x01(\tR\rdeployServiceB\f\n" +
+	"\x0edeploy_service\x18\t \x01(\tR\rdeployService\x12+\n" +
+	"\x11deploy_repository\x18\n" +
+	" \x01(\tR\x10deployRepositoryB\f\n" +
 	"\n" +
 	"expiration\"W\n" +
 	"\x13CreateTokenResponse\x12(\n" +
@@ -788,7 +922,13 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x06tokens\x18\x01 \x03(\v2\x12.dockwell.v1.TokenR\x06tokens\"$\n" +
 	"\x12RevokeTokenRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13RevokeTokenResponse*x\n" +
+	"\x13RevokeTokenResponse\"t\n" +
+	"\x1fSetTokenDeployRepositoryRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12+\n" +
+	"\x11deploy_repository\x18\x02 \x01(\tR\x10deployRepository\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"L\n" +
+	" SetTokenDeployRepositoryResponse\x12(\n" +
+	"\x05token\x18\x01 \x01(\v2\x12.dockwell.v1.TokenR\x05token*x\n" +
 	"\n" +
 	"TokenScope\x12\x1b\n" +
 	"\x17TOKEN_SCOPE_UNSPECIFIED\x10\x00\x12\x19\n" +
@@ -798,7 +938,7 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\tTokenRole\x12\x1a\n" +
 	"\x16TOKEN_ROLE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14TOKEN_ROLE_DEVELOPER\x10\x01\x12\x15\n" +
-	"\x11TOKEN_ROLE_VIEWER\x10\x022\xb5\x03\n" +
+	"\x11TOKEN_ROLE_VIEWER\x10\x022\x96\x05\n" +
 	"\fTokenService\x12\x87\x01\n" +
 	"\vCreateToken\x12\x1f.dockwell.v1.CreateTokenRequest\x1a .dockwell.v1.CreateTokenResponse\"5\xa0\xbb\x18\x03\xaa\xbb\x18\f\n" +
 	"\n" +
@@ -811,7 +951,10 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"/v1/tokens\x90\x02\x01\x12\x93\x01\n" +
 	"\vRevokeToken\x12\x1f.dockwell.v1.RevokeTokenRequest\x1a .dockwell.v1.RevokeTokenResponse\"A\xa0\xbb\x18\x04\xaa\xbb\x18\f\n" +
 	"\n" +
-	"api-tokens\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/tokens/{id}:revokeB\xa3\x01\n" +
+	"api-tokens\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/tokens/{id}:revoke\x12\xde\x01\n" +
+	"\x18SetTokenDeployRepository\x12,.dockwell.v1.SetTokenDeployRepositoryRequest\x1a-.dockwell.v1.SetTokenDeployRepositoryResponse\"e\xa0\xbb\x18\x03\xaa\xbb\x18#\n" +
+	"\n" +
+	"api-tokens\x12\x15set-deploy-repository\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02(:\x01*\"#/v1/tokens/{id}:setDeployRepositoryB\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"TokenProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -828,48 +971,53 @@ func file_dockwell_v1_token_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_token_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_dockwell_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_dockwell_v1_token_proto_goTypes = []any{
-	(TokenScope)(0),               // 0: dockwell.v1.TokenScope
-	(TokenRole)(0),                // 1: dockwell.v1.TokenRole
-	(*Token)(nil),                 // 2: dockwell.v1.Token
-	(*TokenProject)(nil),          // 3: dockwell.v1.TokenProject
-	(*CreateTokenRequest)(nil),    // 4: dockwell.v1.CreateTokenRequest
-	(*CreateTokenResponse)(nil),   // 5: dockwell.v1.CreateTokenResponse
-	(*ListTokensRequest)(nil),     // 6: dockwell.v1.ListTokensRequest
-	(*ListTokensResponse)(nil),    // 7: dockwell.v1.ListTokensResponse
-	(*RevokeTokenRequest)(nil),    // 8: dockwell.v1.RevokeTokenRequest
-	(*RevokeTokenResponse)(nil),   // 9: dockwell.v1.RevokeTokenResponse
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
-	(TokenGrant)(0),               // 11: dockwell.v1.TokenGrant
-	(*durationpb.Duration)(nil),   // 12: google.protobuf.Duration
+	(TokenScope)(0),                          // 0: dockwell.v1.TokenScope
+	(TokenRole)(0),                           // 1: dockwell.v1.TokenRole
+	(*Token)(nil),                            // 2: dockwell.v1.Token
+	(*TokenProject)(nil),                     // 3: dockwell.v1.TokenProject
+	(*CreateTokenRequest)(nil),               // 4: dockwell.v1.CreateTokenRequest
+	(*CreateTokenResponse)(nil),              // 5: dockwell.v1.CreateTokenResponse
+	(*ListTokensRequest)(nil),                // 6: dockwell.v1.ListTokensRequest
+	(*ListTokensResponse)(nil),               // 7: dockwell.v1.ListTokensResponse
+	(*RevokeTokenRequest)(nil),               // 8: dockwell.v1.RevokeTokenRequest
+	(*RevokeTokenResponse)(nil),              // 9: dockwell.v1.RevokeTokenResponse
+	(*SetTokenDeployRepositoryRequest)(nil),  // 10: dockwell.v1.SetTokenDeployRepositoryRequest
+	(*SetTokenDeployRepositoryResponse)(nil), // 11: dockwell.v1.SetTokenDeployRepositoryResponse
+	(*timestamppb.Timestamp)(nil),            // 12: google.protobuf.Timestamp
+	(TokenGrant)(0),                          // 13: dockwell.v1.TokenGrant
+	(*durationpb.Duration)(nil),              // 14: google.protobuf.Duration
 }
 var file_dockwell_v1_token_proto_depIdxs = []int32{
 	0,  // 0: dockwell.v1.Token.scope:type_name -> dockwell.v1.TokenScope
-	10, // 1: dockwell.v1.Token.create_time:type_name -> google.protobuf.Timestamp
-	10, // 2: dockwell.v1.Token.expire_time:type_name -> google.protobuf.Timestamp
-	10, // 3: dockwell.v1.Token.last_used_time:type_name -> google.protobuf.Timestamp
-	11, // 4: dockwell.v1.Token.grants:type_name -> dockwell.v1.TokenGrant
+	12, // 1: dockwell.v1.Token.create_time:type_name -> google.protobuf.Timestamp
+	12, // 2: dockwell.v1.Token.expire_time:type_name -> google.protobuf.Timestamp
+	12, // 3: dockwell.v1.Token.last_used_time:type_name -> google.protobuf.Timestamp
+	13, // 4: dockwell.v1.Token.grants:type_name -> dockwell.v1.TokenGrant
 	3,  // 5: dockwell.v1.Token.projects:type_name -> dockwell.v1.TokenProject
 	1,  // 6: dockwell.v1.Token.role:type_name -> dockwell.v1.TokenRole
 	0,  // 7: dockwell.v1.CreateTokenRequest.scope:type_name -> dockwell.v1.TokenScope
-	10, // 8: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
-	12, // 9: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
-	11, // 10: dockwell.v1.CreateTokenRequest.grants:type_name -> dockwell.v1.TokenGrant
+	12, // 8: dockwell.v1.CreateTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
+	14, // 9: dockwell.v1.CreateTokenRequest.ttl:type_name -> google.protobuf.Duration
+	13, // 10: dockwell.v1.CreateTokenRequest.grants:type_name -> dockwell.v1.TokenGrant
 	1,  // 11: dockwell.v1.CreateTokenRequest.role:type_name -> dockwell.v1.TokenRole
 	2,  // 12: dockwell.v1.CreateTokenResponse.token:type_name -> dockwell.v1.Token
 	2,  // 13: dockwell.v1.ListTokensResponse.tokens:type_name -> dockwell.v1.Token
-	4,  // 14: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
-	6,  // 15: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
-	8,  // 16: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
-	5,  // 17: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
-	7,  // 18: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
-	9,  // 19: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
-	17, // [17:20] is the sub-list for method output_type
-	14, // [14:17] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	2,  // 14: dockwell.v1.SetTokenDeployRepositoryResponse.token:type_name -> dockwell.v1.Token
+	4,  // 15: dockwell.v1.TokenService.CreateToken:input_type -> dockwell.v1.CreateTokenRequest
+	6,  // 16: dockwell.v1.TokenService.ListTokens:input_type -> dockwell.v1.ListTokensRequest
+	8,  // 17: dockwell.v1.TokenService.RevokeToken:input_type -> dockwell.v1.RevokeTokenRequest
+	10, // 18: dockwell.v1.TokenService.SetTokenDeployRepository:input_type -> dockwell.v1.SetTokenDeployRepositoryRequest
+	5,  // 19: dockwell.v1.TokenService.CreateToken:output_type -> dockwell.v1.CreateTokenResponse
+	7,  // 20: dockwell.v1.TokenService.ListTokens:output_type -> dockwell.v1.ListTokensResponse
+	9,  // 21: dockwell.v1.TokenService.RevokeToken:output_type -> dockwell.v1.RevokeTokenResponse
+	11, // 22: dockwell.v1.TokenService.SetTokenDeployRepository:output_type -> dockwell.v1.SetTokenDeployRepositoryResponse
+	19, // [19:23] is the sub-list for method output_type
+	15, // [15:19] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_token_proto_init() }
@@ -888,7 +1036,7 @@ func file_dockwell_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_token_proto_rawDesc), len(file_dockwell_v1_token_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

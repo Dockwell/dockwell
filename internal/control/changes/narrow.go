@@ -106,6 +106,7 @@ func Narrow(ctx context.Context, tx *store.Tx, c *dockwellv1.Change) error {
 		if id := plan.GetIntent().GetResourceId(); id != "" && !ids[id] {
 			plan.Intent = nil
 			c.DeployOrigin = nil
+			c.DeployStatus = nil
 		}
 		places, err := heldPlaces(ctx, tx, caller.Grants)
 		if err != nil {
@@ -143,6 +144,7 @@ func Narrow(ctx context.Context, tx *store.Tx, c *dockwellv1.Change) error {
 	}
 	if !anEdit {
 		c.Summary, c.ProposedBy, c.AppliedBy, c.Because = elsewhereWords, nil, nil, ""
+		c.DeployOrigin, c.DeployStatus = nil, nil
 		if c.RollbackStatus != nil {
 			c.RollbackStatus.WaitingFor, c.RollbackStatus.Detail = nil, ""
 		}

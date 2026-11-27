@@ -43,6 +43,9 @@ const (
 	// TokenServiceRevokeTokenProcedure is the fully-qualified name of the TokenService's RevokeToken
 	// RPC.
 	TokenServiceRevokeTokenProcedure = "/dockwell.v1.TokenService/RevokeToken"
+	// TokenServiceSetTokenDeployRepositoryProcedure is the fully-qualified name of the TokenService's
+	// SetTokenDeployRepository RPC.
+	TokenServiceSetTokenDeployRepositoryProcedure = "/dockwell.v1.TokenService/SetTokenDeployRepository"
 )
 
 // TokenServiceClient is a client for the dockwell.v1.TokenService service.
@@ -56,6 +59,11 @@ type TokenServiceClient interface {
 	// RevokeToken stops one of your tokens working at once. Its open streams
 	// close.
 	RevokeToken(context.Context, *connect.Request[v1.RevokeTokenRequest]) (*connect.Response[v1.RevokeTokenResponse], error)
+	// SetTokenDeployRepository binds a deploy token to the HTTPS repository
+	// whose commits it may report deploy status to, or clears the binding when
+	// empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+	// creating a token and developer access on the token's app.
+	SetTokenDeployRepository(context.Context, *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error)
 }
 
 // NewTokenServiceClient constructs a client for the dockwell.v1.TokenService service. By default,
@@ -88,14 +96,21 @@ func NewTokenServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(tokenServiceMethods.ByName("RevokeToken")),
 			connect.WithClientOptions(opts...),
 		),
+		setTokenDeployRepository: connect.NewClient[v1.SetTokenDeployRepositoryRequest, v1.SetTokenDeployRepositoryResponse](
+			httpClient,
+			baseURL+TokenServiceSetTokenDeployRepositoryProcedure,
+			connect.WithSchema(tokenServiceMethods.ByName("SetTokenDeployRepository")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // tokenServiceClient implements TokenServiceClient.
 type tokenServiceClient struct {
-	createToken *connect.Client[v1.CreateTokenRequest, v1.CreateTokenResponse]
-	listTokens  *connect.Client[v1.ListTokensRequest, v1.ListTokensResponse]
-	revokeToken *connect.Client[v1.RevokeTokenRequest, v1.RevokeTokenResponse]
+	createToken              *connect.Client[v1.CreateTokenRequest, v1.CreateTokenResponse]
+	listTokens               *connect.Client[v1.ListTokensRequest, v1.ListTokensResponse]
+	revokeToken              *connect.Client[v1.RevokeTokenRequest, v1.RevokeTokenResponse]
+	setTokenDeployRepository *connect.Client[v1.SetTokenDeployRepositoryRequest, v1.SetTokenDeployRepositoryResponse]
 }
 
 // CreateToken calls dockwell.v1.TokenService.CreateToken.
@@ -113,6 +128,11 @@ func (c *tokenServiceClient) RevokeToken(ctx context.Context, req *connect.Reque
 	return c.revokeToken.CallUnary(ctx, req)
 }
 
+// SetTokenDeployRepository calls dockwell.v1.TokenService.SetTokenDeployRepository.
+func (c *tokenServiceClient) SetTokenDeployRepository(ctx context.Context, req *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error) {
+	return c.setTokenDeployRepository.CallUnary(ctx, req)
+}
+
 // TokenServiceHandler is an implementation of the dockwell.v1.TokenService service.
 type TokenServiceHandler interface {
 	// CreateToken makes a new token for you. It needs a proof from
@@ -124,6 +144,11 @@ type TokenServiceHandler interface {
 	// RevokeToken stops one of your tokens working at once. Its open streams
 	// close.
 	RevokeToken(context.Context, *connect.Request[v1.RevokeTokenRequest]) (*connect.Response[v1.RevokeTokenResponse], error)
+	// SetTokenDeployRepository binds a deploy token to the HTTPS repository
+	// whose commits it may report deploy status to, or clears the binding when
+	// empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+	// creating a token and developer access on the token's app.
+	SetTokenDeployRepository(context.Context, *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error)
 }
 
 // NewTokenServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -152,6 +177,12 @@ func NewTokenServiceHandler(svc TokenServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(tokenServiceMethods.ByName("RevokeToken")),
 		connect.WithHandlerOptions(opts...),
 	)
+	tokenServiceSetTokenDeployRepositoryHandler := connect.NewUnaryHandler(
+		TokenServiceSetTokenDeployRepositoryProcedure,
+		svc.SetTokenDeployRepository,
+		connect.WithSchema(tokenServiceMethods.ByName("SetTokenDeployRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.TokenService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case TokenServiceCreateTokenProcedure:
@@ -160,6 +191,8 @@ func NewTokenServiceHandler(svc TokenServiceHandler, opts ...connect.HandlerOpti
 			tokenServiceListTokensHandler.ServeHTTP(w, r)
 		case TokenServiceRevokeTokenProcedure:
 			tokenServiceRevokeTokenHandler.ServeHTTP(w, r)
+		case TokenServiceSetTokenDeployRepositoryProcedure:
+			tokenServiceSetTokenDeployRepositoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -179,4 +212,8 @@ func (UnimplementedTokenServiceHandler) ListTokens(context.Context, *connect.Req
 
 func (UnimplementedTokenServiceHandler) RevokeToken(context.Context, *connect.Request[v1.RevokeTokenRequest]) (*connect.Response[v1.RevokeTokenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TokenService.RevokeToken is not implemented"))
+}
+
+func (UnimplementedTokenServiceHandler) SetTokenDeployRepository(context.Context, *connect.Request[v1.SetTokenDeployRepositoryRequest]) (*connect.Response[v1.SetTokenDeployRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.TokenService.SetTokenDeployRepository is not implemented"))
 }

@@ -6,6 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
@@ -16,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/gitprovider.proto.
  */
 export const file_dockwell_v1_gitprovider: GenFile = /*@__PURE__*/
-  fileDesc("Ch1kb2Nrd2VsbC92MS9naXRwcm92aWRlci5wcm90bxILZG9ja3dlbGwudjEiPAoVU3RhcnRHaXRIdWJBcHBSZXF1ZXN0EhQKDG9yZ2FuaXphdGlvbhgBIAEoCRINCgVwcm9vZhgCIAEoCSI+ChZTdGFydEdpdEh1YkFwcFJlc3BvbnNlEhIKCmFjdGlvbl91cmwYASABKAkSEAoIbWFuaWZlc3QYAiABKAkiNQoWRmluaXNoR2l0SHViQXBwUmVxdWVzdBIMCgRjb2RlGAEgASgJEg0KBXN0YXRlGAIgASgJImoKF0ZpbmlzaEdpdEh1YkFwcFJlc3BvbnNlEicKA2FwcBgBIAEoCzIaLmRvY2t3ZWxsLnYxLkdpdEh1YkFwcEluZm8SEwoLaW5zdGFsbF91cmwYAiABKAkSEQoJY2hhbmdlX2lkGAMgASgJIkMKHEFkZEdpdEh1Ykluc3RhbGxhdGlvblJlcXVlc3QSCgoCaWQYASABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAIgASgDIlYKHUFkZEdpdEh1Ykluc3RhbGxhdGlvblJlc3BvbnNlEjUKDGluc3RhbGxhdGlvbhgBIAEoCzIfLmRvY2t3ZWxsLnYxLkdpdEh1Ykluc3RhbGxhdGlvbiIZChdMaXN0R2l0UHJvdmlkZXJzUmVxdWVzdCJEChhMaXN0R2l0UHJvdmlkZXJzUmVzcG9uc2USKAoEYXBwcxgBIAMoCzIaLmRvY2t3ZWxsLnYxLkdpdEh1YkFwcEluZm8irwIKDUdpdEh1YkFwcEluZm8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZhcHBfaWQYAyABKAMSDQoFb3duZXIYBCABKAkSHQoVb3duZXJfaXNfb3JnYW5pemF0aW9uGAUgASgIEhAKCGh0bWxfdXJsGAYgASgJEhQKDHNldHRpbmdzX3VybBgHIAEoCRIXCg9rZXlfZmluZ2VycHJpbnQYCCABKAkSNgoNaW5zdGFsbGF0aW9ucxgJIAMoCzIfLmRvY2t3ZWxsLnYxLkdpdEh1Ykluc3RhbGxhdGlvbhItCghkZWxpdmVyeRgKIAEoCzIbLmRvY2t3ZWxsLnYxLkdpdEh1YkRlbGl2ZXJ5EgwKBGdvbmUYCyABKAgSEAoIcmV2aXNpb24YDCABKAMizAIKDkdpdEh1YkRlbGl2ZXJ5EjAKBXN0YXRlGAEgASgOMiEuZG9ja3dlbGwudjEuR2l0SHViRGVsaXZlcnkuU3RhdGUSMAoMY2hlY2tlZF90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIbChNjaGVja19ldmVyeV9zZWNvbmRzGAMgASgFEjEKDWJhY2tvZmZfdW50aWwYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhYKDnNlY3JldF9yZWZ1c2VkGAUgASgIIm4KBVN0YXRlEhUKEVNUQVRFX1VOU1BFQ0lGSUVEEAASEQoNU1RBVEVfVU5LTk9XThABEhEKDVNUQVRFX1JFQUNIRUQQAhIRCg1TVEFURV9QT0xMSU5HEAMSFQoRU1RBVEVfQkFDS0lOR19PRkYQBCLeAQoSR2l0SHViSW5zdGFsbGF0aW9uEgoKAmlkGAEgASgDEg8KB2FjY291bnQYAiABKAkSFAoMb3JnYW5pemF0aW9uGAMgASgIEhgKEGFsbF9yZXBvc2l0b3JpZXMYBCABKAgSGAoQcmVwb3NpdG9yeV9jb3VudBgFIAEoBRIRCglzdXNwZW5kZWQYBiABKAgSDwoHcmVtb3ZlZBgHIAEoCBIQCghwcm9qZWN0cxgIIAMoCRIVCg1ldmVyeV9wcm9qZWN0GAkgASgIEhQKDHNldHRpbmdzX3VybBgKIAEoCSItChpMaXN0R2l0UmVwb3NpdG9yaWVzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJIk8KG0xpc3RHaXRSZXBvc2l0b3JpZXNSZXNwb25zZRIwCgxyZXBvc2l0b3JpZXMYASADKAsyGi5kb2Nrd2VsbC52MS5HaXRSZXBvc2l0b3J5IpIBCg1HaXRSZXBvc2l0b3J5EhEKCWZ1bGxfbmFtZRgBIAEoCRILCgN1cmwYAiABKAkSDwoHcHJpdmF0ZRgDIAEoCBIWCg5kZWZhdWx0X2JyYW5jaBgEIAEoCRIOCgZhcHBfaWQYBSABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAYgASgDEg8KB2FjY291bnQYByABKAkiPQogUm90YXRlR2l0SHViV2ViaG9va1NlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSDQoFcHJvb2YYAiABKAkiNgohUm90YXRlR2l0SHViV2ViaG9va1NlY3JldFJlc3BvbnNlEhEKCWNoYW5nZV9pZBgBIAEoCSJWCh5SZXBsYWNlR2l0SHViUHJpdmF0ZUtleVJlcXVlc3QSCgoCaWQYASABKAkSGQoLcHJpdmF0ZV9rZXkYAiABKAlCBKi7GAESDQoFcHJvb2YYAyABKAkidAofUmVwbGFjZUdpdEh1YlByaXZhdGVLZXlSZXNwb25zZRITCgtmaW5nZXJwcmludBgBIAEoCRIXCg9vbGRfZmluZ2VycHJpbnQYAiABKAkSEAoIa2V5c191cmwYAyABKAkSEQoJY2hhbmdlX2lkGAQgASgJIjMKFlJlbW92ZUdpdEh1YkFwcFJlcXVlc3QSCgoCaWQYASABKAkSDQoFcHJvb2YYAiABKAkiVQoXUmVtb3ZlR2l0SHViQXBwUmVzcG9uc2USEwoLdW5pbnN0YWxsZWQYASABKAUSEgoKZGVsZXRlX3VybBgCIAEoCRIRCgljaGFuZ2VfaWQYAyABKAky7RAKEkdpdFByb3ZpZGVyU2VydmljZRKrAQoOU3RhcnRHaXRIdWJBcHASIi5kb2Nrd2VsbC52MS5TdGFydEdpdEh1YkFwcFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5TdGFydEdpdEh1YkFwcFJlc3BvbnNlIlCguxgDqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAiM6ASoiHi92MS9naXQtcHJvdmlkZXJzL2dpdGh1YjpzdGFydBKvAQoPRmluaXNoR2l0SHViQXBwEiMuZG9ja3dlbGwudjEuRmluaXNoR2l0SHViQXBwUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkZpbmlzaEdpdEh1YkFwcFJlc3BvbnNlIlGguxgDqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAiQ6ASoiHy92MS9naXQtcHJvdmlkZXJzL2dpdGh1YjpmaW5pc2gSxgEKFUFkZEdpdEh1Ykluc3RhbGxhdGlvbhIpLmRvY2t3ZWxsLnYxLkFkZEdpdEh1Ykluc3RhbGxhdGlvblJlcXVlc3QaKi5kb2Nrd2VsbC52MS5BZGRHaXRIdWJJbnN0YWxsYXRpb25SZXNwb25zZSJWoLsYA6q7GA8KDWdpdC1wcm92aWRlcnOwuxgBwLsYBMi7GATQuxgGgtPkkwIpOgEqIiQvdjEvZ2l0LXByb3ZpZGVycy97aWR9L2luc3RhbGxhdGlvbnMSoAEKEExpc3RHaXRQcm92aWRlcnMSJC5kb2Nrd2VsbC52MS5MaXN0R2l0UHJvdmlkZXJzUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkxpc3RHaXRQcm92aWRlcnNSZXNwb25zZSI/kAIBoLsYAaq7GA8KDWdpdC1wcm92aWRlcnPAuxgCyLsYAtC7GAWC0+STAhMSES92MS9naXQtcHJvdmlkZXJzEsIBChNMaXN0R2l0UmVwb3NpdG9yaWVzEicuZG9ja3dlbGwudjEuTGlzdEdpdFJlcG9zaXRvcmllc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0R2l0UmVwb3NpdG9yaWVzUmVzcG9uc2UiWJACAaC7GAGquxgSChBnaXQtcmVwb3NpdG9yaWVzwLsYAsi7GALQuxgEgtPkkwIpEicvdjEvcHJvamVjdHMve3Byb2plY3R9L2dpdC1yZXBvc2l0b3JpZXMS2gEKGVJvdGF0ZUdpdEh1YldlYmhvb2tTZWNyZXQSLS5kb2Nrd2VsbC52MS5Sb3RhdGVHaXRIdWJXZWJob29rU2VjcmV0UmVxdWVzdBouLmRvY2t3ZWxsLnYxLlJvdGF0ZUdpdEh1YldlYmhvb2tTZWNyZXRSZXNwb25zZSJeoLsYA6q7GA8KDWdpdC1wcm92aWRlcnOwuxgBwLsYBMi7GATQuxgGgtPkkwIxOgEqIiwvdjEvZ2l0LXByb3ZpZGVycy97aWR9OnJvdGF0ZS13ZWJob29rLXNlY3JldBLSAQoXUmVwbGFjZUdpdEh1YlByaXZhdGVLZXkSKy5kb2Nrd2VsbC52MS5SZXBsYWNlR2l0SHViUHJpdmF0ZUtleVJlcXVlc3QaLC5kb2Nrd2VsbC52MS5SZXBsYWNlR2l0SHViUHJpdmF0ZUtleVJlc3BvbnNlIlyguxgDqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAi86ASoiKi92MS9naXQtcHJvdmlkZXJzL3tpZH06cmVwbGFjZS1wcml2YXRlLWtleRKtAQoPUmVtb3ZlR2l0SHViQXBwEiMuZG9ja3dlbGwudjEuUmVtb3ZlR2l0SHViQXBwUmVxdWVzdBokLmRvY2t3ZWxsLnYxLlJlbW92ZUdpdEh1YkFwcFJlc3BvbnNlIk+guxgEqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAiI6ASoiHS92MS9naXQtcHJvdmlkZXJzL3tpZH06cmVtb3ZlGuMEorsYjQMKDWdpdC1wcm92aWRlcnMS+wJBIEdpdEh1YiBBcHAgRG9ja3dlbGwgbWFrZXMgdGhyb3VnaCBHaXRIdWIncyBtYW5pZmVzdCBmbG93LCBpbiBvbmUgY2xpY2sgZnJvbSB0aGUgcGFuZWw6IGl0cyBpbnN0YWxsYXRpb25zIHJlYWNoIHRoZSByZXBvc2l0b3JpZXMgeW91IHBpY2sgb24gR2l0SHViLCBzbyBhcHBzIGJ1aWxkIGZyb20gcHJpdmF0ZSBvbmVzIGFuZCBkZXBsb3kgb24gcHVzaCB3aXRoIG5vdGhpbmcgdG8gcGFzdGUuIEl0cyBwcml2YXRlIGtleSBhbmQgd2ViaG9vayBzZWNyZXQgc3RheSBvbiB0aGUgY29udHJvbCBwbGFuZS4gQ29ubmVjdGluZyBpdCwgYSBuZXcgc2VjcmV0IG9yIGtleSwgYW5kIHJlbW92aW5nIGl0IHRha2UgYW4gYWRtaW4sIHNpZ25lZCBpbiwgd2l0aCBhIHBhc3NrZXkuorsYzAEKEGdpdC1yZXBvc2l0b3JpZXMStwFUaGUgcmVwb3NpdG9yaWVzIGEgcHJvamVjdCdzIGFwcHMgbWF5IGJ1aWxkIGZyb20gdGhyb3VnaCBhIEdpdEh1YiBBcHA6IHRob3NlIGl0cyBpbnN0YWxsYXRpb25zIHJlYWNoIGZvciB0aGUgcHJvamVjdCwgYXMgR2l0SHViIGxhc3QgbGlzdGVkIHRoZW0uIEEgbmV3IGFwcCBwaWNrcyBvbmUsIHRoZW4gaXRzIGJyYW5jaC5CqQEKD2NvbS5kb2Nrd2VsbC52MUIQR2l0cHJvdmlkZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Ch1kb2Nrd2VsbC92MS9naXRwcm92aWRlci5wcm90bxILZG9ja3dlbGwudjEiPAoVU3RhcnRHaXRIdWJBcHBSZXF1ZXN0EhQKDG9yZ2FuaXphdGlvbhgBIAEoCRINCgVwcm9vZhgCIAEoCSI+ChZTdGFydEdpdEh1YkFwcFJlc3BvbnNlEhIKCmFjdGlvbl91cmwYASABKAkSEAoIbWFuaWZlc3QYAiABKAkiNQoWRmluaXNoR2l0SHViQXBwUmVxdWVzdBIMCgRjb2RlGAEgASgJEg0KBXN0YXRlGAIgASgJImoKF0ZpbmlzaEdpdEh1YkFwcFJlc3BvbnNlEicKA2FwcBgBIAEoCzIaLmRvY2t3ZWxsLnYxLkdpdEh1YkFwcEluZm8SEwoLaW5zdGFsbF91cmwYAiABKAkSEQoJY2hhbmdlX2lkGAMgASgJIkMKHEFkZEdpdEh1Ykluc3RhbGxhdGlvblJlcXVlc3QSCgoCaWQYASABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAIgASgDIlYKHUFkZEdpdEh1Ykluc3RhbGxhdGlvblJlc3BvbnNlEjUKDGluc3RhbGxhdGlvbhgBIAEoCzIfLmRvY2t3ZWxsLnYxLkdpdEh1Ykluc3RhbGxhdGlvbiIZChdMaXN0R2l0UHJvdmlkZXJzUmVxdWVzdCKDAQoYTGlzdEdpdFByb3ZpZGVyc1Jlc3BvbnNlEigKBGFwcHMYASADKAsyGi5kb2Nrd2VsbC52MS5HaXRIdWJBcHBJbmZvEj0KEmdpdGxhYl9jb25uZWN0aW9ucxgCIAMoCzIhLmRvY2t3ZWxsLnYxLkdpdExhYkNvbm5lY3Rpb25JbmZvIusCCg1HaXRIdWJBcHBJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGYXBwX2lkGAMgASgDEg0KBW93bmVyGAQgASgJEh0KFW93bmVyX2lzX29yZ2FuaXphdGlvbhgFIAEoCBIQCghodG1sX3VybBgGIAEoCRIUCgxzZXR0aW5nc191cmwYByABKAkSFwoPa2V5X2ZpbmdlcnByaW50GAggASgJEjYKDWluc3RhbGxhdGlvbnMYCSADKAsyHy5kb2Nrd2VsbC52MS5HaXRIdWJJbnN0YWxsYXRpb24SLQoIZGVsaXZlcnkYCiABKAsyGy5kb2Nrd2VsbC52MS5HaXRIdWJEZWxpdmVyeRIMCgRnb25lGAsgASgIEhAKCHJldmlzaW9uGAwgASgDEiEKGWNoZWNrc19wZXJtaXNzaW9uX21pc3NpbmcYDSABKAgSFwoPcGVybWlzc2lvbnNfdXJsGA4gASgJIswCCg5HaXRIdWJEZWxpdmVyeRIwCgVzdGF0ZRgBIAEoDjIhLmRvY2t3ZWxsLnYxLkdpdEh1YkRlbGl2ZXJ5LlN0YXRlEjAKDGNoZWNrZWRfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGwoTY2hlY2tfZXZlcnlfc2Vjb25kcxgDIAEoBRIxCg1iYWNrb2ZmX3VudGlsGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5zZWNyZXRfcmVmdXNlZBgFIAEoCCJuCgVTdGF0ZRIVChFTVEFURV9VTlNQRUNJRklFRBAAEhEKDVNUQVRFX1VOS05PV04QARIRCg1TVEFURV9SRUFDSEVEEAISEQoNU1RBVEVfUE9MTElORxADEhUKEVNUQVRFX0JBQ0tJTkdfT0ZGEAQigQIKEkdpdEh1Ykluc3RhbGxhdGlvbhIKCgJpZBgBIAEoAxIPCgdhY2NvdW50GAIgASgJEhQKDG9yZ2FuaXphdGlvbhgDIAEoCBIYChBhbGxfcmVwb3NpdG9yaWVzGAQgASgIEhgKEHJlcG9zaXRvcnlfY291bnQYBSABKAUSEQoJc3VzcGVuZGVkGAYgASgIEg8KB3JlbW92ZWQYByABKAgSEAoIcHJvamVjdHMYCCADKAkSFQoNZXZlcnlfcHJvamVjdBgJIAEoCBIUCgxzZXR0aW5nc191cmwYCiABKAkSIQoZY2hlY2tzX3Blcm1pc3Npb25fbWlzc2luZxgLIAEoCCItChpMaXN0R2l0UmVwb3NpdG9yaWVzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJIk8KG0xpc3RHaXRSZXBvc2l0b3JpZXNSZXNwb25zZRIwCgxyZXBvc2l0b3JpZXMYASADKAsyGi5kb2Nrd2VsbC52MS5HaXRSZXBvc2l0b3J5IrQBCg1HaXRSZXBvc2l0b3J5EhEKCWZ1bGxfbmFtZRgBIAEoCRILCgN1cmwYAiABKAkSDwoHcHJpdmF0ZRgDIAEoCBIWCg5kZWZhdWx0X2JyYW5jaBgEIAEoCRIOCgZhcHBfaWQYBSABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAYgASgDEg8KB2FjY291bnQYByABKAkSIAoYY2xhaW1lZF9ieV9vdGhlcl9wcm9qZWN0GAggASgIIj0KIFJvdGF0ZUdpdEh1YldlYmhvb2tTZWNyZXRSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBXByb29mGAIgASgJIjYKIVJvdGF0ZUdpdEh1YldlYmhvb2tTZWNyZXRSZXNwb25zZRIRCgljaGFuZ2VfaWQYASABKAkiVgoeUmVwbGFjZUdpdEh1YlByaXZhdGVLZXlSZXF1ZXN0EgoKAmlkGAEgASgJEhkKC3ByaXZhdGVfa2V5GAIgASgJQgSouxgBEg0KBXByb29mGAMgASgJInQKH1JlcGxhY2VHaXRIdWJQcml2YXRlS2V5UmVzcG9uc2USEwoLZmluZ2VycHJpbnQYASABKAkSFwoPb2xkX2ZpbmdlcnByaW50GAIgASgJEhAKCGtleXNfdXJsGAMgASgJEhEKCWNoYW5nZV9pZBgEIAEoCSIzChZSZW1vdmVHaXRIdWJBcHBSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBXByb29mGAIgASgJIlUKF1JlbW92ZUdpdEh1YkFwcFJlc3BvbnNlEhMKC3VuaW5zdGFsbGVkGAEgASgFEhIKCmRlbGV0ZV91cmwYAiABKAkSEQoJY2hhbmdlX2lkGAMgASgJIiUKF1JlZnJlc2hHaXRIdWJBcHBSZXF1ZXN0EgoKAmlkGAEgASgJIkMKGFJlZnJlc2hHaXRIdWJBcHBSZXNwb25zZRInCgNhcHAYASABKAsyGi5kb2Nrd2VsbC52MS5HaXRIdWJBcHBJbmZvIoICChRHaXRMYWJDb25uZWN0aW9uSW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgsKA3VybBgDIAEoCRITCgtwYXRoX3ByZWZpeBgEIAEoCRIQCghwcm9qZWN0cxgFIAMoCRIVCg1ldmVyeV9wcm9qZWN0GAYgASgIEhAKCHJldmlzaW9uGAcgASgDEjEKBXN0YXRlGAggASgOMiIuZG9ja3dlbGwudjEuR2l0TGFiQ29ubmVjdGlvblN0YXRlEg4KBmRldGFpbBgJIAEoCRIwCgxjaGVja2VkX3RpbWUYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIm4KHENoZWNrR2l0TGFiQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIbCgN1cmwYAiABKAlCDqK7GApnaXRsYWItdXJsEiMKBXRva2VuGAMgASgJQhSiuxgMZ2l0bGFiLXRva2VuyPMYASKTAQodQ2hlY2tHaXRMYWJDb25uZWN0aW9uUmVzcG9uc2USMQoFc3RhdGUYASABKA4yIi5kb2Nrd2VsbC52MS5HaXRMYWJDb25uZWN0aW9uU3RhdGUSDgoGZGV0YWlsGAIgASgJEgsKA3VybBgDIAEoCRISCgp0b2tlbl9uYW1lGAQgASgJEg4KBnNjb3BlcxgFIAMoCSI7ChlMaXN0R2l0TGFiUHJvamVjdHNSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSDQoFcXVlcnkYAiABKAkihQEKGkxpc3RHaXRMYWJQcm9qZWN0c1Jlc3BvbnNlEiwKCHByb2plY3RzGAEgAygLMhouZG9ja3dlbGwudjEuR2l0TGFiUHJvamVjdBI5Cgtjb25uZWN0aW9ucxgCIAMoCzIkLmRvY2t3ZWxsLnYxLkdpdExhYlByb2plY3RDb25uZWN0aW9uIosBCg1HaXRMYWJQcm9qZWN0EhsKE3BhdGhfd2l0aF9uYW1lc3BhY2UYASABKAkSCwoDdXJsGAIgASgJEhUKDWNvbm5lY3Rpb25faWQYAyABKAkSFwoPY29ubmVjdGlvbl9uYW1lGAQgASgJEiAKGGNsYWltZWRfYnlfb3RoZXJfcHJvamVjdBgFIAEoCCKqAQoXR2l0TGFiUHJvamVjdENvbm5lY3Rpb24SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRILCgN1cmwYAyABKAkSEwoLcGF0aF9wcmVmaXgYBCABKAkSMQoFc3RhdGUYBSABKA4yIi5kb2Nrd2VsbC52MS5HaXRMYWJDb25uZWN0aW9uU3RhdGUSDgoGZGV0YWlsGAYgASgJEhAKCGhhc19tb3JlGAcgASgIKo8CChVHaXRMYWJDb25uZWN0aW9uU3RhdGUSKAokR0lUX0xBQl9DT05ORUNUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASJAogR0lUX0xBQl9DT05ORUNUSU9OX1NUQVRFX1VOS05PV04QARImCiJHSVRfTEFCX0NPTk5FQ1RJT05fU1RBVEVfQ09OTkVDVEVEEAISKgomR0lUX0xBQl9DT05ORUNUSU9OX1NUQVRFX01JU1NJTkdfU0NPUEUQAxIoCiRHSVRfTEFCX0NPTk5FQ1RJT05fU1RBVEVfQVVUSF9GQUlMRUQQBBIoCiRHSVRfTEFCX0NPTk5FQ1RJT05fU1RBVEVfVU5SRUFDSEFCTEUQBTLWFQoSR2l0UHJvdmlkZXJTZXJ2aWNlEqsBCg5TdGFydEdpdEh1YkFwcBIiLmRvY2t3ZWxsLnYxLlN0YXJ0R2l0SHViQXBwUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlN0YXJ0R2l0SHViQXBwUmVzcG9uc2UiUKC7GAOquxgPCg1naXQtcHJvdmlkZXJzsLsYAcC7GATIuxgE0LsYBoLT5JMCIzoBKiIeL3YxL2dpdC1wcm92aWRlcnMvZ2l0aHViOnN0YXJ0Eq8BCg9GaW5pc2hHaXRIdWJBcHASIy5kb2Nrd2VsbC52MS5GaW5pc2hHaXRIdWJBcHBSZXF1ZXN0GiQuZG9ja3dlbGwudjEuRmluaXNoR2l0SHViQXBwUmVzcG9uc2UiUaC7GAOquxgPCg1naXQtcHJvdmlkZXJzsLsYAcC7GATIuxgE0LsYBoLT5JMCJDoBKiIfL3YxL2dpdC1wcm92aWRlcnMvZ2l0aHViOmZpbmlzaBLGAQoVQWRkR2l0SHViSW5zdGFsbGF0aW9uEikuZG9ja3dlbGwudjEuQWRkR2l0SHViSW5zdGFsbGF0aW9uUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLkFkZEdpdEh1Ykluc3RhbGxhdGlvblJlc3BvbnNlIlaguxgDqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9naXQtcHJvdmlkZXJzL3tpZH0vaW5zdGFsbGF0aW9ucxKgAQoQTGlzdEdpdFByb3ZpZGVycxIkLmRvY2t3ZWxsLnYxLkxpc3RHaXRQcm92aWRlcnNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuTGlzdEdpdFByb3ZpZGVyc1Jlc3BvbnNlIj+QAgGguxgBqrsYDwoNZ2l0LXByb3ZpZGVyc8C7GALIuxgC0LsYBYLT5JMCExIRL3YxL2dpdC1wcm92aWRlcnMSwgEKE0xpc3RHaXRSZXBvc2l0b3JpZXMSJy5kb2Nrd2VsbC52MS5MaXN0R2l0UmVwb3NpdG9yaWVzUmVxdWVzdBooLmRvY2t3ZWxsLnYxLkxpc3RHaXRSZXBvc2l0b3JpZXNSZXNwb25zZSJYkAIBoLsYAaq7GBIKEGdpdC1yZXBvc2l0b3JpZXPAuxgCyLsYAtC7GASC0+STAikSJy92MS9wcm9qZWN0cy97cHJvamVjdH0vZ2l0LXJlcG9zaXRvcmllcxLaAQoZUm90YXRlR2l0SHViV2ViaG9va1NlY3JldBItLmRvY2t3ZWxsLnYxLlJvdGF0ZUdpdEh1YldlYmhvb2tTZWNyZXRSZXF1ZXN0Gi4uZG9ja3dlbGwudjEuUm90YXRlR2l0SHViV2ViaG9va1NlY3JldFJlc3BvbnNlIl6guxgDqrsYDwoNZ2l0LXByb3ZpZGVyc7C7GAHAuxgEyLsYBNC7GAaC0+STAjE6ASoiLC92MS9naXQtcHJvdmlkZXJzL3tpZH06cm90YXRlLXdlYmhvb2stc2VjcmV0EtIBChdSZXBsYWNlR2l0SHViUHJpdmF0ZUtleRIrLmRvY2t3ZWxsLnYxLlJlcGxhY2VHaXRIdWJQcml2YXRlS2V5UmVxdWVzdBosLmRvY2t3ZWxsLnYxLlJlcGxhY2VHaXRIdWJQcml2YXRlS2V5UmVzcG9uc2UiXKC7GAOquxgPCg1naXQtcHJvdmlkZXJzsLsYAcC7GATIuxgE0LsYBoLT5JMCLzoBKiIqL3YxL2dpdC1wcm92aWRlcnMve2lkfTpyZXBsYWNlLXByaXZhdGUta2V5Eq0BCg9SZW1vdmVHaXRIdWJBcHASIy5kb2Nrd2VsbC52MS5SZW1vdmVHaXRIdWJBcHBSZXF1ZXN0GiQuZG9ja3dlbGwudjEuUmVtb3ZlR2l0SHViQXBwUmVzcG9uc2UiT6C7GASquxgPCg1naXQtcHJvdmlkZXJzsLsYAcC7GATIuxgE0LsYBoLT5JMCIjoBKiIdL3YxL2dpdC1wcm92aWRlcnMve2lkfTpyZW1vdmUSwQEKEFJlZnJlc2hHaXRIdWJBcHASJC5kb2Nrd2VsbC52MS5SZWZyZXNoR2l0SHViQXBwUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlJlZnJlc2hHaXRIdWJBcHBSZXNwb25zZSJgoLsYA6q7GCMKDWdpdC1wcm92aWRlcnMSEnJlZnJlc2gtZ2l0aHViLWFwcMC7GATIuxgE0LsYBoLT5JMCIzoBKiIeL3YxL2dpdC1wcm92aWRlcnMve2lkfTpyZWZyZXNoEs4BChVDaGVja0dpdExhYkNvbm5lY3Rpb24SKS5kb2Nrd2VsbC52MS5DaGVja0dpdExhYkNvbm5lY3Rpb25SZXF1ZXN0GiouZG9ja3dlbGwudjEuQ2hlY2tHaXRMYWJDb25uZWN0aW9uUmVzcG9uc2UiXqC7GAGquxgdCg1naXQtcHJvdmlkZXJzEgxjaGVjay1naXRsYWKwuxgBwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvZ2l0LXByb3ZpZGVycy9naXRsYWI6Y2hlY2sS0QEKEkxpc3RHaXRMYWJQcm9qZWN0cxImLmRvY2t3ZWxsLnYxLkxpc3RHaXRMYWJQcm9qZWN0c1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5MaXN0R2l0TGFiUHJvamVjdHNSZXNwb25zZSJqkAIBoLsYAaq7GCUKDWdpdC1wcm92aWRlcnMSFGxpc3QtZ2l0bGFiLXByb2plY3RzwLsYAsi7GALQuxgEgtPkkwIoEiYvdjEvcHJvamVjdHMve3Byb2plY3R9L2dpdGxhYi1wcm9qZWN0cxrjBKK7GI0DCg1naXQtcHJvdmlkZXJzEvsCQSBHaXRIdWIgQXBwIERvY2t3ZWxsIG1ha2VzIHRocm91Z2ggR2l0SHViJ3MgbWFuaWZlc3QgZmxvdywgaW4gb25lIGNsaWNrIGZyb20gdGhlIHBhbmVsOiBpdHMgaW5zdGFsbGF0aW9ucyByZWFjaCB0aGUgcmVwb3NpdG9yaWVzIHlvdSBwaWNrIG9uIEdpdEh1Yiwgc28gYXBwcyBidWlsZCBmcm9tIHByaXZhdGUgb25lcyBhbmQgZGVwbG95IG9uIHB1c2ggd2l0aCBub3RoaW5nIHRvIHBhc3RlLiBJdHMgcHJpdmF0ZSBrZXkgYW5kIHdlYmhvb2sgc2VjcmV0IHN0YXkgb24gdGhlIGNvbnRyb2wgcGxhbmUuIENvbm5lY3RpbmcgaXQsIGEgbmV3IHNlY3JldCBvciBrZXksIGFuZCByZW1vdmluZyBpdCB0YWtlIGFuIGFkbWluLCBzaWduZWQgaW4sIHdpdGggYSBwYXNza2V5LqK7GMwBChBnaXQtcmVwb3NpdG9yaWVzErcBVGhlIHJlcG9zaXRvcmllcyBhIHByb2plY3QncyBhcHBzIG1heSBidWlsZCBmcm9tIHRocm91Z2ggYSBHaXRIdWIgQXBwOiB0aG9zZSBpdHMgaW5zdGFsbGF0aW9ucyByZWFjaCBmb3IgdGhlIHByb2plY3QsIGFzIEdpdEh1YiBsYXN0IGxpc3RlZCB0aGVtLiBBIG5ldyBhcHAgcGlja3Mgb25lLCB0aGVuIGl0cyBicmFuY2guQqkBCg9jb20uZG9ja3dlbGwudjFCEEdpdHByb3ZpZGVyUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * StartGitHubAppRequest names the account the App is for, and proves a passkey.
@@ -201,7 +202,7 @@ export const ListGitProvidersRequestSchema: GenMessage<ListGitProvidersRequest> 
   messageDesc(file_dockwell_v1_gitprovider, 6);
 
 /**
- * ListGitProvidersResponse is every connected App.
+ * ListGitProvidersResponse is every connected GitHub App and GitLab connection.
  *
  * @generated from message dockwell.v1.ListGitProvidersResponse
  */
@@ -210,6 +211,11 @@ export type ListGitProvidersResponse = Message<"dockwell.v1.ListGitProvidersResp
    * @generated from field: repeated dockwell.v1.GitHubAppInfo apps = 1;
    */
   apps: GitHubAppInfo[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.GitLabConnectionInfo gitlab_connections = 2;
+   */
+  gitlabConnections: GitLabConnectionInfo[];
 };
 
 /**
@@ -306,6 +312,22 @@ export type GitHubAppInfo = Message<"dockwell.v1.GitHubAppInfo"> & {
    * @generated from field: int64 revision = 12;
    */
   revision: bigint;
+
+  /**
+   * True when the App or an active installation lacks Checks write permission
+   * needed to report CI deploy status back to pull requests and commits.
+   *
+   * @generated from field: bool checks_permission_missing = 13;
+   */
+  checksPermissionMissing: boolean;
+
+  /**
+   * Where on GitHub the owner grants or accepts the missing permission.
+   * An admin's alone.
+   *
+   * @generated from field: string permissions_url = 14;
+   */
+  permissionsUrl: string;
 };
 
 /**
@@ -481,6 +503,13 @@ export type GitHubInstallation = Message<"dockwell.v1.GitHubInstallation"> & {
    * @generated from field: string settings_url = 10;
    */
   settingsUrl: string;
+
+  /**
+   * True when this installation has not yet granted Checks write permission.
+   *
+   * @generated from field: bool checks_permission_missing = 11;
+   */
+  checksPermissionMissing: boolean;
 };
 
 /**
@@ -576,6 +605,15 @@ export type GitRepository = Message<"dockwell.v1.GitRepository"> & {
    * @generated from field: string account = 7;
    */
   account: string;
+
+  /**
+   * True when another project has an app building from or a deploy token bound
+   * to this repository, so only an install admin may bind a deploy token in
+   * this project to it.
+   *
+   * @generated from field: bool claimed_by_other_project = 8;
+   */
+  claimedByOtherProject: boolean;
 };
 
 /**
@@ -773,6 +811,373 @@ export const RemoveGitHubAppResponseSchema: GenMessage<RemoveGitHubAppResponse> 
   messageDesc(file_dockwell_v1_gitprovider, 19);
 
 /**
+ * RefreshGitHubAppRequest names a GitHub App to refresh from GitHub.
+ *
+ * @generated from message dockwell.v1.RefreshGitHubAppRequest
+ */
+export type RefreshGitHubAppRequest = Message<"dockwell.v1.RefreshGitHubAppRequest"> & {
+  /**
+   * The App, by ID or name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RefreshGitHubAppRequest.
+ * Use `create(RefreshGitHubAppRequestSchema)` to create a new message.
+ */
+export const RefreshGitHubAppRequestSchema: GenMessage<RefreshGitHubAppRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 20);
+
+/**
+ * RefreshGitHubAppResponse carries the refreshed GitHub App view.
+ *
+ * @generated from message dockwell.v1.RefreshGitHubAppResponse
+ */
+export type RefreshGitHubAppResponse = Message<"dockwell.v1.RefreshGitHubAppResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.GitHubAppInfo app = 1;
+   */
+  app?: GitHubAppInfo | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.RefreshGitHubAppResponse.
+ * Use `create(RefreshGitHubAppResponseSchema)` to create a new message.
+ */
+export const RefreshGitHubAppResponseSchema: GenMessage<RefreshGitHubAppResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 21);
+
+/**
+ * GitLabConnectionInfo is a connected GitLab instance without its token.
+ *
+ * @generated from message dockwell.v1.GitLabConnectionInfo
+ */
+export type GitLabConnectionInfo = Message<"dockwell.v1.GitLabConnectionInfo"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string url = 3;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string path_prefix = 4;
+   */
+  pathPrefix: string;
+
+  /**
+   * @generated from field: repeated string projects = 5;
+   */
+  projects: string[];
+
+  /**
+   * @generated from field: bool every_project = 6;
+   */
+  everyProject: boolean;
+
+  /**
+   * @generated from field: int64 revision = 7;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: dockwell.v1.GitLabConnectionState state = 8;
+   */
+  state: GitLabConnectionState;
+
+  /**
+   * @generated from field: string detail = 9;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp checked_time = 10;
+   */
+  checkedTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GitLabConnectionInfo.
+ * Use `create(GitLabConnectionInfoSchema)` to create a new message.
+ */
+export const GitLabConnectionInfoSchema: GenMessage<GitLabConnectionInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 22);
+
+/**
+ * CheckGitLabConnectionRequest checks a typed or saved GitLab connection.
+ *
+ * @generated from message dockwell.v1.CheckGitLabConnectionRequest
+ */
+export type CheckGitLabConnectionRequest = Message<"dockwell.v1.CheckGitLabConnectionRequest"> & {
+  /**
+   * Optional saved gitlab.connection name whose token is reused when token is empty.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string url = 2;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string token = 3;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckGitLabConnectionRequest.
+ * Use `create(CheckGitLabConnectionRequestSchema)` to create a new message.
+ */
+export const CheckGitLabConnectionRequestSchema: GenMessage<CheckGitLabConnectionRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 23);
+
+/**
+ * CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
+ *
+ * @generated from message dockwell.v1.CheckGitLabConnectionResponse
+ */
+export type CheckGitLabConnectionResponse = Message<"dockwell.v1.CheckGitLabConnectionResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.GitLabConnectionState state = 1;
+   */
+  state: GitLabConnectionState;
+
+  /**
+   * @generated from field: string detail = 2;
+   */
+  detail: string;
+
+  /**
+   * @generated from field: string url = 3;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string token_name = 4;
+   */
+  tokenName: string;
+
+  /**
+   * @generated from field: repeated string scopes = 5;
+   */
+  scopes: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.CheckGitLabConnectionResponse.
+ * Use `create(CheckGitLabConnectionResponseSchema)` to create a new message.
+ */
+export const CheckGitLabConnectionResponseSchema: GenMessage<CheckGitLabConnectionResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 24);
+
+/**
+ * ListGitLabProjectsRequest names a project and an optional search term.
+ *
+ * @generated from message dockwell.v1.ListGitLabProjectsRequest
+ */
+export type ListGitLabProjectsRequest = Message<"dockwell.v1.ListGitLabProjectsRequest"> & {
+  /**
+   * The project, by ID or name.
+   *
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * Optional search query forwarded to GitLab.
+   *
+   * @generated from field: string query = 2;
+   */
+  query: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListGitLabProjectsRequest.
+ * Use `create(ListGitLabProjectsRequestSchema)` to create a new message.
+ */
+export const ListGitLabProjectsRequestSchema: GenMessage<ListGitLabProjectsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 25);
+
+/**
+ * ListGitLabProjectsResponse carries reachable GitLab projects and connections.
+ *
+ * @generated from message dockwell.v1.ListGitLabProjectsResponse
+ */
+export type ListGitLabProjectsResponse = Message<"dockwell.v1.ListGitLabProjectsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.GitLabProject projects = 1;
+   */
+  projects: GitLabProject[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.GitLabProjectConnection connections = 2;
+   */
+  connections: GitLabProjectConnection[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListGitLabProjectsResponse.
+ * Use `create(ListGitLabProjectsResponseSchema)` to create a new message.
+ */
+export const ListGitLabProjectsResponseSchema: GenMessage<ListGitLabProjectsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 26);
+
+/**
+ * GitLabProject is one repository reachable through a GitLab connection.
+ *
+ * @generated from message dockwell.v1.GitLabProject
+ */
+export type GitLabProject = Message<"dockwell.v1.GitLabProject"> & {
+  /**
+   * @generated from field: string path_with_namespace = 1;
+   */
+  pathWithNamespace: string;
+
+  /**
+   * @generated from field: string url = 2;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string connection_id = 3;
+   */
+  connectionId: string;
+
+  /**
+   * @generated from field: string connection_name = 4;
+   */
+  connectionName: string;
+
+  /**
+   * True when another project has an app building from or a deploy token bound
+   * to this repository, so only an install admin may bind a deploy token in
+   * this project to it.
+   *
+   * @generated from field: bool claimed_by_other_project = 5;
+   */
+  claimedByOtherProject: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.GitLabProject.
+ * Use `create(GitLabProjectSchema)` to create a new message.
+ */
+export const GitLabProjectSchema: GenMessage<GitLabProject> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 27);
+
+/**
+ * GitLabProjectConnection summarizes a GitLab connection reachable by the project.
+ *
+ * @generated from message dockwell.v1.GitLabProjectConnection
+ */
+export type GitLabProjectConnection = Message<"dockwell.v1.GitLabProjectConnection"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string url = 3;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string path_prefix = 4;
+   */
+  pathPrefix: string;
+
+  /**
+   * Live state from listing or checking this connection.
+   *
+   * @generated from field: dockwell.v1.GitLabConnectionState state = 5;
+   */
+  state: GitLabConnectionState;
+
+  /**
+   * Optional failure detail when state is not connected.
+   *
+   * @generated from field: string detail = 6;
+   */
+  detail: string;
+
+  /**
+   * True when GitLab has more projects beyond the returned page (search narrows).
+   *
+   * @generated from field: bool has_more = 7;
+   */
+  hasMore: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.GitLabProjectConnection.
+ * Use `create(GitLabProjectConnectionSchema)` to create a new message.
+ */
+export const GitLabProjectConnectionSchema: GenMessage<GitLabProjectConnection> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_gitprovider, 28);
+
+/**
+ * GitLabConnectionState says how a GitLab connection checked out.
+ *
+ * @generated from enum dockwell.v1.GitLabConnectionState
+ */
+export enum GitLabConnectionState {
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_UNKNOWN = 1;
+   */
+  UNKNOWN = 1,
+
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_CONNECTED = 2;
+   */
+  CONNECTED = 2,
+
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_MISSING_SCOPE = 3;
+   */
+  MISSING_SCOPE = 3,
+
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_AUTH_FAILED = 4;
+   */
+  AUTH_FAILED = 4,
+
+  /**
+   * @generated from enum value: GIT_LAB_CONNECTION_STATE_UNREACHABLE = 5;
+   */
+  UNREACHABLE = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.GitLabConnectionState.
+ */
+export const GitLabConnectionStateSchema: GenEnum<GitLabConnectionState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_gitprovider, 0);
+
+/**
  * GitProviderService connects GitHub as an App Dockwell makes through GitHub's
  * manifest flow, so apps build from private repositories the App is installed on,
  * and deploy on push with nothing to paste. See
@@ -888,6 +1293,40 @@ export const GitProviderService: GenService<{
     methodKind: "unary";
     input: typeof RemoveGitHubAppRequestSchema;
     output: typeof RemoveGitHubAppResponseSchema;
+  },
+  /**
+   * RefreshGitHubApp reads a GitHub App and its installations from GitHub again,
+   * updating cached repositories and accepted permissions such as Checks write.
+   *
+   * @generated from rpc dockwell.v1.GitProviderService.RefreshGitHubApp
+   */
+  refreshGitHubApp: {
+    methodKind: "unary";
+    input: typeof RefreshGitHubAppRequestSchema;
+    output: typeof RefreshGitHubAppResponseSchema;
+  },
+  /**
+   * CheckGitLabConnection checks a GitLab host and access token from the control
+   * plane without saving anything, verifying connectivity and the api scope
+   * required for commit statuses (ADR 0111).
+   *
+   * @generated from rpc dockwell.v1.GitProviderService.CheckGitLabConnection
+   */
+  checkGitLabConnection: {
+    methodKind: "unary";
+    input: typeof CheckGitLabConnectionRequestSchema;
+    output: typeof CheckGitLabConnectionResponseSchema;
+  },
+  /**
+   * ListGitLabProjects returns the GitLab projects reachable by a project's
+   * connected GitLab instances, filtered by each connection's path prefix.
+   *
+   * @generated from rpc dockwell.v1.GitProviderService.ListGitLabProjects
+   */
+  listGitLabProjects: {
+    methodKind: "unary";
+    input: typeof ListGitLabProjectsRequestSchema;
+    output: typeof ListGitLabProjectsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_gitprovider, 0);

@@ -44,7 +44,13 @@ type APIToken struct {
 	Role string
 	// DeployService and DeployEnvironment bind a deploy-only token to one app and place.
 	DeployService, DeployEnvironment string
+	// DeployRepository is the canonical HTTPS repository URL this deploy token
+	// may report CI deploy statuses to. Empty disables commit/check-run reporting.
+	DeployRepository string
 }
+
+// ErrTokenNotDeploy reports an attempt to set a deploy repository on a non-deploy token.
+var ErrTokenNotDeploy = errors.New("token is not a deploy token")
 
 // Narrowed reports a token that acts in some projects or as a lower role than its
 // maker's (ADR 0071).
@@ -65,7 +71,7 @@ func (t *APIToken) HasGrant(grant string) bool { return slices.Contains(t.Grants
 // MaxTokenAddresses bounds the addresses kept for each token.
 const MaxTokenAddresses = 256
 
-const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account, projects, role, deploy_service, deploy_environment` //nolint:gosec // column names
+const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account, projects, role, deploy_service, deploy_environment, deploy_repository` //nolint:gosec // column names
 
 func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var t APIToken
@@ -74,7 +80,7 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var grants string
 	var projects sql.NullString
 	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants, &t.LocalAccount,
-		&projects, &t.Role, &t.DeployService, &t.DeployEnvironment); err != nil {
+		&projects, &t.Role, &t.DeployService, &t.DeployEnvironment, &t.DeployRepository); err != nil {
 		return APIToken{}, err
 	}
 	if grants != "" {
@@ -99,9 +105,9 @@ func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
 		args = append(args, projectsColumn(tok.Projects), tok.Role)
 	}
 	if tok.DeployService != "" {
-		columns += `, deploy_service, deploy_environment`
-		values += `, ?, ?`
-		args = append(args, tok.DeployService, tok.DeployEnvironment)
+		columns += `, deploy_service, deploy_environment, deploy_repository`
+		values += `, ?, ?, ?`
+		args = append(args, tok.DeployService, tok.DeployEnvironment, tok.DeployRepository)
 	}
 	_, err := t.exec(ctx, `INSERT INTO api_tokens (`+columns+`) VALUES (`+values+`)`, args...)
 	if err != nil {
@@ -206,6 +212,83 @@ func (t *Tx) RevokeAPIToken(ctx context.Context, userID, id string, at time.Time
 		return fmt.Errorf("API token %s: %w", id, ErrNotFound)
 	}
 	return nil
+}
+
+// SetAPITokenDeployRepository updates the status-reporting repository bound to
+// one of userID's live deploy tokens.
+func (t *Tx) SetAPITokenDeployRepository(ctx context.Context, userID, id, repository string, now time.Time) (APIToken, error) {
+	tok, err := t.GetAPIToken(ctx, id)
+	if err != nil {
+		return APIToken{}, err
+	}
+	if tok.UserID != userID || tok.RevokedAt != nil || (tok.ExpiresAt != nil && !now.Before(*tok.ExpiresAt)) {
+		return APIToken{}, fmt.Errorf("API token %s: %w", id, ErrNotFound)
+	}
+	if tok.DeployService == "" {
+		return APIToken{}, ErrTokenNotDeploy
+	}
+	if _, err := t.exec(ctx, `UPDATE api_tokens SET deploy_repository = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+		repository, id, userID); err != nil {
+		return APIToken{}, fmt.Errorf("can't update API token %s: %w", id, err)
+	}
+	tok.DeployRepository = repository
+	return tok, nil
+}
+
+// DeployTokenBinding pairs a live deploy token's project with its bound status repository.
+type DeployTokenBinding struct {
+	ProjectID  string
+	Repository string
+}
+
+// LiveDeployTokenRepositories lists every live (not revoked, not expired) deploy
+// token that has a bound status repository.
+func (t *Tx) LiveDeployTokenRepositories(ctx context.Context, now time.Time) ([]DeployTokenBinding, error) {
+	rows, err := t.query(ctx, `SELECT projects, deploy_repository FROM api_tokens
+		WHERE deploy_repository != '' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`, millis(now))
+	if err != nil {
+		return nil, fmt.Errorf("listing live deploy token repositories: %w", err)
+	}
+	defer rows.Close()
+	var out []DeployTokenBinding
+	for rows.Next() {
+		var projectsCol sql.NullString
+		var repo string
+		if err := rows.Scan(&projectsCol, &repo); err != nil {
+			return nil, err
+		}
+		for _, p := range projectsFrom(projectsCol) {
+			if p != "" {
+				out = append(out, DeployTokenBinding{ProjectID: p, Repository: repo})
+			}
+		}
+	}
+	return out, rows.Err()
+}
+
+// APITokenOwners returns the owning user_id for each named API token ID in one query.
+func (t *Tx) APITokenOwners(ctx context.Context, ids []string) (map[string]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := t.query(ctx, `SELECT id, user_id FROM api_tokens WHERE id IN (`+marks(len(ids))+`)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("reading API token owners: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]string, len(ids))
+	for rows.Next() {
+		var id, userID string
+		if err := rows.Scan(&id, &userID); err != nil {
+			return nil, err
+		}
+		out[id] = userID
+	}
+	return out, rows.Err()
 }
 
 // TouchAPIToken records that a token was used at at from ip.

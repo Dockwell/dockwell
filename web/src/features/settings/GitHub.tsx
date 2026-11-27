@@ -2,7 +2,13 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type GitHubAppInfo, GitProviderService, StepUpAction } from "@dockwell/api";
+import {
+  ChangeService,
+  type GitHubAppInfo,
+  type GitLabConnectionInfo,
+  GitProviderService,
+  StepUpAction,
+} from "@dockwell/api";
 import { BrandMark, Button, ButtonLink, Callout, SegmentedControl, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -15,6 +21,7 @@ import { ListPager, useListSection } from "../shell/ListTools";
 import { ReadFailed } from "../shell/ReadFailed";
 import { CardsLoading } from "./CardsLoading";
 import { GitHubManageSheet, type Removed } from "./GitHubManage";
+import { GitLabCard, GitLabConnectCard, GitLabSheet } from "./GitLab";
 import { installUrl, useDeliveryWords, useGitHubApps } from "./github";
 import "./GitHub.css";
 
@@ -29,32 +36,53 @@ export function GitHubSection({ query }: { query: string }) {
   const may = useMay();
   const apps = useGitHubApps();
   const mayConnect = may(GitProviderService.method.startGitHubApp);
+  const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const [connecting, setConnecting] = useState(false);
   const [managing, setManaging] = useState<string>();
+  const [gitlabSheet, setGitlabSheet] = useState<{ editing?: GitLabConnectionInfo }>();
   // What removing an App left to do on GitHub, which keeps it until it's deleted there.
   const [removed, setRemoved] = useState<Removed>();
   const list = apps.data?.apps ?? [];
+  const gitlabList = apps.data?.gitlabConnections ?? [];
   const pagination = useListSection(
     list,
     query,
     (app) => `${app.name} ${app.owner} ${app.installations.map((install) => install.account).join(" ")}`,
   );
+  const filteredGitlab = query
+    ? gitlabList.filter((c) => `${c.name} ${c.url} ${c.pathPrefix} gitlab`.toLowerCase().includes(query))
+    : gitlabList;
   const managed = list.find((a) => a.id === managing);
+  const totalCards = Math.max(1, list.length) + Math.max(1, gitlabList.length);
   // As many of the page's columns as its cards, as the page lays out each section (IntegrationsPage, #786).
-  const cards = String(Math.min(4, Math.max(1, list.length)));
-  const live = list.filter((a) => !a.gone).length;
+  const cards = String(Math.min(4, Math.max(2, totalCards)));
+  const live = list.filter((a) => !a.gone).length + gitlabList.length;
   return (
     <section className="integrations-section" aria-labelledby="integrations-git" data-cards={cards}>
       <div className="integrations-head">
         <h2 id="integrations-git" className="dw-text-heading">
           <Trans>Git</Trans>
         </h2>
-        {live > 0 ? <span className="integrations-count">{live === 1 ? t`1 app` : t`${live} apps`}</span> : null}
+        {live > 0 ? (
+          <span className="integrations-count">{live === 1 ? t`1 connection` : t`${live} connections`}</span>
+        ) : null}
+        {gitlabList.length > 0 ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="plus"
+            className="integrations-more"
+            onClick={() => setGitlabSheet({})}
+            {...mayPlan.off}
+          >
+            <Trans>Connect GitLab</Trans>
+          </Button>
+        ) : null}
       </div>
       {apps.error && !apps.data ? (
         <ReadFailed
           error={apps.error}
-          title={t`Dockwell can't list its GitHub Apps`}
+          title={t`Dockwell can't list its Git providers`}
           actions={
             <Button size="sm" icon="refresh" loading={apps.isFetching} onClick={() => void apps.refetch()}>
               <Trans>Try again</Trans>
@@ -62,7 +90,7 @@ export function GitHubSection({ query }: { query: string }) {
           }
         />
       ) : !apps.data ? (
-        <CardsLoading label={t`Loading GitHub Apps`} cards={1} />
+        <CardsLoading label={t`Loading Git providers`} cards={2} />
       ) : (
         <div className="integrations-grid">
           {pagination.page.rows.map((app) => (
@@ -74,7 +102,7 @@ export function GitHubSection({ query }: { query: string }) {
               onChanged={() => void apps.refetch()}
             />
           ))}
-          {list.length > 0 ? null : (
+          {list.length > 0 || (query && !"github".includes(query)) ? null : (
             <article className="dw-panel integrations-card" aria-label="GitHub">
               <div className="integrations-card-head">
                 <BrandMark brand="github" />
@@ -82,7 +110,7 @@ export function GitHubSection({ query }: { query: string }) {
               </div>
               <div className="integrations-card-text">
                 <h3 className="integrations-name">GitHub</h3>
-                <p className="integrations-desc">{t`Private repositories, and deploy on push`}</p>
+                <p className="integrations-desc">{t`Private repositories, deploy on push, and PR status`}</p>
               </div>
               <div>
                 <Button size="sm" icon="plus" onClick={() => setConnecting(true)} {...mayConnect.off}>
@@ -90,6 +118,17 @@ export function GitHubSection({ query }: { query: string }) {
                 </Button>
               </div>
             </article>
+          )}
+          {filteredGitlab.map((conn) => (
+            <GitLabCard
+              key={conn.id}
+              connection={conn}
+              onManage={() => setGitlabSheet({ editing: conn })}
+              onChanged={() => void apps.refetch()}
+            />
+          ))}
+          {gitlabList.length > 0 || (query && !"gitlab".includes(query)) ? null : (
+            <GitLabConnectCard onConnect={() => setGitlabSheet({})} />
           )}
         </div>
       )}
@@ -133,6 +172,13 @@ export function GitHubSection({ query }: { query: string }) {
           }}
         />
       ) : null}
+      {gitlabSheet ? (
+        <GitLabSheet
+          editing={gitlabSheet.editing}
+          onClose={() => setGitlabSheet(undefined)}
+          onChanged={() => void apps.refetch()}
+        />
+      ) : null}
     </section>
   );
 }
@@ -155,16 +201,35 @@ function GitHubCard({
   const words = useDeliveryWords();
   const mayManage = may(GitProviderService.method.rotateGitHubWebhookSecret);
   const mayConnect = may(GitProviderService.method.startGitHubApp);
+  const mayRefresh = may(GitProviderService.method.refreshGitHubApp);
+  const transport = useTransport();
+  const explain = useAuthError();
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshErr, setRefreshErr] = useState<string>();
   const installed = app.installations.filter((i) => !i.removed);
   const accounts = installed.map((i) => i.account).join(", ");
   const repositories = installed.reduce((n, i) => n + i.repositoryCount, 0);
   const delivery = words(app.delivery);
+  const refresh = async () => {
+    setRefreshing(true);
+    setRefreshErr(undefined);
+    try {
+      await createClient(GitProviderService, transport).refreshGitHubApp({ id: app.id });
+      onChanged();
+    } catch (err) {
+      setRefreshErr(explain(err) || sentence(err));
+    } finally {
+      setRefreshing(false);
+    }
+  };
   return (
     <article className="dw-panel integrations-card" aria-label="GitHub">
       <div className="integrations-card-head">
         <BrandMark brand="github" />
         {app.gone ? (
           <StatusBadge status="down" label={t`Deleted on GitHub`} />
+        ) : app.checksPermissionMissing ? (
+          <StatusBadge status="degraded" label={t`Missing Checks`} />
         ) : (
           <StatusBadge status="healthy" label={t`Connected`} />
         )}
@@ -189,6 +254,16 @@ function GitHubCard({
               GitHub App on <code>{accounts}</code>
             </Trans>
           )}
+          {!app.gone && app.checksPermissionMissing ? (
+            <span className="integrations-sub github-unreached">
+              {t`Grant Checks (read and write) to report CI deploy status.`}{" "}
+              {app.permissionsUrl ? (
+                <a href={app.permissionsUrl} target="_blank" rel="noreferrer" className="cp-link">
+                  {t`Update permissions on GitHub`}
+                </a>
+              ) : null}
+            </span>
+          ) : null}
           {!app.gone && delivery.unreached ? (
             <span className="integrations-sub github-unreached">
               {delivery.text}{" "}
@@ -199,6 +274,11 @@ function GitHubCard({
           ) : null}
           {!app.gone && delivery.refused ? (
             <span className="integrations-sub github-unreached">{delivery.text}</span>
+          ) : null}
+          {refreshErr ? (
+            <span className="integrations-error" role="alert">
+              {refreshErr}
+            </span>
           ) : null}
         </p>
       </div>
@@ -212,6 +292,11 @@ function GitHubCard({
             <Button size="sm" variant="secondary" icon="settings" onClick={onManage} {...mayManage.off}>
               <Trans>Manage</Trans>
             </Button>
+            {app.checksPermissionMissing && mayRefresh.allowed ? (
+              <Button size="sm" variant="ghost" icon="refresh" loading={refreshing} onClick={() => void refresh()}>
+                <Trans>Check again</Trans>
+              </Button>
+            ) : null}
             {delivery.refused && mayManage.allowed ? <NewSecretButton app={app} onChanged={onChanged} /> : null}
             {installed.length === 0 && mayManage.allowed ? (
               <ButtonLink size="sm" variant="ghost" icon="external" href={installUrl(app)}>

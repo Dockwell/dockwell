@@ -54,6 +54,7 @@ const (
 	TerminalCommand = "tcm"
 	Invite          = "inv"
 	GitHook         = "ghk"
+	CIStatus        = "cis"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"

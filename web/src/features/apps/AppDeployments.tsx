@@ -222,7 +222,13 @@ export function AppDeployments() {
               </span>
               <span className="deploy-what">
                 {rev.change?.deployOrigin ? (
-                  <DeploySource origin={rev.change.deployOrigin} />
+                  <DeploySource
+                    origin={rev.change.deployOrigin}
+                    status={rev.change.deployStatus}
+                    changeId={rev.change.id}
+                    environment={environmentOf(service)}
+                    onRetried={() => void history.refetch()}
+                  />
                 ) : (
                   <ChangedLine rev={rev} />
                 )}
@@ -284,7 +290,23 @@ export function AppDeployments() {
       },
     });
     return out;
-  }, [t, i18n, latest, look, state, revisionTitle, revisions, words, who, time, now, roomy, builds]);
+  }, [
+    t,
+    i18n,
+    latest,
+    look,
+    state,
+    revisionTitle,
+    revisions,
+    words,
+    who,
+    time,
+    now,
+    roomy,
+    builds,
+    service,
+    history.refetch,
+  ]);
 
   const newest = revisions?.[0] ? revisionName(revisions[0].number) : undefined;
   const lastShown = revisions?.[revisions.length - 1];
@@ -357,7 +379,15 @@ export function AppDeployments() {
                     <span className="deploy-phone-summary">{revisionTitle(rev, revisions).node}</span>
                     <span className="deploy-phone-by">{who.name(rev.change)}</span>
                   </button>
-                  {rev.change?.deployOrigin ? <DeploySource origin={rev.change.deployOrigin} /> : null}
+                  {rev.change?.deployOrigin ? (
+                    <DeploySource
+                      origin={rev.change.deployOrigin}
+                      status={rev.change.deployStatus}
+                      changeId={rev.change.id}
+                      environment={environmentOf(service)}
+                      onRetried={() => void history.refetch()}
+                    />
+                  ) : null}
                 </li>
               );
             })}
@@ -761,7 +791,15 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
   return (
     <div className="deploy-body">
-      {rev.change?.deployOrigin ? <DeploySource origin={rev.change.deployOrigin} /> : null}
+      {rev.change?.deployOrigin ? (
+        <DeploySource
+          origin={rev.change.deployOrigin}
+          status={rev.change.deployStatus}
+          changeId={rev.change.id}
+          environment={environmentOf(service)}
+          onRetried={onBuildEnded}
+        />
+      ) : null}
       {change?.state === ChangeState.FAILED ? (
         <RollbackLine
           change={change}

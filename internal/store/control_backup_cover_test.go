@@ -25,6 +25,7 @@ var noBackupTrigger = map[string]string{
 	"alerts":                "live alert state from the evaluator",
 	"alert_deliveries":      "notification outbox",
 	"alert_sends":           "notification attempts",
+	"ci_status_outbox":      "CI deploy status delivery outbox",
 	"history_series":        "metric history omitted from bundles",
 	"history_chunks":        "metric history omitted from bundles",
 	"server_history":        "metric history omitted from bundles",

@@ -242,7 +242,7 @@ func TestAnAdminConnectsGitHubAsAnApp(t *testing.T) {
 		Permissions map[string]string    `json:"default_permissions"`
 	}
 	if err := json.Unmarshal([]byte(started.Msg.GetManifest()), &manifest); err != nil || !strings.Contains(manifest.Hook.URL, "/hooks/github/ghw_") ||
-		len(manifest.Permissions) != 2 {
+		len(manifest.Permissions) != 3 || manifest.Permissions["checks"] != "write" {
 		t.Errorf("the manifest is %s, %v", started.Msg.GetManifest(), err)
 	}
 

@@ -39,6 +39,15 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: summary ? t`Couldn't apply ${summary}` : t`A change failed`, tone: "critical" };
         case "change.discarded":
           return { title: summary ? t`Discarded ${summary}` : t`Discarded a change` };
+        case "ci_status.failed":
+          return {
+            title: name ? t`Couldn't report deploy status for ${name}` : t`Couldn't report deploy status`,
+            tone: "warning",
+          };
+        case "ci_status.retried":
+          return {
+            title: name ? t`Retried reporting deploy status for ${name}` : t`Retried reporting deploy status`,
+          };
         case "auth.sign_in_failed":
           return { title: t`Couldn't sign in`, tone: "warning" };
         case "auth.sign_out":

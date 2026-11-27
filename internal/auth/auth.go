@@ -176,11 +176,24 @@ type Service struct {
 	// hookDecoySealed is a secret sealed as a hook's is, which a delivery for a
 	// hook there isn't opens, as one for a hook opens its own.
 	hookDecoySealed []byte
-	roleRefusals    *refusals      // calls refused for want of a role, by person or token and method
-	stepUps         *stepUps       // proofs of a passkey confirming one action
-	providers       providerSource // sign-in providers for the panel (ADR 0095)
+	roleRefusals    *refusals       // calls refused for want of a role, by person or token and method
+	stepUps         *stepUps        // proofs of a passkey confirming one action
+	providers       providerSource  // sign-in providers for the panel (ADR 0095)
+	deployRepoCheck DeployRepoCheck // validates deploy token repository reach & project ownership (ADR 0111)
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
+}
+
+// DeployRepoCheck validates whether a deploy token for serviceID in projectID
+// may bind to normalized HTTPS repository normRepo inside the token transaction
+// (ADR 0111). isInstallAdmin is true when the caller holds an install-wide admin
+// or owner role.
+type DeployRepoCheck func(ctx context.Context, tx *store.Tx, serviceID, projectID, normRepo string, isInstallAdmin bool) error
+
+// SetDeployRepoCheck sets the validator checked before creating or rebinding a
+// deploy token's status repository.
+func (s *Service) SetDeployRepoCheck(fn DeployRepoCheck) {
+	s.deployRepoCheck = fn
 }
 
 // New returns a Service.

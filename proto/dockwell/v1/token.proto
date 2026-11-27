@@ -59,6 +59,25 @@ service TokenService {
     };
     option (dockwell.v1.command) = {noun: "api-tokens"};
   }
+
+  // SetTokenDeployRepository binds a deploy token to the HTTPS repository
+  // whose commits it may report deploy status to, or clears the binding when
+  // empty (ADR 0111). Requires a proof from AuthService.FinishStepUp for
+  // creating a token and developer access on the token's app.
+  rpc SetTokenDeployRepository(SetTokenDeployRepositoryRequest) returns (SetTokenDeployRepositoryResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {
+      post: "/v1/tokens/{id}:setDeployRepository"
+      body: "*"
+    };
+    option (dockwell.v1.command) = {
+      noun: "api-tokens"
+      verb: "set-deploy-repository"
+    };
+  }
 }
 
 // TokenScope is what a token may do, by the effect of each method.
@@ -119,6 +138,10 @@ message Token {
   // Current name of the app where the token still works. Empty if its bound
   // service has moved, gone away, or is no longer visible to its maker.
   string deploy_service_name = 14;
+  // Normalized HTTPS repository URL this deploy token may report CI deploy
+  // status to. Empty disables commit/check-run reporting for deploys made by
+  // this token.
+  string deploy_repository = 15;
 }
 
 // TokenProject is a project a token acts in.
@@ -161,6 +184,9 @@ message CreateTokenRequest {
   // Required for deploy scope. A service ID; Dockwell sets its project,
   // environment and developer cap from the service.
   string deploy_service = 9;
+  // Optional for deploy scope. Normalized HTTPS repository URL whose commits
+  // deploys made with this token may report status to.
+  string deploy_repository = 10;
 }
 
 // CreateTokenResponse carries the new token and its secret.
@@ -189,3 +215,19 @@ message RevokeTokenRequest {
 
 // RevokeTokenResponse is empty.
 message RevokeTokenResponse {}
+
+// SetTokenDeployRepositoryRequest updates the status-reporting repository
+// bound to one of your deploy tokens.
+message SetTokenDeployRepositoryRequest {
+  // The deploy token's ID.
+  string id = 1;
+  // Normalized HTTPS repository URL, or empty to disable status reporting.
+  string deploy_repository = 2;
+  // The proof from AuthService.FinishStepUp, for creating a token.
+  string proof = 3;
+}
+
+// SetTokenDeployRepositoryResponse returns the updated token.
+message SetTokenDeployRepositoryResponse {
+  Token token = 1;
+}

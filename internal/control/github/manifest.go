@@ -56,7 +56,7 @@ func NewManifest(panel *url.URL, id string) Manifest {
 		RedirectURL: base + "/settings/integrations/github/created",
 		SetupURL:    base + "/settings/integrations/github/" + url.PathEscape(id) + "/installed",
 		Public:      false,
-		Permissions: map[string]string{string(Contents): "read", string(Metadata): "read"},
+		Permissions: map[string]string{string(Contents): "read", string(Metadata): "read", string(Checks): "write"},
 		Events:      []string{"push"},
 	}
 }

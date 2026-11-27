@@ -33,10 +33,13 @@ var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.SigninProviderInfo":    {"id": true, "name": true, "display_name": true},
 	"dockwell.v1.GitHubAppInfo": {
 		"id": true, "name": true, "owner": true, "owner_is_organization": true, "html_url": true,
-		"installations": true, "delivery": true, "gone": true,
+		"installations": true, "delivery": true, "gone": true, "checks_permission_missing": true,
 	},
 	"dockwell.v1.GitHubInstallation": {
-		"id": true, "account": true, "organization": true, "suspended": true, "removed": true, "settings_url": true,
+		"id": true, "account": true, "organization": true, "suspended": true, "removed": true, "settings_url": true, "checks_permission_missing": true,
+	},
+	"dockwell.v1.GitLabConnectionInfo": {
+		"id": true, "name": true, "url": true, "state": true,
 	},
 }
 

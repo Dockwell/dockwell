@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/github"
+	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -65,6 +66,8 @@ type Config struct {
 	API, Web string
 	// Client reaches GitHub: github.NewClient unless a test's.
 	Client github.Doer
+	// GitLab reaches GitLab servers: a netguard-backed client unless a test's.
+	GitLab *gitlab.Client
 	// Now is the clock: time.Now unless a test's.
 	Now func() time.Time
 	// BeforeChange runs between reading an App and keeping a change made from it,
@@ -88,6 +91,12 @@ type Handler struct {
 	apps map[string]*actingApp
 	// gone are Apps GitHub refused, by resource ID.
 	gone map[string]bool
+	// appPerms caches each GitHub App's permissions map from GET /app, by resource ID.
+	appPerms map[string]map[string]string
+	// gitlabChecks caches the latest connection check per gitlab.connection resource ID.
+	gitlabChecks map[string]gitlabCheck
+	// gitlabProjects caches GET /api/v4/projects per (connection ID, revision, query) for 60s (N8).
+	gitlabProjects map[string]gitlabProjectsCache
 	// watch is whether each App's deliveries reach the panel, by resource ID;
 	// branches what the last check of each hook's branch said, by hook ID; and
 	// pusher what deploys a push polling finds.
@@ -119,12 +128,17 @@ func New(cfg Config) *Handler {
 	if cfg.Client == nil {
 		cfg.Client = github.NewClient()
 	}
+	if cfg.GitLab == nil {
+		cfg.GitLab = &gitlab.Client{}
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
 	return &Handler{
 		cfg: cfg, starting: map[string]starting{}, apps: map[string]*actingApp{}, gone: map[string]bool{},
-		watch: map[string]*watching{}, branches: map[string]branch{},
+		appPerms: map[string]map[string]string{}, gitlabChecks: map[string]gitlabCheck{},
+		gitlabProjects: map[string]gitlabProjectsCache{},
+		watch:          map[string]*watching{}, branches: map[string]branch{},
 	}
 }
 
@@ -302,6 +316,13 @@ func (h *Handler) FinishGitHubApp(ctx context.Context, req *connect.Request[dock
 	app, err := h.view(ctx, conv.Slug)
 	if err != nil {
 		return nil, err
+	}
+	if len(conv.Permissions) > 0 {
+		h.setAppPermissions(app.GetId(), conv.Permissions)
+		app, err = h.view(ctx, conv.Slug)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return connect.NewResponse(&dockwellv1.FinishGitHubAppResponse{
 		App: app, InstallUrl: github.InstallURL(h.cfg.Web, conv.Slug), ChangeId: changeID,
@@ -486,7 +507,7 @@ func (h *Handler) Refresh(ctx context.Context, k kept, installation int64) (stor
 	}
 	in := store.GitHubInstallation{
 		ID: got.ID, AppID: k.r.ID, Account: got.Account.Login, Organization: got.Account.Type == "Organization",
-		Selection: got.Selection, SuspendedAt: got.Suspended, UpdatedAt: h.now(),
+		Selection: got.Selection, Permissions: got.Permissions, SuspendedAt: got.Suspended, UpdatedAt: h.now(),
 	}
 	if got.Suspended == nil {
 		repos, err := app.Repositories(ctx, installation)
@@ -510,7 +531,7 @@ func (h *Handler) audit(ctx context.Context, tx *store.Tx, actor, action, appID,
 	})
 }
 
-// ListGitProviders returns the connected Apps.
+// ListGitProviders returns the connected GitHub Apps and GitLab connections.
 func (h *Handler) ListGitProviders(ctx context.Context, _ *connect.Request[dockwellv1.ListGitProvidersRequest]) (*connect.Response[dockwellv1.ListGitProvidersResponse], error) {
 	out := &dockwellv1.ListGitProvidersResponse{}
 	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
@@ -525,12 +546,73 @@ func (h *Handler) ListGitProviders(ctx context.Context, _ *connect.Request[dockw
 			}
 			out.Apps = append(out.Apps, h.appProto(a, ins))
 		}
+		gl, err := h.gitlabList(ctx, tx)
+		if err != nil {
+			return err
+		}
+		out.GitlabConnections = gl
 		return nil
 	})
 	if err != nil {
-		return nil, h.internal(ctx, "listing the GitHub Apps", err)
+		return nil, h.internal(ctx, "listing the Git providers", err)
 	}
 	return connect.NewResponse(out), nil
+}
+
+// RefreshGitHubApp refreshes a GitHub App's permissions and active installations
+// from GitHub so missing permissions clear once granted.
+func (h *Handler) RefreshGitHubApp(ctx context.Context, req *connect.Request[dockwellv1.RefreshGitHubAppRequest]) (*connect.Response[dockwellv1.RefreshGitHubAppResponse], error) {
+	k, err := h.one(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, err
+	}
+	app, err := h.acting(k)
+	if err != nil {
+		return nil, h.internal(ctx, "opening the App's key", err)
+	}
+	self, err := app.Self(ctx)
+	h.noted(k.r.ID, err)
+	if err != nil {
+		return nil, fromGitHub("checking the App's permissions", err)
+	}
+	h.setAppPermissions(k.r.ID, self.Permissions)
+	var ins []store.GitHubInstallation
+	if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		ins, err = tx.GitHubInstallationsOf(ctx, k.r.ID)
+		return err
+	}); err != nil {
+		return nil, h.internal(ctx, "reading the App's installations", err)
+	}
+	for i := range ins {
+		if ins[i].RemovedAt != nil {
+			continue
+		}
+		if _, err := h.Refresh(ctx, k, ins[i].ID); err != nil {
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeNotFound {
+				continue
+			}
+			return nil, err
+		}
+	}
+	view, err := h.view(ctx, k.r.ID)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RefreshGitHubAppResponse{App: view}), nil
+}
+
+func (h *Handler) setAppPermissions(appID string, perms map[string]string) {
+	if len(perms) == 0 {
+		return
+	}
+	copied := make(map[string]string, len(perms))
+	for k, v := range perms {
+		copied[k] = v
+	}
+	h.mu.Lock()
+	h.appPerms[appID] = copied
+	h.mu.Unlock()
 }
 
 // view is the App named name, as the API shows it.
@@ -555,17 +637,33 @@ func (h *Handler) appProto(k kept, ins []store.GitHubInstallation) *dockwellv1.G
 	a := k.spec
 	h.mu.Lock()
 	gone := h.gone[k.r.ID]
+	appPerms := h.appPerms[k.r.ID]
 	h.mu.Unlock()
 	out := &dockwellv1.GitHubAppInfo{
 		Id: k.r.ID, Name: k.r.Name, AppId: a.GetAppId(), Owner: a.GetOwner(), OwnerIsOrganization: a.GetOwnerIsOrganization(),
 		HtmlUrl: strings.TrimSuffix(h.cfg.Web, "/") + "/apps/" + url.PathEscape(a.GetSlug()), SettingsUrl: settingsURL(h.cfg.Web, a),
 		KeyFingerprint: a.GetKeyFingerprint(), Gone: gone, Delivery: h.deliveryProto(k.r.ID), Revision: int64(k.r.Revision),
 	}
+	appMissing := len(appPerms) > 0 && !github.HasChecksWrite(appPerms)
+	appHas := len(appPerms) > 0 && github.HasChecksWrite(appPerms)
+	var firstMissingInstURL string
 	for i := range ins {
 		if ins[i].RemovedAt != nil {
 			continue
 		}
-		out.Installations = append(out.Installations, installationProto(a, &ins[i], h.cfg.Web))
+		inst := installationProto(a, &ins[i], h.cfg.Web)
+		if inst.ChecksPermissionMissing && firstMissingInstURL == "" {
+			firstMissingInstURL = inst.SettingsUrl
+		}
+		out.Installations = append(out.Installations, inst)
+	}
+	if appMissing || firstMissingInstURL != "" {
+		out.ChecksPermissionMissing = true
+		if appHas && firstMissingInstURL != "" {
+			out.PermissionsUrl = firstMissingInstURL
+		} else {
+			out.PermissionsUrl = out.SettingsUrl + "/permissions"
+		}
 	}
 	return out
 }
@@ -584,6 +682,7 @@ func installationProto(a *resourcev1.GitHubApp, in *store.GitHubInstallation, we
 		Id: in.ID, Account: in.Account, Organization: in.Organization, AllRepositories: in.Selection == "all",
 		RepositoryCount: int32(min(len(in.Repositories), 1<<30)),
 		Suspended:       in.SuspendedAt != nil, Removed: in.RemovedAt != nil, EveryProject: true,
+		ChecksPermissionMissing: len(in.Permissions) > 0 && !github.HasChecksWrite(in.Permissions),
 	}
 	base := strings.TrimSuffix(web, "/")
 	if in.Organization {
@@ -620,6 +719,10 @@ func (h *Handler) ListGitRepositories(ctx context.Context, req *connect.Request[
 		if err != nil {
 			return err
 		}
+		claimed, err := h.claimedByOtherProjectSet(ctx, tx, project)
+		if err != nil {
+			return err
+		}
 		for _, a := range apps {
 			ins, err := tx.GitHubInstallationsOf(ctx, a.r.ID)
 			if err != nil {
@@ -631,9 +734,12 @@ func (h *Handler) ListGitRepositories(ctx context.Context, req *connect.Request[
 					continue
 				}
 				for _, r := range in.Repositories {
+					repoURL := strings.TrimSuffix(h.cfg.Web, "/") + "/" + r.FullName
+					norm := h.canonicalRepo(repoURL)
 					out.Repositories = append(out.Repositories, &dockwellv1.GitRepository{
-						FullName: r.FullName, Url: strings.TrimSuffix(h.cfg.Web, "/") + "/" + r.FullName, Private: r.Private,
+						FullName: r.FullName, Url: repoURL, Private: r.Private,
 						DefaultBranch: r.DefaultBranch, AppId: a.r.ID, InstallationId: in.ID, Account: in.Account,
+						ClaimedByOtherProject: norm != "" && claimed[strings.ToLower(norm)],
 					})
 				}
 			}

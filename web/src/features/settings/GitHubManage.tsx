@@ -57,7 +57,8 @@ export function GitHubManageSheet({
   const mayRotate = may(GitProviderService.method.rotateGitHubWebhookSecret);
   const mayKey = may(GitProviderService.method.replaceGitHubPrivateKey);
   const mayRemove = may(GitProviderService.method.removeGitHubApp);
-  const [busy, setBusy] = useState<"secret" | "key" | "remove">();
+  const mayRefresh = may(GitProviderService.method.refreshGitHubApp);
+  const [busy, setBusy] = useState<"secret" | "key" | "remove" | "refresh">();
   const [problem, setProblem] = useState<{ title: string; text: string }>();
   const [rotated, setRotated] = useState(false);
   const [newKey, setNewKey] = useState<ReplaceGitHubPrivateKeyResponse>();
@@ -67,7 +68,7 @@ export function GitHubManageSheet({
   const installed = app.installations.filter((i) => !i.removed);
   const delivery = words(app.delivery);
 
-  const act = async <T,>(what: "secret" | "key" | "remove", title: string, call: () => Promise<T>) => {
+  const act = async <T,>(what: "secret" | "key" | "remove" | "refresh", title: string, call: () => Promise<T>) => {
     setBusy(what);
     setProblem(undefined);
     try {
@@ -78,6 +79,13 @@ export function GitHubManageSheet({
     } finally {
       setBusy(undefined);
     }
+  };
+
+  const refresh = async () => {
+    const done = await act("refresh", t`Couldn't check permissions on GitHub`, () =>
+      client.refreshGitHubApp({ id: app.id }),
+    );
+    if (done) onChanged();
   };
 
   const rotate = async () => {
@@ -156,6 +164,41 @@ export function GitHubManageSheet({
         {removing ? (
           <Callout tone="warning" title={t`Remove the GitHub App from Dockwell?`}>
             {t`Apps that build through it can't fetch their private repository until it's connected again.`}
+          </Callout>
+        ) : null}
+
+        {app.checksPermissionMissing ? (
+          <Callout
+            tone="warning"
+            title={t`Missing Checks permission`}
+            actions={
+              <>
+                {app.permissionsUrl ? (
+                  <ButtonLink
+                    size="sm"
+                    variant="secondary"
+                    icon="external"
+                    href={app.permissionsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t`Update permissions on GitHub`}
+                  </ButtonLink>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="refresh"
+                  loading={busy === "refresh"}
+                  onClick={() => void refresh()}
+                  {...mayRefresh.off}
+                >
+                  <Trans>Check again</Trans>
+                </Button>
+              </>
+            }
+          >
+            {t`Grant Checks (read and write) on GitHub so Dockwell can report CI deploy status on commits and pull requests.`}
           </Callout>
         ) : null}
 

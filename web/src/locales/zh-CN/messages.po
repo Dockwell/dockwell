@@ -1001,6 +1001,12 @@ msgstr "无法打开 {server} 上的 {path}"
 msgid "Couldn't put back {path} on {server}"
 msgstr "无法放回 {server} 上的 {path}"
 
+msgid "Couldn't report deploy status"
+msgstr "无法上报部署状态"
+
+msgid "Couldn't report deploy status for {name}"
+msgstr "无法上报 {name} 的部署状态"
+
 msgid "Couldn't save {path} on {server}"
 msgstr "无法保存 {server} 上的 {path}"
 
@@ -1327,6 +1333,12 @@ msgstr "已请求备份控制平面"
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
 
+msgid "Retried reporting deploy status"
+msgstr "已重试上报部署状态"
+
+msgid "Retried reporting deploy status for {name}"
+msgstr "已重试上报 {name} 的部署状态"
+
 msgid "Revealed a secret"
 msgstr "显示了一个密钥"
 
@@ -1589,11 +1601,17 @@ msgstr "为 {name} 解锁了验证码"
 msgid "Unlocked codes from an authenticator app"
 msgstr "解锁了身份验证器应用验证码"
 
+msgid "Updated a deploy token's status repository"
+msgstr "更新了部署令牌的状态仓库"
+
 msgid "Updated shared terminal command {name}"
 msgstr "已更新共享终端命令 {name}"
 
 msgid "Updated shared terminal command {name}, which was {previous}"
 msgstr "已更新共享终端命令 {name}（原为 {previous}）"
+
+msgid "Updated the status repository for {name}"
+msgstr "更新了 {name} 的状态仓库"
 
 msgid "Uploaded {path} to {server}, which can let someone back in"
 msgstr "已上传 {path} 到 {server}，这里可能让他人重新进入服务器"
@@ -4734,6 +4752,10 @@ msgstr "CI 部署 · {name}"
 msgid "CI provider"
 msgstr "CI 提供商"
 
+#. placeholder {0}: provider === "github" ? "GitHub" : "GitLab"
+msgid "Connect {0} in <0>Integrations</0> to report deploy status back to commits."
+msgstr "在<0>集成</0>中连接 {0}，即可将部署状态回传到提交。"
+
 msgid "Copy token"
 msgstr "复制令牌"
 
@@ -4742,6 +4764,15 @@ msgstr "复制工作流"
 
 msgid "Create deploy token"
 msgstr "创建部署令牌"
+
+msgid "Dockwell reports commit and PR status only to this repository."
+msgstr "Dockwell 只会向此仓库上报提交和 PR 状态。"
+
+msgid "Don't report status"
+msgstr "不上报状态"
+
+msgid "Filter by group or project name"
+msgstr "按群组或项目名称筛选"
 
 msgid "Hide the token"
 msgstr "隐藏令牌"
@@ -4755,11 +4786,27 @@ msgstr "90 天后"
 msgid "Manage API tokens"
 msgstr "管理 API 令牌"
 
+msgid "Missing api scope"
+msgstr "缺少 api 作用域"
+
+msgid "Optional. Dockwell reports commit status only to this repository."
+msgstr "可选。Dockwell 只会向此仓库上报提交状态。"
+
 msgid "Release tag"
 msgstr "发行版本标签"
 
+#. placeholder {0}: made.repository
+msgid "Reports deploy status to {0}."
+msgstr "将部署状态上报到 {0}。"
+
+msgid "Search GitLab projects"
+msgstr "搜索 GitLab 项目"
+
 msgid "Show the whole token"
 msgstr "显示完整令牌"
+
+msgid "Status repository"
+msgstr "状态仓库"
 
 msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
 msgstr "构建任务通过 dotenv 制品导出 DOCKWELL_IMAGE。"
@@ -4770,11 +4817,22 @@ msgstr "令牌已复制"
 msgid "Token expires"
 msgstr "令牌有效期"
 
+msgid "Token refused"
+msgstr "令牌被拒绝"
+
+msgid "Unreachable"
+msgstr "无法访问"
+
 msgid "Workflow"
 msgstr "工作流"
 
 msgid "Workflow copied"
 msgstr "已复制工作流"
+
+#. placeholder {0}: p.pathWithNamespace
+#. placeholder {0}: r.fullName
+msgid "{0} · An admin chooses this"
+msgstr "{0} · 由管理员选择"
 
 msgid "A new one for {name}"
 msgstr "为 {name} 新建一个"
@@ -11174,11 +11232,98 @@ msgstr "如果不保留设置，{name} 将在 {left} 秒后恢复原设置。"
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
 
+msgid "API tokens"
+msgstr "API 令牌"
+
 msgid "CI run"
 msgstr "CI 运行记录"
 
+msgid "Connect GitHub"
+msgstr "连接 GitHub"
+
+msgid "Connect GitLab"
+msgstr "连接 GitLab"
+
 msgid "From {link} on {shortRef}"
 msgstr "来自 {shortRef} 上的 {link}"
+
+msgid "GitHub refused status update"
+msgstr "GitHub 拒绝了状态更新"
+
+msgid "GitLab address is blocked"
+msgstr "GitLab 地址已被拦截"
+
+msgid "GitLab refused token"
+msgstr "GitLab 拒绝了令牌"
+
+msgid "GitLab token needs api scope"
+msgstr "GitLab 令牌需要 api 权限范围"
+
+msgid "Grant on GitHub"
+msgstr "前往 GitHub 授权"
+
+msgid "Integrations"
+msgstr "集成"
+
+msgid "Not reported: GitHub App needs Checks permission"
+msgstr "未上报：GitHub App 缺少 Checks 权限"
+
+msgid "Not reported: GitHub couldn't be reached"
+msgstr "未上报：无法连接到 GitHub"
+
+msgid "Not reported: GitHub isn't connected"
+msgstr "未上报：尚未连接 GitHub"
+
+msgid "Not reported: GitLab couldn't be reached"
+msgstr "未上报：无法连接到 GitLab"
+
+msgid "Not reported: GitLab isn't connected"
+msgstr "未上报：尚未连接 GitLab"
+
+msgid "Not reported: no repository set on token"
+msgstr "未上报：令牌未设置状态仓库"
+
+msgid "Not reported: provider not supported"
+msgstr "未上报：不支持此 CI 提供方"
+
+msgid "Not reported: repository doesn't match token"
+msgstr "未上报：仓库与令牌绑定的仓库不匹配"
+
+msgid "Not reported: this token reports to {repoLabel}"
+msgstr "未上报：此令牌仅向 {repoLabel} 上报"
+
+msgid "Reported discarded"
+msgstr "已上报放弃状态"
+
+msgid "Reported discarded to {providerLabel}"
+msgstr "已向 {providerLabel} 上报放弃状态"
+
+msgid "Reported to {providerLabel}"
+msgstr "已上报至 {providerLabel}"
+
+msgid "Reporting status"
+msgstr "正在上报状态"
+
+msgid "Reporting to {providerLabel}"
+msgstr "正在上报至 {providerLabel}"
+
+msgid "Retrying status"
+msgstr "正在重试上报状态"
+
+msgid "Retrying status on {providerLabel}"
+msgstr "正在重试上报至 {providerLabel}"
+
+msgid "Set repository"
+msgstr "设置仓库"
+
+msgid "Status reported"
+msgstr "状态已上报"
+
+msgid "Stopped retrying deploy status"
+msgstr "已停止重试上报部署状态"
+
+msgid "Stopped retrying status on {providerLabel}"
+msgstr "已停止向 {providerLabel} 重试上报状态"
 
 msgid "Checking download access"
 msgstr "正在检查下载权限"
@@ -23671,9 +23816,6 @@ msgstr "登录链接"
 msgid "API"
 msgstr "API"
 
-msgid "API tokens"
-msgstr "API 令牌"
-
 msgid "All sources"
 msgstr "所有来源"
 
@@ -24081,17 +24223,14 @@ msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {sin
 msgid "Your tunnel or proxy, which ends TLS and sends it here"
 msgstr "你的隧道或代理，它终止 TLS 并将请求转发到这里"
 
-msgid "1 app"
-msgstr "1 个应用"
+msgid "1 connection"
+msgstr "1 个连接"
 
 msgid "An organization"
 msgstr "某个组织"
 
 msgid "As a GitHub App Dockwell makes, which you install on the repositories you pick"
 msgstr "作为 Dockwell 创建的 GitHub 应用，由你安装到所选的仓库"
-
-msgid "Connect GitHub"
-msgstr "连接 GitHub"
 
 msgid "Create on GitHub"
 msgstr "在 GitHub 上创建"
@@ -24102,8 +24241,8 @@ msgstr "在 GitHub 上删除"
 msgid "Deleted on GitHub"
 msgstr "已在 GitHub 上删除"
 
-msgid "Dockwell can't list its GitHub Apps"
-msgstr "Dockwell 无法列出 GitHub 应用"
+msgid "Dockwell can't list its Git providers"
+msgstr "Dockwell 无法列出 Git 提供商"
 
 msgid "Dockwell uninstalled it from 1 account and forgot its key."
 msgstr "Dockwell 已从 1 个账户卸载它，并丢弃了它的私钥。"
@@ -24127,14 +24266,20 @@ msgstr "GitHub 未连接"
 msgid "GitHub keeps the App until you delete it there"
 msgstr "在你于 GitHub 上删除之前，GitHub 会保留该应用"
 
+msgid "Grant Checks (read and write) to report CI deploy status."
+msgstr "授予 Checks（读写）权限以上报 CI 部署状态。"
+
 msgid "Install on GitHub"
 msgstr "在 GitHub 上安装"
 
 msgid "Its repositories need an App it owns."
 msgstr "它的仓库需要由它拥有的应用。"
 
-msgid "Loading GitHub Apps"
-msgstr "正在加载 GitHub 应用"
+msgid "Loading Git providers"
+msgstr "正在加载 Git 提供商"
+
+msgid "Missing Checks"
+msgstr "缺少 Checks 权限"
 
 msgid "New webhook secret"
 msgstr "新 Webhook 密钥"
@@ -24145,8 +24290,8 @@ msgstr "组织"
 msgid "Owned by"
 msgstr "所有者"
 
-msgid "Private repositories, and deploy on push"
-msgstr "私有仓库，以及推送即部署"
+msgid "Private repositories, deploy on push, and PR status"
+msgstr "私有仓库、推送部署与 PR 状态"
 
 msgid "The GitHub App isn't installed on an account yet."
 msgstr "GitHub 应用尚未安装到任何账户。"
@@ -24154,14 +24299,20 @@ msgstr "GitHub 应用尚未安装到任何账户。"
 msgid "The webhook secret didn't change."
 msgstr "Webhook 密钥未更改。"
 
-msgid "{live} apps"
-msgstr "{live} 个应用"
+msgid "Update permissions on GitHub"
+msgstr "在 GitHub 更新权限"
+
+msgid "{live} connections"
+msgstr "{live} 个连接"
 
 msgid "1 repository"
 msgstr "1 个仓库"
 
 msgid "Apps that build through it can't fetch their private repository until it's connected again."
 msgstr "通过它构建的应用在重新连接之前无法获取其私有仓库。"
+
+msgid "Couldn't check permissions on GitHub"
+msgstr "无法检查 GitHub 权限"
 
 #. placeholder {0}: newKey.oldFingerprint
 msgid "Delete the old one on GitHub: <0>{0}</0>"
@@ -24180,6 +24331,9 @@ msgstr "GitHub 应用 {0}"
 msgid "GitHub has the new webhook secret"
 msgstr "GitHub 已拿到新的 Webhook 密钥"
 
+msgid "Grant Checks (read and write) on GitHub so Dockwell can report CI deploy status on commits and pull requests."
+msgstr "在 GitHub 授予 Checks（读写）权限，以便 Dockwell 在提交和拉取请求上上报 CI 部署状态。"
+
 msgid "Install on another account"
 msgstr "安装到其他账户"
 
@@ -24193,6 +24347,9 @@ msgstr "让所有项目通过 {0} 构建"
 #. placeholder {0}: i.account
 msgid "Let only some projects build through {0}"
 msgstr "仅让部分项目通过 {0} 构建"
+
+msgid "Missing Checks permission"
+msgstr "缺少 Checks 权限"
 
 msgid "New private key"
 msgstr "新私钥"
@@ -24250,9 +24407,9 @@ msgstr "Webhook 密钥"
 msgid "every repository"
 msgstr "所有仓库"
 
+#. placeholder {0}: connection.projects.length
 #. placeholder {0}: i.projects.length
 #. placeholder {0}: l.projects.length
-#. placeholder {0}: p.projects.length
 msgid "{0} projects"
 msgstr "{0} 个项目"
 
@@ -24289,6 +24446,83 @@ msgstr "正在保存 GitHub 创建的应用"
 
 msgid "The organization's owner approves it first"
 msgstr "需要组织所有者先批准"
+
+msgid "Check connection"
+msgstr "检查连接"
+
+msgid "Commit statuses for GitLab CI deploys"
+msgstr "GitLab CI 部署的提交状态"
+
+msgid "Connect GitLab {trimmedName}"
+msgstr "连接 GitLab {trimmedName}"
+
+msgid "Connected to GitLab"
+msgstr "已连接到 GitLab"
+
+msgid "Connection check failed"
+msgstr "连接检查失败"
+
+msgid "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
+msgstr "在有其他连接覆盖之前，来自匹配 GitLab 仓库的部署将不会上报提交状态。"
+
+msgid "Enter a token for the new GitLab URL. Needs the api scope."
+msgstr "输入新 GitLab URL 的令牌。需要 api 作用域。"
+
+msgid "GitLab URL"
+msgstr "GitLab URL"
+
+#. placeholder {0}: editing.name
+msgid "GitLab connection {0}"
+msgstr "GitLab 连接 {0}"
+
+msgid "Leave blank to keep the saved token"
+msgstr "留空以保留已保存的令牌"
+
+msgid "Leave blank to match every repository on this GitLab host."
+msgstr "留空以匹配此 GitLab 主机上的所有仓库。"
+
+msgid "Limit which projects' deploys can report statuses through this connection."
+msgstr "限制哪些项目的部署可以通过此连接上报状态。"
+
+msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
+msgstr "小写字母、数字和连字符，例如 gitlab 或 acme-gitlab。"
+
+msgid "Optional, such as acme or acme/platform"
+msgstr "可选，例如 acme 或 acme/platform"
+
+msgid "Path prefix"
+msgstr "路径前缀"
+
+msgid "Personal, group or project access token with the api scope."
+msgstr "具有 api 作用域的个人、群组或项目访问令牌。"
+
+#. placeholder {0}: editing.name
+msgid "Remove the GitLab connection {0}"
+msgstr "移除 GitLab 连接 {0}"
+
+msgid "Remove this GitLab connection?"
+msgstr "移除此 GitLab 连接？"
+
+msgid "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
+msgstr "向 gitlab.com 或自托管 GitLab 上报 CI 部署提交状态"
+
+msgid "Review removal"
+msgstr "审查移除"
+
+#. placeholder {0}: checked.url
+msgid "This token can post commit statuses to {0}."
+msgstr "此令牌可向 {0} 发布提交状态。"
+
+#. placeholder {0}: checked.tokenName
+#. placeholder {1}: checked.url
+msgid "Token {0} can post commit statuses to {1}."
+msgstr "令牌 {0} 可向 {1} 发布提交状态。"
+
+msgid "Update the GitLab connection {trimmedName}"
+msgstr "更新 GitLab 连接 {trimmedName}"
+
+msgid "Use https://gitlab.com or your self-managed instance base URL."
+msgstr "使用 https://gitlab.com 或你的自托管实例基础 URL。"
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -24367,9 +24601,6 @@ msgstr "筛选集成"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
-
-msgid "Integrations"
-msgstr "集成"
 
 #. placeholder {0}: l.name
 msgid "Keep {0} pull-only"
@@ -25029,6 +25260,9 @@ msgstr "身份"
 msgid "App unavailable"
 msgstr "应用不可用"
 
+msgid "Change status repository"
+msgstr "更改状态仓库"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
@@ -25053,8 +25287,14 @@ msgstr "Dockwell 无法列出你的项目"
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell 无法列出你的令牌"
 
+msgid "Dockwell reports commit and PR status for deploys made by this token only to this repository."
+msgstr "使用此令牌发起的部署，Dockwell 只会向此仓库上报提交和 PR 状态。"
+
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "每次从新地址使用都会记入<0>审计日志</0>"
+
+msgid "Enter the full HTTPS repository URL, or leave blank to disable status reporting."
+msgstr "输入完整的 HTTPS 仓库地址，留空则不回传部署状态。"
 
 msgid "Every scope"
 msgstr "所有权限范围"
@@ -25090,6 +25330,9 @@ msgstr "从不"
 msgid "New token"
 msgstr "新建令牌"
 
+msgid "No status repository"
+msgstr "未设置状态仓库"
+
 msgid "No tokens yet"
 msgstr "还没有令牌"
 
@@ -25107,6 +25350,9 @@ msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且
 
 msgid "Scopes"
 msgstr "范围"
+
+msgid "Set status repository"
+msgstr "设置状态仓库"
 
 msgid "Start with read access, and add only what the job needs."
 msgstr "从只读权限开始，只添加任务需要的权限。"
@@ -25158,9 +25404,18 @@ msgstr "来自 <0>{0}</0>"
 msgid "in {0}"
 msgstr "{0}后"
 
+msgid "not set"
+msgstr "未设置"
+
+msgid "status"
+msgstr "状态"
+
 #. placeholder {0}: list.length
 msgid "{0} tokens"
 msgstr "{0} 个令牌"
+
+msgid "{baseLabel} · An admin chooses this"
+msgstr "{baseLabel} · 由管理员选择"
 
 msgid "{count} · 1 expires soon"
 msgstr "{count} · 1 个即将过期"
@@ -25631,9 +25886,6 @@ msgstr "控制平面正在运行"
 
 msgid "The panel loaded, but {host} didn't answer the API. Check that <0>dockwell run</0> is still running on the server, then retry."
 msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务器上的 <0>dockwell run</0> 仍在运行，然后重试。"
-
-msgid "Unreachable"
-msgstr "无法访问"
 
 msgid "At minute"
 msgstr "分钟"
@@ -27597,9 +27849,6 @@ msgstr "新密码（可选）"
 
 msgid "One origin per line, or * for any origin."
 msgstr "每行一个来源，或填写 * 表示任意来源。"
-
-msgid "Path prefix"
-msgstr "路径前缀"
 
 msgid "Permanent (301)"
 msgstr "永久（301）"

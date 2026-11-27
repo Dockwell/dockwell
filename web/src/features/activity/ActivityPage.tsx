@@ -606,7 +606,13 @@ function DayTable({
             <Mark icon={d.icon} tone={d.tone} />
             <div className="activity-event-text">
               <span className="activity-event-title">{d.title}</span>
-              {event.change?.deployOrigin ? <DeploySource origin={event.change.deployOrigin} /> : null}
+              {event.change?.deployOrigin ? (
+                <DeploySource
+                  origin={event.change.deployOrigin}
+                  status={event.change.deployStatus}
+                  changeId={event.change.id}
+                />
+              ) : null}
               <MetaLine
                 look={line.look}
                 parts={times > 1 ? [...parts, plural(times, { one: "# time", other: "# times" })] : parts}
@@ -694,7 +700,9 @@ export function EventTimeline({
           <button type="button" className="activity-open" onClick={() => sheet.open({ kind: "change", id: event.id })}>
             {d.title}
           </button>
-          {change.deployOrigin ? <DeploySource origin={change.deployOrigin} /> : null}
+          {change.deployOrigin ? (
+            <DeploySource origin={change.deployOrigin} status={change.deployStatus} changeId={change.id} />
+          ) : null}
         </>
       ) : (
         d.title
@@ -955,7 +963,11 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
             {repeats && repeats.length > 1 ? <RepeatFacts run={repeats} /> : null}
             <dt>{t`From`}</dt>
             <dd>
-              {change?.deployOrigin ? <DeploySource origin={change.deployOrigin} /> : words.surface(event.surface)}
+              {change?.deployOrigin ? (
+                <DeploySource origin={change.deployOrigin} status={change.deployStatus} changeId={change.id} />
+              ) : (
+                words.surface(event.surface)
+              )}
             </dd>
             {change && proposedApart(change) ? (
               <>

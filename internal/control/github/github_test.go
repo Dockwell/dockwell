@@ -343,7 +343,7 @@ func TestTheManifestAsksForTheLeast(t *testing.T) {
 		m.SetupURL != "https://deploy.a-rather-long-host-name.example.com/settings/integrations/github/gha_1/installed" {
 		t.Errorf("the manifest is %+v", m)
 	}
-	if fmt.Sprint(m.Permissions) != "map[contents:read metadata:read]" || fmt.Sprint(m.Events) != "[push]" {
+	if fmt.Sprint(m.Permissions) != "map[checks:write contents:read metadata:read]" || fmt.Sprint(m.Events) != "[push]" {
 		t.Errorf("it asks for %v and %v", m.Permissions, m.Events)
 	}
 	if u, _ := NewAppURL(Web, "", "s1"); u != "https://github.com/settings/apps/new?state=s1" {

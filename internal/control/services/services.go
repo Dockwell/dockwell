@@ -80,6 +80,9 @@ type Handler struct {
 	Updates Updates
 	// Agents reads a service's ports on its server (#791). Nil reads none.
 	Agents *agentapi.Agents
+	// GitHubPermissionsURL returns the GitHub permissions link for install admins
+	// when a deploy status is blocked on missing Checks write permission.
+	GitHubPermissionsURL func(ctx context.Context, serviceID, repoURL string) string
 
 	portCallers portCallers
 }
@@ -132,6 +135,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	}
 	res := &dockwellv1.ListServicesResponse{}
 	var subjects []serviceupdates.Subject
+	var needPermURL []changes.DeployStatusPermTarget
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		// One more than asked for says whether there is a next page.
 		list, err := tx.PageResources(ctx, string(service.Kind), in, after.ID, size+1)
@@ -159,6 +163,13 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
+		var ciStatuses map[string]store.CIStatusEntry
+		if len(ciOrigins) > 0 {
+			ciStatuses, err = tx.CIStatusLatest(ctx, changeIDs)
+			if err != nil {
+				return err
+			}
+		}
 		specs := make([]store.StoredSpec, len(list))
 		for i := range list {
 			specs[i] = store.StoredSpec{At: store.InRevision(list[i].ID, list[i].Kind, list[i].Revision), Spec: list[i].Spec}
@@ -180,6 +191,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		}
 		names := serverNames{tx: tx, known: map[string]string{}}
 		subjects = make([]serviceupdates.Subject, 0, len(list))
+		var toHydrate []changes.DeployStatusHydrateItem
 		for i := range list {
 			r := &list[i]
 			info := &dockwellv1.ServiceInfo{
@@ -219,8 +231,15 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				return err
 			}
 			if origin := ciOrigins[r.ChangeID]; origin.Service == r.ID {
+				var statusProto *dockwellv1.DeployStatus
+				if st, ok := ciStatuses[r.ChangeID]; ok {
+					entry := st
+					statusProto = changes.CIDeployStatusProto(&entry)
+					toHydrate = append(toHydrate, changes.DeployStatusHydrateItem{Entry: &entry, Status: statusProto})
+				}
 				for _, deployment := range info.Deployments {
 					deployment.DeployOrigin = changes.CIDeployOriginProto(origin)
+					deployment.DeployStatus = statusProto
 				}
 			}
 			c := origins[r.ChangeID]
@@ -230,10 +249,16 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			}
 			res.Services = append(res.Services, info)
 		}
+		needPermURL = changes.HydrateDeployStatusesInTx(ctx, tx, toHydrate)
 		return nil
 	})
 	if err != nil {
 		return nil, h.internal(ctx, "listing services", err)
+	}
+	if h.GitHubPermissionsURL != nil {
+		for _, item := range needPermURL {
+			item.Status.ActionUrl = h.GitHubPermissionsURL(ctx, item.ServiceID, item.Repository)
+		}
 	}
 	// What's newer is a nicety of the list: one that can't be read leaves it out,
 	// and the list stands.
@@ -379,6 +404,7 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			if c := rev.Change; c != nil && r.Record != nil && r.Record.CIOrigin.Service == target.ID {
 				for _, deployment := range rev.Deployments {
 					deployment.DeployOrigin = c.DeployOrigin
+					deployment.DeployStatus = c.DeployStatus
 				}
 			}
 			if rev.ServersAdded, err = names.names(ctx, r.ServersAdded); err != nil {
@@ -404,10 +430,17 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	if p, ok := authapi.PrincipalFrom(ctx); ok && p.Token != nil && p.Token.DeployService != "" && origin == nil {
-		return nil, authapi.Invalid(errors.New("a deploy token requires the CI run's source"))
+	var tokenID, allowedRepo string
+	if p, ok := authapi.PrincipalFrom(ctx); ok && p.Token != nil && p.Token.DeployService != "" {
+		if origin == nil {
+			return nil, authapi.Invalid(errors.New("a deploy token requires the CI run's source"))
+		}
+		tokenID, allowedRepo = p.Token.ID, p.Token.DeployRepository
 	}
-	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage(), DeployOrigin: origin}
+	intent := &revision.Intent{
+		Kind: revision.IntentDeploy, Image: m.GetImage(), DeployOrigin: origin,
+		TokenID: tokenID, AllowedRepository: allowedRepo,
+	}
 	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
 		if b := svc.GetBuild(); b != nil {
 			if origin != nil {

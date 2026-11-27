@@ -74,8 +74,9 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 			return nil, Invalid(errors.New("the app sets a deploy token's project, environment and role"))
 		}
 		reach, err = h.deployTokenReach(ctx, m.GetDeployService())
+		reach.DeployRepository = m.GetDeployRepository()
 	} else {
-		if m.GetDeployService() != "" {
+		if m.GetDeployService() != "" || m.GetDeployRepository() != "" {
 			return nil, Invalid(errors.New("choose deploy scope to bind a token to one app"))
 		}
 		reach.Projects, err = h.projectIDs(ctx, p, m.GetProjects())
@@ -171,6 +172,25 @@ func (h *Handler) RevokeToken(ctx context.Context, req *connect.Request[dockwell
 	return connect.NewResponse(&dockwellv1.RevokeTokenResponse{}), nil
 }
 
+// SetTokenDeployRepository binds one of the signed-in user's deploy tokens to a
+// status-reporting repository, or clears it when empty.
+func (h *Handler) SetTokenDeployRepository(ctx context.Context, req *connect.Request[dockwellv1.SetTokenDeployRepositoryRequest]) (*connect.Response[dockwellv1.SetTokenDeployRepositoryResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client, _ := ClientFrom(ctx)
+	tok, err := h.auth.SetTokenDeployRepository(ctx, client, p, req.Msg.GetId(), req.Msg.GetDeployRepository(), req.Msg.GetProof())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	out, err := h.tokenProtos(ctx, p, []store.APIToken{tok})
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.SetTokenDeployRepositoryResponse{Token: out[0]}), nil
+}
+
 // tokenProtos are tokens as the API shows them, each project they act in with
 // its name as it is now, or none once it's deleted: its row stays, without a spec.
 func (h *Handler) tokenProtos(ctx context.Context, p auth.Principal, tokens []store.APIToken) ([]*dockwellv1.Token, error) {
@@ -235,7 +255,7 @@ func tokenProto(t *store.APIToken) *dockwellv1.Token {
 	}
 	if t.DeployService != "" {
 		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_DEPLOY
-		out.DeployService, out.DeployEnvironment = t.DeployService, t.DeployEnvironment
+		out.DeployService, out.DeployEnvironment, out.DeployRepository = t.DeployService, t.DeployEnvironment, t.DeployRepository
 	}
 	if t.HasGrant(store.GrantLogs) {
 		out.Grants = append(out.Grants, dockwellv1.TokenGrant_TOKEN_GRANT_LOGS)

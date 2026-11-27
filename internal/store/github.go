@@ -23,9 +23,12 @@ type GitHubInstallation struct {
 	// Selection is "all", every repository the account has, or "selected".
 	Selection    string
 	Repositories []GitHubRepository
-	SuspendedAt  *time.Time
-	RemovedAt    *time.Time
-	UpdatedAt    time.Time
+	// Permissions are what GitHub reports the installation has granted, such as
+	// contents: read, metadata: read, checks: write.
+	Permissions map[string]string
+	SuspendedAt *time.Time
+	RemovedAt   *time.Time
+	UpdatedAt   time.Time
 }
 
 // Usable says the installation is neither suspended nor removed.
@@ -39,18 +42,23 @@ type GitHubRepository struct {
 	DefaultBranch string `json:"default_branch,omitempty"`
 }
 
-const githubInstallationColumns = `id, app_id, account, organization, selection, repositories, suspended_at, removed_at, updated_at`
+const githubInstallationColumns = `id, app_id, account, organization, selection, repositories, permissions, suspended_at, removed_at, updated_at`
 
 func scanGitHubInstallation(row interface{ Scan(...any) error }) (GitHubInstallation, error) {
 	var in GitHubInstallation
-	var repos string
+	var repos, perms string
 	var suspended, removed sql.NullInt64
 	var updated int64
-	if err := row.Scan(&in.ID, &in.AppID, &in.Account, &in.Organization, &in.Selection, &repos, &suspended, &removed, &updated); err != nil {
+	if err := row.Scan(&in.ID, &in.AppID, &in.Account, &in.Organization, &in.Selection, &repos, &perms, &suspended, &removed, &updated); err != nil {
 		return GitHubInstallation{}, err
 	}
 	if err := json.Unmarshal([]byte(repos), &in.Repositories); err != nil {
 		return GitHubInstallation{}, fmt.Errorf("installation %d's repositories: %w", in.ID, err)
+	}
+	if perms != "" && perms != "{}" {
+		if err := json.Unmarshal([]byte(perms), &in.Permissions); err != nil {
+			return GitHubInstallation{}, fmt.Errorf("installation %d's permissions: %w", in.ID, err)
+		}
 	}
 	if suspended.Valid {
 		at := fromMillis(suspended.Int64)
@@ -75,6 +83,14 @@ func (t *Tx) SetGitHubInstallation(ctx context.Context, in GitHubInstallation) e
 	if err != nil {
 		return err
 	}
+	perms := in.Permissions
+	if perms == nil {
+		perms = map[string]string{}
+	}
+	pb, err := json.Marshal(perms)
+	if err != nil {
+		return err
+	}
 	var suspended, removed any
 	if in.SuspendedAt != nil {
 		suspended = millis(*in.SuspendedAt)
@@ -82,11 +98,11 @@ func (t *Tx) SetGitHubInstallation(ctx context.Context, in GitHubInstallation) e
 	if in.RemovedAt != nil {
 		removed = millis(*in.RemovedAt)
 	}
-	_, err = t.exec(ctx, `INSERT INTO github_installations (`+githubInstallationColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err = t.exec(ctx, `INSERT INTO github_installations (`+githubInstallationColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET app_id = excluded.app_id, account = excluded.account, organization = excluded.organization,
-		selection = excluded.selection, repositories = excluded.repositories, suspended_at = excluded.suspended_at,
-		removed_at = excluded.removed_at, updated_at = excluded.updated_at`,
-		in.ID, in.AppID, in.Account, in.Organization, in.Selection, string(b), suspended, removed, millis(in.UpdatedAt))
+		selection = excluded.selection, repositories = excluded.repositories, permissions = excluded.permissions,
+		suspended_at = excluded.suspended_at, removed_at = excluded.removed_at, updated_at = excluded.updated_at`,
+		in.ID, in.AppID, in.Account, in.Organization, in.Selection, string(b), string(pb), suspended, removed, millis(in.UpdatedAt))
 	if err != nil {
 		return fmt.Errorf("can't record GitHub installation %d: %w", in.ID, err)
 	}

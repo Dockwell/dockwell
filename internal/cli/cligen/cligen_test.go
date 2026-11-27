@@ -334,6 +334,7 @@ func TestGenerateNamesFlagsFromTheOption(t *testing.T) {
 	want := map[string]string{
 		"claim-link check": "claim-token", "claim-link begin": "claim-token", "claim-link finish": "claim-token",
 		"sessions sign-in-with-link": "link-token",
+		"git-providers check-gitlab": "gitlab-token",
 	}
 	for command, flag := range want {
 		if flags[command] != flag {

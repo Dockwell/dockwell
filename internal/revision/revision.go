@@ -150,6 +150,11 @@ type Engine struct {
 	publisher Publisher
 	// onRemoved hears of each server a change took out of the fleet (ADR 0090).
 	onRemoved func(server string)
+	// panelURL returns the panel's base URL (e.g. https://panel.example.com) for
+	// linking CI deploy statuses back to /changes/<id> (ADR 0111).
+	panelURL func() string
+	// onCIStatus wakes the CI status outbox worker after a transition commits.
+	onCIStatus func()
 	// editHook adjusts every proposal's edits (SetEditHook).
 	editHook EditHook
 	// sources reads what a build's branch or tag names now, and detector how its
@@ -262,6 +267,31 @@ type EditHook func(ctx context.Context, tx *store.Tx, edits []Edit) ([]Edit, []N
 // SetEditHook has every proposal's edits go through fn, undos and rollbacks
 // planned anew among them. Set it before the engine plans anything.
 func (e *Engine) SetEditHook(fn EditHook) { e.editHook = fn }
+
+// SetPanelURL tells the engine how to build panel links to changes for CI
+// deploy status entries (ADR 0111).
+func (e *Engine) SetPanelURL(fn func() string) { e.panelURL = fn }
+
+// OnCIStatus registers a non-blocking wakeup callback invoked after a CI status
+// outbox transition commits.
+func (e *Engine) OnCIStatus(fn func()) { e.onCIStatus = fn }
+
+func (e *Engine) changeURL(changeID string) string {
+	if e.panelURL == nil || changeID == "" {
+		return ""
+	}
+	base := strings.TrimRight(strings.TrimSpace(e.panelURL()), "/")
+	if base == "" {
+		return ""
+	}
+	return base + "/changes/" + changeID
+}
+
+func (e *Engine) notifyCIStatus() {
+	if e.onCIStatus != nil {
+		e.onCIStatus()
+	}
+}
 
 // ChainEditHooks is one hook that runs each of hooks in turn, each on the edits the
 // one before it left, with every hook's notes.
@@ -552,7 +582,11 @@ type Intent struct {
 	Revision int    `json:",omitempty"` // the revision a rollback puts back
 	// DeployOrigin is the provenance and digest of an externally built image.
 	DeployOrigin *dockwellv1.DeployOrigin `json:"-"`
-	CI           bool                     `json:",omitempty"`
+	// TokenID and AllowedRepository capture the deploy token's bound status
+	// repository when a CI deploy is proposed.
+	TokenID           string `json:"-"`
+	AllowedRepository string `json:"-"`
+	CI                bool   `json:",omitempty"`
 
 	// Commit and Ref are what a deploy builds, for a service that builds from Git.
 	Commit string `json:",omitempty"`
@@ -1456,6 +1490,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	raced := errors.New("another request planned this CI deploy")
 	var existing string
+	enqueuedCI := false
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if ci != nil {
 			var err error
@@ -1474,9 +1509,41 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return err
 		}
 		if ci != nil {
+			// If a stale planned attempt still held this CI deploy key, mark its
+			// status discarded before overwriting the key with the new attempt.
+			if prevID, err := tx.CIDeployChange(ctx, ci.CIDeployKey); err == nil && prevID != "" && prevID != c.ID {
+				if prevChange, err := tx.GetChange(ctx, prevID); err == nil && prevChange.State == store.ChangePlanned {
+					if disc, err := tx.EnqueueCIStatusForChange(ctx, prevID, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{
+						ChangeURL: e.changeURL(prevID),
+						Summary:   "Superseded by " + c.ID,
+					}, c.CreatedAt); err != nil {
+						return err
+					} else if disc {
+						enqueuedCI = true
+					}
+				}
+			}
 			if err := tx.RecordCIDeploy(ctx, *ci, c.ID); err != nil {
 				return err
 			}
+			svcName := ""
+			for i := range items {
+				if items[i].id == ci.Service {
+					svcName = items[i].ref.Name
+					break
+				}
+			}
+			enqueued, err := tx.EnqueueCIStatusForChange(ctx, c.ID, store.CIStatusQueued, store.CIStatusEnqueueOpts{
+				ServiceName:       svcName,
+				TokenID:           p.Intent.TokenID,
+				AllowedRepository: p.Intent.AllowedRepository,
+				ChangeURL:         e.changeURL(c.ID),
+				Summary:           c.Summary,
+			}, c.CreatedAt)
+			if err != nil {
+				return err
+			}
+			enqueuedCI = enqueuedCI || enqueued
 		}
 		if p.Records == nil {
 			return nil
@@ -1498,6 +1565,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	if err != nil {
 		return nil, err
+	}
+	if enqueuedCI {
+		e.notifyCIStatus()
 	}
 	return plan, nil
 }
@@ -4762,6 +4832,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	}
 
 	now := e.now()
+	enqueuedCI := false
 	e.mu.Lock()
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if create {
@@ -4837,7 +4908,28 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 				return err
 			}
 		}
-		return tx.StartApplying(ctx, c.ID, by.Actor, by.Via, record, now)
+		if err := tx.StartApplying(ctx, c.ID, by.Actor, by.Via, record, now); err != nil {
+			return err
+		}
+		enqueued, err := tx.EnqueueCIStatusForChange(ctx, c.ID, store.CIStatusApplying, store.CIStatusEnqueueOpts{
+			ChangeURL: e.changeURL(c.ID),
+			Summary:   c.Summary,
+		}, now)
+		if err != nil {
+			return err
+		}
+		var touchedServices []string
+		for i := range items {
+			if items[i].ref.Kind == "service" && items[i].id != "" {
+				touchedServices = append(touchedServices, items[i].id)
+			}
+		}
+		supersededCI, err := tx.CIStatusEnqueueDiscardedForPlanned(ctx, touchedServices, c.ID, "Superseded by "+c.ID, e.changeURL, now)
+		if err != nil {
+			return err
+		}
+		enqueuedCI = enqueued || supersededCI
+		return nil
 	})
 	e.mu.Unlock()
 	if err != nil {
@@ -4850,6 +4942,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	c.State, c.AppliedAt, c.AppliedBy, c.AppliedVia, c.Progress = store.ChangeApplying, now, by.Actor, by.Via, record
 	e.track(c.ID, progress)
 	e.published(c.ID, store.ChangeApplying)
+	if enqueuedCI {
+		e.notifyCIStatus()
+	}
 	if r := plan.Removes; r != nil && r.Compromised {
 		e.removed(r.Server)
 	}
@@ -6346,12 +6441,42 @@ func (e *Engine) finishWith(ctx context.Context, c store.Change, state, errText,
 	if c.AppliedBy != "" {
 		actor, via = c.AppliedBy, c.AppliedVia
 	}
-	return e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+	enqueuedCI := false
+	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := tx.SetChangeState(ctx, c.ID, state, errText, time.Time{}); err != nil {
 			return err
 		}
 		if err := writeProgress(ctx, tx, c.ID, progress); err != nil {
 			return err
+		}
+		switch {
+		case state == store.ChangeApplied && !IsRollback(c):
+			enqueued, err := tx.EnqueueCIStatusForChange(ctx, c.ID, store.CIStatusHealthy, store.CIStatusEnqueueOpts{
+				ChangeURL: e.changeURL(c.ID),
+				Summary:   c.Summary,
+			}, now)
+			if err != nil {
+				return err
+			}
+			enqueuedCI = enqueued
+		case state == store.ChangeApplied && IsRollback(c) && c.Reverts != "":
+			enqueued, err := tx.EnqueueCIStatusForChange(ctx, c.Reverts, store.CIStatusRolledBack, store.CIStatusEnqueueOpts{
+				ChangeURL: e.changeURL(c.Reverts),
+				Summary:   c.Summary,
+			}, now)
+			if err != nil {
+				return err
+			}
+			enqueuedCI = enqueued
+		case state == store.ChangeFailed && !IsRollback(c):
+			enqueued, err := tx.EnqueueCIStatusForChange(ctx, c.ID, store.CIStatusFailed, store.CIStatusEnqueueOpts{
+				ChangeURL: e.changeURL(c.ID),
+				Summary:   cmp.Or(errText, c.Summary),
+			}, now)
+			if err != nil {
+				return err
+			}
+			enqueuedCI = enqueued
 		}
 		if then != nil {
 			if err := then(tx); err != nil {
@@ -6360,6 +6485,10 @@ func (e *Engine) finishWith(ctx context.Context, c store.Change, state, errText,
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
+	if err == nil && enqueuedCI {
+		e.notifyCIStatus()
+	}
+	return err
 }
 
 // BackupsRestoring names the backups a planned or applying restore brings back.
@@ -7067,6 +7196,7 @@ func (e *Engine) undoRestore(ctx context.Context, c store.Change, took *planRead
 // Discard drops a planned change without applying it. It stays on record
 // as discarded.
 func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
+	enqueuedCI := false
 	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		c, err := tx.GetChange(ctx, changeID)
 		switch {
@@ -7085,17 +7215,29 @@ func (e *Engine) Discard(ctx context.Context, changeID string, by By) error {
 		if err := e.checkRoles(ctx, tx.Tx, by.Actor, &c, asked, items, discarding); err != nil {
 			return err
 		}
+		now := e.now()
 		if err := tx.SetChangeState(ctx, changeID, store.ChangeDiscarded, "", time.Time{}); err != nil {
 			return err
 		}
+		enqueued, err := tx.EnqueueCIStatusForChange(ctx, changeID, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{
+			ChangeURL: e.changeURL(changeID),
+			Summary:   "Deploy discarded",
+		}, now)
+		if err != nil {
+			return err
+		}
+		enqueuedCI = enqueued
 		return tx.RecordEvent(ctx, store.Event{
-			ID: id.New(id.Event), At: e.now(), Actor: by.Actor, Action: "change.discarded", Subject: changeID, Detail: c.Summary, Surface: by.Via,
+			ID: id.New(id.Event), At: now, Actor: by.Actor, Action: "change.discarded", Subject: changeID, Detail: c.Summary, Surface: by.Via,
 		})
 	})
 	if err != nil {
 		return err
 	}
 	e.published(changeID, store.ChangeDiscarded)
+	if enqueuedCI {
+		e.notifyCIStatus()
+	}
 	return nil
 }
 

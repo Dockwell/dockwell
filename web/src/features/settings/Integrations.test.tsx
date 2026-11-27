@@ -108,8 +108,8 @@ describe("Integrations", () => {
       "DNS and proxies",
       "Sign-in",
     ]);
-    // Storage holds three cards, Registries Docker Hub's and GitHub's, DNS Cloudflare's and Domains.
-    expect(sections.map((s) => s.getAttribute("data-cards"))).toEqual(["1", "3", "2", "2", "1"]);
+    // Git holds GitHub and GitLab, Storage holds three cards, Registries Docker Hub's and GitHub's, DNS Cloudflare's and Domains.
+    expect(sections.map((s) => s.getAttribute("data-cards"))).toEqual(["2", "3", "2", "2", "1"]);
     // Each header is its name, how many, and its action, in one line: no sentence under it.
     const head = storage.querySelector(".integrations-head");
     expect(head?.children).toHaveLength(3);

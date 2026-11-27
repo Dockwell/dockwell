@@ -82,6 +82,8 @@ var (
 		"Create a token that can read logs in Settings, under API tokens")
 	ErrNeedsSession = errors.New("API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. " +
 		"Sign in and do it in the panel")
+	ErrDeployRepoAdminOnly    = errors.New("only an install admin can bind this deploy token to that repository")
+	ErrDeployRepoNotDeveloper = errors.New("only a developer on this app can change its deploy token's status repository")
 )
 
 // NewToken is a token just made, with the secret that is shown only once.
@@ -167,6 +169,7 @@ type TokenReach struct {
 	// or empty for its maker's.
 	Role                             string
 	DeployService, DeployEnvironment string
+	DeployRepository                 string
 }
 
 // maxTokenProjects bounds the projects a token names.
@@ -187,6 +190,16 @@ func (s *Service) CreateTokenWithin(ctx context.Context, client Client, p Princi
 	if reach.DeployService != "" && (reach.DeployEnvironment == "" || scope != store.ScopeReadWrite ||
 		len(grants) != 0 || reach.Role != store.RoleDeveloper || len(reach.Projects) != 1) {
 		return NewToken{}, fmt.Errorf("%w: a deploy token must be bound to one app as a developer", ErrInvalid)
+	}
+	if reach.DeployRepository != "" {
+		if reach.DeployService == "" {
+			return NewToken{}, fmt.Errorf("%w: only deploy tokens can bind a status repository", ErrInvalid)
+		}
+		norm, err := store.NormalizeDeployRepository(reach.DeployRepository)
+		if err != nil {
+			return NewToken{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		}
+		reach.DeployRepository = norm
 	}
 	if len(reach.Projects) > maxTokenProjects {
 		return NewToken{}, fmt.Errorf("%w: a token can name up to %d projects. Leave them out for every project you hold", ErrInvalid, maxTokenProjects)
@@ -306,6 +319,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		Projects:      reach.Projects,
 		Role:          reach.Role,
 		DeployService: reach.DeployService, DeployEnvironment: reach.DeployEnvironment,
+		DeployRepository: reach.DeployRepository,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)
@@ -382,7 +396,16 @@ func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID strin
 		if env.Kind != "environment" || env.Spec == nil || env.Scope != reach.Projects[0] || store.RoleRank(held) < store.RoleRank(store.RoleDeveloper) {
 			return "", fmt.Errorf("%w: choose an app you can deploy in this environment", ErrInvalid)
 		}
-		return fmt.Sprintf(", deploys %s (%s) in %s", app.Name, app.ID, env.Name), nil
+		if reach.DeployRepository != "" && s.deployRepoCheck != nil {
+			if err := s.deployRepoCheck(ctx, tx, reach.DeployService, reach.Projects[0], reach.DeployRepository, isInstallAdmin(grants)); err != nil {
+				return "", err
+			}
+		}
+		detail := fmt.Sprintf(", deploys %s (%s) in %s", app.Name, app.ID, env.Name)
+		if reach.DeployRepository != "" {
+			detail += ", status to " + reach.DeployRepository
+		}
+		return detail, nil
 	}
 	if reach.Role != "" && store.RoleRank(reach.Role) >= store.RoleRank(highest) {
 		return "", fmt.Errorf("%w: you're %s, so a token that acts as %s at most acts as you do already. Leave its role unset%s",
@@ -458,6 +481,92 @@ func (s *Service) RevokeToken(ctx context.Context, p Principal, tokenID string) 
 	s.streams.end(tokenID)
 	s.refusals.forget(tokenID)
 	return nil
+}
+
+func isInstallAdmin(grants []store.Grant) bool {
+	for _, g := range grants {
+		if g.ProjectID == "" && store.RoleRank(g.Role) >= store.RoleRank(store.RoleAdmin) {
+			return true
+		}
+	}
+	return false
+}
+
+// SetTokenDeployRepository binds one of the principal's deploy tokens to the
+// canonical HTTPS repository whose commits it may report deploy status to, or
+// clears the binding when repository is empty. Requires developer access on
+// the token's app, repository reach & project-ownership validation, and the
+// same passkey step-up as creating a token (ADR 0111).
+func (s *Service) SetTokenDeployRepository(ctx context.Context, client Client, p Principal, tokenID, repository, proof string) (store.APIToken, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return store.APIToken{}, ErrNeedsSession
+	}
+	norm, err := store.NormalizeDeployRepository(repository)
+	if err != nil {
+		return store.APIToken{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	now := s.now()
+	var updated store.APIToken
+	err = s.db.Update(ctx, func(tx *store.Tx) error {
+		u, err := tx.GetUser(ctx, p.User.ID)
+		if errors.Is(err, store.ErrNotFound) || (err == nil && u.RemovedAt != nil) {
+			return ErrUnauthenticated
+		}
+		if err != nil {
+			return err
+		}
+		existing, err := tx.GetAPIToken(ctx, tokenID)
+		if errors.Is(err, store.ErrNotFound) || (err == nil && (existing.UserID != p.User.ID || existing.RevokedAt != nil || (existing.ExpiresAt != nil && !now.Before(*existing.ExpiresAt)))) {
+			return fmt.Errorf("%w: you have no API token %s, or it was already revoked. List them with ListTokens", ErrNotFound, tokenID)
+		}
+		if err != nil {
+			return err
+		}
+		if existing.DeployService == "" {
+			return fmt.Errorf("%w: only deploy tokens can bind a status repository", ErrInvalid)
+		}
+		grants, err := tx.Grants(ctx, p.User.ID)
+		if err != nil {
+			return err
+		}
+		app, err := tx.GetResourceByID(ctx, existing.DeployService)
+		if errors.Is(err, store.ErrNotFound) || (err == nil && (app.Kind != "service" || app.Spec == nil || app.Scope != existing.DeployEnvironment)) {
+			return fmt.Errorf("%w: this token's app is no longer in its environment", ErrInvalid)
+		}
+		if err != nil {
+			return err
+		}
+		env, err := tx.GetResourceByID(ctx, existing.DeployEnvironment)
+		if err != nil {
+			return err
+		}
+		if env.Kind != "environment" || env.Spec == nil || len(existing.Projects) != 1 || env.Scope != existing.Projects[0] {
+			return fmt.Errorf("%w: this token's app is no longer in its environment", ErrInvalid)
+		}
+		held := Highest(Narrow(grants, existing.Projects, ""))
+		if store.RoleRank(held) < store.RoleRank(store.RoleDeveloper) {
+			return ErrDeployRepoNotDeveloper
+		}
+		if norm != "" && s.deployRepoCheck != nil {
+			if err := s.deployRepoCheck(ctx, tx, existing.DeployService, existing.Projects[0], norm, isInstallAdmin(grants)); err != nil {
+				return err
+			}
+		}
+		if err := s.confirmedIn(ctx, tx, client, p, proof, StepUpCreateToken); err != nil {
+			return err
+		}
+		tok, err := tx.SetAPITokenDeployRepository(ctx, p.User.ID, tokenID, norm, now)
+		if err != nil {
+			return err
+		}
+		updated = tok
+		detail := "token " + tokenID + " status repository cleared"
+		if norm != "" {
+			detail = fmt.Sprintf("token %s status repository set to %s", tokenID, norm)
+		}
+		return s.auditOn(ctx, tx, p.Actor(), "token.deploy_repository", p.User.ID, tokenID, detail)
+	})
+	return updated, err
 }
 
 // AuthenticateToken returns the principal behind an API token's secret, if
