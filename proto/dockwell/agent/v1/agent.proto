@@ -428,6 +428,12 @@ message Draining {}
 
 // Hello introduces the agent at the start of a stream.
 message Hello {
+  // This agent can use an SFTP destination for sealed backup copies.
+  bool sftp_backups = 520;
+  // This agent can also test SFTP destinations from its own network.
+  bool tests_sftp_destinations = 521;
+  // The newest sealed archive format this agent can open. Omitted by v2 readers.
+  uint32 backup_seal_version = 522;
   // This agent can keep sealed control plane backups (ADR 0073).
   bool keeps_control_backups = 190;
   bool host_toolbox = 510;
@@ -973,6 +979,7 @@ message Call {
     // Check a connection from where an app is (ADR 0099). Every kind of need takes
     // 370 to 379.
     ProbeConnectionCall probe_connection = 370;
+    TestSftpDestinationCall test_sftp_destination = 371;
     // Read the Cloudflare tunnels cloudflared runs on the server now (ADR 0104).
     // ADR 0104 takes 340 to 349.
     ReadTunnelsCall read_tunnels = 340;
@@ -1813,6 +1820,12 @@ message DrillBackupCall {
   dockwell.v1.ResourceRef volume = 3;
   // Host folder path when drilling a website folder backup.
   string host_path = 504;
+}
+
+// TestSftpDestinationCall asks for the SFTP checks from this agent's network.
+message TestSftpDestinationCall {
+  // The endpoint and credentials sealed to this stream.
+  bytes destination = 1;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -2908,6 +2921,7 @@ message CallResult {
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
     ProbeConnectionResult probe_connection = 370;
+    dockwell.v1.TestBackupDestinationResponse test_sftp_destination = 371;
     ReadTunnelsResult read_tunnels = 340;
     MakeAppOwnerResult make_app_owner = 381;
     ReadAppOwnerResult read_app_owner = 383;
@@ -3066,6 +3080,8 @@ message SendBackupResult {
   string key = 1;
   // How much it takes there, in bytes, sealed.
   int64 stored_bytes = 2;
+  // The sealed archive format written to the destination.
+  uint32 seal_version = 3;
 }
 
 // DeleteBackupResult says the backup is gone from the disk.

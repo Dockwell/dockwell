@@ -1994,6 +1994,8 @@ type EventBackup struct {
 	// How a restore drill of it went, for backup.drill (ADR 0068). error says what
 	// failed, or why it wasn't checked.
 	Drill DrillResult `protobuf:"varint,8,opt,name=drill,proto3,enum=dockwell.v1.DrillResult" json:"drill,omitempty"`
+	// A machine-readable failure reason, when known.
+	Reason string `protobuf:"bytes,9,opt,name=reason,proto3" json:"reason,omitempty"`
 	// The server, by ID, for its page. Numbered apart, as open work adds to this
 	// message.
 	ServerId      string `protobuf:"bytes,60,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
@@ -2085,6 +2087,13 @@ func (x *EventBackup) GetDrill() DrillResult {
 		return x.Drill
 	}
 	return DrillResult_DRILL_RESULT_UNSPECIFIED
+}
+
+func (x *EventBackup) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 func (x *EventBackup) GetServerId() string {
@@ -2864,7 +2873,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x03end\x18\x04 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1c\n" +
 	"\tcontainer\x18\x06 \x01(\tR\tcontainer\x12!\n" +
-	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\xad\x02\n" +
+	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\xc5\x02\n" +
 	"\vEventBackup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x1f\n" +
@@ -2875,7 +2884,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12 \n" +
 	"\vdestination\x18\a \x01(\tR\vdestination\x12.\n" +
-	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\x12\x1b\n" +
+	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\x12\x16\n" +
+	"\x06reason\x18\t \x01(\tR\x06reason\x12\x1b\n" +
 	"\tserver_id\x18< \x01(\tR\bserverId\"^\n" +
 	"\tEventPush\x12\x17\n" +
 	"\ahook_id\x18\x01 \x01(\tR\x06hookId\x128\n" +

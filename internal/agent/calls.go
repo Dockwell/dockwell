@@ -28,7 +28,10 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/pageout"
 	"github.com/dockwell/dockwell/internal/agent/system"
+	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/backup/sftpstore"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -230,8 +233,8 @@ func (c *calls) start(call *agentv1.Call) {
 		}
 		if c.cfg.Files != nil && (isFileCall(call) || call.GetWriteUpload() != nil || call.GetDownloadFile() != nil) {
 			release, err := take(c.cfg.Files, ctx)
-			if errors.Is(err, files.ErrBusy) {
-				c.reply(call.GetId(), busy(call))
+			if errors.Is(err, files.ErrBusy) || errors.Is(err, files.ErrRestoring) {
+				c.reply(call.GetId(), busy(call, err))
 				return
 			}
 			if err != nil {
@@ -1156,11 +1159,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_TaskRuns{TaskRuns: runs}}
-	case call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil, call.GetDrillBackup() != nil:
+	case call.GetTestSftpDestination() != nil, call.GetBackupPreview() != nil, call.GetBackup() != nil, call.GetDeleteBackup() != nil, call.GetFetchBackup() != nil, call.GetSendBackup() != nil, call.GetDrillBackup() != nil:
 		if c.cfg.Backups == nil {
 			return fail(errors.New("this agent can't back up volumes, as it has no Docker driver"))
 		}
 		result, err := c.runBackup(ctx, call)
+		if errors.Is(err, sftpstore.ErrHostKeyChanged) {
+			err = resource.PlainlyBecause(resource.ReasonHostKeyChanged, err.Error(), err)
+		}
 		if err != nil {
 			return fail(err)
 		}
@@ -1432,6 +1438,21 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 // runBackup carries out a call about backups.
 func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.CallResult, error) {
 	switch {
+	case call.GetTestSftpDestination() != nil:
+		values, err := c.openDestination(nil, call.GetTestSftpDestination().GetDestination())
+		if err != nil {
+			return nil, err
+		}
+		defer clear(values)
+		destination := backup.DestinationFrom(values)
+		if destination == nil || destination.SFTP == nil {
+			return nil, errors.New("the destination test needs SFTP settings")
+		}
+		if c.cfg.Dir != "" {
+			destination.SFTP.KeyTypesDir = filepath.Join(c.cfg.Dir, "backups", ".sftp-key-types")
+		}
+		out := backup.TestSFTP(ctx, *destination.SFTP, nil)
+		return &agentv1.CallResult{Result: &agentv1.CallResult_TestSftpDestination{TestSftpDestination: out}}, nil
 	case call.GetBackupPreview() != nil:
 		out, err := c.cfg.Backups.Preview(ctx, call.GetBackupPreview())
 		if err != nil {
@@ -1463,6 +1484,11 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		defer clear(destination)
 		progress := c.progress(call.GetId())
 		defer progress.stop()
+		release, err := c.takeSFTPTransfer(ctx, destination, false)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
 		out, err := c.cfg.Backups.Send(resource.WithActivities(ctx, progress.say), send, destination)
 		if err != nil {
 			return nil, err
@@ -1477,6 +1503,11 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		defer clear(destination)
 		progress := c.progress(call.GetId())
 		defer progress.stop()
+		release, err := c.takeSFTPTransfer(ctx, destination, true)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
 		out, err := c.cfg.Backups.Fetch(resource.WithActivities(ctx, progress.say), f, destination)
 		if err != nil {
 			return nil, err
@@ -1494,6 +1525,25 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		return nil, err
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_DeleteBackup{DeleteBackup: out}}, nil
+}
+
+// takeSFTPTransfer shares the file and artifact transfer slots for the buffers
+// needed to stream and verify an SFTP backup.
+func (c *calls) takeSFTPTransfer(ctx context.Context, destination map[string]string, fetching bool) (func(), error) {
+	if destination["transport"] != "sftp" || c.cfg.Files == nil {
+		return func() {}, nil
+	}
+	if fetching {
+		return c.cfg.Files.WaitBackupFetch(ctx)
+	}
+	release, err := c.cfg.Files.WaitTransfer(ctx)
+	if err != nil || c.cfg.Files.Embedded {
+		return release, err
+	}
+	return func() {
+		pageout.Executable()
+		release()
+	}, nil
 }
 
 // backupTaken is what a step took, as the stream carries it.
@@ -1694,11 +1744,11 @@ func (c *calls) decode(d *agentv1.DesiredResource) (resource.Ref, proto.Message,
 }
 
 // busy is a transfer's answer when the agent has no place for it.
-func busy(call *agentv1.Call) *agentv1.CallResult {
+func busy(call *agentv1.Call, err error) *agentv1.CallResult {
 	if call.GetDownloadFile() != nil {
-		return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFile{DownloadFile: &agentv1.DownloadFileResult{Refusal: files.Busy()}}}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFile{DownloadFile: &agentv1.DownloadFileResult{Refusal: files.Busy(err)}}}
 	}
-	return &agentv1.CallResult{Result: &agentv1.CallResult_WriteUpload{WriteUpload: &agentv1.UploadResult{Refusal: files.Busy()}}}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_WriteUpload{WriteUpload: &agentv1.UploadResult{Refusal: files.Busy(err)}}}
 }
 
 // isFileCall reports a call about the server's files, which takes one of their places.

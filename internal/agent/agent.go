@@ -44,6 +44,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/tunnels"
 	"github.com/dockwell/dockwell/internal/agent/updates"
+	backupseal "github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -201,6 +202,8 @@ type Config struct {
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
 	disks *diskUse
+	// keepingControlBackup serializes bundles across this agent's streams.
+	keepingControlBackup *sync.Mutex
 	// procs lists and ends processes, when asked.
 	procs *processes
 	// images reads images from their registries, when asked, and keeps what it
@@ -513,6 +516,7 @@ func Run(ctx context.Context, cfg Config) error {
 	cfg.outlook = &outlook{}
 	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{lifetime: ctx, docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
+	cfg.keepingControlBackup = new(sync.Mutex)
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	cfg.ssh = newSSHReader(cfg)
 	if m, ok := cfg.Access.(*access.Manager); ok {
@@ -759,7 +763,10 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Tunnels != nil {
 		inventory.Tunnels = cfg.Tunnels.Find(ctx)
 	}
-	hello := &agentv1.Hello{HostToolbox: cfg.toolbox != nil, Build: cfg.Build.Proto(), Inventory: inventory, ReadsTunnels: cfg.Tunnels != nil, DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, ArchivesFiles: true, FilesRest: true, ManagesSsh: cfg.ssh != nil, ManagesFirewall: true, GuardsDockerUdp: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, BuildGitBundle: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil, MakesAppOwners: cfg.Docker != nil, ReadsAppPorts: cfg.Docker != nil, ReadsSockets: true, WebsiteHandy: true}
+	hello := &agentv1.Hello{SftpBackups: cfg.Backups != nil, TestsSftpDestinations: cfg.Backups != nil, HostToolbox: cfg.toolbox != nil, Build: cfg.Build.Proto(), Inventory: inventory, ReadsTunnels: cfg.Tunnels != nil, DeliveryKey: key.Public(), WritesReferences: true, ServesRedirects: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, ArchivesFiles: true, FilesRest: true, ManagesSsh: cfg.ssh != nil, ManagesFirewall: true, GuardsDockerUdp: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, BuildGitAuth: true, BuildGitBundle: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, StopsPanels: cfg.Docker != nil, RemakesSwarmApps: cfg.Docker != nil, RunsHostAccess: cfg.Docker != nil, ReadsTakenReferences: true, ChecksPanelDomains: cfg.Panels != nil, KeepsRoutesPrivate: true, SignsIn: true, OneDatabaseBackups: cfg.Backups != nil, VolumeMoves: cfg.Backups != nil, LoadsCertificates: cfg.Certificates != nil, UpgradesItself: cfg.UpgradesItself, ProbesConnections: cfg.Probes != nil, MakesAppOwners: cfg.Docker != nil, ReadsAppPorts: cfg.Docker != nil, ReadsSockets: true, WebsiteHandy: true}
+	if cfg.Backups != nil {
+		hello.BackupSealVersion = backupseal.ArchiveVersion
+	}
 	if cfg.toolbox != nil {
 		hello.HostToolboxRecoveryError = cfg.toolbox.recoveryError()
 	}

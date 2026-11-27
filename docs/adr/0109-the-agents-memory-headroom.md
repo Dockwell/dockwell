@@ -1,6 +1,6 @@
 # 0109. The agent's memory headroom
 
-- Status: Accepted. Amends [ADR 0060](0060-what-an-idle-agent-keeps-in-memory.md), where an agent on its own collects at `GOGC=50` and the cap on its CPUs is left for a decision of its own.
+- Status: Accepted. Amends [ADR 0060](0060-what-an-idle-agent-keeps-in-memory.md), where an agent on its own collects at `GOGC=50` and the cap on its CPUs is left for a decision of its own. [ADR 0112](0112-sealed-backups-to-sftp.md) sets a temporary target during an exclusive standalone SFTP fetch.
 - Date: 2026-11-25
 
 ## Context
@@ -106,3 +106,5 @@ On Linux 6.8, five paired idle samples at 180 seconds put the standalone median 
 Three alternating `make transfers-load` pairs peaked at 35.83, 35.77 and 39.10 MB with pageout, and 38.76, 38.90 and 38.66 MB on headroom-2. The median was 2.93 MB lower with pageout. Savings varied with when the transfers settled and when later work touched those pages again. The median process CPU time was 49.57 s versus 48.64 s, and median fault counts were 374 major and 9,521 minor versus zero major and 8,803 minor.
 
 In two follow-up forwarding pairs, total agent CPU was 6.67 and 9.61 s with pageout, versus 6.33 and 8.66 s on headroom-2. About 180 of the roughly 190 major faults occurred before the 16 measured connections opened, with the first burst at the ten-second startup timer. A second comparison used the same build with the startup timer removed. That eliminated major faults and raised the peak by 4.8 to 5.1 MB. During forwarding, the measured CPU difference with the timer on was −4 and +44 ms per connection across those two pairs. All runs took 21 to 22 seconds to forward the requests.
+
+[SFTP backups](0112-sealed-backups-to-sftp.md) also request pageout when the standalone agent finishes sending or fetching an archive, before it releases transfer admission. The same five-second limit applies. In three alternating pairs, both SFTP phases topped out at 36.0 MB. Whole-run peaks were 36.0, 35.7 and 35.8 MB with SFTP, and 35.9, 35.9 and 36.3 MB on the pageout baseline.

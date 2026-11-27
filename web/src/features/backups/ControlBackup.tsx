@@ -5,6 +5,7 @@ import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type BackupDestinationInfo,
+  BackupService,
   ChangeState,
   type ControlBackupPlace,
   ControlBackupService,
@@ -37,7 +38,6 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
 import { BackupSealFields, useBackupSeal } from "./BackupSealFields";
-import { useDestinations } from "./DestinationsPanel";
 import { recoveryPhraseStrength } from "./recoveryPhrase";
 import { freeDestinationName, pickerStatus, useStorage } from "./storage";
 import "./ControlBackup.css";
@@ -384,14 +384,16 @@ function DestinationSheet({
   const { t } = useLingui();
   const transport = useTransport();
   const client = createClient(ControlBackupService, transport);
-  const destinations = useDestinations();
+  // A destination can be added from the CLI while Settings is already open.
+  const destinations = useQuery(BackupService.method.listBackupDestinations, {}, { refetchOnMount: "always" });
   const storage = useStorage(destinations.data?.destinations);
   const plan = useChangeSheet();
   const seal = useBackupSeal();
   const [picked, setPicked] = useState(status.destination || undefined);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
-  const existing = destinations.data?.destinations ?? [];
+  const allDestinations = destinations.data?.destinations ?? [];
+  const existing = allDestinations.filter((destination) => !destination.sftp);
   const options = storage.items.filter((item) => pickerStatus(item).state === "available");
   const name = picked ?? existing[0]?.name ?? (options[0] ? options[0].key : "");
   const connection = options.find((item) => item.key === name)?.connection;
@@ -467,6 +469,11 @@ function DestinationSheet({
         <SelectField
           label={t`Destination`}
           value={name}
+          hint={
+            allDestinations.some((destination) => destination.sftp)
+              ? t`Control plane backup recovery and retention require S3-compatible storage.`
+              : undefined
+          }
           onChange={(e) => setPicked(e.target.value)}
           options={[
             { value: "", label: t`No destination` },

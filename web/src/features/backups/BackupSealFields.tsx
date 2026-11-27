@@ -44,11 +44,11 @@ export function useBackupSeal(defaultPrefix = "backups"): BackupSealState {
  * connection for backups: defaults first (generated passphrase + "backups" prefix
  * tucked under Advanced), and a switch for an existing passphrase.
  */
-export function BackupSealFields({ seal }: { seal: BackupSealState }) {
+export function BackupSealFields({ seal, showPrefix = true }: { seal: BackupSealState; showPrefix?: boolean }) {
   const { t } = useLingui();
   const folder = seal.prefix.trim().replace(/^\/+|\/+$/g, "");
   const summary = [
-    folder ? t`in ${folder}/` : t`at the bucket's top`,
+    ...(showPrefix ? [folder ? t`in ${folder}/` : t`at the bucket's top`] : []),
     seal.own ? t`your passphrase` : t`a passphrase made for you`,
   ].join(" · ");
 
@@ -75,14 +75,16 @@ export function BackupSealFields({ seal }: { seal: BackupSealState }) {
         </Callout>
       )}
       <Advanced summary={summary}>
-        <TextField
-          label={t`Folder in the bucket`}
-          mono
-          optional
-          value={seal.prefix}
-          placeholder="backups"
-          onChange={(event) => seal.setPrefix(event.target.value)}
-        />
+        {showPrefix ? (
+          <TextField
+            label={t`Folder in the bucket`}
+            mono
+            optional
+            value={seal.prefix}
+            placeholder="backups"
+            onChange={(event) => seal.setPrefix(event.target.value)}
+          />
+        ) : null}
         <Switch
           checked={seal.own}
           onChange={seal.setOwn}

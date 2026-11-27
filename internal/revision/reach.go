@@ -1338,6 +1338,9 @@ type backupTarget struct {
 	region    string
 	bucket    string
 	pathStyle bool
+	sftp      bool
+	sftpUser  string
+	sftpPath  string
 }
 
 func normalizeTarget(endpoint, region, bucket string, pathStyle bool) backupTarget {
@@ -1361,6 +1364,11 @@ func targetOfDestination(d *resourcev1.BackupDestination, lookupConn func(string
 	if d == nil {
 		return backupTarget{}, false, nil
 	}
+	if sftp := d.GetSftp(); sftp != nil {
+		return backupTarget{
+			sftp: true, endpoint: backuppolicy.SFTPConfig(sftp).Address(), sftpUser: sftp.GetUser(), sftpPath: sftp.GetPath(),
+		}, true, nil
+	}
 	if d.GetConnection() == "" {
 		return normalizeTarget(d.GetEndpoint(), d.GetRegion(), d.GetBucket(), true), true, nil
 	}
@@ -1380,6 +1388,15 @@ func targetOfDestination(d *resourcev1.BackupDestination, lookupConn func(string
 // effective endpoint, region, bucket or path style while backups exist on that
 // destination (ADR 0099 line 175, #831).
 func (e *Engine) checkDestinationTarget(ctx context.Context, tx *store.Tx, items []item, it *item, afterD *resourcev1.BackupDestination) error {
+	if afterD.GetSftp() != nil {
+		control, err := tx.ControlBackup(ctx)
+		if err != nil {
+			return err
+		}
+		if control.Destination == it.ref.Name {
+			return fault.New(ErrInvalid, "backup destination %s is selected for control plane backups, which require S3-compatible storage. Change the control plane's destination first", it.ref.Name)
+		}
+	}
 	allBackups, err := tx.ListBackups(ctx, store.BackupFilter{})
 	if err != nil {
 		return err
@@ -1486,6 +1503,9 @@ func (e *Engine) checkDestinationTarget(ctx context.Context, tx *store.Tx, items
 			it.ref.Name, it.ref.Name)
 	}
 	if beforeTarget != afterTarget {
+		if beforeTarget.sftp || afterTarget.sftp {
+			return fault.New(ErrInvalid, "backup destination %s can't change its storage location while backups depend on it. Add a new destination, or delete the backups on %s first", it.ref.Name, it.ref.Name)
+		}
 		return fault.New(ErrInvalid, "backup destination %s can't change its endpoint, region, bucket or path style while it has backups there, because restores fetch from where each backup went. Add a new destination for the new bucket, or delete the backups on %s first",
 			it.ref.Name, it.ref.Name)
 	}

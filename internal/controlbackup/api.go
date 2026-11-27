@@ -231,6 +231,9 @@ func (m *Manager) SetControlBackupDestination(ctx context.Context, req *connect.
 		if name != "" {
 			var err error
 			d, err = m.destination(ctx, tx, name)
+			if errors.Is(err, errSFTPDestination) {
+				return authapi.Invalid(err)
+			}
 			if err != nil {
 				return authapi.Invalid(errors.New("choose an existing backup destination with valid storage settings"))
 			}

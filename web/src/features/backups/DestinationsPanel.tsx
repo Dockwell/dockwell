@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService, ChangeService } from "@dockwell/api";
-import { Button, Loading, Panel, SkeletonRows, TextField } from "@dockwell/ui";
+import { Button, Loading, Panel, Sheet, SkeletonRows, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -16,6 +16,8 @@ import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
 import { ListPager } from "../shell/ListTools";
 import { pagedRows } from "../shell/list";
+import { CopyButton } from "../system/CopyCommand";
+import { SftpDestinationSheet } from "./SftpDestinationSheet";
 import { pickerStatus, useStorage } from "./storage";
 import "./Backups.css";
 
@@ -34,15 +36,19 @@ export function useDestinations() {
 export function DestinationsPanel({
   destinations,
   pending = false,
+  offerSFTP = false,
 }: {
   destinations: readonly BackupDestinationInfo[];
   /** The destinations are on their way, so none isn't known to be none yet. */
   pending?: boolean;
+  offerSFTP?: boolean;
 }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const storage = useStorage(destinations);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<"choose" | "s3" | "sftp">();
+  const [editing, setEditing] = useState<BackupDestinationInfo>();
+  const add = () => setAdding(offerSFTP ? "choose" : "s3");
   const [typed, setTyped] = useState("");
   const [pageNumber, setPageNumber] = useState(0);
   // Storage belongs to no project, so adding or removing it is an admin's: off, with why, otherwise (ADR 0059).
@@ -74,7 +80,7 @@ export function DestinationsPanel({
       actions={
         // While there's none, the empty state's Add storage is the one way in.
         usable.length > 0 ? (
-          <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
+          <Button size="sm" variant="ghost" icon="plus" onClick={add} {...mayPlan.off}>
             <Trans>Add</Trans>
           </Button>
         ) : undefined
@@ -93,7 +99,7 @@ export function DestinationsPanel({
               <button
                 type="button"
                 className="domain-step-act"
-                onClick={() => setAdding(true)}
+                onClick={add}
                 disabled={!mayPlan.allowed}
                 title={mayPlan.reason || undefined}
               >
@@ -160,7 +166,16 @@ export function DestinationsPanel({
                           ) : (
                             <span>{item.name}</span>
                           )}
-                          {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
+                          {d?.sftp ? (
+                            <span className="backup-why sftp-location">
+                              SFTP ·{" "}
+                              {d.sftp.host.includes(":") && d.sftp.port !== 22 ? `[${d.sftp.host}]` : d.sftp.host}
+                              {d.sftp.port && d.sftp.port !== 22 ? `:${d.sftp.port}` : ""}
+                              {d.sftp.path}
+                            </span>
+                          ) : item.bucket ? (
+                            <code className="backup-why">{item.bucket}</code>
+                          ) : null}
                         </div>
                       </div>
                       <div className="backup-state">
@@ -173,26 +188,56 @@ export function DestinationsPanel({
                               </span>
                             ) : null}
                             <span className="backup-why">{t`Encrypted on each server before upload`}</span>
+                            {d.sftp?.hostKeyFingerprint ? (
+                              <code className="backup-why sftp-location">
+                                {d.sftp.hostKeyAlgorithm} {d.sftp.hostKeyFingerprint}
+                              </code>
+                            ) : null}
+                            {d.sftp?.publicKey ? (
+                              <div className="sftp-public-key">
+                                <code className="backup-why" title={d.sftp.publicKey}>
+                                  {d.sftp.publicKey}
+                                </code>
+                                <CopyButton
+                                  text={d.sftp.publicKey}
+                                  label={t`Copy public key`}
+                                  copiedLabel={t`Public key copied`}
+                                />
+                              </div>
+                            ) : null}
                           </>
                         ) : (
                           <span className="backup-why">{t`Connection · pick in a schedule or Back up now`}</span>
                         )}
                       </div>
                       {d ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          icon="trash"
-                          aria-label={t`Remove this destination`}
-                          {...mayPlan.off}
-                          onClick={() =>
-                            sheet.open({
-                              kind: "propose",
-                              summary: t`Stop sending backups to ${d.name}`,
-                              edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
-                            })
-                          }
-                        />
+                        <div className="sftp-destination-actions">
+                          {offerSFTP && d.sftp ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              aria-label={t`Edit this SFTP destination`}
+                              {...mayPlan.off}
+                              onClick={() => setEditing(d)}
+                            >
+                              <Trans>Edit</Trans>
+                            </Button>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon="trash"
+                            aria-label={t`Remove this destination`}
+                            {...mayPlan.off}
+                            onClick={() =>
+                              sheet.open({
+                                kind: "propose",
+                                summary: t`Stop sending backups to ${d.name}`,
+                                edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
+                              })
+                            }
+                          />
+                        </div>
                       ) : c ? (
                         <Link
                           to="/connections/$name"
@@ -215,11 +260,41 @@ export function DestinationsPanel({
           )}
         </>
       )}
-      {adding ? (
+      {adding === "choose" ? (
+        <Sheet open title={t`Add backup storage`} onClose={() => setAdding(undefined)}>
+          <div className="backup-storage-options">
+            <div className="backup-storage-type">
+              <Button onClick={() => setAdding("s3")}>
+                <Trans>S3-compatible</Trans>
+              </Button>
+              <span>
+                <Trans>Store backups in an object storage bucket.</Trans>
+              </span>
+            </div>
+            <div className="backup-storage-type">
+              <Button onClick={() => setAdding("sftp")}>SFTP</Button>
+              <span>
+                <Trans>Store backups in a folder on an SSH server.</Trans>
+              </span>
+            </div>
+          </div>
+        </Sheet>
+      ) : null}
+      {adding === "s3" ? (
         <ConnectionSheet
           kind="storage"
           existing={storage.allConnections}
-          onClose={() => setAdding(false)}
+          onClose={() => setAdding(undefined)}
+          onSaved={() => void storage.refetch()}
+        />
+      ) : null}
+      {adding === "sftp" || editing ? (
+        <SftpDestinationSheet
+          editing={editing}
+          close={() => {
+            setAdding(undefined);
+            setEditing(undefined);
+          }}
           onSaved={() => void storage.refetch()}
         />
       ) : null}

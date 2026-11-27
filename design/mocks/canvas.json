@@ -254,6 +254,15 @@
    "x": 3040,
    "y": 2090
   },
+  "SFTP-Destination.dc.html": {
+   "expand": "fill",
+   "h": 950,
+   "page": "data",
+   "title": "Add an SFTP destination",
+   "w": 1440,
+   "x": 4560,
+   "y": 2090
+  },
   "Database-Detail.dc.html": {
    "expand": "fill",
    "h": 1010,
@@ -987,6 +996,7 @@
   "Backups.dc.html",
   "Backup-Restore.dc.html",
   "Control-Backup.dc.html",
+  "SFTP-Destination.dc.html",
   "Connections-List.dc.html",
   "Connection-New.dc.html",
   "Connection-Detail.dc.html",

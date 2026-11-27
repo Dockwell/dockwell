@@ -28,6 +28,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12
 	github.com/moby/patternmatcher v0.6.0
 	github.com/pjbgf/sha1cd v0.7.0
+	github.com/pkg/sftp v1.13.12
 	github.com/quic-go/quic-go v0.64.1
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
@@ -57,6 +58,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

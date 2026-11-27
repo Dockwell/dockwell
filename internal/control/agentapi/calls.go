@@ -533,7 +533,7 @@ type sessionPeer struct {
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, peers ...sessionPeer) *Session {
 	s := &Session{
-		agents: a, keepsControlBackups: hello.GetKeepsControlBackups(), guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), filesRest: hello.GetFilesRest(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
+		agents: a, sftpBackups: hello.GetSftpBackups(), backupSealVersion: hello.GetBackupSealVersion(), testsSFTPDestinations: hello.GetTestsSftpDestinations(), keepsControlBackups: hello.GetKeepsControlBackups(), guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), filesRest: hello.GetFilesRest(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), handsGitBundle: hello.GetBuildGitBundle(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), websiteHandy: hello.GetWebsiteHandy(), hostToolbox: hello.GetHostToolbox(), hostToolboxRecovery: hello.GetHostToolboxRecoveryError(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
@@ -797,8 +797,11 @@ type Session struct {
 	links bool
 	// oneDatabaseBackups says the agent backs up one database alone, and says so in
 	// what it reports (ADR 0084).
-	oneDatabaseBackups bool
-	volumeMoves        bool
+	oneDatabaseBackups    bool
+	sftpBackups           bool
+	backupSealVersion     uint32
+	testsSFTPDestinations bool
+	volumeMoves           bool
 	// drills says the agent checks that a backup restores (ADR 0068).
 	drills bool
 	// forwards says the agent carries a connection to a port a service publishes
@@ -2774,6 +2777,24 @@ func (s *Session) DrillBackup(ctx context.Context, call *agentv1.DrillBackupCall
 		return nil, err
 	}
 	return r.GetDrillBackup(), nil
+}
+
+// TestsSFTPDestinations reports whether this agent can probe SFTP from its network.
+func (s *Session) TestsSFTPDestinations() bool { return s.testsSFTPDestinations }
+
+// TestSFTPDestination runs the destination checks with credentials sealed to this agent.
+func (s *Session) TestSFTPDestination(ctx context.Context, destination map[string]string, timeout time.Duration) (*dockwellv1.TestBackupDestinationResponse, error) {
+	call := &agentv1.TestSftpDestinationCall{}
+	prepare := s.sealing(nil, destination, func(sealed []byte) { call.Destination = sealed })
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_TestSftpDestination{TestSftpDestination: call}}, timeout, prepare)
+	if err != nil {
+		return nil, err
+	}
+	out := r.GetTestSftpDestination()
+	if out == nil || out.GetSftp() == nil {
+		return nil, errors.New("the agent returned no SFTP test results")
+	}
+	return out, nil
 }
 
 // SendBackup asks the agent to send a backup that's on the disk to its destination,

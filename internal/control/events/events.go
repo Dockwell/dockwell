@@ -851,6 +851,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		e.Backup = &dockwellv1.EventBackup{ServerId: a.Target, ServerName: look.Name(a.Target)}
 		if told, ok := backups.ReadTold(a.Detail); ok {
 			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error, e.Backup.Destination = told.ID, told.Volume, told.Size, told.Error, told.Destination
+			e.Backup.Reason = told.Reason
 			e.Backup.Method = resourcepb.BackupMethod(told.Method)
 			e.Backup.Drill = backups.DrillResult(told.Drill)
 		}

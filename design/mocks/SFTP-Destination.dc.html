@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add an SFTP destination</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/dockwell/tokens.css">
+<link rel="stylesheet" href="ds/dockwell/components/bundle.css">
+<script src="ds/dockwell/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  body{margin:0}
+  .sftp-canvas{min-height:100vh;background:var(--canvas);color:var(--ink);font-family:var(--font-sans);display:flex;justify-content:flex-end}
+  .sftp-sheet{width:min(100%,560px);min-height:100vh;background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;box-sizing:border-box}
+  .sftp-head,.sftp-body,.sftp-foot{padding:var(--space-4) var(--space-6)}
+  .sftp-head{border-bottom:1px solid var(--line)}
+  .sftp-head h1{font-size:20px;margin:0}
+  .sftp-body{display:grid;gap:var(--space-4)}
+  .sftp-foot{display:flex;justify-content:flex-end;gap:var(--space-2);border-top:1px solid var(--line)}
+  .sftp-address{display:grid;grid-template-columns:minmax(0,1fr) 5rem;gap:var(--space-3)}
+  .sftp-callout{background:var(--canvas);border:1px solid var(--line);border-radius:6px;padding:var(--space-3);display:grid;gap:var(--space-2);font-size:13px}
+  .sftp-callout code{overflow-wrap:anywhere}
+  .sftp-mode{display:flex;gap:var(--space-2)}
+  .sftp-checks{margin:0;padding-left:1.2rem;font-size:13px;line-height:1.7}
+  @media(max-width:480px){.sftp-head,.sftp-body,.sftp-foot{padding-left:var(--space-4);padding-right:var(--space-4)}}
+</style>
+</helmet>
+<div class="sftp-canvas" data-theme="{{theme}}">
+  <section class="sftp-sheet" aria-label="Add backup storage">
+    <header class="sftp-head"><h1>Add backup storage</h1></header>
+    <div class="sftp-body">
+      <div class="sftp-mode">
+        <button class="dw-btn dw-btn-secondary dw-btn-sm">S3-compatible</button>
+        <button class="dw-btn dw-btn-primary dw-btn-sm">SFTP</button>
+      </div>
+      <x-import component-from-global-scope="Dockwell.TextField" label="Name" defaultValue="hz-1"></x-import>
+      <div class="sftp-address">
+        <x-import component-from-global-scope="Dockwell.TextField" label="Host" defaultValue="example.com"></x-import>
+        <x-import component-from-global-scope="Dockwell.TextField" label="Port" defaultValue="22"></x-import>
+      </div>
+      <x-import component-from-global-scope="Dockwell.TextField" label="User" defaultValue="backups"></x-import>
+      <x-import component-from-global-scope="Dockwell.TextField" label="Remote folder" defaultValue="/backups"></x-import>
+      <div class="sftp-callout"><strong>Generated SSH key</strong><span>Add this public key to the SFTP user's authorized keys.</span>
+        <button class="dw-btn dw-btn-secondary dw-btn-sm">Copy public key</button>
+      </div>
+      <div class="sftp-callout"><strong>Verify the server's fingerprint</strong>
+        <code>SHA256:Z3m9V74Kj3y6cthcTmF3+zfV8ioTdxRT1rHOnjcO4S0</code>
+        <button class="dw-btn dw-btn-secondary dw-btn-sm">Trust fingerprint and test</button>
+      </div>
+      <ul class="sftp-checks"><li>Server reached</li><li>Host key verified</li><li>Signed in</li><li>Folder ready</li><li>Test file written, read and deleted</li><li>128 GB free</li></ul>
+    </div>
+    <footer class="sftp-foot"><button class="dw-btn dw-btn-secondary">Cancel</button><button class="dw-btn dw-btn-primary">Review plan</button></footer>
+  </section>
+</div>
+<script type="text/x-dc">function renderVals(){return {theme:"light"};}</script>
+</x-dc>
+</body>
+</html>

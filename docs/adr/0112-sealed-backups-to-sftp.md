@@ -1,0 +1,37 @@
+# 0112. Sealed backups to SFTP
+
+- Status: Accepted. Extends [ADR 0033](0033-backups-of-volumes-and-databases.md).
+- Date: 2026-11-26
+
+## Context
+
+The backup destinations in the [PRD](../product/prd.md) include SFTP. People moving an existing installation can keep a backup server they already reach through SSH. A destination should work with the same backup policies, retention and planned restores as an S3-compatible destination.
+
+## Decision
+
+- **SSH host identity belongs to the destination.** The selected server's agent tests the route it will use for backups. Before signing in, it reports the OpenSSH SHA256 fingerprint and the key type, preferring Ed25519, ECDSA, then RSA with SHA-2. The operator compares the fingerprint with the server's and accepts it. Subsequent connections negotiate the saved key type and verify the pin. A changed pin stops authentication and reports the observed fingerprint. Activity names the affected agent, so an admin can test and accept a new pin from that server.
+- **The generated key starts in the panel.** The browser generates an Ed25519 key pair. The control plane derives the public half from the submitted private key and saves it for copying later. The operator can also paste a private key, give its passphrase if encrypted, or choose password sign-in. The resource seals credentials under [ADR 0022](0022-secrets-encrypted-at-rest.md) and masks them in plans. The control plane seals the credentials again for the agent stream. Lists, test results and Activity omit credentials and remote error text. The backup recovery passphrase is separate.
+- **The sealed archive and its manifest stream to temporary files beside their final names.** The agent publishes the manifest first and the complete archive last after checking the staged sizes. It discards temporary files on failure where the connection permits it. Before uploading, it sweeps Dockwell partials older than a day, removes a manifest without an archive for the same key, and checks space where the server reports it. Send, fetch and delete also sweep old Dockwell archive and manifest names in the contacted backup folder. They use a bounded snapshot of sends that the control plane recorded as failed with no stored copy, and require both the backup ID and the file modification time to predate its one-day cutoff. Files without a row are kept, including backups taken since a restored control-plane snapshot. Fetch verifies the sealed manifest, the archive and the recorded hash before publishing the local copy. Retention deletes the archive and manifest together.
+- **A destination with backups keeps its storage location.** The effective host, port, user and folder are fixed while copies or sends depend on them. An edit keeps the sign-in for the same SSH account by default. An admin can reuse the private key when accepting a new pin. A password must be entered again for a different host identity because password authentication sends it to the server. Application volumes, database dumps and website folders share the transport. Control plane recovery and retention use S3-compatible destinations under [ADR 0073](0073-backing-up-and-restoring-the-control-plane.md).
+- **The agent uses bounded SSH and SFTP streams.** The agent uses the Go SSH client and `github.com/pkg/sftp` v1.13.12. Capability flags let the control plane check what an older agent supports before sending it credentials. Sends pipeline eight requests per file and fetches pipeline four. Each request carries just under 32 KiB. New archives have 64 KiB chunks and an authenticated chunk size in the header. Readers still open earlier 1 MiB archives, and control plane bundles keep their fixed chunk format. The control plane records the sealed format of new copies and checks the selected server can read it before starting a fetch. On standalone agents, a fetch waits in its own admission lane. Ordinary transfers can fill initially spare places before the current batch drains. The fetch then runs alone among the shared transfers. A server busy with a fetch declines an incoming control-plane bundle so the control plane can place it on another server. A standalone fetch uses `GOGC=3` if the earlier target is higher and the operator has left `GOGC` unset. It restores the earlier target and returns unused pages before admitting another transfer. Sends and ordinary transfers use the regular collection target. The transport refreshes socket deadlines as traffic moves and sends SSH keepalives every 30 seconds. The idle watchdog distinguishes a peer that stops answering SFTP from a stall reading or writing backup data locally. A fingerprint-only pin learns its verified key type once per agent and uses that type on later connections.
+
+## Consequences
+
+A disk-backed SFTP fixture transferred 1 GiB in each direction with the stated latency added to the TCP connection.
+
+| Added latency | Send | Fetch |
+| --- | ---: | ---: |
+| 25 ms | 10.53 MiB/s | 5.87 MiB/s |
+| 50 ms | 5.41 MiB/s | 3.02 MiB/s |
+
+In round 2 the 512 MiB transfer gate peaked at 37.5 MB RSS while it sent an SFTP backup alongside two panel uploads, and at 39.7 MB while fetching with panel downloads queued. The gate measured 14.24 CPU seconds for the ordinary panel transfers, 7.21 for the mixed send and 15.23 for the mixed fetch. A repeat peaked at 39.6 MB across all transfers. The median idle RSS was 34.9 MB after 180 seconds in `make budgets`. The standalone agent budget is 40 MB under [ADR 0109](0109-the-agents-memory-headroom.md).
+
+Panel file and artifact transfers use separate bounded HTTP/2 connections as described in [ADR 0109](0109-the-agents-memory-headroom.md). Their new messages carry up to 31 KiB of data and receivers still accept older 128 KiB payloads. In the round 3 pilot, the smaller payloads cut the worst panel download peak by 1.1 MB. Closing the idle transfer connection before fetch raised its worst peak by 0.6 MB, so connections stay open during a fetch.
+
+The revised round 3 comparison measured three branch runs alternating with main. The branch sent at 37.6, 37.4 and 38.0 MB and fetched at 38.8, 38.1 and 38.2 MB. Its whole-run peaks were 39.8, 40.0 and 39.7 MB against 39.4, 39.2 and 39.6 MB on main. The first fetch exceeded the 38.5 MB cap and all three whole-run peaks exceeded their paired baseline. Earlier trials at eight fetch requests reached 38.8 MB at the fetch endpoint, so the fetch window stays at four.
+
+The SFTP connection and key type cache are used on demand. The standalone idle median after 180 seconds was 35.0 MB RSS against 34.6 MB on main. Idle samples showed about 0.7 MB more file-backed pages.
+
+After downloading the sealed archive and its manifest, open them with `dockwell open-backup` and the backup passphrase. Format v3 archives need a Dockwell build that reads v3. The server's SFTP account needs access to create files and folders in the destination and delete expired copies. The destination test also checks available space when the server supports the OpenSSH filesystem statistics extension.
+
+From the CLI, pass a JSON object with an `sftp` field to `dockwell backups test-destination --server SERVER --destination @file`. The first test reports the observed fingerprint and key type. Compare the fingerprint with the server's, set `sftp.hostKeyFingerprint` and `sftp.hostKeyAlgorithm`, and test again. Use the verified destination and a recovery passphrase in a `backup.destination` change.

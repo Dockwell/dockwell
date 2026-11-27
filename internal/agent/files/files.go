@@ -9,7 +9,6 @@ package files
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -80,9 +79,6 @@ const (
 	// settleAfter is how long after the last transfer the agent hands back the
 	// memory transfers used, as an upload's next part may follow at once.
 	settleAfter = 2 * time.Second
-	// transferGC keeps file and Docker archive transfers at the standalone
-	// agent's collector target (ADR 0109) within the same 40 MB budget.
-	transferGC = 25
 )
 
 // Server reads a server's files.
@@ -90,7 +86,7 @@ type Server struct {
 	// DownloadHosts allows private and loopback addresses for these exact hostnames.
 	DownloadHosts []string
 
-	// Embedded leaves process-wide GC tuning to the control plane.
+	// Embedded uses the control plane's larger memory budget.
 	Embedded bool
 
 	// AnswerWithin is how long a path has to answer. Zero means answerWithin.
@@ -112,14 +108,11 @@ type Server struct {
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
 	previews   chan struct{}
-	transfers  chan struct{}
+	transfers  transferAdmission
 	archives   chan struct{}
-	// settle hands back what transfers used, once none has run for settleAfter,
-	// and gcWas is the collector's target from before they started, when gcSet.
-	// It's mu that guards them.
+	// settle hands back what transfers used once none has run for settleAfter.
+	// mu guards it and activeTransfers.
 	settle          *time.Timer
-	gcWas           int
-	gcSet           bool
 	activeTransfers int
 
 	// mu is never held across anything that touches a disk.
@@ -172,7 +165,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), previews: make(chan struct{}, 1), transfers: make(chan struct{}, transfers), archives: make(chan struct{}, maxArchiveJobs),
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), previews: make(chan struct{}, 1), transfers: transferAdmission{fetchLane: make(chan struct{}, 1)}, archives: make(chan struct{}, maxArchiveJobs),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
 		archiveJobs: map[string]*archiveJob{}, downloadStages: map[identity]bool{}, archiveEndedCh: make(chan struct{}, 1),
 		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
@@ -194,9 +187,8 @@ func (s *Server) Take(ctx context.Context) (func(), error) {
 	}
 }
 
-// TakePreview waits for the single binary-preview place and enables transfer GC
-// tuning until the reply is sent, so concurrent image previews never stack
-// multiple raw and wire copies in agent memory at once.
+// TakePreview waits for the single binary-preview place, so concurrent
+// previews never stack multiple raw and wire copies in memory.
 func (s *Server) TakePreview(ctx context.Context) (func(), error) {
 	select {
 	case s.previews <- struct{}{}:
@@ -217,10 +209,14 @@ func (s *Server) TakePreview(ctx context.Context) (func(), error) {
 var ErrBusy = errors.New("every upload and download the server runs at once is under way")
 
 // Busy is what a transfer that got no place says.
-func Busy() *agentv1.FileRefusal {
+func Busy(err error) *agentv1.FileRefusal {
+	message := "the server couldn't give this transfer a place, so it didn't start. Try again once another transfer ends"
+	if errors.Is(err, ErrRestoring) {
+		message = ErrRestoring.Error()
+	}
 	return &agentv1.FileRefusal{
 		Kind:    agentv1.FileRefusal_KIND_BUSY,
-		Message: fmt.Sprintf("the server is busy with %d other uploads and downloads, so this one didn't start. Try again once one of them ends", transfers),
+		Message: message,
 	}
 }
 
@@ -232,8 +228,7 @@ func ArchiveBusy() *agentv1.FileRefusal {
 	}
 }
 
-// tryTakeArchive acquires one of the dedicated archive job slots along with
-// transfer GC tuning, or returns ArchiveBusy immediately when full.
+// tryTakeArchive acquires a dedicated archive job slot or returns ArchiveBusy.
 func (s *Server) tryTakeArchive() (func(), *agentv1.FileRefusal) {
 	select {
 	case s.archives <- struct{}{}:
@@ -286,46 +281,12 @@ func (s *Server) UntoldArchiveEnded(items []*agentv1.ArchiveJobEnded) {
 	}
 }
 
-// TakeTransfer waits for one of the places an upload's write or a download runs
-// in, and returns how to give it back. They're long, so they don't take the places
-// listings and reads need. One that waits transferWait for none fails with ErrBusy.
-func (s *Server) TakeTransfer(ctx context.Context) (func(), error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, cmp.Or(s.transferWait, transferWait), ErrBusy)
-	defer cancel()
-	release, err := s.WaitTransfer(ctx)
-	if err != nil && !errors.Is(err, ErrBusy) {
-		return nil, fmt.Errorf("the agent is busy with %d other uploads and downloads: %w", transfers, err)
-	}
-	return release, err
-}
-
-// WaitTransfer admits a transfer until its caller's deadline.
-func (s *Server) WaitTransfer(ctx context.Context) (func(), error) {
-	select {
-	case s.transfers <- struct{}{}:
-		release := s.holdTransferMemory()
-		return func() {
-			<-s.transfers
-			release()
-		}, nil
-	case <-ctx.Done():
-		return nil, context.Cause(ctx)
-	}
-}
-
 func (s *Server) holdTransferMemory() func() {
 	if s.Embedded {
 		return func() {}
 	}
 	s.mu.Lock()
 	s.activeTransfers++
-	if !s.gcSet {
-		s.gcWas, s.gcSet = debug.SetGCPercent(transferGC), true
-		// Off, or lower already, stays as it is.
-		if s.gcWas < transferGC {
-			debug.SetGCPercent(s.gcWas)
-		}
-	}
 	s.mu.Unlock()
 	return func() {
 		s.mu.Lock()
@@ -366,10 +327,7 @@ func (s *Server) settleIfIdle() {
 	if s.activeTransfers != 0 {
 		return
 	}
-	if s.gcSet {
-		debug.SetGCPercent(s.gcWas)
-		s.gcSet = false
-	}
+
 	debug.FreeOSMemory()
 	pageout.Executable()
 }

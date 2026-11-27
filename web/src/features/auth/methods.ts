@@ -82,8 +82,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.listBackups": "read",
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
-  // Legacy inline destination test; new storage is added as a connection and checked with ConnectionService.checkConnection.
-  "BackupService.testBackupDestination": "unused",
+  "BackupService.testBackupDestination": "may",
   "BackupService.useDestinationAsConnection": "may",
 
   "ControlBackupService.confirmControlBackupPassphrase": "may",

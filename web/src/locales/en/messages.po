@@ -8847,6 +8847,9 @@ msgstr "Control plane"
 msgid "Control plane backup"
 msgstr "Control plane backup"
 
+msgid "Control plane backup recovery and retention require S3-compatible storage."
+msgstr "Control plane backup recovery and retention require S3-compatible storage."
+
 msgid "Control plane recovery sheet"
 msgstr "Control plane recovery sheet"
 
@@ -9060,14 +9063,23 @@ msgstr "Use bucket versioning or object lock and a key that can't delete."
 msgid "Use your own"
 msgstr "Use your own"
 
+msgid "Add backup storage"
+msgstr "Add backup storage"
+
 msgid "Add storage"
 msgstr "Add storage"
 
 msgid "Connection · pick in a schedule or Back up now"
 msgstr "Connection · pick in a schedule or Back up now"
 
+msgid "Copy public key"
+msgstr "Copy public key"
+
 msgid "Destinations"
 msgstr "Destinations"
+
+msgid "Edit this SFTP destination"
+msgstr "Edit this SFTP destination"
 
 msgid "Encrypted on each server before upload"
 msgstr "Encrypted on each server before upload"
@@ -9094,12 +9106,24 @@ msgstr "No destinations match"
 msgid "Only on each server's disk, unencrypted"
 msgstr "Only on each server's disk, unencrypted"
 
+msgid "Public key copied"
+msgstr "Public key copied"
+
 msgid "Remove this destination"
 msgstr "Remove this destination"
+
+msgid "S3-compatible"
+msgstr "S3-compatible"
 
 #. placeholder {0}: d.name
 msgid "Stop sending backups to {0}"
 msgstr "Stop sending backups to {0}"
+
+msgid "Store backups in a folder on an SSH server."
+msgstr "Store backups in a folder on an SSH server."
+
+msgid "Store backups in an object storage bucket."
+msgstr "Store backups in an object storage bucket."
 
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
@@ -9298,6 +9322,160 @@ msgstr "What uses it stops while it loads, and what was made since goes."
 msgid "{project} keeps running. Check the data, then switch apps over."
 msgstr "{project} keeps running. Check the data, then switch apps over."
 
+msgid "Add SFTP destination"
+msgstr "Add SFTP destination"
+
+msgid "Add backup destination {destinationName}"
+msgstr "Add backup destination {destinationName}"
+
+msgid "Choose a connected server"
+msgstr "Choose a connected server"
+
+msgid "Choose new sign-in details after changing the SSH account."
+msgstr "Choose new sign-in details after changing the SSH account."
+
+msgid "Choose your own SSH private key to continue."
+msgstr "Choose your own SSH private key to continue."
+
+msgid "Command copied"
+msgstr "Command copied"
+
+msgid "Compare this fingerprint with the one from your SFTP server."
+msgstr "Compare this fingerprint with the one from your SFTP server."
+
+msgid "Copy fingerprint command"
+msgstr "Copy fingerprint command"
+
+msgid "Copy key install command"
+msgstr "Copy key install command"
+
+msgid "Couldn't generate an SSH key"
+msgstr "Couldn't generate an SSH key"
+
+msgid "Couldn't test the destination"
+msgstr "Couldn't test the destination"
+
+msgid "Delete test file"
+msgstr "Delete test file"
+
+msgid "Destination test failed"
+msgstr "Destination test failed"
+
+msgid "Destination test passed"
+msgstr "Destination test passed"
+
+msgid "Dockwell couldn't delete the test file. Check delete permission before sending backups."
+msgstr "Dockwell couldn't delete the test file. Check delete permission before sending backups."
+
+msgid "Dockwell couldn't open or create the folder. Check the path and the user's permissions."
+msgstr "Dockwell couldn't open or create the folder. Check the path and the user's permissions."
+
+msgid "Dockwell couldn't read back the test file. Check the connection and read permission, then test again."
+msgstr "Dockwell couldn't read back the test file. Check the connection and read permission, then test again."
+
+msgid "Dockwell couldn't write the test file. Check the connection and write permission, then test again."
+msgstr "Dockwell couldn't write the test file. Check the connection and write permission, then test again."
+
+msgid "Dockwell stopped before signing in. Verify the new fingerprint with the server owner."
+msgstr "Dockwell stopped before signing in. Verify the new fingerprint with the server owner."
+
+msgid "Edit SFTP destination"
+msgstr "Edit SFTP destination"
+
+msgid "Enter the password again to test the new fingerprint."
+msgstr "Enter the password again to test the new fingerprint."
+
+msgid "For an encrypted private key."
+msgstr "For an encrypted private key."
+
+msgid "Free space"
+msgstr "Free space"
+
+msgid "Generated SSH key"
+msgstr "Generated SSH key"
+
+msgid "Generating SSH key"
+msgstr "Generating SSH key"
+
+msgid "Keep saved sign-in"
+msgstr "Keep saved sign-in"
+
+msgid "Not run"
+msgstr "Not run"
+
+msgid "Open folder"
+msgstr "Open folder"
+
+msgid "Passed"
+msgstr "Passed"
+
+msgid "Private key passphrase"
+msgstr "Private key passphrase"
+
+msgid "Public key"
+msgstr "Public key"
+
+msgid "Reach server"
+msgstr "Reach server"
+
+msgid "Read test file"
+msgstr "Read test file"
+
+msgid "Remote folder"
+msgstr "Remote folder"
+
+msgid "SSH couldn't connect. Check the host, port and network, then try again."
+msgstr "SSH couldn't connect. Check the host, port and network, then try again."
+
+msgid "SSH private key"
+msgstr "SSH private key"
+
+msgid "Test destination"
+msgstr "Test destination"
+
+msgid "Test from server"
+msgstr "Test from server"
+
+#. placeholder {0}: sftp.serverName
+msgid "Tested from {0}"
+msgstr "Tested from {0}"
+
+msgid "Tested from {server}"
+msgstr "Tested from {server}"
+
+msgid "The server didn't open SFTP. Enable it for this user, then test again."
+msgstr "The server didn't open SFTP. Enable it for this user, then test again."
+
+msgid "The server refused the sign-in. Check the user and SSH key or password, then test again."
+msgstr "The server refused the sign-in. Check the user and SSH key or password, then test again."
+
+msgid "The server's host key changed"
+msgstr "The server's host key changed"
+
+msgid "Trust fingerprint and test"
+msgstr "Trust fingerprint and test"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Update backup destination {destinationName}"
+msgstr "Update backup destination {destinationName}"
+
+msgid "Use a password when the server only supports password sign-in."
+msgstr "Use a password when the server only supports password sign-in."
+
+msgid "Verify host key"
+msgstr "Verify host key"
+
+msgid "Verify the server's fingerprint"
+msgstr "Verify the server's fingerprint"
+
+msgid "Write test file"
+msgstr "Write test file"
+
+msgid "Your SSH private key"
+msgstr "Your SSH private key"
+
 msgid "An admin sets up backup storage"
 msgstr "An admin sets up backup storage"
 
@@ -9324,6 +9502,10 @@ msgstr "Encrypted under {prefix}/"
 
 msgid "Paste a key made for backups"
 msgstr "Paste a key made for backups"
+
+#. placeholder {0}: item.destination.sftp.path
+msgid "SFTP · {0}"
+msgstr "SFTP · {0}"
 
 msgid "Sealed with a passphrase"
 msgstr "Sealed with a passphrase"
@@ -11887,9 +12069,6 @@ msgstr "No downtime"
 
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
-
-msgid "Not run"
-msgstr "Not run"
 
 msgid "Offline"
 msgstr "Offline"
@@ -16285,9 +16464,6 @@ msgstr "Next page"
 msgid "No Compose files or folders on this page"
 msgstr "No Compose files or folders on this page"
 
-msgid "Open folder"
-msgstr "Open folder"
-
 msgid "Parent folder"
 msgstr "Parent folder"
 
@@ -16437,9 +16613,6 @@ msgstr "These workloads are placed on several servers"
 
 msgid "This stack is gone"
 msgstr "This stack is gone"
-
-msgid "Unavailable"
-msgstr "Unavailable"
 
 msgid "Volumes and their data stay."
 msgstr "Volumes and their data stay."
@@ -20741,9 +20914,6 @@ msgstr "{0, plural, one {{lines} line from {source} not shown: this server share
 #. placeholder {0}: Number(gap.lines)
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
-
-msgid "Command copied"
-msgstr "Command copied"
 
 msgid "Copy the command that restarts Docker"
 msgstr "Copy the command that restarts Docker"

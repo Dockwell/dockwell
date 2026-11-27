@@ -5,9 +5,11 @@ package backup
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -74,7 +76,7 @@ func result(m *Manifest) *agentv1.BackupResult {
 // Send sends a backup to its destination, which is what destination opened to, and
 // goes no further than this call.
 func (c Calls) Send(ctx context.Context, call *agentv1.SendBackupCall, destination map[string]string) (*agentv1.SendBackupResult, error) {
-	d := DestinationFrom(destination)
+	d := c.destination(destination)
 	if d == nil {
 		return nil, errors.New("this call says nothing of where the backup goes")
 	}
@@ -82,12 +84,12 @@ func (c Calls) Send(ctx context.Context, call *agentv1.SendBackupCall, destinati
 	if err != nil {
 		return nil, err
 	}
-	return &agentv1.SendBackupResult{Key: copied.Key, StoredBytes: copied.Bytes}, nil
+	return &agentv1.SendBackupResult{Key: copied.Key, StoredBytes: copied.Bytes, SealVersion: seal.ArchiveVersion}, nil
 }
 
 // Fetch brings a backup back from where it was sent.
 func (c Calls) Fetch(ctx context.Context, call *agentv1.FetchBackupCall, destination map[string]string) (*agentv1.BackupResult, error) {
-	d := DestinationFrom(destination)
+	d := c.destination(destination)
 	if d == nil {
 		return nil, errors.New("this call says nothing of where the backup is")
 	}
@@ -100,9 +102,17 @@ func (c Calls) Fetch(ctx context.Context, call *agentv1.FetchBackupCall, destina
 
 // Delete removes a backup from the disk, and from where it was sent if the call says.
 func (c Calls) Delete(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error) {
-	said, err := c.Runner.Delete(ctx, resourcepb.FromRef(call.GetVolume()), call.GetId(), call.GetKey(), DestinationFrom(destination))
+	said, err := c.Runner.Delete(ctx, resourcepb.FromRef(call.GetVolume()), call.GetId(), call.GetKey(), c.destination(destination))
 	if err != nil {
 		return nil, err
 	}
 	return &agentv1.DeleteBackupResult{CopyError: said}, nil
+}
+
+func (c Calls) destination(values map[string]string) *Destination {
+	d := DestinationFrom(values)
+	if d != nil && d.SFTP != nil {
+		d.SFTP.KeyTypesDir = filepath.Join(c.Runner.Root, ".sftp-key-types")
+	}
+	return d
 }

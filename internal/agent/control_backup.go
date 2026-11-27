@@ -12,16 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/backup/keep"
 	"github.com/dockwell/dockwell/internal/id"
 )
-
-// Only one bundle reserves room at once, even while a stream reconnects.
-var keepingControlBackup sync.Mutex
 
 func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlBackupCall) *agentv1.CallResult {
 	fail := func(err error) *agentv1.CallResult {
@@ -31,10 +27,10 @@ func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlB
 		return fail(errors.New("this server has no place to keep control plane backups"))
 	}
 	root := filepath.Join(c.cfg.Dir, "control-backups")
-	if !keepingControlBackup.TryLock() {
+	if !c.cfg.keepingControlBackup.TryLock() {
 		return fail(errors.New("this server is already keeping a control plane backup"))
 	}
-	defer keepingControlBackup.Unlock()
+	defer c.cfg.keepingControlBackup.Unlock()
 	install, generation, probe := ask.GetInstall(), ask.GetGeneration(), ask.GetStream() == 0
 	var dir string
 	if !probe || install != "" || generation != 0 {
@@ -58,6 +54,13 @@ func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlB
 	}
 	if err := controlBackupRoom(room, ask.GetSize()); err != nil {
 		return fail(err)
+	}
+	if c.cfg.Files != nil {
+		release, err := c.cfg.Files.TakeTransfer(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		defer release()
 	}
 	client, err := c.transferClient(false)
 	if err != nil {

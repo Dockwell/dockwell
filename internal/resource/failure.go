@@ -48,6 +48,8 @@ const (
 	ReasonDatabaseRelease = "database_release"
 	// ReasonSSHRefused means an SSH operation was refused before it could act.
 	ReasonSSHRefused = "ssh_refused"
+	// ReasonHostKeyChanged means a pinned SFTP identity did not match.
+	ReasonHostKeyChanged = "host_key_changed"
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }

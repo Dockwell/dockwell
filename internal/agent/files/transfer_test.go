@@ -7,11 +7,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"runtime/debug"
+	"runtime/metrics"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -680,7 +683,7 @@ func TestABusyServerSaysSo(t *testing.T) {
 	if _, err := d.server.TakeTransfer(t.Context()); !errors.Is(err, ErrBusy) {
 		t.Fatalf("a fourth = %v", err)
 	}
-	if Busy().GetKind() != agentv1.FileRefusal_KIND_BUSY {
+	if Busy(ErrBusy).GetKind() != agentv1.FileRefusal_KIND_BUSY {
 		t.Error("Busy() isn't KIND_BUSY")
 	}
 	held[0]()
@@ -691,6 +694,151 @@ func TestABusyServerSaysSo(t *testing.T) {
 	release()
 	for _, r := range held[1:] {
 		r()
+	}
+}
+
+func TestWaitingBackupFetchLetsOneTransferFillTheFreePlace(t *testing.T) {
+	s := newDisk(t).server
+	s.transferWait = 100 * time.Millisecond
+	first, err := s.TakeTransfer(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.TakeTransfer(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fetch := make(chan func(), 1)
+	go func() {
+		release, err := s.WaitBackupFetch(t.Context())
+		if err != nil {
+			fetch <- nil
+			return
+		}
+		fetch <- release
+	}()
+	until := time.Now().Add(time.Second)
+	for {
+		s.transfers.mu.Lock()
+		waiting := s.transfers.waiting
+		s.transfers.mu.Unlock()
+		if waiting {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatal("fetch did not begin waiting")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	third, err := s.TakeTransfer(t.Context())
+	if err != nil {
+		t.Fatalf("a free place was blocked by a waiting fetch: %v", err)
+	}
+	first()
+	if extra, err := s.TakeTransfer(t.Context()); !errors.Is(err, ErrBusy) {
+		if extra != nil {
+			extra()
+		}
+		t.Errorf("an extra transfer should let the batch drain: %v", err)
+	}
+	second()
+	third()
+	select {
+	case release := <-fetch:
+		if release == nil {
+			t.Fatal("fetch was refused")
+		}
+		if _, err := s.TakeTransfer(t.Context()); !errors.Is(err, ErrRestoring) {
+			t.Errorf("during fetch: %v", err)
+		}
+		release()
+	case <-time.After(time.Second):
+		t.Fatal("fetch did not get the empty lane")
+	}
+	panel, err := s.TakeTransfer(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	panel()
+}
+
+func TestBackupFetchRestoresTheCollector(t *testing.T) {
+	t.Setenv("GOGC", "")
+	const ordinaryGC = 41
+	previous := debug.SetGCPercent(ordinaryGC)
+	defer debug.SetGCPercent(previous)
+
+	check := func(t *testing.T, want uint64) {
+		t.Helper()
+		sample := []metrics.Sample{{Name: "/gc/gogc:percent"}}
+		metrics.Read(sample)
+		if got := sample[0].Value.Uint64(); got != want {
+			t.Errorf("GOGC = %d, want %d", got, want)
+		}
+	}
+	s := newDisk(t).server
+	failure := errors.New("fetch failed")
+	for _, outcome := range []error{nil, failure, context.Canceled} {
+		ctx, cancel := context.WithCancel(t.Context())
+		err := func() error {
+			release, err := s.WaitBackupFetch(ctx)
+			if err != nil {
+				return err
+			}
+			defer release()
+			check(t, backupFetchGC)
+			if errors.Is(outcome, context.Canceled) {
+				cancel()
+				return ctx.Err()
+			}
+			return outcome
+		}()
+		cancel()
+		if !errors.Is(err, outcome) {
+			t.Fatalf("fetch ended with %v, want %v", err, outcome)
+		}
+		panel, err := s.TakeTransfer(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(t, ordinaryGC)
+		panel()
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if release, err := s.WaitBackupFetch(ctx); !errors.Is(err, context.Canceled) {
+		if release != nil {
+			release()
+		}
+		t.Fatalf("canceled admission: %v", err)
+	}
+	check(t, ordinaryGC)
+
+	s.Embedded = true
+	release, err := s.WaitBackupFetch(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, ordinaryGC)
+	release()
+}
+
+func TestBackupFetchLeavesOperatorGOGC(t *testing.T) {
+	t.Setenv("GOGC", "41")
+	previous := debug.SetGCPercent(41)
+	defer debug.SetGCPercent(previous)
+	s := newDisk(t).server
+	release, err := s.WaitBackupFetch(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sample := []metrics.Sample{{Name: "/gc/gogc:percent"}}
+	metrics.Read(sample)
+	during := sample[0].Value.Uint64()
+	release()
+	metrics.Read(sample)
+	if after := sample[0].Value.Uint64(); during != 41 || after != 41 {
+		t.Fatalf("operator's GOGC was 41, got %d during the fetch and %d after it", during, after)
 	}
 }
 

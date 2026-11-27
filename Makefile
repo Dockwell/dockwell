@@ -187,6 +187,7 @@ e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server'
 	go build -o bin/fakedocker ./scripts/fakedocker
 	go build -o bin/gitserve ./scripts/gitserve
 	go build -o bin/gitsshserve ./scripts/gitsshserve
+	go build -o bin/sftpserve ./scripts/sftpserve
 	@# Every script runs whatever the one before did, and each says how it went, so one failure
 	@# doesn't hide the rest (#634); then it fails if any did.
 	@failed=""; \
@@ -217,7 +218,7 @@ logs-load: build-go build-agent ## Measure an agent's memory while a container f
 	scripts/logs-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: transfers-load
-transfers-load: build-go build-agent ## Measure an agent's memory while four files upload and four download at once
+transfers-load: build-go build-agent ## Measure agent memory during panel transfers and SFTP backups
 	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: forwards-load

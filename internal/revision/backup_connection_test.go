@@ -22,6 +22,37 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
+func TestSelectedControlBackupDestinationCannotBecomeSFTP(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		logger := slog.New(slog.DiscardHandler)
+		if _, err := Setup(t.Context(), db, logger); err != nil {
+			t.Fatal(err)
+		}
+		kinds := resource.NewRegistry(backuppolicy.Destination{})
+		engine := New(db, kinds, fleet{}, secretstest.Keeper(db, kinds), logger)
+		ref := resource.Ref{Kind: backuppolicy.DestinationKind, Scope: tree(t, db).Organization.ID, Name: "recovery"}
+		apply(t, engine, propose(t, engine, "Add backup storage", Edit{Ref: ref, Spec: &resourcev1.BackupDestination{
+			Endpoint: "https://storage.example.com", Bucket: "recovery", AccessKey: "access", SecretKey: "secret",
+			Passphrase: "a long example passphrase",
+		}}))
+		if err := db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.SetControlBackupDestination(t.Context(), ref.Name, "selection-pin", "selection", time.Now())
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err := engine.Propose(t.Context(), Proposal{Summary: "Change backup storage to SFTP", Edits: []Edit{{Ref: ref, Spec: &resourcev1.BackupDestination{
+			Sftp: &resourcev1.BackupDestinationSftp{
+				Host: "storage.example.com", User: "backups", Path: "/recovery", Password: "example-password",
+				HostKeyFingerprint: "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", HostKeyAlgorithm: "ssh-ed25519",
+			},
+		}}}})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "selected for control plane backups") {
+			t.Fatalf("converting the empty selected destination = %v", err)
+		}
+	})
+}
+
 func TestBackupDestinationConnectionRules(t *testing.T) {
 	storetest.Each(t, testBackupDestinationConnectionRules)
 }

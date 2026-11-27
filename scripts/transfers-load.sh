@@ -4,7 +4,8 @@
 # Measures an agent of the agent build while files upload and download through the
 # REST paths, as the panel sends them (docs/adr/0045-a-file-manager-on-a-server.md):
 # four uploads at once, in 64 MiB parts, each a PUT, which is every transfer place
-# a server has and one waiting, then four downloads at once. The agent holds a frame
+# a server has and one waiting, then four downloads at once, and sealed SFTP
+# copies alongside panel transfers. The agent holds a frame
 # or two of each, never the file, so it fails past the agent's budget of 40 MB,
 # which budgets.sh holds an idle agent to. Every byte is checked both ways.
 #
@@ -62,7 +63,7 @@ cp "$full" "$work/control"
 cp "$agent" "$work/agent"
 python3 "$root/scripts/artifact-load.py" fixture "$work" "$mib"
 go build -o "$work/fakedocker" "$root/scripts/fakedocker"
-DOCKWELL_TEST_ARCHIVE_LAYER="$work/layer.tar" "$work/fakedocker" "$work/docker" >"$work/docker.log" 2>&1 &
+TMPDIR="$work" DOCKWELL_TEST_VOLUME_MOUNTPOINTS=1 DOCKWELL_TEST_ARCHIVE_LAYER="$work/layer.tar" "$work/fakedocker" "$work/docker" >"$work/docker.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 100); do
   [[ -S "$work/docker/docker.sock" ]] && break
@@ -118,6 +119,11 @@ id=$(api GET /v1/servers | jq -r '.servers[] | select(.name == "load-agent") | .
   fail "can't run the log probe"
 
 sleep "$settle"
+cpu() {
+  # /proc/stat CPU times are in system clock ticks.
+  awk -v hz="$(getconf CLK_TCK)" '{printf "%.2f", ($14 + $15) / hz}' "/proc/$agent_pid/stat"
+}
+cpu_before=$(cpu)
 settled=$(rss "$agent_pid")
 echo "agent build, settled: $settled MB"
 
@@ -187,6 +193,115 @@ done
 most=$(peak "$agent_pid")
 echo "four downloads of $mib MiB at once, in $((SECONDS - went)) s: agent at most $most MB, budget $max_mb MB"
 awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory came to $most MB, past its budget of $max_mb"
+
+echo "panel upload and download agent CPU time: $(awk -v v="$(cpu)" -v b="$cpu_before" 'BEGIN { printf "%.2f", v-b }') s"
+
+# Provision a real SFTP destination and a volume containing the same
+# incompressible bytes the panel transfers use. Both are synthetic fixtures.
+go build -o "$work/sftpserve" "$root/scripts/sftpserve"
+ssh-keygen -q -t ed25519 -N "" -f "$work/sftp-key"
+mkdir "$work/offsite"
+DOCKWELL_TEST_SFTP_DISK=1 "$work/sftpserve" 127.0.0.1:0 "$work/sftp-key.pub" >"$work/sftp.log" 2>&1 &
+pids+=($!)
+for _ in $(seq 100); do
+  [[ -s "$work/sftp.log" ]] && break
+  sleep 0.1
+done
+read -r sftp_addr sftp_pin <"$work/sftp.log" || fail "the SFTP fixture did not start"
+plan_payload=$(jq -n --rawfile key "$work/sftp-key" --argjson port "${sftp_addr##*:}" \
+  --arg pin "$sftp_pin" --arg dest "$work/offsite" --arg server "$id" '{
+    summary:"Set up the transfer fixtures",
+    edits:[
+      {resource:{kind:"volume",name:"transfer-data"},servers:[$server],spec:{volume:{}}},
+      {resource:{kind:"backup.destination",name:"transfer-sftp"},spec:{backupDestination:{
+        passphrase:"example load test recovery passphrase",
+        sftp:{host:"127.0.0.1",port:$port,user:"backups",path:$dest,hostKeyFingerprint:$pin,
+              hostKeyAlgorithm:"ssh-ed25519",privateKey:$key}
+      }}}
+    ]
+  }')
+change=$(api POST /v1/changes -H "Content-Type: application/json" -d "$plan_payload")
+volume=$(jq -er '.change.plan.resources[] | select(.resource.kind == "volume") | .id' <<<"$change") ||
+  fail "the SFTP fixture plan did not include a volume: $change"
+change_id=$(jq -er .change.id <<<"$change")
+fingerprint=$(jq -er .change.plan.fingerprint <<<"$change")
+api POST "/v1/changes/$change_id:apply" -H "Content-Type: application/json" \
+  -d "$(jq -n --arg fingerprint "$fingerprint" '{fingerprint:$fingerprint}')" >"$work/sftp-plan.log"
+for _ in $(seq 150); do
+  state=$(api GET "/v1/changes/$change_id" | jq -r .change.state)
+  [[ $state == CHANGE_STATE_APPLIED ]] && break
+  [[ $state != CHANGE_STATE_FAILED ]] || fail "the SFTP fixture plan failed"
+  sleep 0.1
+done
+[[ $state == CHANGE_STATE_APPLIED ]] || fail "the SFTP fixture plan did not apply"
+volume_path=$(api GET "/v1/volumes/$volume" | jq -er --arg server "$id" '.volume.servers[] | select(.serverId == $server) | .path')
+[[ -d $volume_path ]] || fail "the SFTP fixture volume has no local directory"
+cp --reflink=auto "$work/source.bin" "$volume_path/payload"
+
+wait_backup() {
+  local filter=$1 result
+  for _ in $(seq 1200); do
+    result=$(api GET "/v1/backups/$backup_id")
+    if jq -e "$filter" >/dev/null <<<"$result"; then return; fi
+    if jq -e '.backup.state == "BACKUP_STATE_FAILED" or .backup.copy == "BACKUP_COPY_FAILED" or (.backup.fetchError // "") != ""' >/dev/null <<<"$result"; then
+      fail "the SFTP copy failed: $result"
+    fi
+    sleep 0.25
+  done
+  fail "the SFTP copy did not finish: $result"
+}
+
+cpu_before=$(cpu)
+went=$SECONDS
+started=$(api POST /v1/backups -H "Content-Type: application/json" \
+  -d "$(jq -n --arg volume "$volume" --arg server "$id" '{volumeId:$volume,server:$server,destination:"transfer-sftp"}')")
+backup_id=$(jq -er .backup.id <<<"$started") || fail "the SFTP backup did not start: $started"
+# Begin the two panel transfers as the SFTP archive is being staged.
+for ((attempt = 0; attempt < 1200; attempt++)); do
+  [[ -n $(find "$work/offsite" -ignore_readdir_race -name '.dockwell-partial-*' -size +0c -print -quit) ]] && break
+  [[ -n $(find "$work/offsite" -ignore_readdir_race -name '*.sealed' -print -quit) ]] &&
+    fail "the SFTP copy finished before the panel transfers started"
+  sleep 0.05
+done
+((attempt < 1200)) || fail "the SFTP copy did not start staging"
+upload "$work/dest/up-sftp-1.bin" &
+sftp_panel_1=$!
+upload "$work/dest/up-sftp-2.bin" &
+sftp_panel_2=$!
+wait_backup '.backup.copy == "BACKUP_COPY_STORED"'
+wait "$sftp_panel_1" || fail "the first panel upload beside SFTP failed"
+wait "$sftp_panel_2" || fail "the second panel upload beside SFTP failed"
+cmp -s "$work/source.bin" "$work/dest/up-sftp-1.bin" || fail "the first panel upload changed beside SFTP"
+cmp -s "$work/source.bin" "$work/dest/up-sftp-2.bin" || fail "the second panel upload changed beside SFTP"
+echo "SFTP send and two panel uploads, $((SECONDS - went)) s, CPU $(awk -v v="$(cpu)" -v b="$cpu_before" 'BEGIN { printf "%.2f", v-b }') s, agent at most $(peak "$agent_pid") MB"
+
+api DELETE "/v1/backups/$backup_id?serverOnly=true" >"$work/sftp-remove.log"
+wait_backup '.backup.onServer != true and .backup.copy == "BACKUP_COPY_STORED"'
+cpu_before=$(cpu)
+went=$SECONDS
+api POST "/v1/backups/$backup_id:fetch" -H "Content-Type: application/json" \
+  -d "$(jq -n --arg server "$id" '{server:$server}')" >"$work/sftp-fetch.log"
+# Let fetch hold its transfer places before the two panel requests arrive.
+for ((attempt = 0; attempt < 1200; attempt++)); do
+  [[ -n $(find "$work/agent.d/agent/backups" -ignore_readdir_race -name "$backup_id.partial" -size +0c -print -quit) ]] && break
+  [[ -n $(find "$work/agent.d/agent/backups" -ignore_readdir_race -name "$backup_id.json" -print -quit) ]] &&
+    fail "the SFTP fetch finished before the panel transfers started"
+  sleep 0.05
+done
+((attempt < 1200)) || fail "the SFTP fetch did not start staging"
+download "$work/dest/up-1.bin" "$work/down-sftp-1.sum" &
+sftp_panel_1=$!
+download "$work/dest/up-1.bin" "$work/down-sftp-2.sum" &
+sftp_panel_2=$!
+wait_backup '.backup.onServer == true'
+wait "$sftp_panel_1" || fail "the first panel download beside SFTP failed"
+wait "$sftp_panel_2" || fail "the second panel download beside SFTP failed"
+[[ $(<"$work/down-sftp-1.sum") == "$sum" && $(<"$work/down-sftp-2.sum") == "$sum" ]] ||
+  fail "a panel download changed beside SFTP"
+most=$(peak "$agent_pid")
+echo "SFTP fetch with two panel downloads (panel requests retry during fetch), $((SECONDS - went)) s, CPU $(awk -v v="$(cpu)" -v b="$cpu_before" 'BEGIN { printf "%.2f", v-b }') s, agent at most $most MB, budget $max_mb MB"
+awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory after SFTP came to $most MB, past its budget of $max_mb"
+rm -f "$work/dest"/up-sftp-{1,2}.bin
 
 # Measure four concurrent max-size (1 MiB) binary image preview reads (N1).
 preview_file="$work/dest/preview-1m.png"

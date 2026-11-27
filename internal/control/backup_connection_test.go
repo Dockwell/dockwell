@@ -908,3 +908,71 @@ func testM1AndM4UseDestinationAsConnectionEdgeCases(t *testing.T, backend store.
 		}
 	}
 }
+
+func TestFetchRejectsNewerSealedFormatBeforeDispatch(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s3 := s3test.New(t)
+		s3.Buckets = []string{"backups"}
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		c, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+		volumeID, dir := webWithData(t, e, c)
+		writeData(t, dir, "orders.db", "the orders")
+		server := f.lastDocker
+		server.backups.HTTP = s3.Client()
+		apply(t, c, propose(t, c, "Add off-site backup storage", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.DestinationKind), Name: "offsite"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_BackupDestination{BackupDestination: &resourcev1.BackupDestination{
+				Endpoint: s3.URL(), Region: "auto", Bucket: "backups", AccessKey: "AKIA", SecretKey: "fixture-key",
+				Passphrase: "fixture sealed backup passphrase",
+			}}},
+		}))
+		ctx := t.Context()
+		made, err := bc.CreateBackup(ctx, connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID, Destination: "offsite"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		backupID := made.Msg.GetBackup().GetId()
+		if stored := waitCopy(t, bc, backupID); stored.GetCopy() != dockwellv1.BackupCopy_BACKUP_COPY_STORED {
+			t.Fatalf("copy was not stored: %v", stored)
+		}
+		const previous = "a previous fetch error"
+		if err := f.store.Update(ctx, func(tx *store.Tx) error {
+			return tx.SetBackupFetchError(ctx, backupID, previous)
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		server.stop()
+		server.hello = func(h *agentv1.Hello) { h.BackupSealVersion = 0 }
+		server.connect(t, f)
+
+		req := &dockwellv1.FetchBackupRequest{Id: backupID}
+		_, err = bc.FetchBackup(ctx, connect.NewRequest(req))
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "agent_too_old" ||
+			!strings.Contains(err.Error(), "uses sealed format v3, which server "+server.id.ServerName+" can't read") ||
+			!strings.Contains(err.Error(), "Update Dockwell") {
+			t.Fatalf("fetch to older server: %v", err)
+		}
+		if err := f.store.View(ctx, func(tx *store.Tx) error {
+			got, err := tx.GetBackup(ctx, backupID)
+			if err != nil {
+				return err
+			}
+			if got.CopySealVersion != 3 || got.FetchError != previous {
+				t.Fatalf("before dispatch: format v%d, fetch error %q", got.CopySealVersion, got.FetchError)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		server.stop()
+		server.hello = nil
+		server.connect(t, f)
+		if _, err := bc.FetchBackup(ctx, connect.NewRequest(req)); err != nil {
+			t.Fatalf("fetch to supported server: %v", err)
+		}
+	})
+}

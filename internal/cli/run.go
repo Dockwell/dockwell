@@ -159,9 +159,8 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 // live before it collects, so at Go's own target half of an idle agent's heap was
 // garbage waiting. At 50 it idled about 2 MB lower (ADR 0060), and at 25 about
 // 0.9 MB lower again, on every server, for a collection every 5 s or so at idle,
-// which takes a few hundredths of a percent of a CPU. Transfers run at this target
-// too (transferGC, ADR 0045), and make logs-load holds the agent's CPU under a
-// flood to its limits with it (docs/adr/0109-the-agents-memory-headroom.md).
+// which takes a few hundredths of a percent of a CPU. The logs-load test checks the agent's CPU
+// under a flood at the idle target (docs/adr/0109-the-agents-memory-headroom.md).
 const agentGC = 25
 
 // runAgentAlone runs the agent of a server that joined a control plane, which is
