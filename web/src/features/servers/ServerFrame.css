@@ -7,9 +7,18 @@
   font-size: 12px;
 }
 
+.server-tabs-wrap {
+  min-width: 0;
+}
+
 /* The tabs sit closer to the head than the page's panels do to them, as the mocks have them. */
-.server-page > .dw-tabs {
+.server-page > .dw-tabs,
+.server-page > .server-tabs-wrap {
   margin-top: calc(-1 * var(--space-2) - 4px);
+}
+
+.page.has-full-body > .server-tabs-wrap {
+  margin-inline: var(--page-column-inset);
 }
 
 .server-tabs-menu {
@@ -19,6 +28,18 @@
 
 .server-tabs-trigger {
   gap: 4px;
+}
+
+.server-tabs-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--ink-muted);
+  flex: none;
+}
+
+.server-tabs-dot.dw-tone-warning {
+  background: var(--warning);
 }
 
 .server-tabs-menu .action-menu-item.is-current {

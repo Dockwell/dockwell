@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import {
+  ChangeState,
   ContainerState,
   DeploymentState,
+  DockerContainerAction,
   DockerObjectKind,
   DockerOwnership,
   type PlanDockerMaintenanceRequest,
   type ProposeChangeRequest,
   Role,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
@@ -17,7 +20,7 @@ import { expect, it, vi } from "vitest";
 
 import { anApp, places, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
-import { webPlanned } from "../../test/changes";
+import { moved, webPlanned } from "../../test/changes";
 import { feed, quietWatch, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { DockerComposes } from "./DockerComposes";
@@ -230,12 +233,16 @@ it("restricts Kill signals on a Compose project row when a member container is p
   expect(options).toEqual(["SIGTERM, then SIGKILL", "SIGKILL"]);
 });
 
-it("unifies Stop/Pause across mixed managed and external containers, hides Rename on multi-select, and skips system containers cleanly", async () => {
+it("unifies Stop/Pause across mixed managed and external containers, chains the external plan after apply, and keeps bar skip notes concise", async () => {
   const app = anApp("shop", "nginx", {}, { deployments: [{ serverId: SERVER, state: DeploymentState.LIVE }] });
   const servers = feed<WatchServersResponse>();
   servers.push(changed(aServer({ id: SERVER, name: "first" })), snapshotComplete);
-  const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: webPlanned() }));
-  const plan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  const managedChange = webPlanned();
+  const externalChange = moved(webPlanned(), { id: "chg_ext", summary: "Stop redis-1" });
+  const changesStream = feed<WatchChangeResponse>();
+  const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: managedChange }));
+  const apply = vi.fn(() => ({ change: moved(managedChange, { state: ChangeState.APPLIED }) }));
+  const plan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: externalChange }));
   renderAt(`/servers/${SERVER}/docker/containers`, {
     resources: places(),
     services: { listServices: () => ({ services: [app] }) },
@@ -272,7 +279,12 @@ it("unifies Stop/Pause across mixed managed and external containers, hides Renam
       }),
       planDockerMaintenance: plan,
     },
-    changes: { proposeChange: propose },
+    changes: {
+      proposeChange: propose,
+      applyChange: apply,
+      watchChange: changesStream.stream,
+      discardChange: () => ({}),
+    },
   });
   const user = userEvent.setup();
   await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
@@ -288,12 +300,168 @@ it("unifies Stop/Pause across mixed managed and external containers, hides Renam
   const badges = document.querySelectorAll(".dw-badge.dw-tone-healthy");
   expect([...badges].some((el) => el.textContent === "Running")).toBe(false);
 
-  // Adding a system container produces a clean skip note.
+  // Adding a system container shows one concise skip line without a contradictory multi-verb wall.
   await user.click(screen.getByRole("checkbox", { name: "Select dockwell-proxy" }));
-  expect(within(bar).getByText(/System container/)).toBeVisible();
+  expect(within(bar).getByText("1 system container skipped")).toBeVisible();
+  expect(within(bar).queryByText(/Already stopped/)).toBeNull();
+  expect(within(bar).getByRole("button", { name: "Stop 2" })).toHaveAttribute(
+    "title",
+    expect.stringContaining("System container"),
+  );
 
-  // Clicking Stop 2 proposes the managed plan first rather than acting behind a plan.
+  // Clicking Stop 2 opens the managed plan with an upfront note about the follow-up external plan.
   await user.click(within(bar).getByRole("button", { name: "Stop 2" }));
-  await waitFor(() => expect(propose).toHaveBeenCalledOnce());
+  const dialog = await screen.findByRole("dialog", { name: "Review plan" });
+  expect(propose).toHaveBeenCalledOnce();
   expect(plan).not.toHaveBeenCalled();
+  expect(within(dialog).getByText("Then stops 1 container Dockwell didn't make, in its own plan.")).toBeVisible();
+
+  // Applying and closing the managed plan immediately plans ONLY the external container with STOP.
+  await user.click(within(dialog).getByRole("button", { name: "Apply plan" }));
+  const done = await within(dialog).findByRole("button", { name: "Done" });
+  await user.click(done);
+  await waitFor(() => expect(plan).toHaveBeenCalledOnce());
+  expect(plan.mock.calls[0]?.[0]).toMatchObject({
+    operation: {
+      case: "lifecycle",
+      value: {
+        action: DockerContainerAction.STOP,
+        keys: [{ serverId: SERVER, engineId: "redis-1", kind: DockerObjectKind.CONTAINER }],
+      },
+    },
+  });
+});
+
+it("does not plan external containers when the managed plan is cancelled or fails, and explains they weren't touched", async () => {
+  const app = anApp("shop", "nginx", {}, { deployments: [{ serverId: SERVER, state: DeploymentState.LIVE }] });
+  const makeServers = () => {
+    const s = feed<WatchServersResponse>();
+    s.push(changed(aServer({ id: SERVER, name: "first" })), snapshotComplete);
+    return s.stream;
+  };
+  const objects = [
+    {
+      key: { serverId: SERVER, engineId: "shop-1", kind: DockerObjectKind.CONTAINER },
+      name: "shop-1",
+      state: ContainerState.RUNNING,
+      ownership: DockerOwnership.MANAGED,
+      managedResource: app.resource,
+      managedResourceId: app.id,
+      managedRevision: app.revision,
+      detail: { case: "container" as const, value: { image: "nginx" } },
+    },
+    {
+      key: { serverId: SERVER, engineId: "redis-1", kind: DockerObjectKind.CONTAINER },
+      name: "redis-1",
+      state: ContainerState.RUNNING,
+      ownership: DockerOwnership.EXTERNAL,
+      detail: { case: "container" as const, value: { image: "redis:7" } },
+    },
+  ];
+  const managedChange = webPlanned();
+  const plan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: managedChange }));
+  const discard = vi.fn(() => ({}));
+  const { unmount } = renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({ objects }),
+      planDockerMaintenance: plan,
+    },
+    changes: { proposeChange: propose, discardChange: discard },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
+  await user.click(screen.getByRole("checkbox", { name: "Select redis-1" }));
+  await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Stop 2" }));
+  const dialog = await screen.findByRole("dialog", { name: "Review plan" });
+  await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(plan).not.toHaveBeenCalled();
+
+  // Only the untouched external container stays selected with its own Stop 1 button and one-line explanation.
+  const bar = screen.getByRole("toolbar");
+  expect(
+    within(bar).getByText("1 container Dockwell didn't make wasn't stopped because the managed plan didn't apply."),
+  ).toBeVisible();
+  expect(within(bar).getByRole("button", { name: "Stop 1" })).toBeVisible();
+  expect(screen.getByRole("checkbox", { name: "Select redis-1" })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Select shop-1" })).not.toBeChecked();
+  unmount();
+
+  // Failed managed plan also never triggers external planDockerMaintenance.
+  const failStream = feed<WatchChangeResponse>();
+  const failPlan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({ objects }),
+      planDockerMaintenance: failPlan,
+    },
+    changes: {
+      proposeChange: () => ({ change: managedChange }),
+      applyChange: () => ({ change: moved(managedChange, { state: ChangeState.FAILED, error: "agent rejected" }) }),
+      watchChange: failStream.stream,
+    },
+  });
+  await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
+  await user.click(screen.getByRole("checkbox", { name: "Select redis-1" }));
+  await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Stop 2" }));
+  const failDialog = await screen.findByRole("dialog", { name: "Review plan" });
+  await user.click(within(failDialog).getByRole("button", { name: "Apply plan" }));
+  await user.click(await within(failDialog).findByRole("button", { name: "Done" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(failPlan).not.toHaveBeenCalled();
+  expect(
+    within(screen.getByRole("toolbar")).getByText(
+      "1 container Dockwell didn't make wasn't stopped because the managed plan didn't apply.",
+    ),
+  ).toBeVisible();
+});
+
+it("sends external-only selections straight to planDockerMaintenance without proposeChange", async () => {
+  const servers = feed<WatchServersResponse>();
+  servers.push(changed(aServer({ id: SERVER, name: "first" })), snapshotComplete);
+  const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: webPlanned() }));
+  const plan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    servers: { watchServers: servers.stream },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({
+        objects: [
+          {
+            key: { serverId: SERVER, engineId: "redis-1", kind: DockerObjectKind.CONTAINER },
+            name: "redis-1",
+            state: ContainerState.RUNNING,
+            ownership: DockerOwnership.EXTERNAL,
+            detail: { case: "container", value: { image: "redis:7" } },
+          },
+        ],
+      }),
+      planDockerMaintenance: plan,
+    },
+    changes: { proposeChange: propose },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select redis-1" }));
+  await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Stop 1" }));
+  await waitFor(() => expect(plan).toHaveBeenCalledOnce());
+  expect(propose).not.toHaveBeenCalled();
+  expect(plan.mock.calls[0]?.[0]).toMatchObject({
+    operation: {
+      case: "lifecycle",
+      value: {
+        action: DockerContainerAction.STOP,
+        keys: [{ serverId: SERVER, engineId: "redis-1", kind: DockerObjectKind.CONTAINER }],
+      },
+    },
+  });
 });

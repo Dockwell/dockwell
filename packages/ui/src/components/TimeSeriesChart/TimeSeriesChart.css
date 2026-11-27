@@ -98,7 +98,7 @@
 
 .dw-ts-body {
   display: grid;
-  grid-template-columns: minmax(48px, max-content) minmax(0, 1fr);
+  grid-template-columns: var(--dw-ts-yaxis, minmax(48px, max-content)) minmax(0, 1fr);
   column-gap: var(--space-2);
   row-gap: var(--space-1);
   align-items: stretch;

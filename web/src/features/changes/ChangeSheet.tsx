@@ -207,6 +207,8 @@ interface Then {
    * servers go (ADR 0084). Picking plans the other opening in this one's place.
    */
   pick?: PlanPick;
+  /** Notes shown above the plan while reviewing, such as a follow-up plan that comes next. */
+  notes?: readonly string[] | undefined;
   /**
    * A way out a plan's note offers, by the note's reason, that the page opening it
    * knows: such as Use an SSH tunnel beside an unencrypted connection (#798). It
@@ -1074,9 +1076,9 @@ function ChangeSheet({
       {choice && !choice.moot?.(plan) && (phase === "planning" || phase === "review" || phase === "unplanned") ? (
         <PlanChoiceSwitch choice={choice} onFlip={() => open(choice.flip())} />
       ) : null}
-      {phase === "review" && prepared?.notes?.length ? (
+      {phase === "review" && (opening.notes?.length || prepared?.notes?.length) ? (
         <div className="plan-choice">
-          {prepared.notes.map((note) => (
+          {[...(opening.notes ?? []), ...(prepared?.notes ?? [])].map((note) => (
             <div key={note}>{note}</div>
           ))}
         </div>

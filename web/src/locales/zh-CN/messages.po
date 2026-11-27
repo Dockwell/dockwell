@@ -5230,17 +5230,29 @@ msgstr "要导出的内容"
 msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
 
-msgid "Change its owner to <0>{user}</0> so the app can read and write here."
-msgstr "将其所有者改为 <0>{user}</0>，以便应用在此读写。"
+msgid "Change <0>{path}</0> and everything in it to <1>{user}</1> so the app can read and write here."
+msgstr "将 <0>{path}</0> 及其中的所有内容改为 <1>{user}</1>，使应用可以在此读写。"
+
+msgid "Change owner of {path} and everything in it"
+msgstr "更改 {path} 及其全部内容的所有者"
 
 msgid "Change owner to {user}"
 msgstr "将所有者改为 {user}"
+
+msgid "Choose a non-root owner"
+msgstr "选择非 root 所有者"
+
+msgid "Choose an account"
+msgstr "选择账户"
 
 msgid "Choose the folder that holds the app."
 msgstr "请选择存放应用的文件夹。"
 
 msgid "Dockwell makes it, owned by <0>{user}</0>"
 msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>"
+
+msgid "Entries that no longer matched were skipped."
+msgstr "已跳过状态不再匹配的项目。"
 
 #. placeholder {0}: PORT_FILES[detected.language] ?? ""
 msgid "From {0}. The app gets it as PORT."
@@ -5275,6 +5287,12 @@ msgstr "新建"
 msgid "No {languageWord} app in {path} yet"
 msgstr "{path} 中还没有 {languageWord} 应用"
 
+msgid "Pick a non-root <0>uid:gid</0> under Advanced, then change the folder's owner here."
+msgstr "请在“高级”下选择非 root 的 <0>uid:gid</0>，然后再在此处更改文件夹所有者。"
+
+msgid "Previous access restored."
+msgstr "已恢复先前的权限。"
+
 msgid "Run as {theirs}"
 msgstr "以 {theirs} 运行"
 
@@ -5284,11 +5302,18 @@ msgstr "运行用户"
 msgid "Runs before each start. Write - to install nothing."
 msgstr "每次启动前运行。填 - 表示不安装。"
 
+#. placeholder {0}: accessOutcome.note
+msgid "Some permissions couldn't be restored. {0}"
+msgstr "部分权限无法恢复。{0}"
+
 msgid "The app can't write to {path}"
 msgstr "应用无法写入 {path}"
 
 msgid "The app gets it as PORT."
 msgstr "应用通过 PORT 获得它。"
+
+msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
+msgstr "这会将 <0>{path}</0> 及其中的所有内容改为 <1>{user}</1>。"
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "请使用它自己的文件夹，不要用服务器的根目录。"
@@ -5314,6 +5339,9 @@ msgstr "端口 {port}"
 msgid "uid:gid of the folder's owner."
 msgstr "文件夹所有者的 uid:gid。"
 
+msgid "{changedCount, plural, one {Changed # item} other {Changed # items}}"
+msgstr "{changedCount, plural, other {已更改 # 项}}"
+
 msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
 msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
 
@@ -5322,6 +5350,9 @@ msgstr "{path} 是文件"
 
 msgid "{path} is root's, and an app never runs as root"
 msgstr "{path} 属于 root，而应用不会以 root 运行"
+
+msgid "{skippedCount, plural, one {# skipped} other {# skipped}}"
+msgstr "{skippedCount, plural, other {已跳过 # 项}}"
 
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "地址或范围，例如隧道在桥接网络上时的 10.77.0.0/24。该代理需要自己的网络，而不是 Docker 默认的 bridge。多个之间用逗号分隔。"
@@ -16961,9 +16992,37 @@ msgstr "用量"
 msgid "memory"
 msgstr "内存"
 
+#. placeholder {0}: systemSelected.length
+msgid "{0, plural, one {# system container skipped} other {# system containers skipped}}"
+msgstr "{0, plural, other {已跳过 # 个系统容器}}"
+
 #. placeholder {0}: verb.label
 msgid "{0} {count}"
 msgstr "{0} {count} 个"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, other {由于托管计划未应用，# 个非 Dockwell 创建的容器未被暂停。}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't started because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't started because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, other {由于托管计划未应用，# 个非 Dockwell 创建的容器未被启动。}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't stopped because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't stopped because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, other {由于托管计划未应用，# 个非 Dockwell 创建的容器未被停止。}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't unpaused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't unpaused because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, other {由于托管计划未应用，# 个非 Dockwell 创建的容器未被恢复。}}"
+
+msgid "{extCount, plural, one {Then pauses # container Dockwell didn't make, in its own plan.} other {Then pauses # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, other {随后将在单独计划中暂停 # 个非 Dockwell 创建的容器。}}"
+
+msgid "{extCount, plural, one {Then starts # container Dockwell didn't make, in its own plan.} other {Then starts # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, other {随后将在单独计划中启动 # 个非 Dockwell 创建的容器。}}"
+
+msgid "{extCount, plural, one {Then stops # container Dockwell didn't make, in its own plan.} other {Then stops # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, other {随后将在单独计划中停止 # 个非 Dockwell 创建的容器。}}"
+
+msgid "{extCount, plural, one {Then unpauses # container Dockwell didn't make, in its own plan.} other {Then unpauses # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, other {随后将在单独计划中恢复 # 个非 Dockwell 创建的容器。}}"
 
 msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
 msgstr "{extra, plural, other {还在另外 # 台服务器上运行}}"
@@ -18793,9 +18852,6 @@ msgstr "{label} 尚未下载完毕就已停止。请重新下载。"
 
 msgid "Downloading {name}"
 msgstr "正在下载 {name}"
-
-msgid "Entries that no longer matched were skipped."
-msgstr "已跳过状态不再匹配的项目。"
 
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracted {0}"
@@ -21123,14 +21179,6 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 msgid "Take {0} on as an app"
 msgstr "将 {0} 接管为应用"
 
-#. placeholder {0}: server.name
-msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
-msgstr "{0} 正在等待代理连接，因此还无法读取那里 Docker 运行的内容。"
-
-#. placeholder {0}: server.name
-msgid "{0} isn't reporting, so what Docker runs there can't be read now."
-msgstr "{0} 没有上报数据，因此现在无法读取那里 Docker 运行的内容。"
-
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, other {# 个容器，{running} 个正在运行}}"
 
@@ -21161,6 +21209,9 @@ msgstr "Docker 统计其镜像、卷、容器和日志共占 {0}，超过此磁�
 
 msgid "Free"
 msgstr "可用"
+
+msgid "Images, volumes, containers and logs"
+msgstr "镜像、数据卷、容器和日志"
 
 msgid "Other files"
 msgstr "其他文件"
@@ -21195,6 +21246,10 @@ msgstr "占磁盘的 {share}"
 
 msgid "{share} of {size} used"
 msgstr "{size} 中已用 {share}"
+
+#. placeholder {0}: bytes(size)
+msgid "{usedShare} of {0} used"
+msgstr "{0} 中已用 {usedShare}"
 
 msgid "Edit again"
 msgstr "重新编辑"
@@ -22420,6 +22475,10 @@ msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 msgid "Browse the files on {name}"
 msgstr "浏览 {name} 上的文件"
 
+#. placeholder {0}: current.label
+msgid "Docker: {0}"
+msgstr "Docker：{0}"
+
 msgid "Firewall"
 msgstr "防火墙"
 
@@ -22454,11 +22513,11 @@ msgstr "系统日志"
 msgid "System services"
 msgstr "系统服务"
 
-msgid "System tabs"
-msgstr "系统标签页"
-
 msgid "Toolbox"
 msgstr "工具箱"
+
+msgid "{updateCount, plural, one {# update} other {# updates}}"
+msgstr "{updateCount, plural, other {# 个更新}}"
 
 msgid "1 min"
 msgstr "1 分钟"
@@ -22787,9 +22846,6 @@ msgstr "请选择 1 到 65535 之间的端口。"
 
 msgid "Choose an SSH session address or enter the IP address the server will see."
 msgstr "请选择一个 SSH 会话地址，或输入服务器将看到的 IP 地址。"
-
-msgid "Choose an account"
-msgstr "选择账户"
 
 msgid "Edit settings"
 msgstr "编辑设置"

@@ -23,13 +23,13 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { downloadLogText, useCopyLogText } from "../logs/export";
 import { LinesLoading } from "../logs/LinesLoading";
-import { clock, dayNoteOf, dayOf, localIso, zoneName, zoneOffset } from "../logs/words";
+import { clock, dayNoteOf, dayOf, localIso } from "../logs/words";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
-import { useCopy } from "./CopyButton";
 import { ServerFrame } from "./ServerFrame";
 import { MAX_QUERY, type SystemLogEntry, type SystemLogRange, type SystemLogSearch, useSystemLog } from "./systemLog";
 import { useSystemServices } from "./systemServices";
@@ -133,7 +133,7 @@ function SystemLog({
   const searchedTo = log.searchedTo;
   const searchedWords = searchedTo !== undefined ? `${dayOf(searchedTo, i18n.locale)}, ${clock(searchedTo)}` : "";
   const unitName = search.unit ?? "";
-  const exportText = useMemo(
+  const buildExportText = useCallback(
     () =>
       log.entries
         .map((e) => {
@@ -149,18 +149,14 @@ function SystemLog({
         .join("\n"),
     [log.entries],
   );
-  const { copied, copy } = useCopy(exportText);
+  const { copied, copy } = useCopyLogText(buildExportText);
   const download = () => {
-    if (!exportText) return;
+    const text = buildExportText();
+    if (!text) return;
     const now = new Date();
     const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const stem = unitName ? `${server.name}-${unitName.replace(/\.service$/, "")}` : server.name;
-    const url = URL.createObjectURL(new Blob([`${exportText}\n`], { type: "text/plain;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${stem}-system-${day}.log`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    downloadLogText(`${text}\n`, `${stem}-system-${day}.log`);
   };
   const emptyLines = shown.length === 0;
 
@@ -264,7 +260,6 @@ function SystemLog({
         <LogStream
           lines={shown}
           title={<span className="syslog-title">{unitName || t`Every system service`}</span>}
-          meta={<span title={zoneName()}>{zoneOffset()}</span>}
           height="fill"
           live={log.live && log.following}
           follow={follow}
@@ -295,7 +290,7 @@ function SystemLog({
                     disabled={emptyLines}
                     aria-label={copied ? t`Copied` : t`Copy visible lines`}
                     title={copied ? t`Copied` : t`Copy visible lines`}
-                    onClick={copy}
+                    onClick={() => void copy()}
                   />
                   <Button
                     size="sm"
@@ -317,7 +312,12 @@ function SystemLog({
           <Button icon="download" variant="secondary" onClick={download} disabled={emptyLines}>
             <Trans>Download</Trans>
           </Button>
-          <Button icon={copied ? "check" : "copy"} variant="secondary" onClick={copy} disabled={emptyLines}>
+          <Button
+            icon={copied ? "check" : "copy"}
+            variant="secondary"
+            onClick={() => void copy()}
+            disabled={emptyLines}
+          >
             {copied ? <Trans>Copied</Trans> : <Trans>Copy</Trans>}
           </Button>
         </div>

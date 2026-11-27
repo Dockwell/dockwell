@@ -25,9 +25,10 @@ export function menuItem(action: MenuAction, onDone: () => void) {
         <span>{action.label}</span>
         {action.off ? <span className="action-menu-why">{action.off}</span> : null}
       </span>
+      {action.badge}
     </>
   );
-  const classes = cx("action-menu-item", action.danger && "is-danger", off && "is-off");
+  const classes = cx("action-menu-item", action.danger && "is-danger", action.current && "is-current", off && "is-off");
   if (off)
     return (
       <span key={action.id} role="menuitem" tabIndex={-1} aria-disabled="true" className={classes}>
@@ -71,11 +72,23 @@ export type MenuAction = {
   icon?: IconName;
   /** Removes or ends something, so it reads as a warning. */
   danger?: boolean;
+  /** Marks the currently active navigation item inside a menu. */
+  current?: boolean;
+  /** Optional trailing badge or count aligned to the item's far edge. */
+  badge?: ReactNode;
   /** Why it can't be done, said under its name, as a phone has no hover (ADR 0059). */
   off?: string | undefined;
   /** Can't be done now, with nothing to say, such as while something loads. */
   disabled?: boolean;
 } & ({ onSelect: () => void; href?: undefined } | { href: string; onSelect?: undefined });
+
+export interface ActionMenuTriggerProps {
+  "aria-label": string;
+  "aria-haspopup": "menu";
+  "aria-expanded": boolean;
+  "aria-controls": string | undefined;
+  onClick: () => void;
+}
 
 /**
  * A row's or a header's actions behind one button, where a phone has no room for
@@ -89,6 +102,7 @@ export function ActionMenu({
   icon = "more",
   className,
   text,
+  trigger,
   onOpen,
 }: {
   /** What the button is called for a screen reader, such as "Actions for git.example.com". */
@@ -97,6 +111,8 @@ export function ActionMenu({
   icon?: IconName;
   className?: string;
   text?: ReactNode;
+  /** Optional custom trigger button (e.g. a tab trigger) keeping ActionMenu's positioning and keyboard handling. */
+  trigger?: ((props: ActionMenuTriggerProps) => ReactNode) | undefined;
   onOpen?: (() => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
@@ -172,24 +188,31 @@ export function ActionMenu({
     if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
   };
   const item = (action: MenuAction) => menuItem(action, () => setOpen(false));
+  const triggerProps: ActionMenuTriggerProps = {
+    "aria-label": label,
+    "aria-haspopup": "menu",
+    "aria-expanded": open,
+    "aria-controls": open ? id : undefined,
+    onClick: () => {
+      if (!open) onOpen?.();
+      setOpen(!open);
+    },
+  };
   return (
     <span className={cx("action-menu-anchor", className)} ref={root}>
-      <Button
-        variant={text ? "secondary" : "ghost"}
-        size="sm"
-        icon={icon}
-        className={text ? undefined : "action-menu-button"}
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => {
-          if (!open) onOpen?.();
-          setOpen(!open);
-        }}
-      >
-        {text}
-      </Button>
+      {trigger ? (
+        trigger(triggerProps)
+      ) : (
+        <Button
+          variant={text ? "secondary" : "ghost"}
+          size="sm"
+          icon={icon}
+          className={text ? undefined : "action-menu-button"}
+          {...triggerProps}
+        >
+          {text}
+        </Button>
+      )}
       {open ? (
         <div
           id={id}

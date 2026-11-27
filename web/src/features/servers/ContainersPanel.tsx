@@ -94,17 +94,11 @@ export function ContainersPanel({ server, search, onSearch }: { server: Server }
   const unlisted = list.data?.unlisted ?? 0;
   const projects = useMemo(() => new Set((containers ?? []).map((c) => c.composeProject)), [containers]);
 
-  if (!allowed) return null;
+  if (!allowed || !connected) return null;
   // With none to list, the page has nothing to say of them, so the panel stays out, as Server-Overview.dc.html has it.
-  if (connected && !blind && !list.error && list.data && count === 0) return null;
+  if (!blind && !list.error && list.data && count === 0) return null;
   // What it last read can't stand once it can't be read, so that is all this says.
-  const body: ReactNode = !connected ? (
-    <p className="containers-note">
-      {server.connection === Connection.PENDING
-        ? t`${server.name} is waiting for its agent, so what Docker runs there can't be read yet.`
-        : t`${server.name} isn't reporting, so what Docker runs there can't be read now.`}
-    </p>
-  ) : blind ? (
+  const body: ReactNode = blind ? (
     <p className="containers-note">{t`Docker isn't answering on ${server.name}, so what runs there can't be read now.`}</p>
   ) : list.error ? (
     <p className="containers-note">{sentence(list.error)}</p>

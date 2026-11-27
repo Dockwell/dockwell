@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { FileService, type WebsiteRuntime } from "@dockwell/api";
+import { type ChangeFileAccessResponse, FileService, type WebsiteRuntime } from "@dockwell/api";
 import {
   Advanced,
   Button,
@@ -481,14 +481,33 @@ function useFolderState({
   const fileClient = useMemo(() => createClient(FileService, transport), [transport]);
   const mayChangeAccess = useMay()(FileService.method.changeFileAccess);
   const [fixing, setFixing] = useState(false);
+  const [confirmChown, setConfirmChown] = useState(false);
   const [fixError, setFixError] = useState<string>();
+  const [accessOutcome, setAccessOutcome] = useState<{
+    result?: ChangeFileAccessResponse | undefined;
+    recursive?: boolean | undefined;
+    restored?: boolean | undefined;
+    note?: string | undefined;
+  }>();
   const path = useSettled(folder.trim().replace(/\/+$/, ""), READ_AFTER_MS);
   // The folder by its own path, so one under a folder of any size is found (#588).
   const lookup = useFolderLookup(server, path);
   const asked = lookup.asked;
   const listing = lookup.listing;
   const dir = listing?.directory;
-  const fixAccess = async (change: { uid?: number; gid?: number; mode?: number; recursive?: boolean }) => {
+  const rootOwned = Boolean(dir && (dir.uid === 0 || dir.gid === 0));
+  const accounts = useQuery(
+    FileService.method.listFileAccounts,
+    { serverId: server },
+    { enabled: Boolean(server && path && rootOwned), retry: false, refetchOnWindowFocus: false },
+  );
+  const fixAccess = async (change: {
+    uid?: number;
+    gid?: number;
+    mode?: number;
+    recursive?: boolean;
+    allowSetId?: boolean;
+  }) => {
     if (fixing) return;
     setFixing(true);
     setFixError(undefined);
@@ -496,16 +515,59 @@ function useFolderState({
       const result = await confirmed(transport, (proof, confirmationTarget) =>
         fileClient.changeFileAccess({ serverId: server, path, proof, confirmationTarget, change }),
       );
+      setConfirmChown(false);
+      setAccessOutcome({ result, recursive: Boolean(change.recursive) });
       if (result.stopped) setFixError(result.stopped);
-      else lookup.refresh();
+      lookup.refresh();
     } catch (error) {
       setFixError(sentence(error));
     } finally {
       setFixing(false);
     }
   };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: clear stale fix error when target folder or user changes
-  useEffect(() => setFixError(undefined), [server, path, user]);
+  const undoAccess = async () => {
+    const result = accessOutcome?.result;
+    if (!result || fixing) return;
+    const restore = result.undo.filter((entry) => entry.after && entry.before);
+    if (restore.length === 0) return;
+    setFixing(true);
+    setFixError(undefined);
+    try {
+      const undone = await confirmed(transport, (proof, confirmationTarget) =>
+        fileClient.changeFileAccess({
+          serverId: server,
+          path: result.path || path,
+          proof,
+          confirmationTarget,
+          change: {
+            restore,
+            recursive: Boolean(accessOutcome.recursive),
+            allowSetId: restore.some(({ before }) => ((before?.mode ?? 0) & 0o6000) !== 0),
+          },
+        }),
+      );
+      setAccessOutcome({
+        restored: true,
+        note: undone.stopped || (undone.skipped > 0n ? t`Entries that no longer matched were skipped.` : undefined),
+      });
+      lookup.refresh();
+    } catch (error) {
+      setFixError(sentence(error));
+    } finally {
+      setFixing(false);
+    }
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear stale fix state when target folder changes
+  useEffect(() => {
+    setFixError(undefined);
+    setConfirmChown(false);
+    setAccessOutcome(undefined);
+  }, [server, path]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear confirm/error when target user changes
+  useEffect(() => {
+    setFixError(undefined);
+    setConfirmChown(false);
+  }, [user]);
   const owner = dir && dir.uid !== 0 && dir.gid !== 0 ? `${dir.uid}:${dir.gid}` : "";
   // Said once as it's found, so what someone types after stays theirs.
   const told = useRef("");
@@ -592,36 +654,169 @@ function useFolderState({
       <Trans>Open in Files</Trans>
     </Link>
   );
-  const parsedIds = /^(\d+):(\d+)$/.exec(user.trim());
-  const runUid = parsedIds ? Number(parsedIds[1]) : undefined;
-  const runGid = parsedIds ? Number(parsedIds[2]) : undefined;
-  if (dir && (dir.uid === 0 || dir.gid === 0)) {
+  const trimmedUser = user.trim();
+  const parsedIds = /^(\d+):(\d+)$/.exec(trimmedUser);
+  let runUid: number | undefined = parsedIds ? Number(parsedIds[1]) : undefined;
+  let runGid: number | undefined = parsedIds ? Number(parsedIds[2]) : undefined;
+  const serverUsers = accounts.data?.users ?? [];
+  const serverGroups = accounts.data?.groups ?? [];
+  if (runUid === undefined && trimmedUser !== "") {
+    const [uPart, gPart] = trimmedUser.split(":");
+    const matchedUser = uPart
+      ? /^\d+$/.test(uPart)
+        ? { id: Number(uPart), name: uPart }
+        : serverUsers.find((account) => account.name === uPart)
+      : undefined;
+    if (matchedUser) {
+      runUid = matchedUser.id;
+      if (gPart) {
+        const matchedGroup = /^\d+$/.test(gPart)
+          ? { id: Number(gPart) }
+          : serverGroups.find((account) => account.name === gPart);
+        runGid = matchedGroup?.id;
+      } else {
+        const sameNameGroup = serverGroups.find((account) => account.name === matchedUser.name);
+        runGid = sameNameGroup?.id ?? matchedUser.id;
+      }
+    }
+  }
+  const canChown = runUid !== undefined && runGid !== undefined && runUid > 0 && runGid > 0;
+  const nonRootUsers = serverUsers.filter((account) => account.id > 0);
+  const accessBanner = (() => {
+    if (!accessOutcome) return null;
+    if (accessOutcome.restored) {
+      return (
+        <Callout tone={accessOutcome.note ? "warning" : "info"} className="app-folder-note">
+          {accessOutcome.note
+            ? t`Some permissions couldn't be restored. ${accessOutcome.note}`
+            : t`Previous access restored.`}
+        </Callout>
+      );
+    }
+    const result = accessOutcome.result;
+    if (!result) return null;
+    const changedCount = Number(result.changed);
+    const skippedCount = Number(result.skipped);
+    const partial = skippedCount > 0 || Boolean(result.stopped);
+    const canUndo = result.undo.some((entry) => entry.after && entry.before);
+    const parts = [
+      plural(changedCount, { one: "Changed # item", other: "Changed # items" }),
+      skippedCount > 0 ? plural(skippedCount, { one: "# skipped", other: "# skipped" }) : "",
+      result.stopped || "",
+    ].filter(Boolean);
+    return (
+      <Callout
+        tone={partial ? "warning" : "info"}
+        className="app-folder-note"
+        actions={
+          canUndo ? (
+            <Button size="sm" variant="secondary" icon="undo" loading={fixing} onClick={() => void undoAccess()}>
+              <Trans>Undo</Trans>
+            </Button>
+          ) : undefined
+        }
+      >
+        {parts.join(" · ")}
+        {fixError ? <p>{fixError}</p> : null}
+      </Callout>
+    );
+  })();
+  if (rootOwned) {
     return {
       problem: (
-        <Callout
-          tone="warning"
-          className="app-folder-note"
-          title={t`${path} is root's, and an app never runs as root`}
-          actions={
-            runUid !== undefined && runGid !== undefined && runUid > 0 && runGid > 0 ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={fixing}
-                onClick={() => void fixAccess({ uid: runUid, gid: runGid, recursive: true })}
-                {...mayChangeAccess.off}
-              >
-                <Trans>Change owner to {user}</Trans>
-              </Button>
-            ) : undefined
-          }
-        >
-          <Trans>
-            Change its owner to <code>{user}</code> so the app can read and write here.
-          </Trans>{" "}
-          {files}
-          {fixError ? <p>{fixError}</p> : null}
-        </Callout>
+        <>
+          <Callout
+            tone="warning"
+            className="app-folder-note"
+            title={t`${path} is root's, and an app never runs as root`}
+            actions={
+              canChown && !confirmChown ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={fixing}
+                  onClick={() => setConfirmChown(true)}
+                  {...mayChangeAccess.off}
+                >
+                  <Trans>Change owner to {user}</Trans>
+                </Button>
+              ) : undefined
+            }
+          >
+            {canChown ? (
+              confirmChown ? (
+                <>
+                  <p>
+                    <Trans>
+                      This changes <code>{path}</code> and everything in it to <code>{user}</code>.
+                    </Trans>
+                  </p>
+                  <div className="app-folder-runtime">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={fixing}
+                      onClick={() =>
+                        void fixAccess({ uid: runUid, gid: runGid, recursive: true }).then(() => {
+                          if (!parsedIds && runUid !== undefined && runGid !== undefined) {
+                            onRunAs(`${runUid}:${runGid}`);
+                          }
+                        })
+                      }
+                      {...mayChangeAccess.off}
+                    >
+                      <Trans>Change owner of {path} and everything in it</Trans>
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={fixing} onClick={() => setConfirmChown(false)}>
+                      <Trans>Cancel</Trans>
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Trans>
+                    Change <code>{path}</code> and everything in it to <code>{user}</code> so the app can read and write
+                    here.
+                  </Trans>{" "}
+                  {files}
+                </>
+              )
+            ) : nonRootUsers.length > 0 ? (
+              <>
+                <SelectField
+                  label={t`Choose a non-root owner`}
+                  value=""
+                  onChange={(event) => {
+                    const pickedUid = Number(event.target.value);
+                    if (!Number.isInteger(pickedUid) || pickedUid <= 0) return;
+                    const picked = nonRootUsers.find((account) => account.id === pickedUid);
+                    const pickedGroup = picked
+                      ? serverGroups.find((account) => account.name === picked.name)
+                      : undefined;
+                    onRunAs(`${pickedUid}:${pickedGroup?.id ?? pickedUid}`);
+                  }}
+                  options={[
+                    { value: "", label: t`Choose an account` },
+                    ...nonRootUsers.map((account) => ({
+                      value: String(account.id),
+                      label: `${account.name} (${account.id})`,
+                    })),
+                  ]}
+                />{" "}
+                {files}
+              </>
+            ) : (
+              <>
+                <Trans>
+                  Pick a non-root <code>uid:gid</code> under Advanced, then change the folder's owner here.
+                </Trans>{" "}
+                {files}
+              </>
+            )}
+            {fixError ? <p>{fixError}</p> : null}
+          </Callout>
+          {accessBanner}
+        </>
       ),
     };
   }
@@ -629,49 +824,56 @@ function useFolderState({
     const theirs = `${dir.uid}:${dir.gid}`;
     // Its own folder, closed to itself: the mode is what to change.
     if (theirs === user) {
+      const nextMode = permissionBits(dir.mode) | 0o200;
       return {
         problem: (
-          <Callout
-            tone="warning"
-            className="app-folder-note"
-            title={t`The app can't write to ${path}`}
-            actions={
-              <Button
-                size="sm"
-                variant="secondary"
-                loading={fixing}
-                onClick={() => void fixAccess({ mode: permissionBits(dir.mode) | 0o200 })}
-                {...mayChangeAccess.off}
-              >
-                <Trans>Make writable</Trans>
-              </Button>
-            }
-          >
-            <Trans>
-              Its mode is <code>{dir.mode}</code>, so <code>{user}</code> can't write to it.
-            </Trans>{" "}
-            {files}
-            {fixError ? <p>{fixError}</p> : null}
-          </Callout>
+          <>
+            <Callout
+              tone="warning"
+              className="app-folder-note"
+              title={t`The app can't write to ${path}`}
+              actions={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={fixing}
+                  onClick={() => void fixAccess({ mode: nextMode, allowSetId: (nextMode & 0o6000) !== 0 })}
+                  {...mayChangeAccess.off}
+                >
+                  <Trans>Make writable</Trans>
+                </Button>
+              }
+            >
+              <Trans>
+                Its mode is <code>{dir.mode}</code>, so <code>{user}</code> can't write to it.
+              </Trans>{" "}
+              {files}
+              {fixError ? <p>{fixError}</p> : null}
+            </Callout>
+            {accessBanner}
+          </>
         ),
       };
     }
     return {
       problem: (
-        <Callout
-          tone="warning"
-          className="app-folder-note"
-          title={t`The app can't write to ${path}`}
-          actions={
-            <Button size="sm" onClick={() => onRunAs(theirs)}>
-              <Trans>Run as {theirs}</Trans>
-            </Button>
-          }
-        >
-          <Trans>
-            It's <code>{theirs}</code>'s, and the app runs as <code>{user}</code>.
-          </Trans>
-        </Callout>
+        <>
+          <Callout
+            tone="warning"
+            className="app-folder-note"
+            title={t`The app can't write to ${path}`}
+            actions={
+              <Button size="sm" onClick={() => onRunAs(theirs)}>
+                <Trans>Run as {theirs}</Trans>
+              </Button>
+            }
+          >
+            <Trans>
+              It's <code>{theirs}</code>'s, and the app runs as <code>{user}</code>.
+            </Trans>
+          </Callout>
+          {accessBanner}
+        </>
       ),
     };
   }
@@ -681,12 +883,15 @@ function useFolderState({
     const first = markers[0];
     return {
       problem: (
-        <Callout tone="warning" className="app-folder-note" title={t`No ${languageWord} app in ${path} yet`}>
-          <Trans>
-            It has no <code>{first}</code>. Put the app's files there.
-          </Trans>{" "}
-          {files}
-        </Callout>
+        <>
+          <Callout tone="warning" className="app-folder-note" title={t`No ${languageWord} app in ${path} yet`}>
+            <Trans>
+              It has no <code>{first}</code>. Put the app's files there.
+            </Trans>{" "}
+            {files}
+          </Callout>
+          {accessBanner}
+        </>
       ),
     };
   }
@@ -703,5 +908,6 @@ function useFolderState({
         {files}
       </>
     ),
+    problem: accessBanner,
   };
 }

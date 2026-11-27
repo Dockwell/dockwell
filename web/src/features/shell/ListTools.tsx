@@ -497,6 +497,8 @@ export interface BatchAction {
   label: ReactNode;
   icon?: IconName;
   danger?: boolean;
+  /** Short hint on hover for rows this verb leaves out. */
+  title?: string | undefined;
   /** Why it can't be done, kept on the button as its description. */
   off?: string | undefined;
   disabled?: boolean;
@@ -601,6 +603,7 @@ export function BatchBar({
                 icon={action.icon}
                 // MenuItem's off, for a Button: off with why keeps it in place (ADR 0059).
                 {...(action.off ? { off: action.off } : {})}
+                title={action.title}
                 disabled={action.disabled}
                 onClick={action.onSelect}
               >

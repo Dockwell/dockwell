@@ -5230,17 +5230,29 @@ msgstr "What to export"
 msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 msgstr "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 
-msgid "Change its owner to <0>{user}</0> so the app can read and write here."
-msgstr "Change its owner to <0>{user}</0> so the app can read and write here."
+msgid "Change <0>{path}</0> and everything in it to <1>{user}</1> so the app can read and write here."
+msgstr "Change <0>{path}</0> and everything in it to <1>{user}</1> so the app can read and write here."
+
+msgid "Change owner of {path} and everything in it"
+msgstr "Change owner of {path} and everything in it"
 
 msgid "Change owner to {user}"
 msgstr "Change owner to {user}"
+
+msgid "Choose a non-root owner"
+msgstr "Choose a non-root owner"
+
+msgid "Choose an account"
+msgstr "Choose an account"
 
 msgid "Choose the folder that holds the app."
 msgstr "Choose the folder that holds the app."
 
 msgid "Dockwell makes it, owned by <0>{user}</0>"
 msgstr "Dockwell makes it, owned by <0>{user}</0>"
+
+msgid "Entries that no longer matched were skipped."
+msgstr "Entries that no longer matched were skipped."
 
 #. placeholder {0}: PORT_FILES[detected.language] ?? ""
 msgid "From {0}. The app gets it as PORT."
@@ -5275,6 +5287,12 @@ msgstr "New"
 msgid "No {languageWord} app in {path} yet"
 msgstr "No {languageWord} app in {path} yet"
 
+msgid "Pick a non-root <0>uid:gid</0> under Advanced, then change the folder's owner here."
+msgstr "Pick a non-root <0>uid:gid</0> under Advanced, then change the folder's owner here."
+
+msgid "Previous access restored."
+msgstr "Previous access restored."
+
 msgid "Run as {theirs}"
 msgstr "Run as {theirs}"
 
@@ -5284,11 +5302,18 @@ msgstr "Runs as"
 msgid "Runs before each start. Write - to install nothing."
 msgstr "Runs before each start. Write - to install nothing."
 
+#. placeholder {0}: accessOutcome.note
+msgid "Some permissions couldn't be restored. {0}"
+msgstr "Some permissions couldn't be restored. {0}"
+
 msgid "The app can't write to {path}"
 msgstr "The app can't write to {path}"
 
 msgid "The app gets it as PORT."
 msgstr "The app gets it as PORT."
+
+msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
+msgstr "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "Use a folder of its own, not the server's root."
@@ -5314,6 +5339,9 @@ msgstr "port {port}"
 msgid "uid:gid of the folder's owner."
 msgstr "uid:gid of the folder's owner."
 
+msgid "{changedCount, plural, one {Changed # item} other {Changed # items}}"
+msgstr "{changedCount, plural, one {Changed # item} other {Changed # items}}"
+
 msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
 msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
 
@@ -5322,6 +5350,9 @@ msgstr "{path} is a file"
 
 msgid "{path} is root's, and an app never runs as root"
 msgstr "{path} is root's, and an app never runs as root"
+
+msgid "{skippedCount, plural, one {# skipped} other {# skipped}}"
+msgstr "{skippedCount, plural, one {# skipped} other {# skipped}}"
 
 msgid "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
 msgstr "An address or a range, such as 10.77.0.0/24 for a tunnel on a bridge. That proxy needs a network of its own, not Docker's default bridge. Separate several with commas."
@@ -16961,9 +16992,37 @@ msgstr "Usage"
 msgid "memory"
 msgstr "memory"
 
+#. placeholder {0}: systemSelected.length
+msgid "{0, plural, one {# system container skipped} other {# system containers skipped}}"
+msgstr "{0, plural, one {# system container skipped} other {# system containers skipped}}"
+
 #. placeholder {0}: verb.label
 msgid "{0} {count}"
 msgstr "{0} {count}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't started because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't started because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, one {# container Dockwell didn't make wasn't started because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't started because the managed plan didn't apply.}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't stopped because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't stopped because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, one {# container Dockwell didn't make wasn't stopped because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't stopped because the managed plan didn't apply.}}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make wasn't unpaused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't unpaused because the managed plan didn't apply.}}"
+msgstr "{extCount, plural, one {# container Dockwell didn't make wasn't unpaused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't unpaused because the managed plan didn't apply.}}"
+
+msgid "{extCount, plural, one {Then pauses # container Dockwell didn't make, in its own plan.} other {Then pauses # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, one {Then pauses # container Dockwell didn't make, in its own plan.} other {Then pauses # containers Dockwell didn't make, in their own plan.}}"
+
+msgid "{extCount, plural, one {Then starts # container Dockwell didn't make, in its own plan.} other {Then starts # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, one {Then starts # container Dockwell didn't make, in its own plan.} other {Then starts # containers Dockwell didn't make, in their own plan.}}"
+
+msgid "{extCount, plural, one {Then stops # container Dockwell didn't make, in its own plan.} other {Then stops # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, one {Then stops # container Dockwell didn't make, in its own plan.} other {Then stops # containers Dockwell didn't make, in their own plan.}}"
+
+msgid "{extCount, plural, one {Then unpauses # container Dockwell didn't make, in its own plan.} other {Then unpauses # containers Dockwell didn't make, in their own plan.}}"
+msgstr "{extCount, plural, one {Then unpauses # container Dockwell didn't make, in its own plan.} other {Then unpauses # containers Dockwell didn't make, in their own plan.}}"
 
 msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
 msgstr "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
@@ -18793,9 +18852,6 @@ msgstr "Downloading {label} stopped before it finished. Start it again."
 
 msgid "Downloading {name}"
 msgstr "Downloading {name}"
-
-msgid "Entries that no longer matched were skipped."
-msgstr "Entries that no longer matched were skipped."
 
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracted {0}"
@@ -21123,14 +21179,6 @@ msgstr "See them all with <0>docker ps -a</0> on the server."
 msgid "Take {0} on as an app"
 msgstr "Take {0} on as an app"
 
-#. placeholder {0}: server.name
-msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
-msgstr "{0} is waiting for its agent, so what Docker runs there can't be read yet."
-
-#. placeholder {0}: server.name
-msgid "{0} isn't reporting, so what Docker runs there can't be read now."
-msgstr "{0} isn't reporting, so what Docker runs there can't be read now."
-
 msgid "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 msgstr "{count, plural, one {# container, {running} running} other {# containers, {running} running}}"
 
@@ -21161,6 +21209,9 @@ msgstr "Docker counts {0} for its images, volumes, containers and logs, more tha
 
 msgid "Free"
 msgstr "Free"
+
+msgid "Images, volumes, containers and logs"
+msgstr "Images, volumes, containers and logs"
 
 msgid "Other files"
 msgstr "Other files"
@@ -21195,6 +21246,10 @@ msgstr "{share} of the disk"
 
 msgid "{share} of {size} used"
 msgstr "{share} of {size} used"
+
+#. placeholder {0}: bytes(size)
+msgid "{usedShare} of {0} used"
+msgstr "{usedShare} of {0} used"
 
 msgid "Edit again"
 msgstr "Edit again"
@@ -22420,6 +22475,10 @@ msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
 msgid "Browse the files on {name}"
 msgstr "Browse the files on {name}"
 
+#. placeholder {0}: current.label
+msgid "Docker: {0}"
+msgstr "Docker: {0}"
+
 msgid "Firewall"
 msgstr "Firewall"
 
@@ -22454,11 +22513,11 @@ msgstr "System log"
 msgid "System services"
 msgstr "System services"
 
-msgid "System tabs"
-msgstr "System tabs"
-
 msgid "Toolbox"
 msgstr "Toolbox"
+
+msgid "{updateCount, plural, one {# update} other {# updates}}"
+msgstr "{updateCount, plural, one {# update} other {# updates}}"
 
 msgid "1 min"
 msgstr "1 min"
@@ -22787,9 +22846,6 @@ msgstr "Choose a port from 1 to 65535."
 
 msgid "Choose an SSH session address or enter the IP address the server will see."
 msgstr "Choose an SSH session address or enter the IP address the server will see."
-
-msgid "Choose an account"
-msgstr "Choose an account"
 
 msgid "Edit settings"
 msgstr "Edit settings"

@@ -28,7 +28,7 @@ export function ServerOverview({ id, search, onSearch }: { id: string } & ListRo
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
   return (
-    <ServerFrame id={id}>
+    <ServerFrame id={id} width="standard">
       {(server) => (
         <>
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}

@@ -66,14 +66,48 @@ export const flow: Flow = {
       );
 
       let proposeCalled = false;
+      const planMaintenanceBodies: string[] = [];
+      const plannedResource = Buffer.concat([
+        bytes(1, "svc_pb_shop"),
+        bytes(2, appRef),
+        number(3, 3), // PLAN_ACTION_UPDATE
+      ]);
+      const changePlan = Buffer.concat([
+        bytes(1, "a1b2c3d4e5f60718293a4b5c6d7e8f90"), // fingerprint
+        bytes(2, number(2, 1)), // summary: change=1
+        bytes(3, plannedResource), // resources
+      ]);
       const plannedChange = Buffer.concat([
         bytes(1, "chg_pb_stop"),
-        bytes(2, "Stop shop"),
+        bytes(2, "Stop 1 workload"),
         number(3, 1), // PLANNED
+        bytes(7, changePlan),
+      ]);
+      const appliedChange = Buffer.concat([
+        bytes(1, "chg_pb_stop"),
+        bytes(2, "Stop 1 workload"),
+        number(3, 3), // APPLIED
+        bytes(7, changePlan),
+      ]);
+      const externalPlannedChange = Buffer.concat([
+        bytes(1, "chg_pb_ext"),
+        bytes(2, "Stop redis-cache"),
+        number(3, 1), // PLANNED
+        bytes(7, changePlan),
       ]);
       await probe.route(/\/ProposeChange(?:\?|$)/, (route) => {
         proposeCalled = true;
         return route.fulfill({ contentType: "application/proto", body: bytes(1, plannedChange) });
+      });
+      await probe.route(/\/DiscardChange(?:\?|$)/, (route) =>
+        route.fulfill({ contentType: "application/proto", body: Buffer.alloc(0) }),
+      );
+      await probe.route(/\/ApplyChange(?:\?|$)/, (route) =>
+        route.fulfill({ contentType: "application/proto", body: bytes(1, appliedChange) }),
+      );
+      await probe.route(/\/PlanDockerMaintenance(?:\?|$)/, (route) => {
+        planMaintenanceBodies.push((route.request().postDataBuffer() ?? Buffer.alloc(0)).toString("latin1"));
+        return route.fulfill({ contentType: "application/proto", body: bytes(1, externalPlannedChange) });
       });
 
       await atWidth(probe, { width: 1440, height: 900 });
@@ -109,14 +143,40 @@ export const flow: Flow = {
         throw new Error("polish-b: Rename button should not appear on multi-select");
       }
 
-      // Adding a system container produces a clean skip note without colliding verbs.
+      // Adding a system container shows one concise skip line without a multi-verb wall.
       await probe.getByRole("checkbox", { name: "Select dockwell-proxy" }).check();
-      await toolbar.getByText(/System container/).waitFor();
+      await toolbar.getByText("1 system container skipped").waitFor();
 
-      // Clicking Stop 2 opens Review plan (never acts behind a plan).
+      // Clicking Stop 2 opens Review plan with the follow-up note; discarding never plans external rows.
       await toolbar.getByRole("button", { name: "Stop 2" }).click();
-      await probe.getByRole("dialog", { name: "Review plan" }).waitFor();
+      const dialog = probe.getByRole("dialog", { name: "Review plan" });
+      await dialog.waitFor();
+      await dialog.getByText("Then stops 1 container Dockwell didn't make, in its own plan.").waitFor();
       if (!proposeCalled) throw new Error("polish-b: Stop 2 did not propose a managed change plan");
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await dialog.waitFor({ state: "hidden" });
+      const maintenanceCount = () => planMaintenanceBodies.length;
+      if (maintenanceCount() !== 0) {
+        throw new Error("polish-b: cancelling managed plan must not call PlanDockerMaintenance");
+      }
+      await toolbar
+        .getByText("1 container Dockwell didn't make wasn't stopped because the managed plan didn't apply.")
+        .waitFor();
+
+      // Re-select shop-1 (redis-cache stayed selected) and apply: external plan opens with ONLY ctr_pb_redis.
+      await probe.getByRole("checkbox", { name: "Select shop-1" }).check();
+      await toolbar.getByRole("button", { name: "Stop 2" }).click();
+      await dialog.waitFor();
+      await dialog.getByRole("button", { name: "Apply plan" }).click();
+      await probe.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+      await probe.getByRole("dialog", { name: "Review plan" }).waitFor();
+      if (maintenanceCount() !== 1) {
+        throw new Error(`polish-b: expected 1 PlanDockerMaintenance call after apply, got ${maintenanceCount()}`);
+      }
+      const planMaintenanceBody = planMaintenanceBodies[0] ?? "";
+      if (!planMaintenanceBody.includes("ctr_pb_redis") || planMaintenanceBody.includes("ctr_pb_sys")) {
+        throw new Error("polish-b: PlanDockerMaintenance must target only the external container");
+      }
       await probe.keyboard.press("Escape");
 
       step("polish-b: offline server history collapses to one panel and phone ServerFrame groups secondary tabs");

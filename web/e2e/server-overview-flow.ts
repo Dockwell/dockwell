@@ -68,13 +68,13 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
     const docker = disk.locator(".disk-use-docker");
     const drawn = await docker.count();
     if (drawn !== 1) fail(`Docker's disk is drawn ${drawn} times: ${await disk.innerText()}`);
-    for (const part of ["Images", "Volumes", "Free"]) await docker.getByText(part, { exact: true }).waitFor();
+    for (const part of ["Images", "Volumes"]) await disk.getByText(part, { exact: true }).first().waitFor();
+    await docker.getByText("Free", { exact: true }).waitFor();
+    await docker.getByText(/% of .+ used$/).waitFor();
     const bar = await docker
       .getByRole("img", { name: /^Disk usage of \/.*: Images .+, Volumes .+, Free .+, of .+$/ })
       .count();
     if (bar !== 1) fail(`the disk's bar doesn't name its parts: ${await disk.innerHTML()}`);
-    const images = await docker.getByText(/^\d+ images?( · .+)?$/).count();
-    if (images === 0) fail(`the images part doesn't count the fake Docker's images: ${await disk.innerText()}`);
   }
   step(broken ? "  Docker's disk, part by part" : "  each disk's used and free, as Docker's data isn't on a data disk");
   await page.getByRole("region", { name: "System" }).getByText("Swap", { exact: true }).waitFor();

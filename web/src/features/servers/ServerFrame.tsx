@@ -14,22 +14,11 @@ import {
   TerminalService,
   UpdateService,
 } from "@dockwell/api";
-import { cx, Icon, type IconName, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
+import { cx, Icon, type IconName, PHONE_QUERY, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  type CSSProperties,
-  type FocusEvent,
-  Fragment,
-  type KeyboardEvent,
-  type ReactNode,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
@@ -61,30 +50,38 @@ interface ServerFrameProps {
   noTabs?: boolean;
   /** Lets the body span past the wide column, as System log does, while the head and tabs stay in place. */
   fullBody?: boolean;
+  /** Caps the page column width; defaults to wide for tables and multi-column tools. */
+  width?: PageProps["width"];
   /** The tab's own screen, for the server. */
   children: (server: Server) => ReactNode;
 }
 
 /**
- * The page a server's frame stands in, whatever state it's in: a wide page, as its rows of panels and its tables, such
- * as Processes, use the width. Every state takes it from here, so the page keeps its width as the fleet's state
- * arrives.
+ * The page a server's frame stands in, whatever state it's in: a wide page by default, as its tables,
+ * such as Processes, use the width, or standard on Overview to keep cards balanced at 1920px.
  */
-function ServerFramePage(props: Omit<PageProps, "width">) {
-  return <Page {...props} width="wide" />;
+function ServerFramePage({ width = "wide", ...props }: PageProps) {
+  return <Page {...props} width={width} />;
 }
 
 /**
  * One server's own page, which exists from the first server on, whichever tab
  * is open: its name, what it is, and its tabs, each a route of its own.
  */
-export function ServerFrame({ id, phoneHead, noTabs = false, fullBody = false, children }: ServerFrameProps) {
+export function ServerFrame({
+  id,
+  phoneHead,
+  noTabs = false,
+  fullBody = false,
+  width = "wide",
+  children,
+}: ServerFrameProps) {
   const { t } = useLingui();
   const state = useFleet();
   const status = usePageReconnecting(state.status);
   if (state.status === "connecting") {
     return (
-      <ServerFramePage title={t`Server`}>
+      <ServerFramePage title={t`Server`} width={width}>
         <Connecting error={state.error} shape="server" />
       </ServerFramePage>
     );
@@ -92,7 +89,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, fullBody = false, c
   const server = state.servers.find((s) => s.id === id);
   if (!server) {
     return (
-      <ServerFramePage title={t`Server`} status={status}>
+      <ServerFramePage title={t`Server`} status={status} width={width}>
         <EmptyState
           icon="server"
           title={<Trans>No server with this ID</Trans>}
@@ -119,6 +116,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, fullBody = false, c
       phoneHead={phoneHead}
       noTabs={noTabs}
       fullBody={fullBody}
+      width={width}
     >
       {children(server)}
     </ServerPage>
@@ -132,13 +130,29 @@ interface ServerPageProps {
   phoneHead: PhoneHead | undefined;
   noTabs: boolean;
   fullBody: boolean;
+  width: PageProps["width"];
   children: ReactNode;
 }
 
-function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, children }: ServerPageProps) {
+function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, width, children }: ServerPageProps) {
   const { t } = useLingui();
   const may = useMay();
-  const narrow = useMediaQuery("(max-width: 960px)");
+  const phone = useMediaQuery(PHONE_QUERY);
+  const viewportNarrow = useMediaQuery("(max-width: 1200px)");
+  const tabsWrapRef = useRef<HTMLDivElement>(null);
+  const [tabsWidth, setTabsWidth] = useState(0);
+  useEffect(() => {
+    const el = tabsWrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setTabsWidth(el.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const narrow = tabsWidth > 0 ? tabsWidth < 960 : viewportNarrow;
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const onDocker = pathname.startsWith(`/servers/${server.id}/docker`);
   const unread = useFleetUnread();
   const { up, phoneSub } = useServerWords(server);
   const inv = server.inventory;
@@ -222,6 +236,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, childr
     <ServerFramePage
       title={server.name}
       machineTitle
+      width={width}
       actions={actions.length > 0 ? <ActionMenu label={t`Actions for ${name}`} actions={actions} /> : undefined}
       badge={
         <>
@@ -238,60 +253,66 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, childr
       {...phoneHead}
     >
       {noTabs ? null : (
-        <TabNav label={t`Server ${server.name}`}>
-          <RouterTabLink to="/servers/$serverId" params={{ serverId: server.id }} activeOptions={{ exact: true }}>
-            <Trans>Overview</Trans>
-          </RouterTabLink>
-          {/* A way to a place you can't read is left out (ADR 0059). */}
-          {may(DockerService.method.getDockerOverview).allowed ? (
-            <RouterTabLink to="/servers/$serverId/docker" params={{ serverId: server.id }}>
-              <Trans>Docker</Trans>
+        <div className="server-tabs-wrap" ref={tabsWrapRef}>
+          <TabNav label={t`Server ${server.name}`}>
+            <RouterTabLink to="/servers/$serverId" params={{ serverId: server.id }} activeOptions={{ exact: true }}>
+              <Trans>Overview</Trans>
             </RouterTabLink>
-          ) : null}
-          {may(FileService.method.listFiles).allowed ? (
-            <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
-              <Trans>Files</Trans>
-            </RouterTabLink>
-          ) : null}
-          {may(TerminalService.method.listTerminals).allowed ? (
-            <RouterTabLink to="/servers/$serverId/terminal" params={{ serverId: server.id }}>
-              <Trans>Terminal</Trans>
-            </RouterTabLink>
-          ) : null}
-          {narrow ? (
-            <SystemTabsMenu server={server} />
-          ) : (
-            <>
-              {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
-              {may(FirewallService.method.getServerFirewall).allowed ? (
-                <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
-                  <Trans>Firewall</Trans>
+            {/* A way to a place you can't read is left out (ADR 0059). */}
+            {may(DockerService.method.getDockerOverview).allowed ? (
+              phone && onDocker ? (
+                <DockerTabsMenu server={server} multiple={fleet} />
+              ) : (
+                <RouterTabLink to="/servers/$serverId/docker" params={{ serverId: server.id }}>
+                  <Trans>Docker</Trans>
                 </RouterTabLink>
-              ) : null}
-              {may(ProcessService.method.watchProcesses).allowed ? (
-                <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
-                  <Trans>Processes</Trans>
-                </RouterTabLink>
-              ) : null}
-              {may(ServerService.method.getHostToolbox).allowed ? (
-                <RouterTabLink to="/servers/$serverId/toolbox" params={{ serverId: server.id }}>
-                  <Trans>Toolbox</Trans>
-                </RouterTabLink>
-              ) : null}
-              {may(ServerService.method.watchSystemServices).allowed ? (
-                <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
-                  <Trans>System services</Trans>
-                </RouterTabLink>
-              ) : null}
-              {may(ServerService.method.watchSystemServices).allowed ? (
-                <RouterTabLink to="/servers/$serverId/log" params={{ serverId: server.id }}>
-                  <Trans>System log</Trans>
-                </RouterTabLink>
-              ) : null}
-            </>
-          )}
-          {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}
-        </TabNav>
+              )
+            ) : null}
+            {may(FileService.method.listFiles).allowed ? (
+              <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
+                <Trans>Files</Trans>
+              </RouterTabLink>
+            ) : null}
+            {may(TerminalService.method.listTerminals).allowed ? (
+              <RouterTabLink to="/servers/$serverId/terminal" params={{ serverId: server.id }}>
+                <Trans>Terminal</Trans>
+              </RouterTabLink>
+            ) : null}
+            {narrow ? (
+              <SystemTabsMenu server={server} />
+            ) : (
+              <>
+                {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
+                {may(FirewallService.method.getServerFirewall).allowed ? (
+                  <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+                    <Trans>Firewall</Trans>
+                  </RouterTabLink>
+                ) : null}
+                {may(ProcessService.method.watchProcesses).allowed ? (
+                  <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
+                    <Trans>Processes</Trans>
+                  </RouterTabLink>
+                ) : null}
+                {may(ServerService.method.getHostToolbox).allowed ? (
+                  <RouterTabLink to="/servers/$serverId/toolbox" params={{ serverId: server.id }}>
+                    <Trans>Toolbox</Trans>
+                  </RouterTabLink>
+                ) : null}
+                {may(ServerService.method.watchSystemServices).allowed ? (
+                  <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
+                    <Trans>System services</Trans>
+                  </RouterTabLink>
+                ) : null}
+                {may(ServerService.method.watchSystemServices).allowed ? (
+                  <RouterTabLink to="/servers/$serverId/log" params={{ serverId: server.id }}>
+                    <Trans>System log</Trans>
+                  </RouterTabLink>
+                ) : null}
+              </>
+            )}
+            {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}
+          </TabNav>
+        </div>
       )}
       {children}
       {removal.sheet}
@@ -363,6 +384,120 @@ type SystemTabTarget =
   | "/servers/$serverId/log";
 
 /**
+ * On phones, folds Docker sub-views into the Docker tab trigger so Docker pages keep one tab bar.
+ */
+function DockerTabsMenu({ server, multiple }: { server: Server; multiple: boolean }) {
+  const { t } = useLingui();
+  const may = useMay();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const base = `/servers/${server.id}/docker`;
+  const rest = pathname.startsWith(base) ? pathname.slice(base.length) : "";
+  const canReadSettings = may(DockerService.method.getDockerSettings).allowed;
+  const views = [
+    {
+      id: "overview",
+      label: t`Overview`,
+      active: rest === "" || rest === "/",
+      go: () => void navigate({ to: "/servers/$serverId/docker", params: { serverId: server.id } }),
+    },
+    {
+      id: "containers",
+      label: t`Containers`,
+      active: rest.startsWith("/containers"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/containers", params: { serverId: server.id } }),
+    },
+    {
+      id: "composes",
+      label: t`Composes`,
+      active: rest.startsWith("/composes"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/composes", params: { serverId: server.id } }),
+    },
+    {
+      id: "images",
+      label: t`Images`,
+      active: rest.startsWith("/images"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/images", params: { serverId: server.id } }),
+    },
+    {
+      id: "networks",
+      label: t`Networks`,
+      active: rest.startsWith("/networks"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/networks", params: { serverId: server.id } }),
+    },
+    {
+      id: "volumes",
+      label: t`Volumes`,
+      active: rest.startsWith("/volumes"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/volumes", params: { serverId: server.id } }),
+    },
+    {
+      id: "cleanup",
+      label: t`Cleanup`,
+      active: rest.startsWith("/cleanup"),
+      go: () => void navigate({ to: "/servers/$serverId/docker/cleanup", params: { serverId: server.id } }),
+    },
+    ...(canReadSettings
+      ? [
+          {
+            id: "settings",
+            label: t`Settings`,
+            active: rest.startsWith("/settings"),
+            go: () => void navigate({ to: "/servers/$serverId/docker/settings", params: { serverId: server.id } }),
+          },
+        ]
+      : []),
+  ];
+  const current = views.find((view) => view.active) ?? views[0];
+  const actions: MenuAction[] = [
+    ...views.map((view) => ({
+      id: view.id,
+      label: view.label,
+      current: view.active,
+      onSelect: view.go,
+    })),
+    ...(multiple
+      ? [
+          {
+            id: "all-servers",
+            label: t`All servers`,
+            icon: "grid" as const,
+            onSelect: () => {
+              const tab = current?.id;
+              void navigate({
+                to: "/servers/docker",
+                search:
+                  tab === "containers" ||
+                  tab === "composes" ||
+                  tab === "images" ||
+                  tab === "networks" ||
+                  tab === "volumes" ||
+                  tab === "cleanup"
+                    ? { view: tab }
+                    : {},
+              });
+            },
+          },
+        ]
+      : []),
+  ];
+  const triggerLabel = current ? t`Docker: ${current.label}` : t`Docker`;
+  return (
+    <ActionMenu
+      className="server-tabs-menu"
+      label={triggerLabel}
+      actions={actions}
+      trigger={(props) => (
+        <button type="button" className="dw-tab server-tabs-trigger" aria-current="page" {...props}>
+          <span>{triggerLabel}</span>
+          <Icon name="chevron-down" size={14} />
+        </button>
+      )}
+    />
+  );
+}
+
+/**
  * On narrow screens, groups the six secondary host tabs behind one System tab menu so the
  * tab strip fits without scrolling past half the server's tools.
  */
@@ -417,108 +552,46 @@ function SystemTabsMenu({ server }: { server: Server }) {
         ]
       : []),
   ];
-  const [open, setOpen] = useState(false);
-  const [at, setAt] = useState<CSSProperties>();
-  const root = useRef<HTMLSpanElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const id = useId();
-  useLayoutEffect(() => {
-    if (!open) {
-      setAt(undefined);
-      return;
-    }
-    const button = root.current?.querySelector("button")?.getBoundingClientRect();
-    const box = menu.current?.getBoundingClientRect();
-    if (!button || !box) return;
-    const gutter = 16;
-    const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
-    setAt({ top: button.bottom + 4, right });
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    root.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
-    const away = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const close = () => setOpen(false);
-    document.addEventListener("pointerdown", away);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("pointerdown", away);
-      window.removeEventListener("resize", close);
-    };
-  }, [open]);
   if (items.length === 0) return null;
   const active = items.find((item) => pathname.endsWith(item.suffix));
-  const closeMenu = () => {
-    setOpen(false);
-    root.current?.querySelector<HTMLButtonElement>("button")?.focus();
-  };
-  const onKeys = (e: KeyboardEvent<HTMLDivElement>) => {
-    const entries = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-    const index = entries.indexOf(document.activeElement as HTMLElement);
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      closeMenu();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      entries[(index + step + entries.length) % entries.length]?.focus();
-    }
-  };
-  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
-    if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
-  };
+  const showCount = updateCount !== undefined && (!active || active.id === "updates");
+  const showDot = updateCount !== undefined && active !== undefined && active.id !== "updates";
+  const actions: MenuAction[] = items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    current: active?.id === item.id,
+    badge:
+      item.count !== undefined ? (
+        <span className={cx("dw-tab-count", item.tone && `dw-tone-${item.tone}`)}>{item.count}</span>
+      ) : undefined,
+    onSelect: () => void navigate({ to: item.to, params: { serverId: server.id } }),
+  }));
+  const triggerText = active ? active.label : t`System`;
+  const triggerLabel =
+    updateCount !== undefined
+      ? `${triggerText} (${plural(updateCount, { one: "# update", other: "# updates" })})`
+      : triggerText;
   return (
-    <span className="server-tabs-menu" ref={root}>
-      <button
-        type="button"
-        className="dw-tab server-tabs-trigger"
-        aria-current={active ? "page" : undefined}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>{active ? active.label : t`System`}</span>
-        {updateCount !== undefined ? (
-          <span className={cx("dw-tab-count", security > 0 && "dw-tone-warning")}>{updateCount}</span>
-        ) : null}
-        <Icon name="chevron-down" size={14} />
-      </button>
-      {open ? (
-        <div
-          id={id}
-          ref={menu}
-          className={cx("action-menu", at && "is-placed")}
-          style={at}
-          role="menu"
-          aria-label={t`System tabs`}
-          onKeyDown={onKeys}
-          onBlur={onBlur}
+    <ActionMenu
+      className="server-tabs-menu"
+      label={triggerLabel}
+      actions={actions}
+      trigger={(props) => (
+        <button
+          type="button"
+          className="dw-tab server-tabs-trigger"
+          aria-current={active ? "page" : undefined}
+          {...props}
         >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              className={cx("action-menu-item", active?.id === item.id && "is-current")}
-              onClick={() => {
-                setOpen(false);
-                void navigate({ to: item.to, params: { serverId: server.id } });
-              }}
-            >
-              <span className="action-menu-words">
-                <span>{item.label}</span>
-              </span>
-              {item.count !== undefined ? (
-                <span className={cx("dw-tab-count", item.tone && `dw-tone-${item.tone}`)}>{item.count}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </span>
+          <span>{triggerText}</span>
+          {showCount ? (
+            <span className={cx("dw-tab-count", security > 0 && "dw-tone-warning")}>{updateCount}</span>
+          ) : showDot ? (
+            <span className={cx("server-tabs-dot", security > 0 && "dw-tone-warning")} aria-hidden="true" />
+          ) : null}
+          <Icon name="chevron-down" size={14} />
+        </button>
+      )}
+    />
   );
 }

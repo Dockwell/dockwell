@@ -36,9 +36,12 @@ function useMoreEdges<E extends HTMLElement>() {
     el.addEventListener("scroll", measure, { passive: true });
     const seen = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
     seen?.observe(el);
+    const mutated = typeof MutationObserver === "undefined" ? undefined : new MutationObserver(measure);
+    mutated?.observe(el, { childList: true, subtree: true, characterData: true });
     return () => {
       el.removeEventListener("scroll", measure);
       seen?.disconnect();
+      mutated?.disconnect();
     };
   }, []);
   return { ref, more };

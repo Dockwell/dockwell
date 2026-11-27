@@ -566,7 +566,7 @@ function ServersTable({
             {
               key: "name",
               header: t`Server`,
-              width: 140,
+              width: 200,
               render: (s) => (
                 <span className="dw-cell">
                   <span className="dw-cell-title servers-table-name" id={`servers-name-${s.id}`}>
@@ -579,7 +579,7 @@ function ServersTable({
             {
               key: "status",
               header: t`Status`,
-              width: 224,
+              width: 192,
               render: (s) => {
                 // Why it isn't well, as the old list said it, then what it is.
                 const meta = [byId.get(s.id)?.note ?? "", s.controlServer ? t`Control server` : ""]

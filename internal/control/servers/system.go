@@ -119,17 +119,28 @@ func (s *Service) readSystem(ctx context.Context, srv *dockwellv1.Server, f *fee
 	}
 }
 
+type trimmedError struct {
+	msg string
+	err error
+}
+
+func (e trimmedError) Error() string { return e.msg }
+func (e trimmedError) Unwrap() error { return e.err }
+
 // agentWords is what a person reads of an agent's error: its plain words, without
 // the server's name in front, which the message says already.
 func agentWords(err error, serverName string) error {
-	if p, _ := resource.Explain(err); p != "" {
-		return errors.New(trimServerPrefix(p, serverName))
+	if p, detail := resource.Explain(err); detail != "" && p != "" {
+		return trimmedError{msg: trimServerPrefix(p, serverName), err: err}
 	}
 	var se *resource.ServerError
 	if errors.As(err, &se) {
-		return errors.New(trimServerPrefix(se.Err.Error(), serverName))
+		if serverName != "" && se.Server == serverName {
+			return trimmedError{msg: trimServerPrefix(se.Err.Error(), serverName), err: err}
+		}
+		return se.Err
 	}
-	return errors.New(trimServerPrefix(err.Error(), serverName))
+	return err
 }
 
 func trimServerPrefix(text, serverName string) string {

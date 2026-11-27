@@ -71,8 +71,6 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
           >
             <Trans>Review cleanup</Trans>
           </RouterButtonLink>
-        ) : dockerDisk && !overCounted(dockerDisk) ? (
-          <code className="panel-meta">{dockerDisk.mountPoint}</code>
         ) : null
       }
       className="disk-use"
@@ -89,7 +87,9 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
         ) : null}
         {hasSecondaryDisks ? (
           <div className="disk-use-disks">
-            {showDockerDisk && dockerDisk ? <DockerDisk use={dockerDisk} server={server} /> : null}
+            {showDockerDisk && dockerDisk ? (
+              <DockerDisk use={dockerDisk} server={server} compact={Boolean(breakdown)} />
+            ) : null}
             {others.map((disk) => (
               <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
             ))}
@@ -104,7 +104,7 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
 }
 
 /** The disk Docker keeps its data on, part by part. */
-function DockerDisk({ use, server }: { use: ServerDiskUse; server: Server }) {
+function DockerDisk({ use, server, compact = false }: { use: ServerDiskUse; server: Server; compact?: boolean }) {
   const { t, i18n } = useLingui();
   const locale = i18n.locale;
   const bytes = (n: number | bigint) => formatBytes(n, locale);
@@ -130,8 +130,10 @@ function DockerDisk({ use, server }: { use: ServerDiskUse; server: Server }) {
       </>
     );
   }
+  const info = server.inventory?.disks.find((d) => d.mountPoint === use.mountPoint);
   const other = used - counted;
   const free = Math.max(0, size - used);
+  const usedShare = formatPercent(size > 0 ? (used / size) * 100 : 0, locale);
   const share = formatPercent(size > 0 ? (free / size) * 100 : 0, locale);
   const imageNotes = [
     plural(use.images, { one: "# image", other: "# images" }),
@@ -165,9 +167,46 @@ function DockerDisk({ use, server }: { use: ServerDiskUse; server: Server }) {
   const parts = all.filter(
     (part) => part.bytes > 0 || part.key === "images" || part.key === "volumes" || part.key === "free",
   );
+  // When the Docker breakdown table sits beside this bar, summarize Docker as one legend item instead of repeating table rows.
+  const legendParts: Part[] = compact
+    ? [
+        {
+          key: "docker",
+          label: t`Docker`,
+          bytes: counted,
+          note: t`Images, volumes, containers and logs`,
+          shade: "ink",
+        },
+        ...(other > 0
+          ? [
+              {
+                key: "other",
+                label: t`Other files`,
+                bytes: other,
+                note: t`The system and anything outside Docker`,
+                shade: "s4" as const,
+              },
+            ]
+          : []),
+        {
+          key: "free",
+          label: t`Free`,
+          bytes: free,
+          note: size > 0 ? t`${share} of the disk` : "",
+          shade: "free",
+        },
+      ]
+    : parts;
   const summary = parts.map((part) => `${part.label} ${bytes(part.bytes)}`).join(", ");
   return (
     <div className="disk-use-docker">
+      <div className="disk-head">
+        <code className="disk-mount" title={info?.device || undefined}>
+          {use.mountPoint}
+        </code>
+        {info?.filesystem ? <span className="disk-device">{info.filesystem}</span> : null}
+        <span className="disk-share">{t`${usedShare} of ${bytes(size)} used`}</span>
+      </div>
       <div
         className="disk-use-bar"
         role="img"
@@ -180,7 +219,7 @@ function DockerDisk({ use, server }: { use: ServerDiskUse; server: Server }) {
           ))}
       </div>
       <dl className="disk-use-legend">
-        {parts.map((part) => (
+        {legendParts.map((part) => (
           <div key={part.key} className="disk-use-item">
             <dt>
               <span className={`disk-use-swatch is-${part.shade}`} />

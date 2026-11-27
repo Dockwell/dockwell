@@ -36,6 +36,16 @@
   text-overflow: ellipsis;
 }
 
+.servers-list-table .dw-status-label {
+  flex: none;
+}
+
+.servers-list-table .dw-status-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .servers-table-name {
   font-family: var(--font-mono);
   font-size: 13px;

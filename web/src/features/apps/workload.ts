@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeService, ChangeState, DesiredRunState, type ResourceRef } from "@dockwell/api";
+import { type Change, ChangeService, ChangeState, DesiredRunState, type ResourceRef } from "@dockwell/api";
 import { useLingui } from "@lingui/react/macro";
 import { useCallback, useMemo } from "react";
 
@@ -67,14 +67,20 @@ export function useWorkloadControls() {
       start: boolean | DesiredRunState,
       summary: string,
       onApplied?: () => void,
+      options?: {
+        notes?: readonly string[] | undefined;
+        onNotApplied?: ((change: Change | undefined) => void) | undefined;
+      },
     ) => {
       if (targets.length === 0) return;
       sheet.open({
         kind: "propose",
         summary,
         edits: targets.map(({ resource, baseRevision }) => runStateEdit(resource, baseRevision, start)),
+        notes: options?.notes,
         onClose: (change) => {
           if (change?.state === ChangeState.APPLIED) onApplied?.();
+          else options?.onNotApplied?.(change);
         },
       });
     },

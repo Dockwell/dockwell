@@ -29,6 +29,10 @@
   flex-direction: column;
 }
 
+.toolbox-grid .dw-panel-head {
+  min-height: 52px;
+}
+
 .toolbox-grid .dw-panel-body {
   display: flex;
   flex-direction: column;
