@@ -120,6 +120,11 @@ func (s *Server) Repo(name string) *Repo {
 	return r
 }
 
+// BareDir returns the path to the bare repository directory on disk.
+func (r *Repo) BareDir() string {
+	return filepath.Join(r.s.dir, r.name+".git")
+}
+
 // Commit writes files to the branch, by path, as one commit with subject, by the
 // author "Leo Park", pushes it, and says what the commit is.
 func (r *Repo) Commit(branch, subject string, files map[string]string) string {

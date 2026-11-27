@@ -70,8 +70,12 @@ type BuildRequest struct {
 	// GitAuth is the Authorization its repository is fetched with: a GitHub App's
 	// token for that repository alone, which goes no further than the fetch
 	// (ADR 0098). Empty fetches as the public do.
-	GitAuth    string
-	Standalone *StandaloneBuild
+	GitAuth string
+	// GitPackPath is the local path on the agent of a verified Git pack fetched
+	// on the control plane with an SSH deploy key (ADR 0113). Empty fetches over
+	// HTTP/HTTPS inside the build container.
+	GitPackPath string
+	Standalone  *StandaloneBuild
 }
 
 // StandaloneBuild carries sealed, private inputs and the final publication gate.
@@ -226,8 +230,8 @@ func checkBuild(svc *resourcev1.Service) error {
 	if err := checkBuildLogins(b.GetRegistryLogins()); err != nil {
 		return err
 	}
-	if l := b.GetGitLogin(); l != "" && !gitLogin().MatchString(l) {
-		return fmt.Errorf("%q isn't a GitHub App's installation, as <App name>/<installation ID> names it. Pick the repository from the App's list instead", l)
+	if l := b.GetGitLogin(); l != "" && !validGitLogin(l) {
+		return fmt.Errorf("%q isn't a valid git login. Use a GitHub App installation (<App name>/<installation ID>) or an SSH deploy key (ssh:<key name>)", l)
 	}
 	for id, name := range b.GetSecrets() {
 		if len(id) > maxArgName || !secretID().MatchString(id) {
@@ -257,9 +261,10 @@ func checkBuild(svc *resourcev1.Service) error {
 	return nil
 }
 
-// CheckRepository checks a repository's URL, and gives it as Dockwell keeps it: over
-// HTTPS, or HTTP, with a host and a path, and nothing that signs in. One without a
-// scheme, as people paste github.com/acme/web, is HTTPS.
+// CheckRepository checks a repository's URL, and gives it as Dockwell keeps it:
+// over HTTPS, HTTP on a private network, or SSH (ssh:// or user@host:path,
+// normalized to ssh://user@host[:port]/path) (ADR 0046, ADR 0113). One without
+// a scheme, as people paste github.com/acme/web, is HTTPS.
 func CheckRepository(raw string) (string, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
@@ -271,8 +276,11 @@ func CheckRepository(raw string) (string, error) {
 	if strings.IndexFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
 		return "", fmt.Errorf("%q isn't a repository's URL: it has a space in it", s)
 	}
-	if strings.HasPrefix(s, "git@") || strings.HasPrefix(s, "ssh://") || strings.HasPrefix(s, "git://") {
-		return "", fmt.Errorf("can't fetch %s yet: Dockwell fetches a public repository over HTTPS, such as https://github.com/acme/web. SSH and private repositories come next", s)
+	if strings.HasPrefix(s, "git://") {
+		return "", fmt.Errorf("can't fetch %s: Dockwell fetches a repository over HTTPS, SSH with a deploy key, or HTTP on a private network", s)
+	}
+	if isSSHRepository(s) {
+		return checkSSHRepository(s)
 	}
 	if !strings.Contains(s, "://") {
 		s = "https://" + s
@@ -282,9 +290,9 @@ func CheckRepository(raw string) (string, error) {
 	case err != nil:
 		return "", fmt.Errorf("%q isn't a repository's URL. Write one as https://github.com/acme/web", raw)
 	case u.Scheme != "https" && u.Scheme != "http":
-		return "", fmt.Errorf("can't fetch %s: Dockwell fetches a repository over HTTPS, or HTTP on a private network", raw)
+		return "", fmt.Errorf("can't fetch %s: Dockwell fetches a repository over HTTPS, SSH with a deploy key, or HTTP on a private network", raw)
 	case u.User != nil:
-		return "", errors.New("a repository's URL can't hold a user, a password or a token: plans, history and the server would show it. Private repositories come next")
+		return "", errors.New("a repository's URL can't hold a user, a password or a token: plans, history and the server would show it. Use a GitHub App or a deploy key instead")
 	case u.Host == "" || u.Hostname() == "":
 		return "", fmt.Errorf("%q has no host. Write one as https://github.com/acme/web", raw)
 	case u.RawQuery != "" || u.Fragment != "" || strings.HasSuffix(s, "?") || strings.HasSuffix(s, "#"):
@@ -298,6 +306,82 @@ func CheckRepository(raw string) (string, error) {
 		return "", fmt.Errorf("can't fetch %s over plain HTTP: anyone between the server and %s could choose what's built. Use HTTPS, or HTTP to a server on a private network, such as http://10.0.0.5/acme/web", raw, u.Hostname())
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host) + p, nil
+}
+
+var scpRepository = lazyre.Regexp(`^([A-Za-z0-9._-]+)@([^:/?#\s]+):(.+)$`)
+
+// IsSSHRepository reports whether raw is an SSH Git repository address (ssh://
+// or SCP-style user@host:path).
+func IsSSHRepository(raw string) bool { return isSSHRepository(strings.TrimSpace(raw)) }
+
+func isSSHRepository(s string) bool {
+	if strings.HasPrefix(s, "ssh://") {
+		return true
+	}
+	if strings.Contains(s, "://") {
+		return false
+	}
+	return scpRepository().MatchString(s)
+}
+
+func checkSSHRepository(s string) (string, error) {
+	var user, host, repoPath string
+	port := uint64(22)
+	if m := scpRepository().FindStringSubmatch(s); m != nil && !strings.Contains(s, "://") {
+		user, host, repoPath = m[1], strings.ToLower(m[2]), m[3]
+	} else {
+		u, err := url.Parse(s)
+		if err != nil {
+			return "", fmt.Errorf("%q isn't a valid SSH repository URL", s)
+		}
+		if u.User != nil {
+			if _, hasPass := u.User.Password(); hasPass {
+				return "", errors.New("a repository's URL can't hold a password or a token: plans, history and the server would show it")
+			}
+			user = u.User.Username()
+		}
+		if user == "" {
+			user = "git"
+		}
+		if u.RawQuery != "" || u.Fragment != "" || strings.HasSuffix(s, "?") || strings.HasSuffix(s, "#") {
+			return "", errors.New("a repository's URL can't have a ? or a # in it: set the branch in its own field")
+		}
+		host = strings.ToLower(u.Hostname())
+		if ps := u.Port(); ps != "" {
+			n, err := strconv.ParseUint(ps, 10, 16)
+			if err != nil || n == 0 {
+				return "", fmt.Errorf("%q isn't a valid SSH port. Use a port from 1 to 65535", ps)
+			}
+			port = n
+		}
+		repoPath = strings.TrimPrefix(u.Path, "/")
+	}
+	if host == "" {
+		return "", fmt.Errorf("%q has no host. Write one as ssh://git@gitlab.com/acme/web.git", s)
+	}
+	if user == "" || len(user) > 128 || strings.ContainsAny(user, " \t\r\n:@/'\"\\") {
+		return "", fmt.Errorf("%q isn't a valid SSH username", user)
+	}
+	trimmed := strings.TrimPrefix(strings.TrimRight(repoPath, "/"), "/")
+	if trimmed == "" || len(trimmed) > 1024 {
+		return "", fmt.Errorf("%q names a host and no repository. Write one as ssh://git@gitlab.com/acme/web.git", s)
+	}
+	if strings.ContainsAny(trimmed, " \t\r\n'\"\\`$;|&<>?*") {
+		return "", fmt.Errorf("%q isn't a valid repository path", repoPath)
+	}
+	for part := range strings.SplitSeq(trimmed, "/") {
+		if part == ".." || part == "." || part == "" {
+			return "", fmt.Errorf("%q isn't a valid repository path", repoPath)
+		}
+	}
+	hostPart := host
+	if strings.Contains(hostPart, ":") {
+		hostPart = "[" + hostPart + "]"
+	}
+	if port != 22 {
+		return fmt.Sprintf("ssh://%s@%s:%d/%s", user, hostPart, port, trimmed), nil
+	}
+	return fmt.Sprintf("ssh://%s@%s/%s", user, hostPart, trimmed), nil
 }
 
 // PrivateHost reports a host a repository may be fetched from over plain HTTP: an
@@ -408,9 +492,15 @@ func buildWriter(svc *resourcev1.Service) string {
 	return shownRepo(g.GetUrl()) + "@build:" + hex.EncodeToString(sum[:8])
 }
 
-// shownRepo is a repository's URL as people read it, with no scheme or .git.
+// shownRepo is a repository's URL as people read it, with no scheme, user or .git.
 func shownRepo(repo string) string {
-	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(repo, "https://"), "http://"), ".git")
+	s := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(repo, "https://"), "http://"), "ssh://")
+	if i := strings.IndexByte(s, '/'); i >= 0 {
+		if at := strings.LastIndexByte(s[:i], '@'); at >= 0 {
+			s = s[at+1:]
+		}
+	}
+	return strings.TrimSuffix(s, ".git")
 }
 
 // buildPlan is what building a service's image takes, as a plan says it.
@@ -449,6 +539,7 @@ func (d *Driver) build(ctx context.Context, step resource.Step, svc *resourcev1.
 	req.Service, req.Change, req.Secrets = step.Ref, resource.DeployOf(ctx).Change, secrets
 	req.Logins, req.Recheck = registry.BuildAuthsOf(ctx), registry.BuildRecheckOf(ctx)
 	req.GitAuth = resource.BuildGitAuthOf(ctx)
+	req.GitPackPath = resource.BuildGitPackOf(ctx)
 	err = d.Builds.Build(ctx, req)
 	if err != nil {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
@@ -459,6 +550,21 @@ func (d *Driver) build(ctx context.Context, step resource.Step, svc *resourcev1.
 // gitLogin is a GitHub App's installation, as a build names it: the App's name, a
 // slash and the installation's ID (ADR 0098).
 var gitLogin = lazyre.Regexp(`^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[1-9][0-9]{0,18}$`)
+
+// SSHLoginPrefix prefixes an SSH deploy key's name in ImageBuild.git_login (ADR 0113).
+const SSHLoginPrefix = "ssh:"
+
+// DeployKeyOf returns the deploy key's name when login is "ssh:<name>", and ok=true.
+func DeployKeyOf(login string) (name string, ok bool) {
+	return strings.CutPrefix(login, SSHLoginPrefix)
+}
+
+func validGitLogin(login string) bool {
+	if name, ok := DeployKeyOf(login); ok {
+		return resource.CheckLabel("deploy key", name, "acme-web") == nil
+	}
+	return gitLogin().MatchString(login)
+}
 
 // maxBuildLogins is the most registry logins a build names.
 const maxBuildLogins = 8

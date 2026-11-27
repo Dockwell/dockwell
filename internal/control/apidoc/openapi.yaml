@@ -4839,6 +4839,145 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/git-deploy-keys/{id}:begin-rotate:
+        post:
+            tags:
+                - GitDeployKeyService
+            description: |-
+                BeginRotateGitDeployKey generates a pending replacement Ed25519 key while
+                 keeping the active key in use until TestGitDeployKey succeeds with the new
+                 key. Requires a signed-in session and passkey step-up.
+            operationId: GitDeployKeyService_BeginRotateGitDeployKey
+            parameters:
+                - name: id
+                  in: path
+                  description: Deploy key ID (gdk_…).
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginRotateGitDeployKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginRotateGitDeployKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-deploy-keys/{id}:cancel-rotate:
+        post:
+            tags:
+                - GitDeployKeyService
+            description: |-
+                CancelRotateGitDeployKey discards a pending replacement key without
+                 affecting the active key.
+            operationId: GitDeployKeyService_CancelRotateGitDeployKey
+            parameters:
+                - name: id
+                  in: path
+                  description: Deploy key ID (gdk_…).
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelRotateGitDeployKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelRotateGitDeployKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-deploy-keys/{id}:delete:
+        post:
+            tags:
+                - GitDeployKeyService
+            description: |-
+                DeleteGitDeployKey deletes an unused deploy key from the project. Requires
+                 a signed-in session and passkey step-up.
+            operationId: GitDeployKeyService_DeleteGitDeployKey
+            parameters:
+                - name: id
+                  in: path
+                  description: Deploy key ID (gdk_…).
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteGitDeployKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteGitDeployKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/git-deploy-keys/{id}:test:
+        post:
+            tags:
+                - GitDeployKeyService
+            description: |-
+                TestGitDeployKey connects to the repository's SSH host, verifies or reports
+                 the host key fingerprint, optionally pins the accepted host key, tests
+                 authentication and lists branches. When use_pending is true and the test
+                 succeeds, the pending rotation key replaces the active key.
+            operationId: GitDeployKeyService_TestGitDeployKey
+            parameters:
+                - name: id
+                  in: path
+                  description: Deploy key ID (gdk_…).
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestGitDeployKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestGitDeployKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/git-providers:
         get:
             tags:
@@ -6033,6 +6172,66 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListComposeTemplatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/projects/{project}/git-deploy-keys:
+        get:
+            tags:
+                - GitDeployKeyService
+            description: ListGitDeployKeys lists the SSH deploy keys belonging to a project.
+            operationId: GitDeployKeyService_ListGitDeployKeys
+            parameters:
+                - name: project
+                  in: path
+                  description: Project ID or name.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGitDeployKeysResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - GitDeployKeyService
+            description: |-
+                CreateGitDeployKey generates a new Ed25519 SSH deploy key for a repository
+                 in the project and stores it sealed in the revision store. Requires a
+                 signed-in session and passkey step-up.
+            operationId: GitDeployKeyService_CreateGitDeployKey
+            parameters:
+                - name: project
+                  in: path
+                  description: Project ID or name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateGitDeployKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateGitDeployKeyResponse'
                 default:
                     description: Default error response
                     content:
@@ -13500,6 +13699,24 @@ components:
                     type: string
                     description: The provider's address to go to, which comes back to the panel.
             description: BeginProviderSignInResponse says where to go to sign in.
+        BeginRotateGitDeployKeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Deploy key ID (gdk_…).
+                proof:
+                    type: string
+                    description: Passkey step-up proof for STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY.
+            description: BeginRotateGitDeployKeyRequest starts rotating a deploy key.
+        BeginRotateGitDeployKeyResponse:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/GitDeployKeyInfo'
+                changeId:
+                    type: string
+            description: BeginRotateGitDeployKeyResponse returns the key with its pending public key.
         BeginStepUpRequest:
             type: object
             properties:
@@ -13558,6 +13775,10 @@ components:
                         - STEP_UP_ACTION_APPLY_HOST_TOOLBOX
                         - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
+                        - STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY
+                        - STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY
+                        - STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY
+                        - STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY
                     type: string
                     description: The action.
                     format: enum
@@ -13994,6 +14215,21 @@ components:
                 job:
                     $ref: '#/components/schemas/ArchiveJob'
             description: CancelFileDownloadResponse returns the state of the download after cancellation was requested.
+        CancelRotateGitDeployKeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Deploy key ID (gdk_…).
+            description: CancelRotateGitDeployKeyRequest cancels an in-progress rotation.
+        CancelRotateGitDeployKeyResponse:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/GitDeployKeyInfo'
+                changeId:
+                    type: string
+            description: CancelRotateGitDeployKeyResponse returns the updated key.
         CancelTotpSetupRequest:
             type: object
             properties: {}
@@ -17554,6 +17790,30 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateGitDeployKeyRequest:
+            type: object
+            properties:
+                project:
+                    type: string
+                    description: Project ID or name.
+                repository:
+                    type: string
+                    description: Repository address (ssh://, git@host:path, or https:// which converts to SSH).
+                name:
+                    type: string
+                    description: Optional key name within the project; derived from repository when empty.
+                proof:
+                    type: string
+                    description: Passkey step-up proof for STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY.
+            description: CreateGitDeployKeyRequest creates a deploy key for a repository in a project.
+        CreateGitDeployKeyResponse:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/GitDeployKeyInfo'
+                changeId:
+                    type: string
+            description: CreateGitDeployKeyResponse returns the created deploy key and its change ID.
         CreateGitHookRequest:
             type: object
             properties:
@@ -18308,6 +18568,26 @@ components:
                     type: boolean
                     description: True when it was a way back onto the server, which took a passkey.
             description: DeleteFileResponse says what was deleted.
+        DeleteGitDeployKeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Deploy key ID (gdk_…).
+                proof:
+                    type: string
+                    description: Passkey step-up proof for STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY.
+            description: DeleteGitDeployKeyRequest deletes an unused deploy key.
+        DeleteGitDeployKeyResponse:
+            type: object
+            properties:
+                oldKeyFingerprint:
+                    type: string
+                deployKeysUrl:
+                    type: string
+                changeId:
+                    type: string
+            description: DeleteGitDeployKeyResponse reports the deleted key's fingerprint and host page.
         DeleteGitHookRequest:
             type: object
             properties:
@@ -23509,6 +23789,165 @@ components:
                         - $ref: '#/components/schemas/VolumeInfo'
                     description: The volume.
             description: GetVolumeResponse is one volume.
+        GitDeployKey:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: Normalized SSH repository URL, such as "ssh://git@gitlab.com/acme/web.git".
+                host:
+                    type: string
+                    description: SSH host (lowercase hostname or IP address).
+                port:
+                    type: integer
+                    description: SSH port; 22 when 0.
+                    format: uint32
+                user:
+                    type: string
+                    description: SSH username; "git" when empty.
+                keyType:
+                    type: string
+                    description: Key type, such as "ssh-ed25519".
+                publicKey:
+                    type: string
+                    description: OpenSSH public key line to paste into the repository's deploy keys.
+                keyFingerprint:
+                    type: string
+                    description: OpenSSH SHA-256 fingerprint of public_key ("SHA256:...").
+                privateKey:
+                    type: string
+                    description: OpenSSH private key PEM; sealed at rest and never returned.
+                hostKeyAlgorithm:
+                    type: string
+                    description: Pinned SSH host key algorithm (for example "ssh-ed25519").
+                hostKeyFingerprint:
+                    type: string
+                    description: |-
+                        Pinned SSH host key OpenSSH SHA-256 fingerprint ("SHA256:..."). Empty until
+                         accepted during a test.
+                createdAt:
+                    type: string
+                    description: Unix seconds when the deploy key was created.
+                rotatedAt:
+                    type: string
+                    description: Unix seconds when the deploy key was last rotated, or 0 if never rotated.
+                pendingPrivateKey:
+                    type: string
+                    description: Pending replacement private key during rotation until a test succeeds.
+                pendingPublicKey:
+                    type: string
+                    description: OpenSSH public key line of the pending replacement key.
+                pendingKeyType:
+                    type: string
+                    description: Key type of the pending replacement key.
+                pendingKeyFingerprint:
+                    type: string
+                    description: SHA-256 fingerprint of the pending replacement key.
+                pendingCreatedAt:
+                    type: string
+                    description: Unix seconds when the pending replacement key was generated.
+                observedHostKeyAlgorithm:
+                    type: string
+                    description: Observed host key details when a fetch detected a host key change.
+                observedHostKeyFingerprint:
+                    type: string
+            description: |-
+                GitDeployKey is a project-scoped Ed25519 SSH deploy key for fetching a
+                 private Git repository over SSH (ADR 0113). Its private keys stay sealed on
+                 the control plane (ADR 0022) and never reach agents, APIs, plans or logs.
+        GitDeployKeyInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Resource ID, gdk_….
+                name:
+                    type: string
+                    description: Key name within the project, used in ImageBuild.git_login as "ssh:<name>".
+                projectId:
+                    type: string
+                    description: Project ID that owns this key.
+                repository:
+                    type: string
+                    description: Normalized SSH repository URL.
+                host:
+                    type: string
+                    description: SSH host.
+                port:
+                    type: integer
+                    description: Effective SSH port.
+                    format: uint32
+                user:
+                    type: string
+                    description: Effective SSH user.
+                keyType:
+                    type: string
+                    description: Key type, such as "ssh-ed25519".
+                publicKey:
+                    type: string
+                    description: OpenSSH public key line to paste on the Git host.
+                keyFingerprint:
+                    type: string
+                    description: SHA-256 fingerprint of the active deploy key.
+                hostKeyAlgorithm:
+                    type: string
+                    description: Pinned host key type (empty until accepted).
+                hostKeyFingerprint:
+                    type: string
+                    description: Pinned host key SHA-256 fingerprint (empty until accepted).
+                hostKeyPinned:
+                    type: boolean
+                    description: True once the host key has been pinned.
+                hostKeyChanged:
+                    type: boolean
+                    description: True if a fetch observed a different host key than the pinned one.
+                observedHostKeyAlgorithm:
+                    type: string
+                    description: Newly observed host key type when host_key_changed is true.
+                observedHostKeyFingerprint:
+                    type: string
+                    description: Newly observed host key fingerprint when host_key_changed is true.
+                createTime:
+                    type: string
+                    description: When the deploy key was created.
+                    format: date-time
+                rotateTime:
+                    type: string
+                    description: When the deploy key was last rotated, if ever.
+                    format: date-time
+                pendingPublicKey:
+                    type: string
+                    description: Pending replacement public key during rotation (empty when not rotating).
+                pendingKeyType:
+                    type: string
+                    description: Key type of the pending replacement key.
+                pendingKeyFingerprint:
+                    type: string
+                    description: SHA-256 fingerprint of the pending replacement key.
+                pendingCreateTime:
+                    type: string
+                    description: When the pending replacement key was generated.
+                    format: date-time
+                deployKeysUrl:
+                    type: string
+                    description: Deploy-keys settings page URL for recognized Git hosts, or empty.
+                hostName:
+                    type: string
+                    description: Recognized Git host display name (for example "GitHub", "GitLab"), or empty.
+                gitLogin:
+                    type: string
+                    description: Value for ImageBuild.git_login ("ssh:<name>").
+                usedBy:
+                    type: array
+                    items:
+                        type: string
+                    description: Service names in this project that currently use this deploy key.
+                revision:
+                    type: string
+                    description: Current resource revision.
+            description: |-
+                GitDeployKeyInfo is the public view of an SSH deploy key. Private keys are
+                 never included.
         GitHook:
             type: object
             properties:
@@ -23942,8 +24381,10 @@ components:
                 url:
                     type: string
                     description: |-
-                        The repository, such as "https://github.com/acme/web.git", over HTTPS, or
-                         HTTP on a private network. It can't hold a user, a password or a token.
+                        The repository, such as "https://github.com/acme/web.git", over HTTPS,
+                         HTTP on a private network, or SSH ("ssh://git@host/owner/repo.git" or
+                         "git@host:owner/repo.git") with a deploy key (ADR 0113). It can't hold a
+                         password or a token.
                 ref:
                     type: string
                     description: |-
@@ -24702,10 +25143,10 @@ components:
                     type: string
                     description: |-
                         What fetches a private repository: a GitHub App's installation, as
-                         "<App name>/<installation ID>", whose token for the repository alone the
-                         control plane asks for as each read and build needs one (ADR 0098). A plan
-                         names it where one installation of the project reaches the repository and
-                         the edit leaves it out. Empty fetches as the public. Numbered after the
+                         "<App name>/<installation ID>" (ADR 0098), or an SSH deploy key in the
+                         app's project, as "ssh:<key name>" (ADR 0113). A plan names it where an
+                         installation or deploy key of the project matches the repository and the
+                         edit leaves it out. Empty fetches as the public. Numbered after the
                          registry logins, as ADR 0098 has it.
             description: |-
                 ImageBuild says how Dockwell builds a service's image from source, with
@@ -26485,6 +26926,14 @@ components:
                          open work adds to this message.
                     format: uint32
             description: ListFilesResponse is what a directory holds.
+        ListGitDeployKeysResponse:
+            type: object
+            properties:
+                keys:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitDeployKeyInfo'
+            description: ListGitDeployKeysResponse lists the project's deploy keys.
         ListGitLabProjectsResponse:
             type: object
             properties:
@@ -26658,8 +27107,13 @@ components:
                     type: string
                     description: |-
                         The project whose app builds from it, by ID or name. A repository one of
-                         its GitHub App installations reaches is read through that installation,
-                         private or not, as the project's builds fetch it (ADR 0098).
+                         its GitHub App installations or deploy keys reaches is read through it,
+                         private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
+                gitLogin:
+                    type: string
+                    description: |-
+                        Optional git login to read through, such as "ssh:<key name>" for a deploy
+                         key in project (ADR 0113).
             description: ListRepositoryBranchesRequest names a repository to ask for its branches.
         ListRepositoryBranchesResponse:
             type: object
@@ -35758,6 +36212,12 @@ components:
                     description: |-
                         A GitLab connection for CI commit statuses, kind "gitlab.connection"
                          (ADR 0111). Numbered in the block Git providers hold, 130 to 139.
+                gitDeployKey:
+                    allOf:
+                        - $ref: '#/components/schemas/GitDeployKey'
+                    description: |-
+                        An SSH deploy key for a private Git repository, kind "git.deploy_key"
+                         (ADR 0113). Project-scoped; private keys are sealed at rest (ADR 0022).
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
@@ -36778,6 +37238,84 @@ components:
                     type: string
                     description: The test file that was written and couldn't be deleted, with CANT_DELETE.
             description: TestBackupDestinationResponse says what the storage answered.
+        TestGitDeployKeyRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Deploy key ID (gdk_…).
+                acceptHostKey:
+                    type: boolean
+                    description: |-
+                        Accept and pin the presented host key (matching host_key_fingerprint and
+                         host_key_algorithm). Accepting a changed host key requires an admin/owner
+                         and a passkey step-up proof.
+                hostKeyFingerprint:
+                    type: string
+                    description: Host key SHA-256 fingerprint being accepted.
+                hostKeyAlgorithm:
+                    type: string
+                    description: Host key algorithm being accepted.
+                usePending:
+                    type: boolean
+                    description: Test the pending replacement key and switch to it if the test succeeds.
+                proof:
+                    type: string
+                    description: |-
+                        Passkey step-up proof for STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY when accepting
+                         a changed host key.
+            description: |-
+                TestGitDeployKeyRequest tests an SSH deploy key and optionally pins a host
+                 key or promotes a pending rotated key.
+        TestGitDeployKeyResponse:
+            type: object
+            properties:
+                status:
+                    enum:
+                        - GIT_DEPLOY_KEY_TEST_STATUS_UNSPECIFIED
+                        - GIT_DEPLOY_KEY_TEST_STATUS_OK
+                        - GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_UNVERIFIED
+                        - GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_CHANGED
+                        - GIT_DEPLOY_KEY_TEST_STATUS_AUTH_FAILED
+                        - GIT_DEPLOY_KEY_TEST_STATUS_REPOSITORY_UNAVAILABLE
+                        - GIT_DEPLOY_KEY_TEST_STATUS_UNREACHABLE
+                    type: string
+                    format: enum
+                message:
+                    type: string
+                    description: Plain-language fact, consequence and fix when status is not OK.
+                observedHostKeyAlgorithm:
+                    type: string
+                    description: Host key algorithm observed during this test.
+                observedHostKeyFingerprint:
+                    type: string
+                    description: Host key SHA-256 fingerprint observed during this test.
+                branches:
+                    type: array
+                    items:
+                        type: string
+                    description: Branches listed from the repository when status is OK (default first, up to 500).
+                defaultBranch:
+                    type: string
+                    description: Default branch name when status is OK.
+                total:
+                    type: integer
+                    description: Total branch count when more than listed.
+                    format: int32
+                key:
+                    allOf:
+                        - $ref: '#/components/schemas/GitDeployKeyInfo'
+                    description: Updated deploy key view.
+                promoted:
+                    type: boolean
+                    description: True when use_pending succeeded and replaced the active key.
+                oldKeyFingerprint:
+                    type: string
+                    description: SHA-256 fingerprint of the retired key when promoted is true.
+                changeId:
+                    type: string
+                    description: Change ID if this test persisted a pin or promoted a rotated key.
+            description: TestGitDeployKeyResponse reports the test outcome, observed host key and branches.
         Tmpfs:
             type: object
             properties:
@@ -38495,6 +39033,12 @@ tags:
       description: |-
         FirewallService reads a server's inbound filters and manages SSH access.
          See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+    - name: GitDeployKeyService
+      description: |-
+        GitDeployKeyService manages project-scoped Ed25519 SSH deploy keys for
+         building private Git repositories over SSH (ADR 0113). Private keys are
+         generated and sealed on the control plane (ADR 0022) and are never returned
+         by any API, CLI output, plan, log or error.
     - name: GitHookService
       description: |-
         GitHookService turns deploy on push on and off for a service that builds from

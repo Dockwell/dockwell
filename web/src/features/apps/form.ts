@@ -118,6 +118,8 @@ export interface GitForm {
   startCommand: string;
   /** The registry logins its Dockerfile's images pull with, by name: none unless picked (ADR 0086). */
   registryLogins?: string[];
+  /** The Git login used to fetch a private repository: GitHub App installation or "ssh:<deploy-key>". */
+  gitLogin?: string;
 }
 
 /** A Git form with nothing in it yet. */
@@ -138,7 +140,8 @@ export function nameFromRepository(url: string): string {
     .trim()
     .replace(/[?#].*$/, "")
     .replace(/\/+$/, "");
-  const last = path.split("/").pop() ?? "";
+  const afterColon = /^[\w.-]+@[^:/]+:(.+)$/.exec(path)?.[1] ?? path;
+  const last = afterColon.split("/").pop() ?? "";
   return toLabel(last.replace(/\.git$/, ""));
 }
 
@@ -163,6 +166,7 @@ export function buildOf(git: GitForm) {
     startCommand: git.builder === "dockerfile" ? "" : git.startCommand.trim(),
     // Railpack's images are Railpack's: a login goes with a Dockerfile's alone.
     registryLogins: git.builder === "railpack" ? [] : (git.registryLogins ?? []),
+    ...(git.gitLogin ? { gitLogin: git.gitLogin } : {}),
   };
 }
 

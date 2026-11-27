@@ -102,9 +102,12 @@ type ListRepositoryBranchesRequest struct {
 	// the CLI takes as --repository.
 	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// The project whose app builds from it, by ID or name. A repository one of
-	// its GitHub App installations reaches is read through that installation,
-	// private or not, as the project's builds fetch it (ADR 0098).
-	Project       string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// its GitHub App installations or deploy keys reaches is read through it,
+	// private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// Optional git login to read through, such as "ssh:<key name>" for a deploy
+	// key in project (ADR 0113).
+	GitLogin      string `protobuf:"bytes,3,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -149,6 +152,13 @@ func (x *ListRepositoryBranchesRequest) GetUrl() string {
 func (x *ListRepositoryBranchesRequest) GetProject() string {
 	if x != nil {
 		return x.Project
+	}
+	return ""
+}
+
+func (x *ListRepositoryBranchesRequest) GetGitLogin() string {
+	if x != nil {
+		return x.GitLogin
 	}
 	return ""
 }
@@ -1304,11 +1314,12 @@ var File_dockwell_v1_build_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n" +
+	"\x17dockwell/v1/build.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"x\n" +
 	"\x1dListRepositoryBranchesRequest\x12 \n" +
 	"\x03url\x18\x01 \x01(\tB\x0e\xa2\xbb\x18\n" +
 	"repositoryR\x03url\x12\x18\n" +
-	"\aproject\x18\x02 \x01(\tR\aproject\"\x96\x01\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1b\n" +
+	"\tgit_login\x18\x03 \x01(\tR\bgitLogin\"\x96\x01\n" +
 	"\x1eListRepositoryBranchesResponse\x12\x1a\n" +
 	"\bbranches\x18\x01 \x03(\tR\bbranches\x12%\n" +
 	"\x0edefault_branch\x18\x02 \x01(\tR\rdefaultBranch\x12\x14\n" +

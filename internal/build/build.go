@@ -639,6 +639,9 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if gitDir != "" {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: gitDir, Target: gitAuthMount, ReadOnly: true})
 	}
+	if req.GitPackPath != "" {
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: req.GitPackPath, Target: gitPackMount, ReadOnly: true})
+	}
 	environment := env(req, keep)
 	if standalone := req.Standalone; standalone != nil {
 		dir, cleanup, err := b.writeSecrets(map[string]string{"Dockerfile": standalone.Dockerfile, "policy.json": standalone.Policy}, false)
@@ -791,7 +794,7 @@ func failure(req service.BuildRequest, f facts, code int, oom bool) error {
 	if len(short) > 7 {
 		short = short[:7]
 	}
-	where := strings.TrimPrefix(strings.TrimPrefix(req.URL, "https://"), "http://")
+	where := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(req.URL, "https://"), "http://"), "ssh://")
 	err := fmt.Errorf("the build of %s at %s exited with %d", req.URL, req.Commit, code)
 	plain := func(s string) error { return resource.PlainlyBecause(resource.ReasonBuild, s, err) }
 	switch {

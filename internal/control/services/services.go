@@ -441,7 +441,7 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		Kind: revision.IntentDeploy, Image: m.GetImage(), DeployOrigin: origin,
 		TokenID: tokenID, AllowedRepository: allowedRepo,
 	}
-	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
+	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(ctx context.Context, name string, svc *resourcev1.Service) (editing, error) {
 		if b := svc.GetBuild(); b != nil {
 			if origin != nil {
 				return editing{}, authapi.Invalid(errors.New("this app builds from Git. Use an app that runs a prebuilt image for CI deploys"))
@@ -523,7 +523,15 @@ func (h *Handler) deployBuild(ctx context.Context, name string, svc *resourcev1.
 
 // shownRepo is a repository's URL as a person reads it.
 func shownRepo(url string) string {
-	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://"), ".git")
+	s := strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://")
+	if rest, ok := strings.CutPrefix(s, "ssh://"); ok {
+		if _, after, hasUser := strings.Cut(rest, "@"); hasUser {
+			s = after
+		} else {
+			s = rest
+		}
+	}
+	return strings.TrimSuffix(s, ".git")
 }
 
 // shortCommit is a commit's first 7 digits, as people read one.
@@ -539,7 +547,7 @@ func shortCommit(c string) string {
 func (h *Handler) ChangeServiceRuntime(ctx context.Context, req *connect.Request[dockwellv1.ChangeServiceRuntimeRequest]) (*connect.Response[dockwellv1.ChangeServiceRuntimeResponse], error) {
 	m := req.Msg
 	intent := &revision.Intent{Kind: revision.IntentDeploy}
-	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
+	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(_ context.Context, name string, svc *resourcev1.Service) (editing, error) {
 		rt := svc.GetRuntime()
 		if rt == nil {
 			return editing{}, authapi.Invalid(fmt.Errorf("%s runs an image, not an app from a folder, so it has no runtime to change. Deploy another image instead", name))
@@ -618,7 +626,7 @@ type editing struct {
 // it stale, as proposing what was read would quietly undo that change. intent is
 // what the plan says it comes to.
 func (h *Handler) edit(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(name string, app *resourcev1.Container) (editing, error)) (*dockwellv1.Change, error) {
-	return h.editService(ctx, named, project, environment, intent, func(name string, svc *resourcev1.Service) (editing, error) {
+	return h.editService(ctx, named, project, environment, intent, func(_ context.Context, name string, svc *resourcev1.Service) (editing, error) {
 		app := svc.GetApp()
 		if app == nil {
 			return editing{}, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", name))
@@ -628,7 +636,7 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 }
 
 // editService is edit with the whole service to change, as it is on the record.
-func (h *Handler) editService(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(name string, svc *resourcev1.Service) (editing, error)) (*dockwellv1.Change, error) {
+func (h *Handler) editService(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(ctx context.Context, name string, svc *resourcev1.Service) (editing, error)) (*dockwellv1.Change, error) {
 	r, err := h.find(ctx, named, project, environment)
 	if err != nil {
 		return nil, err
@@ -651,7 +659,7 @@ func (h *Handler) editService(ctx context.Context, named, project, environment s
 		return nil, h.internal(ctx, "reading a service", err)
 	}
 	was := spec.GetApp().GetImage()
-	did, err := change(r.Name, spec)
+	did, err := change(revision.WithGitScope(ctx, r.Scope), r.Name, spec)
 	if err != nil {
 		return nil, err
 	}

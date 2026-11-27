@@ -122,7 +122,12 @@ func cutWords(s string, n int) string {
 
 // buildWords says what a step builds before it runs it, as a plan does.
 func buildWords(b *dockwellv1.BuildPlan) string {
-	repo := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(b.GetUrl(), "https://"), "http://"), ".git")
+	repo := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(b.GetUrl(), "https://"), "http://"), "ssh://"), ".git")
+	if i := strings.IndexByte(repo, '/'); i >= 0 {
+		if at := strings.LastIndexByte(repo[:i], '@'); at >= 0 {
+			repo = repo[at+1:]
+		}
+	}
 	at := shortCommit(b.GetCommit())
 	if b.GetRef() != "" {
 		at += " (" + shownRef(b.GetRef()) + ")"
@@ -132,7 +137,11 @@ func buildWords(b *dockwellv1.BuildPlan) string {
 		where = ", with " + f
 	}
 	if login := b.GetGitLogin(); login != "" {
-		where += ", through the GitHub App installation " + terminalSafe(login, false)
+		if keyName, ok := strings.CutPrefix(login, "ssh:"); ok {
+			where += ", with deploy key " + terminalSafe(keyName, false)
+		} else {
+			where += ", through the GitHub App installation " + terminalSafe(login, false)
+		}
 	}
 	return fmt.Sprintf("Builds %s at %s%s first. If the build fails, what runs stays as it is.", repo, at, where)
 }

@@ -45,7 +45,7 @@ func (h *Handler) ResolveDockerGit(ctx context.Context, input *v1.DockerImageGit
 	if err != nil {
 		return nil, "", err
 	}
-	commit, ref, err := h.sources.Resolve(revision.WithGitLogin(ctx, g.GetGitLogin()), g.GetRepository(), spec.GetGit().GetRef())
+	commit, ref, err := h.sources.Resolve(revision.WithGitScope(revision.WithGitLogin(ctx, g.GetGitLogin()), project), g.GetRepository(), spec.GetGit().GetRef())
 	if err != nil {
 		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("the selected Git ref could not be resolved"))
 	}

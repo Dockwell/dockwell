@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/gitdeploykey"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -47,6 +48,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		signinprovider.Type{},
 		githubapp.Type{},
 		gitlabconnection.Type{},
+		gitdeploykey.Type{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},
 		&task.Driver{},

@@ -383,6 +383,16 @@ const (
 	// Its target is the service's ID and the name, as "svc_…:NAME". Numbered
 	// apart, as open work adds to this enum.
 	StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE StepUpAction = 60
+	// Creating an SSH deploy key for a project's private Git repository
+	// (ADR 0113). The target is the project's ID. Block 270 to 279.
+	StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY StepUpAction = 270
+	// Rotating an SSH deploy key (ADR 0113). The target is the key's ID.
+	StepUpAction_STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY StepUpAction = 271
+	// Deleting an SSH deploy key (ADR 0113). The target is the key's ID.
+	StepUpAction_STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY StepUpAction = 272
+	// Accepting a changed SSH host key on an already-pinned deploy key
+	// (ADR 0113). Requires an admin or owner. The target is the key's ID.
+	StepUpAction_STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY StepUpAction = 273
 )
 
 // Enum value maps for StepUpAction.
@@ -441,6 +451,10 @@ var (
 		269: "STEP_UP_ACTION_APPLY_HOST_TOOLBOX",
 		263: "STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD",
 		60:  "STEP_UP_ACTION_REVEAL_SERVICE_VALUE",
+		270: "STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY",
+		271: "STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY",
+		272: "STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY",
+		273: "STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":                           0,
@@ -496,6 +510,10 @@ var (
 		"STEP_UP_ACTION_APPLY_HOST_TOOLBOX":                    269,
 		"STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD":           263,
 		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":                  60,
+		"STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY":                 270,
+		"STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY":                 271,
+		"STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY":                 272,
+		"STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY":                   273,
 	}
 )
 
@@ -5161,7 +5179,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\x96\x10\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xc0\x11\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12.\n" +
 	")STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION\x10\xbe\x01\x122\n" +
@@ -5216,7 +5234,11 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"'STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY\x10\x8c\x02\x12&\n" +
 	"!STEP_UP_ACTION_APPLY_HOST_TOOLBOX\x10\x8d\x02\x12/\n" +
 	"*STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD\x10\x87\x02\x12'\n" +
-	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<*\x86\x01\n" +
+	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<\x12)\n" +
+	"$STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY\x10\x8e\x02\x12)\n" +
+	"$STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY\x10\x8f\x02\x12)\n" +
+	"$STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY\x10\x90\x02\x12'\n" +
+	"\"STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY\x10\x91\x02*\x86\x01\n" +
 	"\fStepUpPolicy\x12\x1e\n" +
 	"\x1aSTEP_UP_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18STEP_UP_POLICY_EACH_TIME\x10\x01\x12\x19\n" +

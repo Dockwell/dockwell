@@ -38,13 +38,22 @@ func TestABuildsSettingsAreCheckedAndWrittenOneWay(t *testing.T) {
 	if err := d.Validate(alone); err != nil || alone.GetApp() == nil {
 		t.Errorf("a service with a build and nothing else = %v, with app %v", err, alone.GetApp())
 	}
+	// SSH URLs (SCP-style and ssh://) and deploy-key logins normalize cleanly (ADR 0113).
+	sshSvc := built("git@GitLab.com:acme/web.git", func(b *resourcev1.ImageBuild) { b.GitLogin = "ssh:acme-web" })
+	if err := d.Validate(sshSvc); err != nil {
+		t.Fatalf("SSH build rejected: %v", err)
+	}
+	if got := sshSvc.GetBuild().GetGit().GetUrl(); got != "ssh://git@gitlab.com/acme/web.git" {
+		t.Errorf("normalized SSH URL = %q, want ssh://git@gitlab.com/acme/web.git", got)
+	}
 	for _, c := range []struct {
 		name string
 		svc  *resourcev1.Service
 		want string
 	}{
 		{"credentials in the URL", built("https://x:ghp_token@github.com/acme/web", nil), "can't hold a user, a password or a token"},
-		{"SSH", built("git@github.com:acme/web.git", nil), "SSH and private repositories come next"},
+		{"password in SSH URL", built("ssh://git:secret@github.com/acme/web.git", nil), "can't hold a password or a token"},
+		{"cleartext git scheme", built("git://github.com/acme/web.git", nil), "fetches a repository over HTTPS, SSH with a deploy key"},
 		{"no repository", built("https://github.com/", nil), "names a host and no repository"},
 		{"a branch in the URL", built("https://github.com/acme/web#dev", nil), "set the branch in its own field"},
 		{"another scheme", built("ftp://example.com/web", nil), "fetches a repository over HTTPS"},

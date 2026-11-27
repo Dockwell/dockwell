@@ -49,6 +49,25 @@ func GitLoginOf(ctx context.Context) string {
 	return l
 }
 
+// gitScopeKey keys the project or environment ID a Git operation belongs to,
+// so project-scoped SSH deploy keys never cross project boundaries (ADR 0113).
+type gitScopeKey struct{}
+
+// WithGitScope attaches a project ID (prj_...) or environment ID (env_...) to
+// ctx so deploy-key lookups stay strictly within that project.
+func WithGitScope(ctx context.Context, scope string) context.Context {
+	if scope == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, gitScopeKey{}, scope)
+}
+
+// GitScopeOf returns the project or environment ID attached by WithGitScope.
+func GitScopeOf(ctx context.Context) string {
+	s, _ := ctx.Value(gitScopeKey{}).(string)
+	return s
+}
+
 // SetSources has the engine read what a build's branch names with s.
 func (e *Engine) SetSources(s Sources) { e.sources = s }
 
@@ -121,7 +140,7 @@ func (e *Engine) detectBuilds(ctx context.Context, plan *Plan, items []item) err
 	for _, r := range reads {
 		wg.Go(func() {
 			app := r.svc.GetApp()
-			r.d, r.err = e.detector.Detect(ctx, servers[r], r.svc.GetBuild(), len(app.GetCommand()) > 0 || len(app.GetEntrypoint()) > 0)
+			r.d, r.err = e.detector.Detect(WithGitScope(ctx, r.st.Ref.Scope), servers[r], r.svc.GetBuild(), len(app.GetCommand()) > 0 || len(app.GetEntrypoint()) > 0)
 		})
 	}
 	wg.Wait()
@@ -218,7 +237,7 @@ func (e *Engine) pinBuilds(ctx context.Context, items []item, changeID string) e
 			if e.sources == nil {
 				return fmt.Errorf("this control plane can't read what %s's branch names, so it can't plan its build", it.ref.Name)
 			}
-			commit, full, err := e.sources.Resolve(WithGitLogin(ctx, svc.GetBuild().GetGitLogin()), g.GetUrl(), g.GetRef())
+			commit, full, err := e.sources.Resolve(WithGitScope(WithGitLogin(ctx, svc.GetBuild().GetGitLogin()), it.ref.Scope), g.GetUrl(), g.GetRef())
 			if err != nil {
 				return fault.New(ErrInvalid, "%w", err)
 			}

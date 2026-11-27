@@ -1137,6 +1137,23 @@ func BuildGitAuthOf(ctx context.Context) string {
 	return h
 }
 
+// buildGitPackKey keys the local path of a verified Git pack streamed from the
+// control plane for an SSH deploy-key build (ADR 0113).
+type buildGitPackKey struct{}
+
+// WithBuildGitPack attaches the temporary local pack file path for a build step
+// fetched on the control plane over SSH (ADR 0113).
+func WithBuildGitPack(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, buildGitPackKey{}, path)
+}
+
+// BuildGitPackOf returns the local Git pack file path attached by
+// WithBuildGitPack, or "".
+func BuildGitPackOf(ctx context.Context) string {
+	p, _ := ctx.Value(buildGitPackKey{}).(string)
+	return p
+}
+
 // ChangesRunIntent reports a modification of the workload's desired run state.
 func (s Step) ChangesRunIntent() bool {
 	return slices.ContainsFunc(s.Changes, func(c Change) bool {

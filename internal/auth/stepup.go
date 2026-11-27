@@ -96,6 +96,18 @@ const (
 	StepUpRotateGitHubApp StepUpAction = "github_app.rotate"
 	// StepUpRemoveGitHubApp removes a GitHub App. Its target is the App's ID.
 	StepUpRemoveGitHubApp StepUpAction = "github_app.remove"
+	// StepUpCreateGitDeployKey creates an SSH deploy key in a project (ADR 0113).
+	// Its target is the project's ID.
+	StepUpCreateGitDeployKey StepUpAction = "git_deploy_key.create"
+	// StepUpRotateGitDeployKey begins rotating an SSH deploy key (ADR 0113).
+	// Its target is the key's ID.
+	StepUpRotateGitDeployKey StepUpAction = "git_deploy_key.rotate"
+	// StepUpDeleteGitDeployKey deletes an SSH deploy key (ADR 0113).
+	// Its target is the key's ID.
+	StepUpDeleteGitDeployKey StepUpAction = "git_deploy_key.delete"
+	// StepUpAcceptGitHostKey accepts a changed host key on a pinned deploy key
+	// (ADR 0113). Its target is the key's ID.
+	StepUpAcceptGitHostKey StepUpAction = "git_deploy_key.accept_host_key"
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
 	StepUpEndProcess           StepUpAction = "process.end"
@@ -220,6 +232,10 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpConnectGitHubApp:         {"connecting GitHub", false},
 	StepUpRotateGitHubApp:          {"giving a new secret or key to", true},
 	StepUpRemoveGitHubApp:          {"removing", true},
+	StepUpCreateGitDeployKey:       {"creating a deploy key in", true},
+	StepUpRotateGitDeployKey:       {"rotating deploy key", true},
+	StepUpDeleteGitDeployKey:       {"deleting deploy key", true},
+	StepUpAcceptGitHostKey:         {"accepting a changed host key for", true},
 	StepUpEditSSHKey:               {"changing SSH keys for", true},
 	StepUpDisconnectSSHSession:     {"disconnecting SSH session", true},
 	StepUpBanSSHAddress:            {"banning SSH address", true},

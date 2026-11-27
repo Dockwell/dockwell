@@ -7,15 +7,14 @@ import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useId, useMemo
 
 import "./ImageField.css";
 
-/** A repository's URL as two can be compared: no scheme, no .git, no trailing slash, any case. */
+/** A repository's URL as two can be compared: no scheme, no SSH login, no .git, no trailing slash, any case. */
 export function sameRepository(a: string, b: string): boolean {
-  const plain = (url: string) =>
-    url
-      .trim()
-      .toLowerCase()
-      .replace(/^https?:\/\//, "")
-      .replace(/\/+$/, "")
-      .replace(/\.git$/, "");
+  const plain = (url: string) => {
+    const trimmed = url.trim().toLowerCase();
+    const scp = /^[\w.-]+@([^:/]+):(.+)$/.exec(trimmed);
+    const body = scp ? `${scp[1]}/${scp[2]}` : trimmed.replace(/^(https?|ssh):\/\//, "").replace(/^[^/@]+@/, "");
+    return body.replace(/\/+$/, "").replace(/\.git$/, "");
+  };
   return a.trim() !== "" && plain(a) === plain(b);
 }
 

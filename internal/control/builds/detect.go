@@ -20,6 +20,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -104,7 +105,7 @@ func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
-	login, err := h.loginFor(ctx, project, url, "")
+	login, err := h.loginFor(ctx, project, url, req.Msg.GetGitLogin())
 	if err != nil {
 		return nil, err
 	}
@@ -114,9 +115,13 @@ func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Reque
 	default:
 		return nil, errTooManyListings
 	}
-	head, branches, err := lister.Branches(revision.WithGitLogin(ctx, login), url)
+	head, branches, err := lister.Branches(revision.WithGitScope(revision.WithGitLogin(ctx, login), project), url)
 	if err != nil {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
+		reason := "unreadable"
+		if errors.Is(err, gitref.ErrAuthRequired) {
+			reason = "auth_required"
+		}
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, reason)
 	}
 	res := &dockwellv1.ListRepositoryBranchesResponse{DefaultBranch: fit(head, 255), GitLogin: login}
 	if len(branches) > maxBranches {
@@ -139,7 +144,7 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 	if err != nil {
 		return nil, err
 	}
-	k := fmt.Sprintf("%s\x00%t\x00%s", server, ownCommand, key)
+	k := fmt.Sprintf("%s\x00%t\x00%s\x00%s", server, ownCommand, revision.GitScopeOf(ctx), key)
 	for {
 		h.mu.Lock()
 		if got, ok := h.detected[k]; ok && h.now().Sub(got.at) < detectedFor {
@@ -295,7 +300,7 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 		if h.sources == nil {
 			return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't read what a branch names"))
 		}
-		commit, branch, err := h.sources.Resolve(revision.WithGitLogin(ctx, b.GetGitLogin()), g.GetUrl(), g.GetRef())
+		commit, branch, err := h.sources.Resolve(revision.WithGitScope(revision.WithGitLogin(ctx, b.GetGitLogin()), project), g.GetUrl(), g.GetRef())
 		if err != nil {
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 		}
@@ -308,7 +313,7 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 			g.Ref = branch
 		}
 	}
-	d, err := h.Detect(ctx, server, b, ownCommand)
+	d, err := h.Detect(revision.WithGitScope(ctx, project), server, b, ownCommand)
 	switch {
 	case errors.Is(err, errTooManyReadings):
 		return nil, errTooManyReadings

@@ -94,6 +94,7 @@ import {
 } from "./app";
 import { shownRepository } from "./Build";
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
+import { DeployKeySetup, useGitDeployKeys } from "./DeployKeyPanel";
 import { useDetectionWords } from "./detection";
 import { FolderFields, nameFromFolder, useFolderChecks } from "./FolderFields";
 import { useServerFolders } from "./folders";
@@ -122,6 +123,7 @@ import {
   validEnvName,
   validPort,
 } from "./form";
+import { deployKeyNameOf, isSSHRepository } from "./gitHost";
 import { ImageField, type ImageRead } from "./ImageField";
 import { CatalogSource } from "./NewAppCatalog";
 import { useProjectPage } from "./projectPage";
@@ -1216,14 +1218,41 @@ function GitFields({
   };
   const placeholderName = nameFromRepository(git.url) || "web";
   const repositories = useGitRepositories(project).data?.repositories ?? [];
-  const repository = useRepository(git.url, project, repositories);
+  const deployKeys = useGitDeployKeys(project);
+  const sshAddress = isSSHRepository(git.url);
+  const keyName = deployKeyNameOf(git.gitLogin);
+  const matchedKey = useMemo(() => {
+    const list = deployKeys.data?.keys ?? [];
+    if (keyName) {
+      const byName = list.find((k) => k.name === keyName);
+      if (byName && sameRepository(byName.repository, git.url)) return byName;
+    }
+    return list.find((k) => sameRepository(k.repository, git.url));
+  }, [deployKeys.data?.keys, git.url, keyName]);
+  const effectiveGitLogin =
+    git.gitLogin || (matchedKey?.hostKeyPinned && !matchedKey.hostKeyChanged ? matchedKey.gitLogin : "");
+  const [testedRepo, setTestedRepo] = useState<{
+    url: string;
+    branches: readonly string[];
+    defaultBranch: string;
+    gitLogin: string;
+  }>();
+  const waitForDeployKey = sshAddress && (!matchedKey?.hostKeyPinned || matchedKey.hostKeyChanged);
+  const repository = useRepository(git.url, project, repositories, effectiveGitLogin, waitForDeployKey);
+  const verifiedOverride =
+    testedRepo && sameRepository(testedRepo.url, git.url) && testedRepo.gitLogin === effectiveGitLogin
+      ? testedRepo
+      : undefined;
+  const repoChecked = repository.checked || verifiedOverride !== undefined;
+  const repoBranches = verifiedOverride?.branches.length ? verifiedOverride.branches : repository.branches;
+  const repoDefaultBranch = verifiedOverride?.defaultBranch || repository.defaultBranch;
   // The default branch first, as the one it builds when none is chosen, then the
   // rest, and a tag or commit someone typed, which the repository's branches don't list.
   const branchOptions = [
-    ...repository.branches.map((name) =>
-      name === repository.defaultBranch ? { value: "", label: t`${name} (default)` } : { value: name, label: name },
+    ...repoBranches.map((name) =>
+      name === repoDefaultBranch ? { value: "", label: t`${name} (default)` } : { value: name, label: name },
     ),
-    ...(git.ref !== "" && git.ref !== repository.defaultBranch && !repository.branches.includes(git.ref)
+    ...(git.ref !== "" && git.ref !== repoDefaultBranch && !repoBranches.includes(git.ref)
       ? [{ value: git.ref, label: git.ref }]
       : []),
   ];
@@ -1251,19 +1280,19 @@ function GitFields({
   }, [exposed, form.ports, update]);
   // The text of a tag or commit typed under Change, which a branch of the same
   // beginning doesn't clear as it's typed.
-  const [tag, setTag] = useState(() => (git.ref !== "" && !repository.branches.includes(git.ref) ? git.ref : ""));
+  const [tag, setTag] = useState(() => (git.ref !== "" && !repoBranches.includes(git.ref) ? git.ref : ""));
   // A branch chosen from one repository that the next one hasn't goes back to the default.
   const seen = useRef<{ url: string; branches: readonly string[] } | undefined>(undefined);
   useEffect(() => {
-    if (!repository.checked) return;
+    if (!repoChecked) return;
     const was = seen.current;
-    seen.current = { url: repository.url, branches: repository.branches };
+    seen.current = { url: repository.url, branches: repoBranches };
     if (!was || was.url === repository.url) return;
-    if (git.ref !== "" && was.branches.includes(git.ref) && !repository.branches.includes(git.ref)) {
+    if (git.ref !== "" && was.branches.includes(git.ref) && !repoBranches.includes(git.ref)) {
       setTag("");
       onGit({ ref: "" }, "git.ref");
     }
-  }, [repository.checked, repository.url, repository.branches, git.ref, onGit]);
+  }, [repoChecked, repository.url, repoBranches, git.ref, onGit]);
   return (
     <>
       <div className="git-source">
@@ -1271,15 +1300,15 @@ function GitFields({
           fieldRef={fieldRef}
           value={git.url}
           repositories={repositories}
-          error={errors["git.url"] ?? repository.failed}
+          error={errors["git.url"] ?? (repository.authRequired ? undefined : repository.failed)}
           hint={repository.state}
-          onChange={(url) => onGit({ url }, "git.url")}
+          onChange={(url) => onGit({ url, gitLogin: "" }, "git.url")}
         />
         {branchOptions.length > 1 ? (
           <SelectField
             label={t`Branch`}
             mono
-            value={git.ref === repository.defaultBranch ? "" : git.ref}
+            value={git.ref === repoDefaultBranch ? "" : git.ref}
             error={errors["git.ref"]}
             options={branchOptions}
             onChange={(event) => {
@@ -1292,22 +1321,38 @@ function GitFields({
             label={t`Branch`}
             icon="branch"
             mono
-            placeholder={repository.defaultBranch || "main"}
+            placeholder={repoDefaultBranch || "main"}
             value={git.ref}
             error={errors["git.ref"]}
             onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
           />
         )}
       </div>
+      <DeployKeySetup
+        project={project}
+        repository={git.url}
+        activeKey={matchedKey}
+        authRequired={repository.authRequired}
+        sshAddress={sshAddress}
+        onCreated={(k) => {
+          onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
+          void deployKeys.refetch();
+        }}
+        onVerified={(k, branches, defaultBranch) => {
+          onGit({ url: k.repository, gitLogin: k.gitLogin }, "git.url");
+          setTestedRepo({ url: k.repository, branches, defaultBranch, gitLogin: k.gitLogin });
+          void deployKeys.refetch();
+        }}
+      />
       <BuildRow
-        git={git}
+        git={effectiveGitLogin ? { ...git, gitLogin: effectiveGitLogin } : git}
         project={project}
         server={server}
         waitForServer={waitForServer || !serversKnown}
         showBuild={showBuild}
         onShowBuild={onShowBuild}
         onExposed={setExposed}
-        checked={repository.checked}
+        checked={repoChecked}
         onRegistryLogins={(registryLogins) => onGit({ registryLogins })}
       />
       {showBuild ? (
@@ -1440,9 +1485,12 @@ function useRepository(
   typed: string,
   project: string,
   repositories: readonly GitRepository[],
+  gitLogin: string,
+  pauseLookup: boolean,
 ): {
   state?: ReactNode;
   failed?: ReactNode;
+  authRequired: boolean;
   /** True once it answered for the URL as it is typed now. */
   checked: boolean;
   /** The URL it answered for. */
@@ -1458,17 +1506,30 @@ function useRepository(
   }, [typed]);
   // Having the control server ask a repository is a developer's, as planning is (ADR 0059).
   const allowed = useMay()(BuildService.method.listRepositoryBranches).allowed;
-  const worth = looksLikeRepository(typed) && allowed;
-  // For the project, as its builds fetch it: through its GitHub App installation where one reaches it (ADR 0098).
+  const worth = looksLikeRepository(typed) && allowed && !pauseLookup;
+  // For the project, as its builds fetch it: through its GitHub App installation or SSH deploy key (ADR 0098, ADR 0113).
   const asked = useQuery(
     BuildService.method.listRepositoryBranches,
-    { url, project },
-    { enabled: allowed && looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+    { url, project, ...(gitLogin ? { gitLogin } : {}) },
+    {
+      enabled: allowed && !pauseLookup && looksLikeRepository(url),
+      retry: false,
+      staleTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+    },
   );
-  if (!worth) return { checked: false, url, branches: [], defaultBranch: "" };
+  if (!worth) return { authRequired: false, checked: false, url, branches: [], defaultBranch: "" };
   if (url !== typed.trim() || asked.isFetching)
-    return { state: t`Checking the repository`, checked: false, url, branches: [], defaultBranch: "" };
+    return {
+      state: t`Checking the repository`,
+      authRequired: false,
+      checked: false,
+      url,
+      branches: [],
+      defaultBranch: "",
+    };
   if (asked.error) {
+    const authRequired = reasonOf(asked.error) === "auth_required";
     // A URL that can't be one says what to change; anything else may answer if asked again.
     const again =
       asked.error instanceof ConnectError && asked.error.code === Code.InvalidArgument ? null : (
@@ -1486,6 +1547,7 @@ function useRepository(
           {again}
         </>
       ),
+      authRequired,
       checked: false,
       url,
       branches: [],
@@ -1494,30 +1556,41 @@ function useRepository(
   }
   const branches = asked.data?.branches ?? [];
   const count = asked.data?.total || branches.length;
-  const through = asked.data?.gitLogin ? repositories.find((r) => sameRepository(r.url, url)) : undefined;
+  const login = asked.data?.gitLogin || gitLogin;
+  const deployKey = deployKeyNameOf(login);
+  const through = login && !deployKey ? repositories.find((r) => sameRepository(r.url, url)) : undefined;
   const account = through?.account ?? "";
   return {
+    authRequired: false,
     checked: true,
     url,
-    state: !asked.data?.gitLogin
+    state: !login
       ? plural(count, { one: "Public · # branch", other: "Public · # branches" })
-      : through?.private
+      : deployKey
         ? plural(count, {
-            one: `Private, through ${account} · # branch`,
-            other: `Private, through ${account} · # branches`,
+            one: `Private, with deploy key ${deployKey} · # branch`,
+            other: `Private, with deploy key ${deployKey} · # branches`,
           })
-        : plural(count, {
-            one: "Through the GitHub App · # branch",
-            other: "Through the GitHub App · # branches",
-          }),
+        : through?.private
+          ? plural(count, {
+              one: `Private, through ${account} · # branch`,
+              other: `Private, through ${account} · # branches`,
+            })
+          : plural(count, {
+              one: "Through the GitHub App · # branch",
+              other: "Through the GitHub App · # branches",
+            }),
     branches,
     defaultBranch: asked.data?.defaultBranch ?? "",
   };
 }
 
-/** A repository's URL that is worth reading: a host, then a path. */
+/** A repository's URL that is worth reading: a host, then a path (HTTP(S), bare host, ssh://, or user@host:path). */
 function looksLikeRepository(url: string): boolean {
-  return /^(https?:\/\/)?[^\s/]+[.:][^\s/]*\/[^\s]+$/.test(url.trim());
+  const trimmed = url.trim();
+  if (/^ssh:\/\/[^\s/]+\/[^\s]+$/i.test(trimmed)) return true;
+  if (/^[a-zA-Z0-9._-]+@[^:/\s]+:[^\s]+$/.test(trimmed)) return true;
+  return /^(https?:\/\/)?[^\s/]+[.:][^\s/]*\/[^\s]+$/.test(trimmed);
 }
 
 /**
@@ -1561,6 +1634,7 @@ function BuildRow({
     git.buildCommand,
     git.startCommand,
     git.args,
+    git.gitLogin ?? "",
     server,
     waitForServer,
   ]);
@@ -1569,9 +1643,9 @@ function BuildRow({
     const id = setTimeout(() => setSettled(wanted), 600);
     return () => clearTimeout(id);
   }, [wanted]);
-  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, on, waiting] = JSON.parse(
+  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, gitLogin, on, waiting] = JSON.parse(
     settled,
-  ) as [string, string, string, string, GitForm["builder"], string, string, string, string, boolean];
+  ) as [string, string, string, string, GitForm["builder"], string, string, string, string, string, boolean];
   // A reading checks out on the server that will build it, and none is chosen yet.
   // Reading how it builds is a developer's where it goes, as planning is (ADR 0059).
   const allowed = useMay()(BuildService.method.detectBuild).allowed;
@@ -1579,7 +1653,7 @@ function BuildRow({
   const read = useQuery(
     BuildService.method.detectBuild,
     {
-      build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }),
+      build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args, gitLogin }),
       server: on,
       project,
     },

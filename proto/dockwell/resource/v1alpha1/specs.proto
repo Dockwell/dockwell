@@ -1225,18 +1225,20 @@ message ImageBuild {
   // the block registry logins hold, 100 to 109.
   repeated string registry_logins = 100;
   // What fetches a private repository: a GitHub App's installation, as
-  // "<App name>/<installation ID>", whose token for the repository alone the
-  // control plane asks for as each read and build needs one (ADR 0098). A plan
-  // names it where one installation of the project reaches the repository and
-  // the edit leaves it out. Empty fetches as the public. Numbered after the
+  // "<App name>/<installation ID>" (ADR 0098), or an SSH deploy key in the
+  // app's project, as "ssh:<key name>" (ADR 0113). A plan names it where an
+  // installation or deploy key of the project matches the repository and the
+  // edit leaves it out. Empty fetches as the public. Numbered after the
   // registry logins, as ADR 0098 has it.
   string git_login = 101;
 }
 
 // GitSource is a Git repository Dockwell builds from.
 message GitSource {
-  // The repository, such as "https://github.com/acme/web.git", over HTTPS, or
-  // HTTP on a private network. It can't hold a user, a password or a token.
+  // The repository, such as "https://github.com/acme/web.git", over HTTPS,
+  // HTTP on a private network, or SSH ("ssh://git@host/owner/repo.git" or
+  // "git@host:owner/repo.git") with a deploy key (ADR 0113). It can't hold a
+  // password or a token.
   string url = 1;
   // The branch or tag to build, such as "main" or "v1.4.2", or a commit's 40
   // hex digits. Empty takes the repository's default branch.
@@ -2064,6 +2066,9 @@ message Spec {
     // A GitLab connection for CI commit statuses, kind "gitlab.connection"
     // (ADR 0111). Numbered in the block Git providers hold, 130 to 139.
     GitLabConnection gitlab_connection = 131;
+    // An SSH deploy key for a private Git repository, kind "git.deploy_key"
+    // (ADR 0113). Project-scoped; private keys are sealed at rest (ADR 0022).
+    GitDeployKey git_deploy_key = 135;
   }
 }
 
@@ -2875,4 +2880,54 @@ enum ContainerLoggingMode {
 message ContainerLogging {
   ContainerLoggingMode mode = 1;
   DockerDaemonLogging limits = 2;
+}
+
+// GitDeployKey is a project-scoped Ed25519 SSH deploy key for fetching a
+// private Git repository over SSH (ADR 0113). Its private keys stay sealed on
+// the control plane (ADR 0022) and never reach agents, APIs, plans or logs.
+message GitDeployKey {
+  // Normalized SSH repository URL, such as "ssh://git@gitlab.com/acme/web.git".
+  string repository = 1;
+  // SSH host (lowercase hostname or IP address).
+  string host = 2;
+  // SSH port; 22 when 0.
+  uint32 port = 3;
+  // SSH username; "git" when empty.
+  string user = 4;
+  // Key type, such as "ssh-ed25519".
+  string key_type = 5;
+  // OpenSSH public key line to paste into the repository's deploy keys.
+  string public_key = 6;
+  // OpenSSH SHA-256 fingerprint of public_key ("SHA256:...").
+  string key_fingerprint = 7;
+  // OpenSSH private key PEM; sealed at rest and never returned.
+  string private_key = 8 [
+    (sensitive) = true,
+    (no_flag) = true
+  ];
+  // Pinned SSH host key algorithm (for example "ssh-ed25519").
+  string host_key_algorithm = 9;
+  // Pinned SSH host key OpenSSH SHA-256 fingerprint ("SHA256:..."). Empty until
+  // accepted during a test.
+  string host_key_fingerprint = 10;
+  // Unix seconds when the deploy key was created.
+  int64 created_at = 11;
+  // Unix seconds when the deploy key was last rotated, or 0 if never rotated.
+  int64 rotated_at = 12;
+  // Pending replacement private key during rotation until a test succeeds.
+  string pending_private_key = 13 [
+    (sensitive) = true,
+    (no_flag) = true
+  ];
+  // OpenSSH public key line of the pending replacement key.
+  string pending_public_key = 14;
+  // Key type of the pending replacement key.
+  string pending_key_type = 15;
+  // SHA-256 fingerprint of the pending replacement key.
+  string pending_key_fingerprint = 16;
+  // Unix seconds when the pending replacement key was generated.
+  int64 pending_created_at = 17;
+  // Observed host key details when a fetch detected a host key change.
+  string observed_host_key_algorithm = 18;
+  string observed_host_key_fingerprint = 19;
 }

@@ -552,6 +552,10 @@ message Hello {
   // and a reading's the same way (DetectBuildCall.git_auth) (ADR 0098). Numbered
   // in the block GitHub Apps hold, 360 to 369.
   bool build_git_auth = 361;
+  // True when the agent accepts a pre-fetched, verified Git pack streamed over
+  // ReceiveFile for builds and detections (ADR 0113). Numbered in the Git block,
+  // 360 to 369.
+  bool build_git_bundle = 365;
   // True when the agent reads what Coolify or Dokploy runs on the server, from
   // Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
   // to 339 in agent messages (ADR 0089).
@@ -2648,6 +2652,10 @@ message DesiredResource {
   // delivery key as a step's values are (ADR 0098). Numbered in the block GitHub
   // Apps hold, 360 to 369.
   bytes build_git_auth = 360;
+  // ReceiveFile transfer token carrying a verified Git pack fetched on the
+  // control plane with an SSH deploy key (ADR 0113). 0 when the builder fetches
+  // over HTTP/HTTPS itself.
+  uint64 build_git_bundle_stream = 366;
   // Stops or starts the own containers and services of the panel an import came
   // from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
   PanelAction panel = 333;
@@ -2757,6 +2765,9 @@ message DetectBuildCall {
   // delivery key for resource.DetectGitRef, as a build's is (ADR 0098). An agent
   // that says Hello.build_git_auth opens it.
   bytes git_auth = 362;
+  // ReceiveFile transfer token carrying a verified Git pack fetched on the
+  // control plane with an SSH deploy key (ADR 0113).
+  uint64 git_bundle_stream = 367;
 }
 
 // DetectBuildResult is what reading the commit found.

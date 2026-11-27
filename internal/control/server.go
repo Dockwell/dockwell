@@ -69,6 +69,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/github"
+	"github.com/dockwell/dockwell/internal/control/gitkeys"
 	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/control/gitproviders"
 	"github.com/dockwell/dockwell/internal/control/health"
@@ -132,6 +133,9 @@ type Config struct {
 	// Sources reads what a build's branch names (ADR 0046). Nil asks each
 	// repository over Git's smart HTTP protocol (package gitref).
 	Sources revision.Sources
+	// GitKeysLocal allows SSH deploy keys to dial loopback hosts in tests and
+	// under DOCKWELL_TEST=1 (ADR 0113).
+	GitKeysLocal bool
 	// Updates says what newer image each service has, for an update that names
 	// none and for automatic updates (ADR 0080), in place of ADR 0079's keeper,
 	// which reads them otherwise. Nil takes the keeper's.
@@ -745,10 +749,11 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 			// A test's Git server is on this machine.
 			base = &gitref.Resolver{Local: testing.Testing()}
 		}
-		// A private repository reads through the GitHub App's installation its build
-		// names, once the App's handler is made (ADR 0098).
+		// A private repository reads through the GitHub App's installation or
+		// project SSH deploy key its build names (ADR 0098, ADR 0113).
 		appSources := &gitproviders.Sources{Base: base}
-		var sources revision.Sources = appSources
+		keySources := &gitkeys.Sources{Base: appSources}
+		var sources revision.Sources = keySources
 		cfg.Changes.SetSources(sources)
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		serviceHandler.Installs = catalogHandler
@@ -851,14 +856,22 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
 			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
 			appSources.SetApps(apps)
-			ch.SetGitLogins(apps)
+			deployKeys := gitkeys.New(gitkeys.Config{
+				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
+				Local: cfg.GitKeysLocal || testing.Testing(),
+			})
+			handle(dockwellv1connect.NewGitDeployKeyServiceHandler(deployKeys, opts...))
+			keySources.SetKeys(deployKeys)
+			logins := &gitkeys.MultiGitLogins{Keys: deployKeys, Fallback: apps}
+			ch.SetGitLogins(logins)
 			if cfg.Agents != nil {
 				cfg.Agents.SendGitAuth(apps.AuthorizationIn)
 				cfg.Agents.SendDockerBuildGitAuth(apps.DockerBuildAuthorization)
+				cfg.Agents.SendGitPack(deployKeys.FetchPackIn)
 			}
 			if buildHandler != nil {
 				// A form's readings fetch a private repository as the plan will.
-				buildHandler.SetGitLogins(apps)
+				buildHandler.SetGitLogins(logins)
 			}
 		}
 		if cfg.Store != nil {

@@ -105,6 +105,7 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		return 99
 	}
 	envs[gitAuthEnv] = e.gitAuthOf(c)
+	envs[gitPackEnv] = e.gitPackOf(c)
 	var co checkedOut
 	if staged := e.hostPathOf(c, "/run/dockwell-build-context"); staged != "" {
 		co.context = staged
@@ -530,7 +531,15 @@ type checkedOut struct {
 // the real git, says what it is, and finds the build's folder and Dockerfile.
 // gitAuthEnv is where checkout finds the Authorization a builder was given for its
 // repository, in its environment's map, as no real container's environment has it.
-const gitAuthEnv = "dockertest:git-auth"
+const (
+	gitAuthEnv = "dockertest:git-auth"
+	gitPackEnv = "dockertest:git-pack"
+)
+
+// gitPackOf returns the host path of a mounted Git pack fetched over SSH, or "".
+func (e *Engine) gitPackOf(c *container) string {
+	return e.hostPathOf(c, "/run/dockwell-git-pack/source.pack")
+}
 
 // gitAuthOf is the Authorization a builder or a reading was given for its
 // repository, read from its mount as the script reads it (ADR 0098), or "".
@@ -583,8 +592,25 @@ func checkout(envs map[string]string, stderr io.Writer, says ...func(string)) (c
 	if git("init", "-q") != nil {
 		return failed("fetch")
 	}
-	// As the script does: the branch, and the commit only if the branch has it.
-	if ref == commit {
+	if packPath := envs[gitPackEnv]; packPath != "" {
+		if err := os.WriteFile(filepath.Join(src, ".git", "shallow"), []byte(commit+"\n"), 0o600); err != nil {
+			return failed("fetch")
+		}
+		packFile, err := os.Open(packPath) //nolint:gosec // test fixture pack path
+		if err != nil {
+			return failed("fetch")
+		}
+		cmd := exec.CommandContext(context.Background(), "git", "index-pack", "--stdin", "--keep")
+		cmd.Dir = src
+		cmd.Stdin = packFile
+		out, err := cmd.CombinedOutput()
+		_ = packFile.Close()
+		if err != nil {
+			_, _ = stderr.Write(out)
+			return failed("fetch")
+		}
+	} else if ref == commit {
+		// As the script does: the branch, and the commit only if the branch has it.
 		if git("fetch", "-q", "--depth", "1", envs["DW_URL"], commit) != nil {
 			return failed("fetch")
 		}

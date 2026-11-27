@@ -30,7 +30,10 @@ const (
 	registriesMount = "/run/dockwell-registries"
 	// gitAuthMount holds the Authorization a private repository is fetched with,
 	// read-only, in memory (ADR 0098).
-	gitAuthMount       = "/run/dockwell-git"
+	gitAuthMount = "/run/dockwell-git"
+	// gitPackMount holds a verified Git pack fetched on the control plane over
+	// SSH with a deploy key, read-only (ADR 0113).
+	gitPackMount       = "/run/dockwell-git-pack"
 	sourceDir          = "/src"
 	standaloneMount    = "/run/dockwell-build-input"
 	stagedContextMount = "/run/dockwell-build-context"
@@ -63,15 +66,20 @@ const gitAuthDone = "unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0\
 const fetchScript = gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q
-git remote add origin "$DW_URL"
-on() { git merge-base --is-ancestor "$DW_COMMIT" "FETCH_HEAD^{commit}" 2>/dev/null; }
-if [ "$DW_REF" = "$DW_COMMIT" ]; then
-  if ! git fetch -q --depth 1 origin "$DW_COMMIT" 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3; fi
-elif git fetch -q --depth 1 origin "${DW_REF:-HEAD}" 2>/tmp/fetch.log && on; then :
-elif git fetch -q --depth 200 origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
-elif git fetch -q --filter=blob:none --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
-elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null; then say fail notonref; exit 3
-else tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3
+if [ -r ` + gitPackMount + `/source.pack ]; then
+  printf '%s\n' "$DW_COMMIT" > .git/shallow
+  if ! git index-pack --stdin --keep < ` + gitPackMount + `/source.pack >/dev/null 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3; fi
+else
+  git remote add origin "$DW_URL"
+  on() { git merge-base --is-ancestor "$DW_COMMIT" "FETCH_HEAD^{commit}" 2>/dev/null; }
+  if [ "$DW_REF" = "$DW_COMMIT" ]; then
+    if ! git fetch -q --depth 1 origin "$DW_COMMIT" 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3; fi
+  elif git fetch -q --depth 1 origin "${DW_REF:-HEAD}" 2>/tmp/fetch.log && on; then :
+  elif git fetch -q --depth 200 origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+  elif git fetch -q --filter=blob:none --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+  elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null; then say fail notonref; exit 3
+  else tail -n 5 /tmp/fetch.log >&2; say fail fetch; exit 3
+  fi
 fi
 git -c advice.detachedHead=false checkout -q "$DW_COMMIT"
 ` + gitAuthDone + `say commit "$(git log -1 --format=%an | base64 | tr -d '\n')" "$(git log -1 --format=%s | base64 | tr -d '\n')"

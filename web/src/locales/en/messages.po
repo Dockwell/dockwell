@@ -4953,6 +4953,168 @@ msgstr "Stops it and removes its container. Its volumes stay, and you review a p
 msgid "Takes {0} in one plan, to review first."
 msgstr "Takes {0} in one plan, to review first."
 
+msgid "Accept host key and test"
+msgstr "Accept host key and test"
+
+msgid "Accept new host key"
+msgstr "Accept new host key"
+
+msgid "Active public key"
+msgstr "Active public key"
+
+msgid "Add this new key alongside the current one with read-only access, then test it. Dockwell switches only after the test passes."
+msgstr "Add this new key alongside the current one with read-only access, then test it. Dockwell switches only after the test passes."
+
+msgid "Add this public key to your Git host with read-only access, then test it."
+msgstr "Add this public key to your Git host with read-only access, then test it."
+
+msgid "Add this public key to {hostName} with read-only access, then test it."
+msgstr "Add this public key to {hostName} with read-only access, then test it."
+
+msgid "Cancel rotation"
+msgstr "Cancel rotation"
+
+msgid "Choose a project first."
+msgstr "Choose a project first."
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "Compare <0>{obsAlgo}</0> <1>{obsFP}</1> with {0}'s published key."
+msgstr "Compare <0>{obsAlgo}</0> <1>{obsFP}</1> with {0}'s published key."
+
+msgid "Connect over SSH"
+msgstr "Connect over SSH"
+
+msgid "Connection test failed"
+msgstr "Connection test failed"
+
+msgid "Connection works"
+msgstr "Connection works"
+
+msgid "Copy key"
+msgstr "Copy key"
+
+msgid "Copy new key"
+msgstr "Copy new key"
+
+msgid "Couldn't create the deploy key"
+msgstr "Couldn't create the deploy key"
+
+msgid "Delete key"
+msgstr "Delete key"
+
+#. placeholder {0}: key.name
+msgid "Deploy key <0>{0}</0>"
+msgstr "Deploy key <0>{0}</0>"
+
+msgid "Deploy key error"
+msgstr "Deploy key error"
+
+msgid "Deploy key rotated"
+msgstr "Deploy key rotated"
+
+#. placeholder {0}: current.name
+msgid "Deploy key {0}"
+msgstr "Deploy key {0}"
+
+msgid "Dockwell now uses the new key. Delete the old key (<0>{rotatedOldFP}</0>) from your Git host."
+msgstr "Dockwell now uses the new key. Delete the old key (<0>{rotatedOldFP}</0>) from your Git host."
+
+#. placeholder {0}: key.hostKeyFingerprint
+msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1> (pinned: <2>{0}</2>)."
+msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1> (pinned: <2>{0}</2>)."
+
+msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
+msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
+
+msgid "Generate a replacement key without interrupting builds. The current key stays active until the new key passes a test."
+msgstr "Generate a replacement key without interrupting builds. The current key stays active until the new key passes a test."
+
+msgid "Generate an Ed25519 deploy key for this project to fetch over SSH."
+msgstr "Generate an Ed25519 deploy key for this project to fetch over SSH."
+
+msgid "Host key changed"
+msgstr "Host key changed"
+
+#. placeholder {0}: key.hostKeyFingerprint
+msgid "Host key pinned (<0>{0}</0>)."
+msgstr "Host key pinned (<0>{0}</0>)."
+
+msgid "Host pinned"
+msgstr "Host pinned"
+
+msgid "Key copied"
+msgstr "Key copied"
+
+msgid "Key fingerprint"
+msgstr "Key fingerprint"
+
+msgid "Key type"
+msgstr "Key type"
+
+msgid "Last rotated"
+msgstr "Last rotated"
+
+msgid "New key copied"
+msgstr "New key copied"
+
+msgid "Not pinned yet"
+msgstr "Not pinned yet"
+
+msgid "Not tested yet"
+msgstr "Not tested yet"
+
+msgid "Open deploy keys"
+msgstr "Open deploy keys"
+
+msgid "Open {hostName} deploy keys"
+msgstr "Open {hostName} deploy keys"
+
+msgid "Private repository"
+msgstr "Private repository"
+
+#. placeholder {0}: lastTest.branches.length
+#. placeholder {1}: current.host
+msgid "Read {0} branches from {1}."
+msgstr "Read {0} branches from {1}."
+
+msgid "Ready"
+msgstr "Ready"
+
+msgid "Repository"
+msgstr "Repository"
+
+msgid "Rotate key"
+msgstr "Rotate key"
+
+msgid "SSH host key"
+msgstr "SSH host key"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Test connection"
+msgstr "Test connection"
+
+msgid "Test new key"
+msgstr "Test new key"
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "The SSH host key for {0} changed"
+msgstr "The SSH host key for {0} changed"
+
+msgid "This repository needs access. Generate an Ed25519 deploy key for this project."
+msgstr "This repository needs access. Generate an Ed25519 deploy key for this project."
+
+msgid "Use a deploy key"
+msgstr "Use a deploy key"
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "Verify {0}'s SSH host key"
+msgstr "Verify {0}'s SSH host key"
+
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> is still deploying. You can review this plan once that ends."
 
@@ -6216,6 +6378,9 @@ msgstr "{count, plural, one {# other app is here. Otherwise it stays as it is.} 
 msgid "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
 msgstr "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
 
+msgid "{count, plural, one {Private, with deploy key {deployKey} · # branch} other {Private, with deploy key {deployKey} · # branches}}"
+msgstr "{count, plural, one {Private, with deploy key {deployKey} · # branch} other {Private, with deploy key {deployKey} · # branches}}"
+
 msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
 msgstr "{count, plural, one {Public · # branch} other {Public · # branches}}"
 
@@ -6544,9 +6709,6 @@ msgstr "Private"
 msgid "Repositories"
 msgstr "Repositories"
 
-msgid "Repository"
-msgstr "Repository"
-
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
 
@@ -6671,6 +6833,9 @@ msgstr "Last push {ago} wasn't to the branch {name} builds."
 msgid "Last push {ago}: {name} runs {commit} already."
 msgstr "Last push {ago}: {name} runs {commit} already."
 
+msgid "Manage deploy key"
+msgstr "Manage deploy key"
+
 msgid "No push has come yet."
 msgstr "No push has come yet."
 
@@ -6692,6 +6857,9 @@ msgstr "Payload URL"
 msgid "Pushes to {branch} don't deploy {name}."
 msgstr "Pushes to {branch} don't deploy {name}."
 
+msgid "Review deploy key"
+msgstr "Review deploy key"
+
 msgid "Secret copied"
 msgstr "Secret copied"
 
@@ -6712,6 +6880,9 @@ msgstr "The GitHub App can't reach {name} any more."
 
 msgid "The GitHub App was deleted on GitHub."
 msgstr "The GitHub App was deleted on GitHub."
+
+msgid "The SSH host key changed, so fetches are stopped."
+msgstr "The SSH host key changed, so fetches are stopped."
 
 msgid "The hook now refuses pushes. Remove it from the repository too."
 msgstr "The hook now refuses pushes. Remove it from the repository too."
@@ -6739,6 +6910,9 @@ msgstr "through the GitHub App"
 
 msgid "through the GitHub App on {account}"
 msgstr "through the GitHub App on {account}"
+
+msgid "with deploy key {keyName}"
+msgstr "with deploy key {keyName}"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} can't reach this panel's address."
@@ -8513,9 +8687,6 @@ msgstr "Monthly"
 
 msgid "No backups yet"
 msgstr "No backups yet"
-
-msgid "Not tested yet"
-msgstr "Not tested yet"
 
 msgid "Not tested: {why}"
 msgstr "Not tested: {why}"
@@ -12703,6 +12874,10 @@ msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub 
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} ({ref}) on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 
@@ -12713,6 +12888,10 @@ msgstr "Builds {repository} at {commit} on {0} first, through the GitHub App on 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
@@ -16611,9 +16790,6 @@ msgstr "No image transfers on this server."
 
 msgid "Reading image transfers"
 msgstr "Reading image transfers"
-
-msgid "Ready"
-msgstr "Ready"
 
 msgid "Retry transfers"
 msgstr "Retry transfers"

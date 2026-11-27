@@ -21,6 +21,7 @@ import {
   FileService,
   FirewallService,
   GetVersionResponseSchema,
+  GitDeployKeyService,
   GitHookService,
   GitProviderService,
   HealthService,
@@ -84,6 +85,7 @@ export type Api = {
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
   websites?: Partial<ServiceImpl<typeof WebsiteService>>;
   builds?: Partial<ServiceImpl<typeof BuildService>>;
+  gitKeys?: Partial<ServiceImpl<typeof GitDeployKeyService>>;
   hooks?: Partial<ServiceImpl<typeof GitHookService>>;
   gitProviders?: Partial<ServiceImpl<typeof GitProviderService>>;
   audit?: Partial<ServiceImpl<typeof AuditService>>;
@@ -203,6 +205,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(ConnectionService, { listConnections: () => ({}), ...api.connections });
       service(WebsiteService, { listWebsites: () => ({}), ...api.websites });
       service(BuildService, api.builds ?? {});
+      service(GitDeployKeyService, { listGitDeployKeys: () => ({}), ...api.gitKeys });
       // An app that builds from Git has deploy on push off unless a test says.
       service(GitHookService, { getGitHook: () => ({}), ...api.hooks });
       // No GitHub App is connected unless a test says, and so no project has its repositories.

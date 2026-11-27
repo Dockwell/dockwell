@@ -86,7 +86,10 @@ type Agents struct {
 	// logins picks the registry login a pull signs in with (ADR 0086).
 	logins Logins
 	// gitAuth asks for what fetches a build's private repository (ADR 0098).
-	gitAuth            GitAuth
+	gitAuth GitAuth
+	// gitPack fetches a verified Git pack on the control plane for a build or
+	// detection that uses an SSH deploy key (ADR 0113).
+	gitPack            GitPackFetcher
 	dockerBuildGitAuth GitAuth
 	// scopes says what people call an environment, which its services'
 	// containers are named after.
@@ -531,7 +534,7 @@ type sessionPeer struct {
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, peers ...sessionPeer) *Session {
 	s := &Session{
 		agents: a, keepsControlBackups: hello.GetKeepsControlBackups(), guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), filesRest: hello.GetFilesRest(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), handsGitBundle: hello.GetBuildGitBundle(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), websiteHandy: hello.GetWebsiteHandy(), hostToolbox: hello.GetHostToolbox(), hostToolboxRecovery: hello.GetHostToolboxRecoveryError(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -736,6 +739,9 @@ type Session struct {
 	// handsGitAuth says the agent hands a build's fetch what it's sent for its
 	// private repository (ADR 0098).
 	handsGitAuth bool
+	// handsGitBundle says the agent accepts a verified Git pack streamed over
+	// ReceiveFile for builds and detections with SSH deploy keys (ADR 0113).
+	handsGitBundle bool
 	// loadsCertificates says the agent serves the certificates the control plane
 	// proves by DNS-01 (ADR 0088).
 	loadsCertificates bool
@@ -1759,6 +1765,19 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err != nil {
 		return err
 	}
+	packReader, packSize, cleanupPack, err := s.buildGitPack(ctx, step, desired)
+	if err != nil {
+		return err
+	}
+	if cleanupPack != nil {
+		defer cleanupPack()
+	}
+	var packTransfer *transfer
+	defer func() {
+		if packTransfer != nil {
+			s.agents.closeTransfer(packTransfer)
+		}
+	}()
 	// An upgrade of the agent carries the control plane's install script, over this
 	// stream alone (ADR 0094).
 	if step.AgentUpgrade != nil {
@@ -1777,7 +1796,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, Undoes: d.Undoes, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if workload || logging || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
+	if workload || logging || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" || packReader != nil {
 		seal = func(on *Session) error {
 			if pause && !on.managedContainerPause {
 				return on.managedPauseError()
@@ -1815,6 +1834,16 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 					return err
 				}
 				call.Desired.BuildGitAuth = sealed
+			}
+			if packReader != nil {
+				if !on.handsGitBundle || !on.transfersFiles {
+					return fmt.Errorf("the agent on %s can't build with an SSH deploy key yet. Update the agent on %s, then deploy again", on.name, on.name)
+				}
+				if packTransfer != nil {
+					s.agents.closeTransfer(packTransfer)
+				}
+				packTransfer = on.openGitPackTransfer(packReader, packSize)
+				call.Desired.BuildGitBundleStream = packTransfer.token
 			}
 			return nil
 		}
@@ -2796,6 +2825,16 @@ func (s *Session) DetectBuild(ctx context.Context, call *agentv1.DetectBuildCall
 	prepare, err := s.detectGitAuth(ctx, call)
 	if err != nil {
 		return nil, err
+	}
+	packPrepare, cleanupPack, err := s.detectGitPack(ctx, call)
+	if err != nil {
+		return nil, err
+	}
+	if cleanupPack != nil {
+		defer cleanupPack()
+	}
+	if packPrepare != nil {
+		prepare = packPrepare
 	}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DetectBuild{DetectBuild: call}}, DetectTimeout, prepare)
 	if err != nil {

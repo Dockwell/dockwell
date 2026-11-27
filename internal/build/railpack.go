@@ -285,18 +285,23 @@ export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false HOME=/tmp
 ` + gitAuthScript + `say phase fetch
 mkdir -p ` + sourceDir + ` && cd ` + sourceDir + `
 git init -q 3>&-
-git remote add origin "$DW_URL"
-git config remote.origin.promisor true
-git config remote.origin.partialclonefilter blob:none
-f() { git fetch -q --filter=blob:none "$@" 3>&-; }
-on() { git merge-base --is-ancestor "$DW_COMMIT" "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; }
-if [ "$DW_REF" = "$DW_COMMIT" ]; then
-  if ! f --depth 1 origin "$DW_COMMIT" 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log; say fail fetch; exit 3; fi
-elif f --depth 1 origin "${DW_REF:-HEAD}" 2>/tmp/fetch.log && on; then :
-elif f --depth 200 origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
-elif f --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
-elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; then say fail notonref; exit 3
-else tail -n 5 /tmp/fetch.log; say fail fetch; exit 3
+if [ -r ` + gitPackMount + `/source.pack ]; then
+  printf '%s\n' "$DW_COMMIT" > .git/shallow
+  if ! git index-pack --stdin --keep < ` + gitPackMount + `/source.pack >/dev/null 2>/tmp/fetch.log 3>&-; then tail -n 5 /tmp/fetch.log; say fail fetch; exit 3; fi
+else
+  git remote add origin "$DW_URL"
+  git config remote.origin.promisor true
+  git config remote.origin.partialclonefilter blob:none
+  f() { git fetch -q --filter=blob:none "$@" 3>&-; }
+  on() { git merge-base --is-ancestor "$DW_COMMIT" "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; }
+  if [ "$DW_REF" = "$DW_COMMIT" ]; then
+    if ! f --depth 1 origin "$DW_COMMIT" 2>/tmp/fetch.log; then tail -n 5 /tmp/fetch.log; say fail fetch; exit 3; fi
+  elif f --depth 1 origin "${DW_REF:-HEAD}" 2>/tmp/fetch.log && on; then :
+  elif f --depth 200 origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+  elif f --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
+  elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; then say fail notonref; exit 3
+  else tail -n 5 /tmp/fetch.log; say fail fetch; exit 3
+  fi
 fi
 ` + detectCommitDockerfile + `
 if [ "$DW_BUILDER" = dockerfile ] && [ -z "$dfobj" ]; then say fail dockerfile; exit 3; fi
@@ -463,6 +468,9 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 	mounts := []docker.Mount{{Type: "volume", Source: RailpackVolume, Target: railpackRO, ReadOnly: true}}
 	if gitDir != "" {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: gitDir, Target: gitAuthMount, ReadOnly: true})
+	}
+	if req.GitPackPath != "" {
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: req.GitPackPath, Target: gitPackMount, ReadOnly: true})
 	}
 	create := &docker.CreateRequest{
 		Config: docker.Config{
