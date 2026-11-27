@@ -538,6 +538,7 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}
+	linkJoins(cfg.Drivers, cfg.Desired)
 	cfg.unfinished = newUnfinished()
 	defer resource.OnPathBack(cfg.unfinished.wake)()
 	cfg.forwards = &forwardPool{}

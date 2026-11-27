@@ -5,6 +5,7 @@ package control
 import (
 	"bytes"
 	"io"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -25,7 +26,9 @@ import (
 
 func TestClickHouseInstallAndLink(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		f := storageControl(t, b, nil, "")
+		engine := dockertest.New(t)
+		f := storageControl(t, b, engine.Client(), "")
+		f.engine = engine
 		testClickHouseInstallAndLink(t, f)
 	})
 }
@@ -193,21 +196,47 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	}
 	applyConfirmed(t, f.changes, link)
 	app := f.workload(t, appEnv)
-	if !slices.Contains(app.Config.Env, "CLICKHOUSE_NATIVE_PORT=9000") || !slices.ContainsFunc(app.Config.Env, func(v string) bool {
-		return strings.HasPrefix(v, "CLICKHOUSE_URL=http://default:") && strings.HasSuffix(v, "@db:8123/default")
-	}) {
+	var rawURL, native string
+	for _, value := range app.Config.Env {
+		if v, ok := strings.CutPrefix(value, "CLICKHOUSE_URL="); ok {
+			rawURL = v
+		}
+		if v, ok := strings.CutPrefix(value, "CLICKHOUSE_NATIVE_PORT="); ok {
+			native = v
+		}
+	}
+	linkURL, err := url.Parse(rawURL)
+	if err != nil || linkURL.Scheme != "http" || linkURL.Host != "db:8123" ||
+		linkURL.Path != "/default" || linkURL.User.Username() != "default" || native != "9000" {
 		t.Fatal("the app did not receive both ClickHouse endpoints")
 	}
+	password, ok := linkURL.User.Password()
+	if !ok || password == "" {
+		t.Fatal("the app link did not receive its ClickHouse password")
+	}
+	encodedPassword := strings.TrimPrefix(url.UserPassword("", password).String(), ":")
+	redact := strings.NewReplacer(rawURL, linkURL.Redacted(), password, "[redacted]", encodedPassword, "[redacted]")
+	phase := "before restart"
+	linkNetwork := docker.ScopedName(docker.Project(appEnv), "clickhouse-link")
+	checkLink := func() {
+		t.Helper()
+		endpoint := inspect().NetworkSettings.Networks[linkNetwork]
+		if endpoint == nil || !slices.Contains(endpoint.Aliases, linkURL.Hostname()) {
+			t.Errorf("ClickHouse %s is missing alias %q on its app link network %s", phase, linkURL.Hostname(), linkNetwork)
+		}
+	}
+	checkLink()
 	query := func(sql string) string {
 		t.Helper()
-		var result bytes.Buffer
+		var result, stderr bytes.Buffer
 		code, err := dockerClient.Exec(t.Context(), app.ID, []string{
 			"sh", "-ec",
-			`wget -qO- --post-data "$1" "${CLICKHOUSE_URL%/*}/?database=${CLICKHOUSE_URL##*/}"`, "sh", sql,
+			`wget -SO- --post-data "$1" "${CLICKHOUSE_URL%/*}/?database=${CLICKHOUSE_URL##*/}"`, "sh", sql,
 		},
-			docker.Streams{Stdout: &result})
+			docker.Streams{Stdout: &result, Stderr: &stderr})
 		if err != nil || code != 0 {
-			t.Fatalf("query %q through the app link: exit %d, %v", sql, code, err)
+			t.Fatalf("query %q through the app link %s: exit %d, %v\nCLICKHOUSE_URL=%s CLICKHOUSE_NATIVE_PORT=%s\nwget stderr:\n%s",
+				sql, phase, code, err, linkURL.Redacted(), native, redact.Replace(stderr.String()))
 		}
 		return strings.TrimSpace(result.String())
 	}
@@ -240,6 +269,8 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 		t.Fatal(err)
 	}
 	applyConfirmed(t, f.changes, restart.Msg.GetChange())
+	phase = "after restart"
+	checkLink()
 	if f.engine == nil {
 		checkVolume()
 		if got := query("SELECT id FROM notes"); got != "42" {

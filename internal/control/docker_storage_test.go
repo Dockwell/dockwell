@@ -73,6 +73,7 @@ func storageControl(t *testing.T, backend store.Backend, client *docker.Client, 
 		s := &testServer{
 			id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 			client: client, backups: backups,
+			keeps: true,
 			drivers: resource.NewRegistry(&ctr, &service.Driver{Containers: ctr}, &network.Driver{Client: client},
 				&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, BacksUp: backups}),
 		}
