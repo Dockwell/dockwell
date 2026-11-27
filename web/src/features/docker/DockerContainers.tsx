@@ -294,7 +294,7 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
   }: ContainerActionProps) => {
     const key = row.key;
     const label = t`Actions for ${row.name}`;
-    if (!key) return { label, actions: [], row };
+    if (!key) return { label, actions: [], reasons: undefined, row };
     const canTake =
       onTakeOn && row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
     const showTakeOn = canTake && takeOnMode !== "menu";
@@ -352,7 +352,6 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
         id: start ? "start" : "stop",
         label,
         icon: start ? "play" : "stop",
-        unavailable: start ? t`Already running` : t`Already stopped`,
         ...mayPlan.off,
         ...(mayPlan.allowed && service && requireServicePlacement && !workloadServers
           ? { off: t`Dockwell couldn't read where this service runs. Refresh to try again.` }
@@ -368,7 +367,6 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
           id: pause ? "pause" : "unpause",
           label: pause ? t`Pause workload` : t`Unpause workload`,
           icon: pause ? "pause" : "play",
-          unavailable: pause ? t`Not running or already paused` : t`Not paused`,
           ...mayPlan.off,
           onSelect: () => changePause(resource, baseRevision, pause, onApplied),
         });
@@ -378,7 +376,6 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
           id: "restart",
           label: t`Restart this container`,
           icon: "refresh",
-          unavailable: t`Not running`,
           ...may(ChangeService.method.restartService, target.where).off,
           onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
         });
@@ -433,13 +430,56 @@ function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
         onSelect: () => stack(project),
       });
     }
-    return { label, actions, row, params, objectKey: key, log, terminal, showTakeOn, showShortcuts, onTakeOn };
+    const externalOnly = row.ownership !== DockerOwnership.EXTERNAL ? t`Managed or system container` : undefined;
+    const removing = row.state === ContainerState.REMOVING ? t`Being removed` : undefined;
+    const running = row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING;
+    const paused = row.state === ContainerState.PAUSED;
+    const stopped =
+      row.state === ContainerState.CREATED || row.state === ContainerState.EXITED || row.state === ContainerState.DEAD;
+    const reasons: Record<string, string | undefined> = {
+      start: removing ?? (running || paused ? t`Already running` : undefined),
+      stop: removing ?? (stopped ? t`Already stopped` : undefined),
+      pause:
+        removing ??
+        (paused
+          ? t`Already paused`
+          : row.state === ContainerState.RESTARTING
+            ? t`Restarting`
+            : stopped
+              ? t`Not running`
+              : undefined),
+      unpause: removing ?? (!paused ? t`Not paused` : undefined),
+      restart: removing ?? (paused ? t`Paused` : stopped ? t`Not running` : undefined),
+      [`external-${DockerContainerAction.START}`]:
+        externalOnly ?? removing ?? (running || paused ? t`Already running` : undefined),
+      [`external-${DockerContainerAction.STOP}`]:
+        externalOnly ?? removing ?? (stopped ? t`Already stopped` : undefined),
+      [`external-${DockerContainerAction.RESTART}`]:
+        externalOnly ?? removing ?? (paused ? t`Paused` : stopped ? t`Not running` : undefined),
+      [`external-${DockerContainerAction.PAUSE}`]:
+        externalOnly ??
+        removing ??
+        (paused
+          ? t`Already paused`
+          : row.state === ContainerState.RESTARTING
+            ? t`Restarting`
+            : stopped
+              ? t`Not running`
+              : undefined),
+      [`external-${DockerContainerAction.UNPAUSE}`]: externalOnly ?? removing ?? (!paused ? t`Not paused` : undefined),
+      [`external-${DockerContainerAction.KILL}`]: externalOnly ?? removing ?? (stopped ? t`Not running` : undefined),
+      [`external-${DockerContainerAction.REMOVE}`]:
+        externalOnly ?? removing ?? (running || paused ? t`Stop the container first` : undefined),
+      [`external-${DockerContainerAction.RENAME}`]: externalOnly ?? removing,
+    };
+    return { label, actions, reasons, row, params, objectKey: key, log, terminal, showTakeOn, showShortcuts, onTakeOn };
   };
 }
 
 function ContainerActionButtons({
   label,
   actions,
+  reasons,
   row,
   params,
   objectKey,
@@ -482,7 +522,7 @@ function ContainerActionButtons({
           title={t`Terminal`}
         />
       ) : null}
-      <ActionMenu actions={actions} label={label} />
+      <ActionMenu actions={actions} reasons={reasons} label={label} />
     </div>
   );
 }

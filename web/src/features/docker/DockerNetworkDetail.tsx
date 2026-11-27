@@ -102,12 +102,19 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
   const containers = new Map(choices.data?.map((item) => [item.key?.engineId, item]));
   const [picker, setPicker] = useState<{ container?: DockerObject }>();
   const [taking, setTaking] = useState<DockerObject>();
+  const [refreshingAttachments, setRefreshingAttachments] = useState(false);
   const refresh = () => {
     void query.refetch();
     if (net?.attachments.length) void choices.refetch();
   };
+  const refreshAfterChange = () => {
+    void query.refetch();
+    if (net?.attachments.length) {
+      setRefreshingAttachments(true);
+      void choices.refetch().finally(() => setRefreshingAttachments(false));
+    }
+  };
   const watch = useDockerWatch(allowed ? [serverId] : [], [], refresh, DockerObjectKind.NETWORK);
-  useDockerWatch(allowed && net?.attachments.length ? [serverId] : [], [], () => void choices.refetch());
   const plan = (container: DockerObject, network: DockerObject, action: DockerNetworkAttachmentAction) => {
     setPicker(undefined);
     sheet.open({
@@ -119,7 +126,7 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
           baseRevision: container.managedRevision,
           action,
         }),
-      onClose: refresh,
+      onClose: refreshAfterChange,
     });
   };
   const removeReason =
@@ -200,7 +207,7 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
       {!allowed ? (
         <EmptyState icon="lock" title={t`Docker inventory needs an admin`} />
-      ) : query.isPending || (!!net?.attachments.length && choices.isPending) ? (
+      ) : query.isPending ? (
         <StorageDetailLoading />
       ) : query.error ? (
         <Callout
@@ -221,6 +228,7 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
             partial={net.attachmentsPartial}
             rows={net.attachments.map((endpoint) => ({ ...endpoint, id: endpoint.containerId }))}
             actions={(endpoint) => attachmentActions(endpoint.containerId)}
+            actionsLoading={choices.isPending || refreshingAttachments}
           />
           <Panel title={t`Network details`}>
             <dl className="docker-facts">
@@ -245,7 +253,9 @@ function NetworkDetail({ serverId, networkId }: { serverId: string; networkId: s
               onPlan={(container, network) => plan(container, network, DockerNetworkAttachmentAction.CONNECT)}
             />
           ) : null}
-          {taking ? <DockerTakeOn row={taking} onClose={() => setTaking(undefined)} onApplied={refresh} /> : null}
+          {taking ? (
+            <DockerTakeOn row={taking} onClose={() => setTaking(undefined)} onApplied={refreshAfterChange} />
+          ) : null}
         </>
       )}
     </StoragePage>

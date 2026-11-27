@@ -494,7 +494,7 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
                 views={views}
                 chosen={view}
                 onOpen={() => setReadingIndex(true)}
-                reading={shared.reading}
+                reading={shared.reading || services.isPending || domainsQuery.isPending}
                 onChoose={(next) => {
                   const env = firstEnvironment(next.id, environments);
                   if (env) choose(env.id);

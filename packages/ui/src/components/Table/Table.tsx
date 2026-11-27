@@ -233,11 +233,17 @@ export function Table<Row extends object = Record<string, unknown>>({
       const list = wrap?.closest<HTMLElement>('section[tabindex="-1"], [role="region"][tabindex]') ?? wrap;
       if (!list) return;
       if (list === wrap && !list.hasAttribute("tabindex")) {
+        const addedRole = !list.hasAttribute("role");
+        const addedLabel = Boolean(caption) && !list.hasAttribute("aria-label");
         list.setAttribute("tabindex", "-1");
+        if (addedRole) list.setAttribute("role", "group");
+        if (addedLabel && caption) list.setAttribute("aria-label", caption);
         list.addEventListener(
           "blur",
           () => {
             if (list.getAttribute("tabindex") === "-1") list.removeAttribute("tabindex");
+            if (addedRole && list.getAttribute("role") === "group") list.removeAttribute("role");
+            if (addedLabel) list.removeAttribute("aria-label");
           },
           { once: true },
         );

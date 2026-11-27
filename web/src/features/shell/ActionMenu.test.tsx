@@ -181,18 +181,157 @@ describe("a row's actions in one menu (#795)", () => {
     // Near the bottom tab bar, the menu opens above the button rather than drawing over .tabbar.
     expect(menu.style.bottom).toBe("148px");
 
-    // Scrolling the button into .tabbar closes the menu.
-    buttonTop = 750;
+    // Scrolling the button's center into .tabbar closes the menu without dropping focus to body.
+    buttonTop = 765;
     fireEvent.scroll(window);
     expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).not.toBe(document.body);
 
-    // Scrolling the button under .mobile-header also closes the menu.
+    // Scrolling the button's center under .mobile-header also closes the menu.
     buttonTop = 120;
     await user.click(screen.getByRole("button", { name: "Actions for api" }));
     expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
-    buttonTop = 40;
+    buttonTop = 20;
     fireEvent.scroll(window);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("stays open when opened over an anchor partly under a sticky bar, and closes once the anchor moves behind it (#956)", async () => {
+    const user = userEvent.setup();
+    let onResize: (() => void) | undefined;
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        onResize = () => cb([], this as unknown as ResizeObserver);
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    vi.stubGlobal("innerWidth", 1280);
+    vi.stubGlobal("innerHeight", 800);
+    // Anchor top is 4 px under the 52 px topbar (center is 62 px, still visible).
+    let buttonTop = 48;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("topbar")) return new DOMRect(0, 0, 1280, 52);
+      if (this.getAttribute("role") === "menu") return new DOMRect(100, buttonTop + 32, 200, 100);
+      if (this.tagName === "BUTTON") return new DOMRect(300, buttonTop, 28, 28);
+      return new DOMRect(0, 0, 1280, 800);
+    });
+    render(
+      <section tabIndex={-1} aria-label="Apps list">
+        <header className="topbar" />
+        <ActionMenu label="Actions for api" actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />
+      </section>,
+    );
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
+
+    // Initial ResizeObserver callback with no anchor movement must not close the menu.
+    act(() => {
+      onResize?.();
+    });
+    expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
+
+    // Once scrolled so the anchor's center passes behind the top bar, it closes and returns focus to the list.
+    buttonTop = 30;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByLabelText("Apps list")).toHaveFocus();
+  });
+
+  it("detects sticky filter bars, stuck table heads, phone batch bars, and update-picks bars (#956)", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("innerWidth", 390);
+    vi.stubGlobal("innerHeight", 844);
+    let buttonTop = 300;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("topbar")) return new DOMRect(0, 0, 390, 52);
+      if (this.classList.contains("sticky-filters")) return new DOMRect(0, 52, 390, 48);
+      if (this.tagName === "THEAD") return new DOMRect(0, 100, 390, 36);
+      if (this.classList.contains("sticky-bottom-bar")) return new DOMRect(0, 710, 390, 48);
+      if (this.classList.contains("tabbar")) return new DOMRect(0, 782, 390, 62);
+      if (this.getAttribute("role") === "menu") return new DOMRect(100, buttonTop + 32, 200, 100);
+      if (this.tagName === "BUTTON") return new DOMRect(300, buttonTop, 28, 28);
+      return new DOMRect(0, 0, 390, 844);
+    });
+    render(
+      <section tabIndex={-1} aria-label="Apps list">
+        <header className="topbar" style={{ position: "sticky", top: "0px" }} />
+        <div className="sticky-filters" style={{ position: "sticky", top: "52px" }} />
+        <table>
+          <thead>
+            <tr>
+              <th>App</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <ActionMenu label="Actions for api" actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="sticky-bottom-bar" style={{ position: "sticky", bottom: "70px" }} />
+        <nav className="tabbar" style={{ position: "sticky", bottom: "0px" }} />
+      </section>,
+    );
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    expect(screen.getByRole("menu", { name: "Actions for api" })).toBeVisible();
+
+    // Sliding the button under the stuck thead (bottom 136, below the sticky filter bar) closes the menu.
+    buttonTop = 115;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByLabelText("Apps list")).toHaveFocus();
+
+    // Re-open near the phone batch bar (top 710, 134 px above viewport bottom): menu opens above it,
+    // and scrolling the button's center behind that bar closes the menu.
+    buttonTop = 640;
+    await user.click(screen.getByRole("button", { name: "Actions for api" }));
+    const menu = screen.getByRole("menu", { name: "Actions for api" });
+    expect(menu).toBeVisible();
+    expect(menu.style.bottom).toBe("208px");
+    buttonTop = 700;
+    fireEvent.scroll(window);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("shows live reasons for verbs disabled during a refresh and disables opening while loading (#956)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ActionMenu label="Actions for api" loading actions={[{ id: "stop", label: "Stop", onSelect: vi.fn() }]} />,
+    );
+    const trigger = screen.getByRole("button", { name: "Actions for api" });
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+
+    rerender(
+      <ActionMenu
+        label="Actions for api"
+        actions={[
+          { id: "open", label: "Open", onSelect: vi.fn() },
+          { id: "stop", label: "Stop", onSelect: vi.fn() },
+        ]}
+        reasons={{ stop: "Already stopped" }}
+      />,
+    );
+    expect(trigger).toBeEnabled();
+    await user.click(trigger);
+
+    // A deploy starts while the menu is open: live reasons say "Busy: deploying", not "Already stopped".
+    rerender(
+      <ActionMenu
+        label="Actions for api"
+        actions={[{ id: "open", label: "Open", onSelect: vi.fn() }]}
+        reasons={{ stop: "Busy: deploying" }}
+      />,
+    );
+    const stopItem = screen.getByRole("menuitem", { name: /Stop/ });
+    expect(stopItem).toHaveAttribute("aria-disabled", "true");
+    expect(stopItem).toHaveTextContent("Busy: deploying");
+    expect(stopItem).not.toHaveTextContent("Already stopped");
   });
 
   it("repositions on a layout shift observed by ResizeObserver without scroll or re-render (#956)", async () => {

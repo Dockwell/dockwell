@@ -888,6 +888,7 @@ describe("the variables page, once there are several projects", () => {
     expect(screen.queryByText("Nothing running in old-shop")).toBeNull();
     await user.click(picker);
     const list = await screen.findByRole("dialog", { name: "Choose a project" });
+    expect(list.querySelector(".variables-pick-lists")).toHaveAttribute("aria-busy", "true");
     const projectsRegion = within(list).getByRole("region", { name: "Projects" });
     expect(within(projectsRegion).getByRole("button", { name: /old-shop/ })).toBeVisible();
     expect(within(list).queryByRole("region", { name: "Can't tell what runs" })).toBeNull();

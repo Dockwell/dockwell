@@ -659,11 +659,13 @@ export function BatchBar({
 export function RowActions({
   label,
   actions,
+  reasons,
   quick = [],
   onOpen,
 }: {
   label: string;
   actions: readonly MenuAction[];
+  reasons?: Readonly<Record<string, string | undefined>> | undefined;
   quick?: readonly string[];
   onOpen?: () => void;
 }) {
@@ -687,7 +689,7 @@ export function RowActions({
           />
         ) : null,
       )}
-      <ActionMenu label={label} actions={actions} onOpen={onOpen} />
+      <ActionMenu label={label} actions={actions} reasons={reasons} onOpen={onOpen} />
     </span>
   );
 }
@@ -712,6 +714,7 @@ interface RowMenuOpen<Row> {
   key: string | number | undefined;
   label: string;
   actions: readonly MenuAction[];
+  reasons?: Readonly<Record<string, string | undefined>> | undefined;
   x: number;
   y: number;
   /** The row it was asked from, which takes focus back when it closes from the keyboard. */
@@ -730,14 +733,18 @@ interface RowMenuOpen<Row> {
  * row goes away.
  */
 export function useRowMenu<Row>(
-  resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions"> | undefined,
+  resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions" | "reasons"> | undefined,
   options?: { rows: readonly Row[]; keyOf: (row: Row) => string | number },
 ): {
   open: (
     row: Row,
     at: { x: number; y: number },
     rowElement: HTMLElement,
-    menu?: { label: string; actions: readonly MenuAction[] },
+    menu?: {
+      label: string;
+      actions: readonly MenuAction[];
+      reasons?: Readonly<Record<string, string | undefined>> | undefined;
+    },
   ) => void;
   element: ReactNode;
 } {
@@ -752,7 +759,8 @@ export function useRowMenu<Row>(
       if (current?.back?.isConnected) current.back.focus({ preventScroll: true });
       else focusList(current?.list ?? null);
     } else if (returnTo === "list") {
-      focusList(current?.list ?? null);
+      if (current?.list?.isConnected) focusList(current.list);
+      else if (current?.back?.isConnected) current.back.focus({ preventScroll: true });
     }
   }, []);
 
@@ -775,15 +783,20 @@ export function useRowMenu<Row>(
       : showing?.row;
   const missing = Boolean(showing && options && showing.key !== undefined && liveRow === undefined);
   const live = showing && !missing && liveRow !== undefined ? resolve?.(liveRow) : undefined;
-  const actions = showing ? (live ? stabilizeMenuActions(showing.actions, live.actions) : showing.actions) : [];
+  const unresolved = Boolean(showing && !missing && resolve && (!live || live.actions.length === 0));
+  const actions = showing
+    ? live
+      ? stabilizeMenuActions(showing.actions, live.actions, live.reasons)
+      : showing.actions
+    : [];
 
   useLayoutEffect(() => {
-    if (!showing || !missing) return;
-    close("list");
-  }, [showing, missing, close]);
+    if (!showing || (!missing && !unresolved)) return;
+    close(missing ? "list" : "back");
+  }, [showing, missing, unresolved, close]);
 
   const element =
-    showing && !missing ? (
+    showing && !missing && !unresolved ? (
       <RowContextMenu
         label={live?.label ?? showing.label}
         actions={actions}
@@ -829,12 +842,12 @@ function RowContextMenu({
     if (!box) return;
     let targetX = x;
     let targetY = y;
-    if (anchor?.isConnected && offset.current) {
-      const rect = anchor.getBoundingClientRect();
-      targetX = rect.left + offset.current.dx;
-      targetY = rect.top + offset.current.dy;
+    const anchorRect = anchor?.isConnected ? anchor.getBoundingClientRect() : undefined;
+    if (anchorRect && offset.current) {
+      targetX = anchorRect.left + offset.current.dx;
+      targetY = anchorRect.top + offset.current.dy;
     }
-    const bounds = visibleBounds(clipsRef.current);
+    const bounds = visibleBounds(clipsRef.current, anchorRect);
     const gutter = 16;
     const minTop = Math.max(gutter, bounds.viewportTop + 4);
     const maxTop = Math.max(
@@ -875,6 +888,8 @@ function RowContextMenu({
 
   useEffect(() => {
     clipsRef.current = collectMenuClips(anchor);
+    const openRect = anchor?.isConnected ? anchor.getBoundingClientRect() : null;
+    let hasMoved = false;
     focusedAction.current = null;
     focusedIndex.current = undefined;
     place();
@@ -887,9 +902,20 @@ function RowContextMenu({
         onCloseRef.current("list");
         return;
       }
-      if (anchor && isAnchorOutOfView(anchor.getBoundingClientRect(), visibleBounds(clipsRef.current))) {
-        onCloseRef.current("none");
-        return;
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect();
+        if (
+          !hasMoved &&
+          openRect &&
+          (Math.abs(rect.top - openRect.top) > 1 || Math.abs(rect.left - openRect.left) > 1)
+        ) {
+          hasMoved = true;
+        }
+        if (hasMoved && isAnchorOutOfView(rect, visibleBounds(clipsRef.current, rect))) {
+          const hadFocus = Boolean(root.current?.contains(document.activeElement));
+          onCloseRef.current(hadFocus ? "list" : "none");
+          return;
+        }
       }
       place();
     };

@@ -201,6 +201,12 @@ describe("clearing a selection", () => {
     row.focus();
     for (const cb of frames.splice(0)) cb(0);
     expect(document.activeElement).toBe(row);
+
+    // When focus stays on Clear inside .list-batch-bar (or leaves the list), clear() returns focus to the list.
+    clear.focus();
+    fireEvent.click(clear);
+    for (const cb of frames.splice(0)) cb(0);
+    expect(document.activeElement).toBe(screen.getByLabelText("List"));
     raf.mockRestore();
   });
 });
@@ -393,8 +399,42 @@ describe("row menus across a list refresh (#956)", () => {
       rowTop = 36;
       fireEvent.scroll(window);
       expect(screen.queryByRole("menu")).toBeNull();
+      expect(screen.getByLabelText("Apps list")).toHaveFocus();
     } finally {
       rectSpy.mockRestore();
     }
+  });
+
+  it("closes an open row context menu and returns focus to the row when the resolver returns undefined (#956)", async () => {
+    const user = userEvent.setup();
+    function ResolvableList({ allowMenu }: { allowMenu: boolean }) {
+      const rows = [{ id: "a", name: "alpha" }];
+      const menu = useRowMenu(
+        (row) =>
+          allowMenu
+            ? { label: `Actions for ${row.name}`, actions: [{ id: "open", label: "Open", onSelect: vi.fn() }] }
+            : undefined,
+        { rows, keyOf: (row) => row.id },
+      );
+      return (
+        <section tabIndex={-1} aria-label="Items list">
+          <Table
+            columns={[{ key: "name", header: "Name" }]}
+            rows={rows}
+            caption="Items"
+            onRowContextMenu={(row, at, el) => menu.open(row, at, el)}
+          />
+          {menu.element}
+        </section>
+      );
+    }
+    const { rerender } = render(<ResolvableList allowMenu />);
+    const row = screen.getByRole("row", { name: /alpha/ });
+    await user.pointer({ keys: "[MouseRight]", target: row });
+    expect(screen.getByRole("menu", { name: "Actions for alpha" })).toBeVisible();
+
+    rerender(<ResolvableList allowMenu={false} />);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(row).toHaveFocus();
   });
 });

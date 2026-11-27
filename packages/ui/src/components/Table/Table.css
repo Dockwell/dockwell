@@ -12,6 +12,11 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+.dw-table-wrap[tabindex="-1"]:focus-visible {
+  outline: none;
+  border-color: var(--line-strong);
+  box-shadow: var(--focus-ring-inset);
+}
 .dw-table {
   width: 100%;
   border-collapse: separate;

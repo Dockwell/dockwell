@@ -129,7 +129,6 @@ export function useDockerLifecycle() {
               id: `external-${verb.action}`,
               label: verb.label,
               icon: verb.icon,
-              unavailable: verb.unavailable,
               ...("danger" in verb ? { danger: true } : {}),
               ...permission.off,
               onSelect: () => select({ action: verb.action, label: verb.label, rows: [row], onApplied }),

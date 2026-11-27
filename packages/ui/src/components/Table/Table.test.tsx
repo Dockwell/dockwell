@@ -327,7 +327,11 @@ describe("Table", () => {
     );
     expect(wrap).toHaveFocus();
     expect(wrap).toHaveAttribute("tabindex", "-1");
+    expect(wrap).toHaveAttribute("role", "group");
+    expect(wrap).toHaveAttribute("aria-label", "Apps");
     filter.focus();
     expect(wrap).not.toHaveAttribute("tabindex");
+    expect(wrap).not.toHaveAttribute("role");
+    expect(wrap).not.toHaveAttribute("aria-label");
   });
 });

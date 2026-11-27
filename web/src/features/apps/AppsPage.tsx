@@ -442,6 +442,28 @@ export function AppsPage({
     const state = appState(service, servers);
     return !isMoving(state) && state.kind !== "unplaced" && state.kind !== "unreadable";
   };
+  const reasonsFor = (service: ServiceInfo): Readonly<Record<string, string | undefined>> => {
+    const state = appState(service, servers);
+    const stopped = isStoppedApp(service);
+    const paused = appOf(service)?.desiredRunState === DesiredRunState.PAUSED;
+    const busy =
+      state.kind === "deploying"
+        ? t`Busy: deploying`
+        : state.kind === "waiting"
+          ? t`Busy: waiting for server`
+          : state.kind === "unplaced"
+            ? t`Not placed on a server`
+            : state.kind === "unreadable"
+              ? t`Configuration couldn't be read`
+              : undefined;
+    return {
+      start: busy ?? (!stopped ? t`Already running` : undefined),
+      stop: busy ?? (stopped ? t`Already stopped` : undefined),
+      pause: busy ?? (paused ? t`Already paused` : stopped ? t`Not running` : undefined),
+      unpause: busy ?? (!paused ? t`Not paused` : undefined),
+      restart: busy ?? (paused ? t`Paused` : stopped ? t`Not running` : undefined),
+    };
+  };
   const actionsFor = (service: ServiceInfo): MenuAction[] => {
     const where = { environment: environmentOf(service) };
     const stopped = isStoppedApp(service);
@@ -467,7 +489,6 @@ export function AppsPage({
                   id: "start",
                   icon: "play" as const,
                   label: t`Start`,
-                  unavailable: t`Already running`,
                   ...may(ChangeService.method.proposeChange, where).off,
                   onSelect: () => service.resource && changeRun(service.resource, service.revision, true),
                 }
@@ -475,7 +496,6 @@ export function AppsPage({
                   id: "stop",
                   icon: "stop" as const,
                   label: t`Stop`,
-                  unavailable: t`Already stopped`,
                   ...may(ChangeService.method.proposeChange, where).off,
                   onSelect: () => service.resource && changeRun(service.resource, service.revision, false),
                 },
@@ -487,7 +507,6 @@ export function AppsPage({
               id: paused ? "unpause" : "pause",
               icon: paused ? ("play" as const) : ("pause" as const),
               label: paused ? t`Unpause` : t`Pause`,
-              unavailable: paused ? t`Not paused` : t`Not running or already paused`,
               ...may(ChangeService.method.proposeChange, where).off,
               onSelect: () => service.resource && changePause(service.resource, service.revision, !paused),
             },
@@ -499,7 +518,6 @@ export function AppsPage({
               id: "restart",
               icon: "refresh" as const,
               label: t`Restart`,
-              unavailable: t`Not running`,
               ...mayRestartApp(service, appState(service, servers), may).grant.off,
               onSelect: () => restartApp(service.id),
             },
@@ -687,6 +705,7 @@ export function AppsPage({
           health={health}
           picks={picks}
           actionsFor={actionsFor}
+          reasonsFor={reasonsFor}
           selection={selection}
         />
         <ListPager page={listPage} onPage={place.setPage} />
@@ -706,6 +725,7 @@ export function AppsPage({
           picks={picks}
           place={place}
           actionsFor={actionsFor}
+          reasonsFor={reasonsFor}
           selection={selection}
         />
         <ListPager page={listPage} onPage={place.setPage} />
@@ -1021,6 +1041,7 @@ interface TableProps {
   picks: UpdatePicks;
   place: ListPlace;
   actionsFor: (service: ServiceInfo) => MenuAction[];
+  reasonsFor: (service: ServiceInfo) => Readonly<Record<string, string | undefined>>;
   selection: RowSelection;
 }
 
@@ -1092,6 +1113,7 @@ function AppsTable({
   picks,
   place,
   actionsFor,
+  reasonsFor,
   selection,
 }: TableProps) {
   const { t, i18n } = useLingui();
@@ -1114,7 +1136,13 @@ function AppsTable({
   const now = useAgoNow(newest);
   const menu = useRowMenu<Row>(
     (row) =>
-      row.service ? { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) } : undefined,
+      row.service
+        ? {
+            label: t`Actions for ${nameOf(row.service)}`,
+            actions: actionsFor(row.service),
+            reasons: reasonsFor(row.service),
+          }
+        : undefined,
     { rows, keyOf: (row) => row.id },
   );
   const columns = useMemo<TableColumn<Row>[]>(() => {
@@ -1229,7 +1257,14 @@ function AppsTable({
         if (!row.service) return null;
         const service = row.service;
         const name = nameOf(service);
-        return <RowActions label={t`Actions for ${name}`} actions={actionsFor(service)} quick={["start", "stop"]} />;
+        return (
+          <RowActions
+            label={t`Actions for ${name}`}
+            actions={actionsFor(service)}
+            reasons={reasonsFor(service)}
+            quick={["start", "stop"]}
+          />
+        );
       },
     };
     return heads.map((head) => ({
@@ -1254,6 +1289,7 @@ function AppsTable({
     collapsed,
     onToggle,
     actionsFor,
+    reasonsFor,
     heads,
     health,
     titleOf,
@@ -1320,7 +1356,11 @@ function AppsTable({
         rowHasContextMenu={(row) => row.service !== undefined}
         onRowContextMenu={(row, at, el) => {
           if (row.service)
-            menu.open(row, at, el, { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) });
+            menu.open(row, at, el, {
+              label: t`Actions for ${nameOf(row.service)}`,
+              actions: actionsFor(row.service),
+              reasons: reasonsFor(row.service),
+            });
         }}
       />
       {menu.element}
@@ -1373,6 +1413,7 @@ function PhoneList({
   health,
   picks,
   actionsFor,
+  reasonsFor,
   selection,
 }: {
   rows: readonly Row[];
@@ -1381,6 +1422,7 @@ function PhoneList({
   health: HealthView;
   picks: UpdatePicks;
   actionsFor: (service: ServiceInfo) => MenuAction[];
+  reasonsFor: (service: ServiceInfo) => Readonly<Record<string, string | undefined>>;
   selection: RowSelection;
 }) {
   const { t } = useLingui();
@@ -1392,7 +1434,13 @@ function PhoneList({
   const now = useNow(UPDATES_TICK_MS);
   const context = useRowMenu<Row>(
     (row) =>
-      row.service ? { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) } : undefined,
+      row.service
+        ? {
+            label: t`Actions for ${nameOf(row.service)}`,
+            actions: actionsFor(row.service),
+            reasons: reasonsFor(row.service),
+          }
+        : undefined,
     { rows, keyOf: (row) => row.id },
   );
   const phoneOrder = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
@@ -1493,7 +1541,9 @@ function PhoneList({
             key={row.id}
             className={cx("apps-phone-menurow list-select-card", selection.has(row.id) && "is-checked")}
             onContextMenu={(event) =>
-              cardContextMenu(event, (at, el) => context.open(row, at, el, { label, actions: actionsFor(service) }))
+              cardContextMenu(event, (at, el) =>
+                context.open(row, at, el, { label, actions: actionsFor(service), reasons: reasonsFor(service) }),
+              )
             }
           >
             {selection.enabled ? (
@@ -1507,7 +1557,7 @@ function PhoneList({
               <RowPick row={row} picks={picks} order={phoneOrder} />
             ) : null}
             {link}
-            <ActionMenu label={label} actions={actionsFor(service)} />
+            <ActionMenu label={label} actions={actionsFor(service)} reasons={reasonsFor(service)} />
           </div>
         );
       })}

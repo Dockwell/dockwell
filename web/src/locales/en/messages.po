@@ -4528,6 +4528,9 @@ msgstr "All environments"
 msgid "All servers"
 msgstr "All servers"
 
+msgid "Already paused"
+msgstr "Already paused"
+
 msgid "Already running"
 msgstr "Already running"
 
@@ -4540,6 +4543,12 @@ msgstr "App details are unavailable"
 msgid "App state is changing or unavailable"
 msgstr "App state is changing or unavailable"
 
+msgid "Busy: deploying"
+msgstr "Busy: deploying"
+
+msgid "Busy: waiting for server"
+msgstr "Busy: waiting for server"
+
 msgid "Can't load the apps"
 msgstr "Can't load the apps"
 
@@ -4548,6 +4557,9 @@ msgstr "Clear the filter"
 
 msgid "Clear the filters"
 msgstr "Clear the filters"
+
+msgid "Configuration couldn't be read"
+msgstr "Configuration couldn't be read"
 
 msgid "Database"
 msgstr "Database"
@@ -4591,8 +4603,8 @@ msgstr "No apps yet"
 msgid "Not paused"
 msgstr "Not paused"
 
-msgid "Not running or already paused"
-msgstr "Not running or already paused"
+msgid "Not placed on a server"
+msgstr "Not placed on a server"
 
 msgid "Nothing matches"
 msgstr "Nothing matches"
@@ -17450,6 +17462,9 @@ msgstr "Addresses"
 msgid "All ownership"
 msgstr "All ownership"
 
+msgid "Being removed"
+msgstr "Being removed"
+
 msgid "Clear Compose project filter"
 msgstr "Clear Compose project filter"
 
@@ -17490,6 +17505,9 @@ msgstr "Loading containers"
 msgid "Logs for {0}"
 msgstr "Logs for {0}"
 
+msgid "Managed or system container"
+msgstr "Managed or system container"
+
 msgid "Move in"
 msgstr "Move in"
 
@@ -17507,6 +17525,9 @@ msgstr "No containers match"
 
 msgid "No sample"
 msgstr "No sample"
+
+msgid "Not running or already paused"
+msgstr "Not running or already paused"
 
 msgid "Open Apps"
 msgstr "Open Apps"
@@ -17532,11 +17553,17 @@ msgstr "Replicas are in different states"
 msgid "Restart this container"
 msgstr "Restart this container"
 
+msgid "Restarting"
+msgstr "Restarting"
+
 msgid "Search containers"
 msgstr "Search containers"
 
 msgid "Start {name} on all {workloadServers} servers"
 msgstr "Start {name} on all {workloadServers} servers"
+
+msgid "Stop the container first"
+msgstr "Stop the container first"
 
 msgid "Stop {name} on all {workloadServers} servers"
 msgstr "Stop {name} on all {workloadServers} servers"
@@ -17836,9 +17863,6 @@ msgstr "Already running or unavailable"
 msgid "Anonymous volumes"
 msgstr "Anonymous volumes"
 
-msgid "Being removed"
-msgstr "Being removed"
-
 msgid "Container name prefix"
 msgstr "Container name prefix"
 
@@ -17847,9 +17871,6 @@ msgstr "Keep anonymous volumes"
 
 msgid "Kill"
 msgstr "Kill"
-
-msgid "Managed or system container"
-msgstr "Managed or system container"
 
 msgid "New container name"
 msgstr "New container name"
@@ -17871,9 +17892,6 @@ msgstr "Seconds before SIGKILL"
 
 msgid "Signal"
 msgstr "Signal"
-
-msgid "Stop the container first"
-msgstr "Stop the container first"
 
 msgid "Address pools"
 msgstr "Address pools"
@@ -24057,9 +24075,6 @@ msgstr "Dead"
 msgid "Not started"
 msgstr "Not started"
 
-msgid "Restarting"
-msgstr "Restarting"
-
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "A certificate came for {domain} on port 80 or 443, as of {when}"
 
@@ -26595,9 +26610,6 @@ msgstr "All tasks"
 
 msgid "Already active"
 msgstr "Already active"
-
-msgid "Already paused"
-msgstr "Already paused"
 
 msgid "Couldn't run the task"
 msgstr "Couldn't run the task"

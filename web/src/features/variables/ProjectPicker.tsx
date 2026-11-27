@@ -62,7 +62,7 @@ export function ProjectPicker({
 
   const q = query.trim().toLowerCase();
   const matches = (view: VariablesProject) => q === "" || view.label.toLowerCase().includes(q) || view.name.includes(q);
-  // Pending reads stay under Projects while aria-busy is set; only a failed read groups under "Can't tell what runs".
+  // Pending running-state reads stay under Projects while aria-busy is set; only a failed read groups under "Can't tell what runs".
   const running = views.filter(
     (v) => (v.runningState === "running" || v.runningState === "loading" || v.isDefault) && matches(v),
   );

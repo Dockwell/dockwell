@@ -135,6 +135,7 @@ export function StorageAttachments({
   rows,
   volumes = false,
   actions,
+  actionsLoading = false,
 }: {
   serverId: string;
   title: string;
@@ -143,6 +144,7 @@ export function StorageAttachments({
   rows: readonly Attachment[];
   volumes?: boolean;
   actions?: (row: Attachment) => MenuAction[];
+  actionsLoading?: boolean;
 }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -161,6 +163,7 @@ export function StorageAttachments({
   const menu = (row: Attachment) => (
     <ActionMenu
       label={t`Actions for ${row.name}`}
+      loading={actionsLoading}
       actions={[
         { id: "open", label: t`Open container`, icon: "service", onSelect: () => void navigate(target(row)) },
         ...(actions?.(row) ?? []),

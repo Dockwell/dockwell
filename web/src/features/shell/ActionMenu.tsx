@@ -23,15 +23,19 @@ const UNAVAILABLE_FALLBACK = msg`No longer available`;
 /**
  * Holds an open menu's slots and verbs steady across live refreshes (#956):
  * an item whose verb still applies keeps its latest details, one that no longer
- * applies turns disabled in place with its reason, and newly applicable verbs
- * wait until the menu opens again.
+ * applies turns disabled in place with its live reason (or fallback), and newly
+ * applicable verbs wait until the menu opens again.
  */
-export function stabilizeMenuActions(opened: readonly MenuAction[], latest: readonly MenuAction[]): MenuAction[] {
+export function stabilizeMenuActions(
+  opened: readonly MenuAction[],
+  latest: readonly MenuAction[],
+  reasons?: Readonly<Record<string, string | undefined>>,
+): MenuAction[] {
   const byId = new Map(latest.map((action) => [action.id, action]));
   return opened.map((initial) => {
     const current = byId.get(initial.id);
     if (current) return current;
-    const reason = initial.off ?? initial.unavailable ?? i18n._(UNAVAILABLE_FALLBACK);
+    const reason = initial.off ?? reasons?.[initial.id] ?? initial.unavailable ?? i18n._(UNAVAILABLE_FALLBACK);
     return { ...initial, off: reason, disabled: true };
   });
 }
@@ -84,25 +88,72 @@ export interface VisibleBounds {
   stickyBottom: number;
 }
 
-/** Collects overflow-clipping ancestors and sticky chrome bars once on open so scroll frames avoid style walks. */
+const FALLBACK_TOP_CHROME = ".topbar, .mobile-header, .apps-filters";
+const FALLBACK_BOTTOM_CHROME = ".tabbar, .list-batch-bar, .update-picks-bar";
+const IGNORED_CHROME = '[role="menu"], [role="dialog"], [role="tooltip"], .action-menu, .dw-toast';
+
+/** Collects overflow-clipping ancestors and sticky/fixed chrome bars once on open so scroll frames avoid style walks. */
 export function collectMenuClips(el: HTMLElement | null): MenuClips {
   const ancestors: HTMLElement[] = [];
-  for (let parent = el?.parentElement ?? null; parent && parent !== document.body; parent = parent.parentElement) {
-    const style = getComputedStyle(parent);
-    if (/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) {
-      ancestors.push(parent);
+  const topSet = new Set<HTMLElement>();
+  const bottomSet = new Set<HTMLElement>();
+  const canCover = (cand: HTMLElement) =>
+    cand.isConnected && !cand.matches(IGNORED_CHROME) && (!el || (!cand.contains(el) && !el.contains(cand)));
+  const isBefore = (cand: HTMLElement) =>
+    !el || (cand.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  const isAfter = (cand: HTMLElement) =>
+    !el || (cand.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
+
+  for (let node = el; node && node !== document.body; node = node.parentElement) {
+    const parent = node.parentElement;
+    if (parent && parent !== document.body) {
+      const pStyle = getComputedStyle(parent);
+      if (/(auto|scroll|hidden|clip)/.test(`${pStyle.overflowX} ${pStyle.overflowY}`)) {
+        ancestors.push(parent);
+      }
+    }
+    if (!parent) continue;
+    for (const child of parent.children) {
+      if (child === node || !(child instanceof HTMLElement) || !canCover(child)) continue;
+      const style = getComputedStyle(child);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.pointerEvents === "none" ||
+        style.opacity === "0"
+      ) {
+        continue;
+      }
+      if (style.position !== "sticky" && style.position !== "fixed") continue;
+      const isFixed = style.position === "fixed";
+      const hasTop = style.top !== "auto" && style.top !== "";
+      const hasBottom = style.bottom !== "auto" && style.bottom !== "";
+      if (hasTop && !hasBottom && (isFixed || isBefore(child))) {
+        topSet.add(child);
+      } else if (hasBottom && !hasTop && (isFixed || isAfter(child))) {
+        bottomSet.add(child);
+      }
     }
   }
-  const notContaining = (bar: HTMLElement) => !el || !bar.contains(el);
-  const topBars = [...document.querySelectorAll<HTMLElement>(".topbar, .mobile-header")].filter(notContaining);
-  const bottomBars = [...document.querySelectorAll<HTMLElement>(".tabbar, .list-batch-bar")].filter(notContaining);
+  // Fallback selectors also catch nested sticky bars and jsdom tests without loaded stylesheets.
+  for (const bar of document.querySelectorAll<HTMLElement>(FALLBACK_TOP_CHROME)) {
+    if (canCover(bar) && isBefore(bar)) topSet.add(bar);
+  }
+  for (const bar of document.querySelectorAll<HTMLElement>(FALLBACK_BOTTOM_CHROME)) {
+    if (canCover(bar) && isAfter(bar)) bottomSet.add(bar);
+  }
   const tbody = el?.closest("tbody");
   const thead = tbody ? (tbody.closest("table")?.querySelector<HTMLElement>("thead") ?? null) : null;
-  return { ancestors, topBars, bottomBars, thead };
+  return { ancestors, topBars: [...topSet], bottomBars: [...bottomSet], thead };
+}
+
+function overlapsHorizontally(barRect: DOMRect, anchorRect?: DOMRect): boolean {
+  if (!anchorRect || anchorRect.width === 0) return true;
+  return barRect.right > anchorRect.left && barRect.left < anchorRect.right;
 }
 
 /** Computes the visible anchor rect and fixed-menu viewport bounds minus sticky chrome and cached clips. */
-export function visibleBounds(clips: MenuClips | null): VisibleBounds {
+export function visibleBounds(clips: MenuClips | null, anchorRect?: DOMRect): VisibleBounds {
   let top = 0;
   let bottom = window.innerHeight;
   let left = 0;
@@ -113,10 +164,18 @@ export function visibleBounds(clips: MenuClips | null): VisibleBounds {
   let stickyBottom = window.innerHeight;
   if (!clips) return { top, bottom, left, right, viewportTop, viewportBottom, stickyTop, stickyBottom };
 
+  const maxBarHeight = window.innerHeight * 0.6;
   for (const bar of clips.topBars) {
     if (!bar.isConnected) continue;
     const rect = bar.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0 && rect.bottom > top && rect.top <= 4) {
+    if (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.height < maxBarHeight &&
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      overlapsHorizontally(rect, anchorRect)
+    ) {
       top = Math.max(top, rect.bottom);
       viewportTop = Math.max(viewportTop, rect.bottom);
       stickyTop = Math.max(stickyTop, rect.bottom);
@@ -125,7 +184,14 @@ export function visibleBounds(clips: MenuClips | null): VisibleBounds {
   for (const bar of clips.bottomBars) {
     if (!bar.isConnected) continue;
     const rect = bar.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0 && rect.top < bottom && rect.bottom >= window.innerHeight - 40) {
+    if (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.height < maxBarHeight &&
+      rect.top < window.innerHeight &&
+      rect.bottom > 0 &&
+      overlapsHorizontally(rect, anchorRect)
+    ) {
       bottom = Math.min(bottom, rect.top);
       viewportBottom = Math.min(viewportBottom, rect.top);
       stickyBottom = Math.min(stickyBottom, rect.top);
@@ -142,15 +208,16 @@ export function visibleBounds(clips: MenuClips | null): VisibleBounds {
   }
   if (clips.thead?.isConnected) {
     const rect = clips.thead.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0 && rect.bottom > top && rect.top <= top + 4) {
+    if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight) {
       top = Math.max(top, rect.bottom);
+      viewportTop = Math.max(viewportTop, rect.bottom);
       stickyTop = Math.max(stickyTop, rect.bottom);
     }
   }
   return { top, bottom, left, right, viewportTop, viewportBottom, stickyTop, stickyBottom };
 }
 
-/** True when an anchor has measured dimensions and has moved outside the visible bounds or under sticky chrome. */
+/** True when an anchor has measured dimensions and has moved outside the visible bounds or behind sticky chrome. */
 export function isAnchorOutOfView(rect: DOMRect, bounds: VisibleBounds): boolean {
   if (rect.width === 0 && rect.height === 0) return false;
   if (bounds.bottom <= bounds.top || bounds.right <= bounds.left) return true;
@@ -162,8 +229,10 @@ export function isAnchorOutOfView(rect: DOMRect, bounds: VisibleBounds): boolean
   ) {
     return true;
   }
-  if (bounds.stickyTop > 0 && rect.top < bounds.stickyTop) return true;
-  if (bounds.stickyBottom < window.innerHeight && rect.bottom > bounds.stickyBottom) return true;
+  // Judge sticky chrome coverage by the anchor's center so a partly covered row stays usable.
+  const cy = rect.top + rect.height / 2;
+  if (bounds.stickyTop > 0 && cy <= bounds.stickyTop) return true;
+  if (bounds.stickyBottom < window.innerHeight && cy >= bounds.stickyBottom) return true;
   return false;
 }
 
@@ -263,6 +332,7 @@ export function menuItem(action: MenuAction, onDone: () => void) {
 
 /** One thing a menu does: a step on this page, or a link out. */
 export type MenuAction = {
+  /** Identifies one verb in this menu; use distinct IDs for opposing toggles (e.g. "start" vs "stop") so live updates never flip a verb in place (#956). */
   id: string;
   label: ReactNode;
   icon?: IconName;
@@ -274,7 +344,7 @@ export type MenuAction = {
   badge?: ReactNode;
   /** Why it can't be done, said under its name, as a phone has no hover (ADR 0059). */
   off?: string | undefined;
-  /** Why it can't be done if a live refresh makes it inapplicable while the menu is already open (#956). */
+  /** Fallback reason if a live refresh drops this verb and no live `reasons` map explains why (#956). */
   unavailable?: string | undefined;
   /** Can't be done now, with nothing to say, such as while something loads. */
   disabled?: boolean;
@@ -297,20 +367,26 @@ export interface ActionMenuTriggerProps {
 export function ActionMenu({
   label,
   actions,
+  reasons,
   icon = "more",
   className,
   text,
   trigger,
+  loading,
   onOpen,
 }: {
   /** What the button is called for a screen reader, such as "Actions for git.example.com". */
   label: string;
   actions: readonly MenuAction[];
+  /** Live reasons keyed by action ID, shown when a refresh makes an open verb inapplicable (#956). */
+  reasons?: Readonly<Record<string, string | undefined>> | undefined;
   icon?: IconName;
   className?: string;
   text?: ReactNode;
   /** Optional custom trigger button (e.g. a tab trigger) keeping ActionMenu's positioning and keyboard handling. */
   trigger?: ((props: ActionMenuTriggerProps) => ReactNode) | undefined;
+  /** Disables opening while the menu's actions are still loading. */
+  loading?: boolean | undefined;
   onOpen?: (() => void) | undefined;
 }) {
   const [openedActions, setOpenedActions] = useState<readonly MenuAction[] | null>(null);
@@ -323,7 +399,7 @@ export function ActionMenu({
   const focusedAction = useRef<string | null>(null);
   const focusedIndex = useRef<number | undefined>(undefined);
   const id = useId();
-  const shown = openedActions ? stabilizeMenuActions(openedActions, actions) : actions;
+  const shown = openedActions ? stabilizeMenuActions(openedActions, actions, reasons) : actions;
   // Where it opens, on the viewport, so a table's scrolling box doesn't cut it off (#798):
   // under the button, or over it where there's no room under it, clamped inside sticky chrome.
   const [at, setAt] = useState<CSSProperties>();
@@ -331,7 +407,7 @@ export function ActionMenu({
     const button = root.current?.querySelector("button")?.getBoundingClientRect();
     const box = menu.current?.getBoundingClientRect();
     if (!button || !box) return;
-    const bounds = visibleBounds(clipsRef.current);
+    const bounds = visibleBounds(clipsRef.current, button);
     const gutter = 16;
     const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
     const fitsBelow = button.bottom + 4 + box.height <= bounds.viewportBottom;
@@ -382,6 +458,8 @@ export function ActionMenu({
       return;
     }
     const buttonEl = root.current?.querySelector("button") ?? null;
+    const openRect = buttonEl?.getBoundingClientRect() ?? null;
+    let hasMoved = false;
     listRef.current = listContainerOf(root.current);
     clipsRef.current = collectMenuClips(buttonEl ?? root.current);
     place();
@@ -393,13 +471,29 @@ export function ActionMenu({
       }
     };
     // Follow the button across layout shifts and scrolls while it stays in view outside sticky chrome;
-    // close once it disconnects, scrolls out of view, or goes under a sticky bar.
+    // judge out-of-view only once the button has actually moved since open, and never drop focus to body.
     const moved = () => {
       const currentButton = root.current?.querySelector("button");
-      const bounds = visibleBounds(clipsRef.current);
-      if (!currentButton?.isConnected || isAnchorOutOfView(currentButton.getBoundingClientRect(), bounds)) {
+      if (!currentButton?.isConnected) {
+        const hadFocus = Boolean(menu.current?.contains(document.activeElement));
         openRef.current = false;
         setOpenedActions(null);
+        if (hadFocus) focusList(listRef.current);
+        return;
+      }
+      const rect = currentButton.getBoundingClientRect();
+      if (!hasMoved && openRect && (Math.abs(rect.top - openRect.top) > 1 || Math.abs(rect.left - openRect.left) > 1)) {
+        hasMoved = true;
+      }
+      const bounds = visibleBounds(clipsRef.current, rect);
+      if (hasMoved && isAnchorOutOfView(rect, bounds)) {
+        const hadFocus = Boolean(menu.current?.contains(document.activeElement));
+        openRef.current = false;
+        setOpenedActions(null);
+        if (hadFocus) {
+          if (listRef.current?.isConnected) focusList(listRef.current);
+          else currentButton.focus({ preventScroll: true });
+        }
         return;
       }
       place();
@@ -505,6 +599,8 @@ export function ActionMenu({
           size="sm"
           icon={icon}
           className={text ? undefined : "action-menu-button"}
+          loading={Boolean(loading && !open)}
+          disabled={Boolean(loading && !open)}
           {...triggerProps}
         >
           {text}
