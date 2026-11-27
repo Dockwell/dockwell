@@ -158,8 +158,18 @@ export const flow: Flow = {
     if (await first.isChecked()) throw new Error("A row hidden by the app filter stayed selected");
     await bar.getByRole("button", { name: "Clear the selection" }).click();
     const row = table.getByRole("row", { name: new RegExp(apps[0] ?? "") });
-    await row.press("Shift+F10");
     const context = page.getByRole("menu", { name: `Actions for ${apps[0]}` });
+    // The list reads again after the filter clears, and a row drawn anew in that
+    // moment drops the key press, so press again until the menu opens.
+    for (let tries = 1; ; tries++) {
+      await row.press("Shift+F10");
+      const opened = await context
+        .waitFor({ timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (opened) break;
+      if (tries === 4) throw new Error(`Shift+F10 on ${apps[0]}'s row opened no menu after ${tries} tries`);
+    }
     await context.getByRole("menuitem", { name: "Open", exact: true }).click();
     await page.getByRole("button", { name: `Actions for ${apps[0]}` }).click();
     const headerMenu = page.getByRole("menu", { name: `Actions for ${apps[0]}` });
