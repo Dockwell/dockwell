@@ -81,7 +81,7 @@ func (c *calls) databaseImport(ctx context.Context, ask *agentv1.DatabaseImportC
 			}
 			defer release()
 		}
-		client, err := c.transferClient()
+		client, err := c.transferClient(true)
 		if err != nil {
 			return fail(err)
 		}

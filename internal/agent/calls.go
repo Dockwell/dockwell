@@ -110,10 +110,10 @@ type calls struct {
 	drained     chan struct{}
 	drainedOnce sync.Once
 
-	// transfers is what uploads and downloads go over: a connection of its own,
-	// as logs have, kept for this stream's calls, so a file's next part doesn't wait
-	// on a handshake. It goes with the stream, so a renewed certificate reaches it.
-	transfers transferConnection
+	// Files and artifacts keep separate connections for this stream's calls so
+	// a stalled file write cannot use the artifacts' receive window. The
+	// connections go with the stream, so a renewed certificate reaches them.
+	transfers, artifactTransfers transferConnection
 }
 
 type transferConnection struct {
@@ -1780,12 +1780,15 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 
 // transferClient is the client uploads and downloads go over, made the first time
 // one asks.
-func (c *calls) transferClient() (*enroll.Transfers, error) {
+func (c *calls) transferClient(artifact bool) (*enroll.Transfers, error) {
 	conn := &c.transfers
+	if artifact {
+		conn = &c.artifactTransfers
+	}
 	conn.Lock()
 	defer conn.Unlock()
 	if conn.client == nil {
-		client, release, err := c.cfg.Identity.TransferClient()
+		client, release, err := c.cfg.Identity.TransferClient(artifact)
 		if err != nil {
 			return nil, err
 		}
@@ -1796,13 +1799,14 @@ func (c *calls) transferClient() (*enroll.Transfers, error) {
 
 // dropTransfers lets the transfers' connections go once the stream's calls end.
 func (c *calls) dropTransfers() {
-	conn := &c.transfers
-	conn.Lock()
-	defer conn.Unlock()
-	if conn.release != nil {
-		conn.release()
+	for _, conn := range []*transferConnection{&c.transfers, &c.artifactTransfers} {
+		conn.Lock()
+		if conn.release != nil {
+			conn.release()
+		}
+		conn.client, conn.release = nil, nil
+		conn.Unlock()
 	}
-	conn.client, conn.release = nil, nil
 }
 
 // writeUpload writes an upload's bytes as ReceiveFile brings them, over the
@@ -1812,7 +1816,7 @@ func (c *calls) writeUpload(ctx context.Context, call *agentv1.WriteUploadCall) 
 	fail := func(err error) *agentv1.CallResult {
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
 	}
-	client, err := c.transferClient()
+	client, err := c.transferClient(false)
 	if err != nil {
 		return fail(err)
 	}
@@ -1834,7 +1838,7 @@ func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *a
 	fail := func(err error) *agentv1.CallResult {
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
 	}
-	client, err := c.transferClient()
+	client, err := c.transferClient(false)
 	if err != nil {
 		return fail(err)
 	}

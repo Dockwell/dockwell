@@ -152,7 +152,7 @@ func (cfg Config) checkArtifactPins(ctx context.Context) {
 }
 
 func (c *calls) receiveDockerArtifact(ctx context.Context, id, owner string, ask *agentv1.DockerArtifactStream) (*v1.DockerArtifactInfo, error) {
-	client, err := c.transferClient()
+	client, err := c.transferClient(true)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (w artifactSender) Write(p []byte) (int, error) {
 }
 
 func (c *calls) sendDockerArtifact(ctx context.Context, id, owner string, ask *agentv1.DockerArtifactStream) error {
-	client, err := c.transferClient()
+	client, err := c.transferClient(true)
 	if err != nil {
 		return err
 	}
