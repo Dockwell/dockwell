@@ -51,8 +51,11 @@ Shared_Dirty:          0 kB
 Private_Dirty:         0 kB
 `
 	candidates := []mapping{
-		{0x400000, 0x401000}, {0x401000, 0x402000}, {0x402000, 0x403000},
-		{0x403000, 0x404000}, {0x404000, 0x405000},
+		{0x400000, 0x401000},
+		{0x401000, 0x402000},
+		{0x402000, 0x403000},
+		{0x403000, 0x404000},
+		{0x404000, 0x405000},
 	}
 	got := cleanMappings(strings.NewReader(smaps), candidates)
 	if !slices.Equal(got, candidates[:1]) {

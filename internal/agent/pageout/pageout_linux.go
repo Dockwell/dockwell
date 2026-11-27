@@ -40,7 +40,7 @@ func (r *reclaimer) reclaim(now time.Time, mappings func() []mapping, advise fun
 	r.last = now
 	for _, m := range mappings() {
 		switch advise(m) {
-		case unix.EINVAL, unix.ENOSYS, unix.EOPNOTSUPP, unix.EPERM:
+		case unix.EINVAL, unix.ENOSYS, unix.EOPNOTSUPP, unix.EPERM: //nolint:errorlint // advise returns the kernel errno directly
 			// Older kernels or a syscall filter may refuse MADV_PAGEOUT.
 			r.disabled = true
 			return
