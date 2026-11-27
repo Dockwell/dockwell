@@ -57,7 +57,7 @@ func reachesOf(ref resource.Ref, spec proto.Message) map[string]reach {
 	}
 	switch s := spec.(type) {
 	case *resourcev1.Link:
-		add(s.GetMeetsEnvironment(), "link\x00"+s.GetService()+"\x00"+s.GetDatabaseName()+"\x00"+s.GetUser(),
+		add(s.GetMeetsEnvironment(), "link\x00"+s.GetEngine().String()+"\x00"+s.GetService()+"\x00"+s.GetDatabaseName()+"\x00"+s.GetUser(),
 			"link "+ref.Name+" reaches "+s.GetService()+" in another environment")
 	case *resourcev1.Variable, *resourcev1.Secret:
 		if v := variable.FromOf(s).GetValue(); v != nil {
@@ -106,7 +106,7 @@ func newReaches(it *item) []reach {
 // reachRoles refuses a person's change that points an item at another environment
 // where they hold no role, or not the one an edit there would need. It answers as
 // if the environment weren't there to one who holds nothing there.
-func (e *Engine) reachRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, byID map[string]*item, a act) error {
+func (e *Engine) reachRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, items []item, it *item, byID map[string]*item, a act) error {
 	for _, r := range newReaches(it) {
 		at, err := e.envSpotByID(ctx, tx, r.env, byID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -124,11 +124,32 @@ func (e *Engine) reachRoles(ctx context.Context, tx *store.Tx, grants []store.Gr
 		if a != planning && at.Protected {
 			needs, why = store.RoleAdmin, r.what+", which is protected"
 		}
+		admin, err := e.reachesClickHouseCredentials(ctx, tx, items, it)
+		if err != nil {
+			return err
+		}
+		if admin {
+			needs, why = store.RoleAdmin, r.what+" using its existing ClickHouse credentials"
+		}
 		if store.RoleRank(held) < store.RoleRank(needs) {
 			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
 		}
 	}
 	return nil
+}
+
+// ClickHouse links reuse the image user's credentials, so sharing them across
+// environments needs an administrator on the source.
+func (e *Engine) reachesClickHouseCredentials(ctx context.Context, tx *store.Tx, items []item, it *item) (bool, error) {
+	if l, ok := it.spec.(*resourcev1.Link); ok {
+		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE, nil
+	}
+	if v := variable.FromOf(it.spec).GetValue(); v != nil {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: linkKind, Scope: it.ref.Scope, Name: v.GetLink()})
+		l, _ := spec.(*resourcev1.Link)
+		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE, err
+	}
+	return false, nil
 }
 
 // envSpotByID is an environment's place, as the change leaves it.
@@ -2127,7 +2148,7 @@ func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items [
 // checkLinkUser refuses a link that names a database user another link names, so
 // the user a link reads the password of is the one made for it, never another app's.
 func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
-	if l.GetUser() == "" {
+	if l.GetUser() == "" || l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
 		return nil
 	}
 	if had, ok := it.current.(*resourcev1.Link); ok && had.GetUser() == l.GetUser() && had.GetService() == l.GetService() && had.GetMeetsEnvironment() == l.GetMeetsEnvironment() {
@@ -2231,7 +2252,7 @@ func (e *Engine) checkServiceSecrets(ctx context.Context, tx *store.Tx, items []
 				}
 			}
 			for _, l := range links {
-				if l.ref.Scope != env && l.meets() == env && l.GetService() == server {
+				if l.ref.Scope != env && l.meets() == env && l.GetService() == server && l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
 					return fault.New(ErrInvalid, "%s would sign in with %s's administrator password, and link %s of another environment meets %s, so another app's user there could be reached through %s. Give %s a password of its own",
 						it.ref.Name, server, l.ref.Name, server, it.ref.Name, it.ref.Name)
 				}
@@ -2284,18 +2305,21 @@ func (e *Engine) checkLinkServer(ctx context.Context, tx *store.Tx, items []item
 	if env == "" || env == it.ref.Scope {
 		return nil
 	}
-	if had, ok := it.current.(*resourcev1.Link); ok && had.GetMeetsEnvironment() == env && had.GetService() == l.GetService() {
+	if had, ok := it.current.(*resourcev1.Link); ok && had.GetMeetsEnvironment() == env && had.GetService() == l.GetService() && had.GetEngine() == l.GetEngine() {
 		return nil
 	}
 	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: env, Name: l.GetService()})
 	if err != nil {
 		return err
 	}
-	svc, ok := spec.(*resourcev1.Service)
-	if !ok {
+	svc, _ := spec.(*resourcev1.Service)
+	found, ok := database.FromSpec(svc)
+	if l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE || ok && found.Engine.ClickHouse() {
+		if l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE || !ok || !found.Engine.ClickHouse() || found.PasswordSecret == "" {
+			return fault.New(ErrInvalid, "link %s needs a ClickHouse service with a password kept in a secret to reach another environment", it.ref.Name)
+		}
 		return nil
 	}
-	found, ok := database.FromSpec(svc)
 	if !ok || found.PasswordSecret == "" {
 		return nil
 	}
@@ -2362,6 +2386,18 @@ func (e *Engine) checkValueFrom(ctx context.Context, tx *store.Tx, items []item,
 		return refuse("link " + v.GetLink() + " meets nothing in that environment")
 	case !v.GetSecret() || l.GetUser() == "":
 		return refuse("link " + v.GetLink() + " made no user there whose password it is")
+	}
+	if l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: v.GetEnvironment(), Name: l.GetService()})
+		if err != nil {
+			return err
+		}
+		svc, _ := spec.(*resourcev1.Service)
+		found, ok := database.FromSpec(svc)
+		if !ok || !found.Engine.ClickHouse() || found.PasswordSecret != v.GetName() {
+			return refuse(v.GetName() + " isn't the ClickHouse service's password")
+		}
+		return nil
 	}
 	spec, err = e.specAfter(ctx, tx, items, resource.Ref{Kind: database.UserKind, Scope: v.GetEnvironment(), Name: l.GetUser()})
 	if err != nil {

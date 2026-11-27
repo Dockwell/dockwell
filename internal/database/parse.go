@@ -26,6 +26,8 @@ func (e *Engine) parse(said []byte) (*dockwellv1.DatabaseReading, error) {
 		return parseMySQL(e, said)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		return parseMongo(said)
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return parseClickHouse(said)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}

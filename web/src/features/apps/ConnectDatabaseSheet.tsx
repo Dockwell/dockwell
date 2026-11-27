@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeState, DatabaseService, LinkPart, type ServiceInfo } from "@dockwell/api";
+import { ChangeState, DatabaseEngine, DatabaseService, LinkPart, type ServiceInfo } from "@dockwell/api";
 import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -12,7 +12,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useMay } from "../auth/may";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
-import { engineAndVersion, useDatabases } from "../databases/useDatabases";
+import { engineAndVersion, firstReading, firstUser, readOf, useDatabases } from "../databases/useDatabases";
 import { useAllVariables } from "../variables/VariablesPage";
 import { environmentOf, nameOf } from "./app";
 import { appNames, candidates, holds, PARTS, passwordGuess, secretPart, serversOf, suggested } from "./connectDatabase";
@@ -71,11 +71,21 @@ export function ConnectDatabaseSheet({
   const [picked, setServer] = useState<string | undefined>(preset?.server);
   const server = servers.find((db) => db.id === picked) ?? servers[0];
   const has = holds(server);
-  const [database, setDatabase] = useState(preset?.database ?? NEW);
+  const clickHouse = server?.engine === DatabaseEngine.CLICKHOUSE;
+  const [pickedDatabase, setDatabase] = useState(preset?.database ?? NEW);
+  const database =
+    clickHouse && !has.databases.includes(pickedDatabase)
+      ? has.databases.includes("default")
+        ? "default"
+        : (has.databases[0] ?? "")
+      : pickedDatabase;
   const [user, setUser] = useState<string | undefined>(preset?.user);
   const [password, setPassword] = useState<string | undefined>(preset?.password);
   const [chosen, setParts] = useState<Map<string, LinkPart>>();
-  const parts = chosen ?? suggested(names);
+  const allowedPart = (part: LinkPart) =>
+    (part !== LinkPart.NATIVE_PORT || clickHouse) &&
+    (part !== LinkPart.PASSWORD || !clickHouse || Boolean(server?.passwordSecret));
+  const parts = new Map([...(chosen ?? suggested(names))].filter(([, part]) => allowedPart(part)));
   const existing = database !== NEW;
   const signsInAs =
     user ?? (has.users.includes(has.owners.get(database) ?? "") ? has.owners.get(database) : has.users[0]) ?? "";
@@ -86,7 +96,7 @@ export function ConnectDatabaseSheet({
     environment: server?.resource?.scope ?? "",
   }).allowed;
   const signIn = useSignInCheck(client, {
-    on: mayCheck && existing && server !== undefined && signsInAs !== "" && passwordIn !== "",
+    on: !clickHouse && mayCheck && existing && server !== undefined && signsInAs !== "" && passwordIn !== "",
     id: server?.id ?? "",
     user: signsInAs,
     database,
@@ -104,7 +114,8 @@ export function ConnectDatabaseSheet({
   const place = (scope: string | undefined) => places.environments.find((e) => e.id === scope)?.label ?? "";
   const partWord: Record<number, string> = {
     [LinkPart.HOST]: t`Host`,
-    [LinkPart.PORT]: t`Port`,
+    [LinkPart.PORT]: clickHouse ? t`HTTP port` : t`Port`,
+    [LinkPart.NATIVE_PORT]: t`Native port`,
     [LinkPart.ADDRESS]: t`Host and port`,
     [LinkPart.DATABASE]: t({ message: "Database name", context: "what a variable holds" }),
     [LinkPart.USER]: t`User`,
@@ -115,7 +126,7 @@ export function ConnectDatabaseSheet({
 
   const ask = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy || !server || !setsAny) return;
+    if (busy || !server || !setsAny || (clickHouse && !database)) return;
     setBusy(true);
     setErrors({});
     setFailure(undefined);
@@ -128,8 +139,8 @@ export function ConnectDatabaseSheet({
         appProject: places.environments.find((e) => e.id === environment)?.scope ?? "",
         appEnvironment: environment,
         database,
-        user: existing ? signsInAs : "",
-        passwordSecret: existing ? passwordIn : "",
+        user: !clickHouse && existing ? signsInAs : "",
+        passwordSecret: !clickHouse && existing ? passwordIn : "",
         sets,
       });
       if (res.change) {
@@ -177,7 +188,7 @@ export function ConnectDatabaseSheet({
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
-            disabled={!server || !setsAny || refused}
+            disabled={!server || !setsAny || refused || (clickHouse && !database)}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void ask()}
           >
@@ -205,7 +216,7 @@ export function ConnectDatabaseSheet({
               </Link>
             }
           >
-            <Trans>It connects to a PostgreSQL, MySQL or MariaDB that runs where it does.</Trans>
+            <Trans>It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does.</Trans>
           </Callout>
         ) : null}
         {server ? (
@@ -238,7 +249,7 @@ export function ConnectDatabaseSheet({
               error={errors.database}
               hint={existing ? t`Its data stays where it is` : undefined}
               options={[
-                { value: NEW, label: t`A new one for ${name}` },
+                ...(!clickHouse ? [{ value: NEW, label: t`A new one for ${name}` }] : []),
                 ...has.databases.map((d) => ({ value: d, label: d })),
               ]}
               onChange={(event) => {
@@ -247,7 +258,15 @@ export function ConnectDatabaseSheet({
                 setErrors({});
               }}
             />
-            {existing ? (
+            {clickHouse && server.passwordSecret ? (
+              <p className="settings-meta">
+                <Trans>
+                  This link uses the database service’s password for{" "}
+                  <code>{firstUser(server, readOf(firstReading(server)))}</code>.
+                </Trans>
+              </p>
+            ) : null}
+            {existing && !clickHouse ? (
               <>
                 <SelectField
                   label={t`Signs in as`}
@@ -327,7 +346,7 @@ export function ConnectDatabaseSheet({
                   value={String(parts.get(n.name) ?? LinkPart.UNSPECIFIED)}
                   options={[
                     { value: UNSET, label: t`Not set` },
-                    ...PARTS.filter((p) => n.secret || !secretPart(p)).map((p) => ({
+                    ...PARTS.filter((p) => allowedPart(p) && (n.secret || !secretPart(p))).map((p) => ({
                       value: String(p),
                       label: partWord[p] ?? "",
                     })),

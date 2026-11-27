@@ -11,6 +11,7 @@ package catalog
 import (
 	"cmp"
 	"crypto/rand"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -52,6 +53,24 @@ type Catalog struct {
 
 // builtIn is what ships in the binary, Dockwell/catalog's snapshot, read once.
 var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(snapshot.Entries(), "*.yaml") })
+
+//go:embed clickhouse.yaml
+var clickHouseYAML []byte
+
+var clickHouseEntry = sync.OnceValues(func() (*catalogv1.Entry, error) { return Parse(clickHouseYAML) })
+
+// WithNativeDatabase fills in the database entry supplied by this build when the
+// configured catalogs do not carry it.
+func (c *Catalog) WithNativeDatabase() (*Catalog, error) {
+	if _, found := c.Entry("clickhouse"); found {
+		return c, nil
+	}
+	entry, err := clickHouseEntry()
+	if err != nil {
+		return nil, err
+	}
+	return c.With([]*catalogv1.Entry{proto.CloneOf(entry)}), nil
+}
 
 // DirEnv names a directory of entries, taking over from an entry of Dockwell's own of
 // the same ID. It's what a newer release looks like before the catalog can bring one,

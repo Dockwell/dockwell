@@ -4907,14 +4907,17 @@ msgstr "数据库名"
 msgid "Database server"
 msgstr "数据库服务器"
 
+msgid "HTTP port"
+msgstr "HTTP 端口"
+
 msgid "Host"
 msgstr "主机"
 
 msgid "Host and port"
 msgstr "主机和端口"
 
-msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
-msgstr "它连接到与它运行在同一服务器上的 PostgreSQL、MySQL 或 MariaDB。"
+msgid "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
+msgstr "可连接到与应用运行在同一服务器上的 PostgreSQL、MySQL、MariaDB 或 ClickHouse。"
 
 msgid "Its data stays where it is"
 msgstr "其数据保留在原处"
@@ -4924,6 +4927,9 @@ msgstr "其密码所在"
 
 msgid "Its values come from the link, and follow the database"
 msgstr "其值来自链接，并随数据库变化"
+
+msgid "Native port"
+msgstr "原生协议端口"
 
 msgid "Never its administrator"
 msgstr "绝不是其管理员"
@@ -4946,6 +4952,10 @@ msgstr "可登录"
 
 msgid "Signs in as"
 msgstr "登录身份"
+
+#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
+msgid "This link uses the database service’s password for <0>{0}</0>."
+msgstr "此链接使用数据库服务中 <0>{0}</0> 的密码。"
 
 msgid "Use a new database"
 msgstr "使用新数据库"
@@ -15775,6 +15785,9 @@ msgstr "请先为它配置 {set} 所有成员共用的 <0>--keyFile</0>，创建
 msgid "Give it a volume"
 msgstr "为它添加卷"
 
+msgid "HTTP connection URL"
+msgstr "HTTP 连接 URL"
+
 msgid "It sets no most"
 msgstr "未设置上限"
 
@@ -15814,6 +15827,9 @@ msgstr "查询的键中命中的比例"
 msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1>。"
 
+msgid "Marks served from cache"
+msgstr "从缓存读取的标记"
+
 msgid "Newest"
 msgstr "最新"
 
@@ -15822,6 +15838,9 @@ msgstr "暂无用户"
 
 msgid "Not scheduled"
 msgstr "未安排"
+
+msgid "Not yet for ClickHouse"
+msgstr "ClickHouse 暂不支持备份"
 
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"

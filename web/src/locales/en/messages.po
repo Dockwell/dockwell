@@ -4907,14 +4907,17 @@ msgstr "Database name"
 msgid "Database server"
 msgstr "Database server"
 
+msgid "HTTP port"
+msgstr "HTTP port"
+
 msgid "Host"
 msgstr "Host"
 
 msgid "Host and port"
 msgstr "Host and port"
 
-msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
-msgstr "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
+msgid "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
+msgstr "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
 
 msgid "Its data stays where it is"
 msgstr "Its data stays where it is"
@@ -4924,6 +4927,9 @@ msgstr "Its password is in"
 
 msgid "Its values come from the link, and follow the database"
 msgstr "Its values come from the link, and follow the database"
+
+msgid "Native port"
+msgstr "Native port"
 
 msgid "Never its administrator"
 msgstr "Never its administrator"
@@ -4946,6 +4952,10 @@ msgstr "Signs in"
 
 msgid "Signs in as"
 msgstr "Signs in as"
+
+#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
+msgid "This link uses the database service’s password for <0>{0}</0>."
+msgstr "This link uses the database service’s password for <0>{0}</0>."
 
 msgid "Use a new database"
 msgstr "Use a new database"
@@ -15775,6 +15785,9 @@ msgstr "Give it a <0>--keyFile</0> every member of {set} shares, make a root use
 msgid "Give it a volume"
 msgstr "Give it a volume"
 
+msgid "HTTP connection URL"
+msgstr "HTTP connection URL"
+
 msgid "It sets no most"
 msgstr "It sets no most"
 
@@ -15814,6 +15827,9 @@ msgstr "Keys asked for that were there"
 msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 
+msgid "Marks served from cache"
+msgstr "Marks served from cache"
+
 msgid "Newest"
 msgstr "Newest"
 
@@ -15822,6 +15838,9 @@ msgstr "No users yet"
 
 msgid "Not scheduled"
 msgstr "Not scheduled"
+
+msgid "Not yet for ClickHouse"
+msgstr "Not yet for ClickHouse"
 
 msgid "Nothing read yet"
 msgstr "Nothing read yet"

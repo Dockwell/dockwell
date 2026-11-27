@@ -95,7 +95,7 @@ export function DatabaseOverview() {
       </div>
       <ExternalAccess db={db} />
       <CompanionsPanel install={install} />
-      {speaksSQL(db.engine) && read ? <WhoIsIn db={db} read={read} /> : null}
+      {speaksSQL(db.engine) && db.engine !== DatabaseEngine.CLICKHOUSE && read ? <WhoIsIn db={db} read={read} /> : null}
       <DatabaseDanger db={db} />
     </div>
   );
@@ -285,13 +285,22 @@ function UpgradeNote({ db }: { db: Database }) {
 
 /** Whether Dockwell backs a database up: its data is in a volume Dockwell made. */
 export function backsUp(db: Database): boolean {
-  return db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
+  return db.engine !== DatabaseEngine.CLICKHOUSE && db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
 }
 
 /** Why a database has no backups, and what to do about it. */
 export function NoBackups({ db, className }: { db: Database; className?: string }) {
   const { t } = useLingui();
   const volume = db.volume;
+  if (db.engine === DatabaseEngine.CLICKHOUSE) {
+    return (
+      <Panel title={t`Backups`} className={className}>
+        <p className="database-line">
+          <Trans>Not yet for ClickHouse</Trans>
+        </p>
+      </Panel>
+    );
+  }
   return (
     <Panel title={t`Backups`} actions={<StatusBadge status="stopped" label={t`None`} />} className={className}>
       <p className="database-line">
@@ -362,6 +371,7 @@ function Numbers({
   const none = "—";
   const unreadCaption = read ? undefined : unreadWord(reading?.unread);
   const sql = speaksSQL(db.engine);
+  const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
   const connections = Number(read?.connections ?? 0n);
   const most = Number(read?.maxConnections ?? 0n);
   const [size, unit] = read ? splitBytes(formatBytes(read.sizeBytes, locale)) : [none, ""];
@@ -398,9 +408,11 @@ function Numbers({
       unit: read?.cacheHit !== undefined ? "%" : undefined,
       caption: read
         ? read.cacheHit !== undefined
-          ? sql
-            ? t`Reads served from memory`
-            : t`Keys asked for that were there`
+          ? clickHouse
+            ? t`Marks served from cache`
+            : sql
+              ? t`Reads served from memory`
+              : t`Keys asked for that were there`
           : t`Nothing read yet`
         : unreadCaption,
     },
@@ -620,7 +632,12 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       value: db.host,
       hint: place ? t`From apps in ${place}` : t`From apps beside it`,
     },
-    { label: t`Port`, value: String(db.port) },
+    ...(db.engine === DatabaseEngine.CLICKHOUSE
+      ? [
+          { label: t`HTTP port`, value: String(db.httpPort || 8123) },
+          { label: t`Native port`, value: String(db.port) },
+        ]
+      : [{ label: t`Port`, value: String(db.port) }]),
     // One that checks no one has no user to sign in as.
     ...(sql && firstUser(db, read) && !read?.checksNoOne ? [{ label: t`User`, value: firstUser(db, read) }] : []),
     ...(published
@@ -675,11 +692,14 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       note={
         read?.checksNoOne
           ? t`It takes no password, as it checks no one.`
-          : !secret && sql
+          : !secret && sql && db.engine !== DatabaseEngine.CLICKHOUSE
             ? t`Its password is in its own environment, sealed, so it has no secret to reveal.`
             : undefined
       }
-      connectionString={{ label: t`Connection string`, build: (password) => connectionURL(db, read, password) }}
+      connectionString={{
+        label: db.engine === DatabaseEngine.CLICKHOUSE ? t`HTTP connection URL` : t`Connection string`,
+        build: (password) => connectionURL(db, read, password),
+      }}
     />
   );
 }

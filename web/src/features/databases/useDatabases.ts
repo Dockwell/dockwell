@@ -78,6 +78,7 @@ const ENGINES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.REDIS]: "Redis",
   [DatabaseEngine.VALKEY]: "Valkey",
   [DatabaseEngine.MONGODB]: "MongoDB",
+  [DatabaseEngine.CLICKHOUSE]: "ClickHouse",
 };
 
 export function engineName(engine: DatabaseEngine): string {
@@ -107,6 +108,7 @@ const SCHEMES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.REDIS]: "redis",
   [DatabaseEngine.VALKEY]: "redis",
   [DatabaseEngine.MONGODB]: "mongodb",
+  [DatabaseEngine.CLICKHOUSE]: "clickhouse",
 };
 
 /** The first user each engine's image makes, where a reading hasn't said. */
@@ -118,6 +120,7 @@ const FIRST_USER: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.REDIS]: "",
   [DatabaseEngine.VALKEY]: "",
   [DatabaseEngine.MONGODB]: "",
+  [DatabaseEngine.CLICKHOUSE]: "default",
 };
 
 /** What a database's first server said, which is the one there is for nearly all. */
@@ -176,11 +179,17 @@ function buildConnectionURL(
   host: string,
   port: number,
   password: string | undefined,
+  http = false,
 ): string {
-  const scheme = SCHEMES[db.engine];
+  const scheme = http ? "http" : SCHEMES[db.engine];
   const address = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
   const where = `${address}:${port}`;
   const secret = password === undefined ? "" : `:${encodeURIComponent(password)}`;
+  if (db.engine === DatabaseEngine.CLICKHOUSE) {
+    const user = encodeURIComponent(firstUser(db, reading));
+    const credentials = db.passwordSecret || password !== undefined ? `${user}${secret}@` : "";
+    return `${scheme}://${credentials}${where}/default`;
+  }
   if (db.engine === DatabaseEngine.MONGODB) {
     // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.
     const root = firstUser(db, reading);
@@ -202,6 +211,9 @@ export function connectionURL(
   reading: DatabaseReading | undefined,
   password: string | undefined,
 ): string {
+  if (db.engine === DatabaseEngine.CLICKHOUSE) {
+    return buildConnectionURL(db, reading, db.host, db.httpPort || 8123, password, true);
+  }
   return buildConnectionURL(db, reading, db.host, db.port, password);
 }
 
@@ -242,6 +254,8 @@ const IMAGES: Readonly<Record<string, DatabaseEngine>> = {
   redis: DatabaseEngine.REDIS,
   "valkey/valkey": DatabaseEngine.VALKEY,
   mongo: DatabaseEngine.MONGODB,
+  clickhouse: DatabaseEngine.CLICKHOUSE,
+  "clickhouse/clickhouse-server": DatabaseEngine.CLICKHOUSE,
 };
 
 /** The engine an image runs, as the control plane tells (internal/database.Recognise), or undefined. */

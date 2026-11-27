@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: clickhouse
+name: ClickHouse
+summary: Column-oriented SQL database for analytics
+description: ClickHouse stores columns together and reads only the columns a query needs. Apps can connect over HTTP or the native ClickHouse protocol on the project network.
+category: databases
+version: "25.8.33.6"
+release: 1
+homepage: https://clickhouse.com/
+documentation: https://clickhouse.com/docs/
+appSource: https://github.com/ClickHouse/ClickHouse
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/Dockwell
+  path: internal/catalog/clickhouse.yaml
+architectures: [amd64, arm64]
+notes:
+  - ClickHouse caps its tracked memory at 320 MiB.
+translations:
+  zh-CN:
+    summary: 用于分析的列式 SQL 数据库
+    description: ClickHouse 按列存储数据，只读取查询需要的列。应用可在项目网络内通过 HTTP 或 ClickHouse 原生协议连接。
+inputs:
+  - name: CLICKHOUSE_PASSWORD
+    label: Password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    db:
+      image: clickhouse/clickhouse-server:25.8.33.6-alpine@sha256:87e0a5b72f5465b18eacca7c76850e7ff551c9795c50e451f5646299e5e24146
+      restart: unless-stopped
+      mem_limit: 512M
+      cpus: 1
+      environment:
+        CLICKHOUSE_USER: default
+        CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      volumes:
+        - data:/var/lib/clickhouse
+      configs:
+        - source: small-host
+          target: /etc/clickhouse-server/config.d/dockwell-small-host.xml
+        - source: small-queries
+          target: /etc/clickhouse-server/users.d/dockwell-small-queries.xml
+      healthcheck:
+        test: ["CMD", "clickhouse-client", "--host=127.0.0.1", "--query=SELECT 1"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+        start_period: 20s
+  volumes:
+    data: {}
+  configs:
+    small-host:
+      content: |
+        <clickhouse>
+          <max_server_memory_usage>335544320</max_server_memory_usage>
+          <mark_cache_size>33554432</mark_cache_size>
+          <background_schedule_pool_size>16</background_schedule_pool_size>
+        </clickhouse>
+    small-queries:
+      content: |
+        <clickhouse>
+          <profiles>
+            <default>
+              <max_threads>2</max_threads>
+              <max_insert_threads>1</max_insert_threads>
+              <max_block_size>8192</max_block_size>
+              <input_format_parallel_parsing>0</input_format_parallel_parsing>
+            </default>
+          </profiles>
+        </clickhouse>

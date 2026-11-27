@@ -3498,7 +3498,7 @@ paths:
             tags:
                 - DatabaseService
             description: |-
-                ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+                ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
                  Dockwell runs, for an app from no catalog entry, such as one a Compose file or
                  an import brought (ADR 0084, Connect a database). The link is a resource in the
                  app's environment, and what meets it is a new database with a user of the app's
@@ -3509,7 +3509,8 @@ paths:
                  environment the request names is set from the link, the password as a value
                  read from the user's own secret, and a URL written from the parts. A server in
                  another project is reached on a link network of the app's own, which it joins
-                 in place. The app runs on the server the database runs on.
+                 in place. The app runs on the server the database runs on. ClickHouse uses
+                 an existing database and the credentials the service already uses.
             operationId: DatabaseService_ConnectDatabase
             parameters:
                 - name: id
@@ -16786,6 +16787,7 @@ components:
                             - LINK_PART_PASSWORD
                             - LINK_PART_URL
                             - LINK_PART_TLS
+                            - LINK_PART_NATIVE_PORT
                             - LINK_PART_KEY_PREFIX
                             - LINK_PART_ENGINE
                             - LINK_PART_ENDPOINT
@@ -16862,6 +16864,7 @@ components:
                             - LINK_PART_PASSWORD
                             - LINK_PART_URL
                             - LINK_PART_TLS
+                            - LINK_PART_NATIVE_PORT
                             - LINK_PART_KEY_PREFIX
                             - LINK_PART_ENGINE
                             - LINK_PART_ENDPOINT
@@ -17013,6 +17016,7 @@ components:
                         - LINK_PART_PASSWORD
                         - LINK_PART_URL
                         - LINK_PART_TLS
+                        - LINK_PART_NATIVE_PORT
                         - LINK_PART_KEY_PREFIX
                         - LINK_PART_ENGINE
                         - LINK_PART_ENDPOINT
@@ -17054,6 +17058,7 @@ components:
                         - LINK_PART_PASSWORD
                         - LINK_PART_URL
                         - LINK_PART_TLS
+                        - LINK_PART_NATIVE_PORT
                         - LINK_PART_KEY_PREFIX
                         - LINK_PART_ENGINE
                         - LINK_PART_ENDPOINT
@@ -17227,6 +17232,7 @@ components:
                             - LINK_PART_PASSWORD
                             - LINK_PART_URL
                             - LINK_PART_TLS
+                            - LINK_PART_NATIVE_PORT
                             - LINK_PART_KEY_PREFIX
                             - LINK_PART_ENGINE
                             - LINK_PART_ENDPOINT
@@ -18235,6 +18241,7 @@ components:
                         - DATABASE_ENGINE_REDIS
                         - DATABASE_ENGINE_VALKEY
                         - DATABASE_ENGINE_MONGODB
+                        - DATABASE_ENGINE_CLICKHOUSE
                     type: string
                     description: Which database it runs.
                     format: enum
@@ -18312,6 +18319,10 @@ components:
                          publishes on every address of its server, and the addresses its firewall
                          lets in there. Unset while it has no external access
                          (SetDatabaseExternalAccess).
+                httpPort:
+                    type: integer
+                    description: The HTTP port in a ClickHouse container. Its native port is in port.
+                    format: uint32
             description: Database is a service that runs a database.
         DatabaseAccount:
             type: object
@@ -25815,6 +25826,9 @@ components:
                     items:
                         type: string
                     description: The apps linking to this database, where visible to the caller.
+                engine:
+                    type: string
+                    description: The database engine reported by ClickHouse, such as Atomic.
             description: |-
                 InnerDatabase is one database inside a database server, as PostgreSQL has
                  them, or a schema, as MySQL and MariaDB call one.
@@ -26549,6 +26563,7 @@ components:
                         - LINK_PART_PASSWORD
                         - LINK_PART_URL
                         - LINK_PART_TLS
+                        - LINK_PART_NATIVE_PORT
                         - LINK_PART_KEY_PREFIX
                         - LINK_PART_ENGINE
                         - LINK_PART_ENDPOINT
@@ -28231,6 +28246,7 @@ components:
                         - PART_PASSWORD
                         - PART_URL
                         - PART_TLS
+                        - PART_NATIVE_PORT
                         - PART_KEY_PREFIX
                         - PART_ENGINE
                         - PART_ENDPOINT

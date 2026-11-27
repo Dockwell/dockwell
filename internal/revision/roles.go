@@ -187,7 +187,7 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 		}
 		// What it points at in another environment needs a role there too, and so does
 		// a whole restore of a server another environment's app shares (ADR 0084).
-		if err := e.reachRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
+		if err := e.reachRoles(ctx, tx, caller.Grants, items, it, byID, a); err != nil {
 			return err
 		}
 		if err := e.linkedRestoreRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {

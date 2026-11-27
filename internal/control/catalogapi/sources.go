@@ -1122,6 +1122,11 @@ func (h *Handler) withSources(ctx context.Context, instead planned) (sourced, er
 			overlay(o, s.spec)
 		}
 	}
+	out.catalog, err = out.catalog.WithNativeDatabase()
+	if err != nil {
+		return sourced{}, err
+	}
+
 	return out, nil
 }
 

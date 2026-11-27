@@ -122,7 +122,7 @@ service DatabaseService {
     option (dockwell.v1.command) = {verb: "check-sign-in"};
     option (google.api.http) = {get: "/v1/databases/{id}:checkSignIn"};
   }
-  // ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+  // ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
   // Dockwell runs, for an app from no catalog entry, such as one a Compose file or
   // an import brought (ADR 0084, Connect a database). The link is a resource in the
   // app's environment, and what meets it is a new database with a user of the app's
@@ -133,7 +133,8 @@ service DatabaseService {
   // environment the request names is set from the link, the password as a value
   // read from the user's own secret, and a URL written from the parts. A server in
   // another project is reached on a link network of the app's own, which it joins
-  // in place. The app runs on the server the database runs on.
+  // in place. The app runs on the server the database runs on. ClickHouse uses
+  // an existing database and the credentials the service already uses.
   rpc ConnectDatabase(ConnectDatabaseRequest) returns (ConnectDatabaseResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
@@ -250,6 +251,8 @@ enum DatabaseEngine {
   DATABASE_ENGINE_VALKEY = 5 [(dockwell.v1.word) = "Valkey"];
   // MongoDB, from the image mongo.
   DATABASE_ENGINE_MONGODB = 6 [(dockwell.v1.word) = "MongoDB"];
+  // ClickHouse, from clickhouse/clickhouse-server or clickhouse.
+  DATABASE_ENGINE_CLICKHOUSE = 7 [(dockwell.v1.word) = "ClickHouse"];
 }
 
 // Database is a service that runs a database.
@@ -302,6 +305,8 @@ message Database {
   // lets in there. Unset while it has no external access
   // (SetDatabaseExternalAccess).
   DatabaseExternalAccess external_access = 17;
+  // The HTTP port in a ClickHouse container. Its native port is in port.
+  uint32 http_port = 18;
 }
 
 // DatabaseExternalAccess is a database's port on its server's every address, and
@@ -387,6 +392,8 @@ message InnerDatabase {
   string resource_kind = 7;
   // The apps linking to this database, where visible to the caller.
   repeated string linked_by = 8;
+  // The database engine reported by ClickHouse, such as Atomic.
+  string engine = 9;
 }
 
 // DatabaseAccount is someone who can sign in to a database server: a user, as

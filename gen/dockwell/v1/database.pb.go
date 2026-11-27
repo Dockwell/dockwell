@@ -44,6 +44,8 @@ const (
 	DatabaseEngine_DATABASE_ENGINE_VALKEY DatabaseEngine = 5
 	// MongoDB, from the image mongo.
 	DatabaseEngine_DATABASE_ENGINE_MONGODB DatabaseEngine = 6
+	// ClickHouse, from clickhouse/clickhouse-server or clickhouse.
+	DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE DatabaseEngine = 7
 )
 
 // Enum value maps for DatabaseEngine.
@@ -56,6 +58,7 @@ var (
 		4: "DATABASE_ENGINE_REDIS",
 		5: "DATABASE_ENGINE_VALKEY",
 		6: "DATABASE_ENGINE_MONGODB",
+		7: "DATABASE_ENGINE_CLICKHOUSE",
 	}
 	DatabaseEngine_value = map[string]int32{
 		"DATABASE_ENGINE_UNSPECIFIED": 0,
@@ -65,6 +68,7 @@ var (
 		"DATABASE_ENGINE_REDIS":       4,
 		"DATABASE_ENGINE_VALKEY":      5,
 		"DATABASE_ENGINE_MONGODB":     6,
+		"DATABASE_ENGINE_CLICKHOUSE":  7,
 	}
 )
 
@@ -146,8 +150,10 @@ type Database struct {
 	// lets in there. Unset while it has no external access
 	// (SetDatabaseExternalAccess).
 	ExternalAccess *DatabaseExternalAccess `protobuf:"bytes,17,opt,name=external_access,json=externalAccess,proto3" json:"external_access,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The HTTP port in a ClickHouse container. Its native port is in port.
+	HttpPort      uint32 `protobuf:"varint,18,opt,name=http_port,json=httpPort,proto3" json:"http_port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Database) Reset() {
@@ -297,6 +303,13 @@ func (x *Database) GetExternalAccess() *DatabaseExternalAccess {
 		return x.ExternalAccess
 	}
 	return nil
+}
+
+func (x *Database) GetHttpPort() uint32 {
+	if x != nil {
+		return x.HttpPort
+	}
+	return 0
 }
 
 // DatabaseExternalAccess is a database's port on its server's every address, and
@@ -595,7 +608,9 @@ type InnerDatabase struct {
 	// The resource's kind ("database.logical" or "database.user") when Dockwell manages it.
 	ResourceKind string `protobuf:"bytes,7,opt,name=resource_kind,json=resourceKind,proto3" json:"resource_kind,omitempty"`
 	// The apps linking to this database, where visible to the caller.
-	LinkedBy      []string `protobuf:"bytes,8,rep,name=linked_by,json=linkedBy,proto3" json:"linked_by,omitempty"`
+	LinkedBy []string `protobuf:"bytes,8,rep,name=linked_by,json=linkedBy,proto3" json:"linked_by,omitempty"`
+	// The database engine reported by ClickHouse, such as Atomic.
+	Engine        string `protobuf:"bytes,9,opt,name=engine,proto3" json:"engine,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -684,6 +699,13 @@ func (x *InnerDatabase) GetLinkedBy() []string {
 		return x.LinkedBy
 	}
 	return nil
+}
+
+func (x *InnerDatabase) GetEngine() string {
+	if x != nil {
+		return x.Engine
+	}
+	return ""
 }
 
 // DatabaseAccount is someone who can sign in to a database server: a user, as
@@ -2691,7 +2713,7 @@ var File_dockwell_v1_database_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/database.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x19google/api/httpbody.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9d\x05\n" +
+	"\x1adockwell/v1/database.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/backup.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x19google/api/httpbody.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xba\x05\n" +
 	"\bDatabase\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x123\n" +
@@ -2710,7 +2732,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\rlatest_backup\x18\x0e \x01(\v2\x13.dockwell.v1.BackupR\flatestBackup\x12\x16\n" +
 	"\x06beside\x18\x0f \x03(\tR\x06beside\x12#\n" +
 	"\rcatalog_entry\x18\x10 \x01(\tR\fcatalogEntry\x12L\n" +
-	"\x0fexternal_access\x18\x11 \x01(\v2#.dockwell.v1.DatabaseExternalAccessR\x0eexternalAccess\"K\n" +
+	"\x0fexternal_access\x18\x11 \x01(\v2#.dockwell.v1.DatabaseExternalAccessR\x0eexternalAccess\x12\x1b\n" +
+	"\thttp_port\x18\x12 \x01(\rR\bhttpPort\"K\n" +
 	"\x16DatabaseExternalAccess\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1d\n" +
 	"\n" +
@@ -2740,7 +2763,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOne\x12\x1c\n" +
 	"\tcontainer\x18\x13 \x01(\tR\tcontainerB\f\n" +
 	"\n" +
-	"_cache_hit\"\xf5\x01\n" +
+	"_cache_hit\"\x8d\x02\n" +
 	"\rInnerDatabase\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x1d\n" +
@@ -2751,7 +2774,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\vresource_id\x18\x06 \x01(\tR\n" +
 	"resourceId\x12#\n" +
 	"\rresource_kind\x18\a \x01(\tR\fresourceKind\x12\x1b\n" +
-	"\tlinked_by\x18\b \x03(\tR\blinkedBy\"\xc5\x02\n" +
+	"\tlinked_by\x18\b \x03(\tR\blinkedBy\x12\x16\n" +
+	"\x06engine\x18\t \x01(\tR\x06engine\"\xc5\x02\n" +
 	"\x0fDatabaseAccount\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04host\x18\x02 \x01(\tR\x04host\x12\x1c\n" +
@@ -2900,7 +2924,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\timport_id\x18\x02 \x01(\tR\bimportId\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\"\x1e\n" +
-	"\x1cCancelDatabaseImportResponse*\xa9\x02\n" +
+	"\x1cCancelDatabaseImportResponse*\xd9\x02\n" +
 	"\x0eDatabaseEngine\x12\x1f\n" +
 	"\x1bDATABASE_ENGINE_UNSPECIFIED\x10\x00\x12.\n" +
 	"\x1aDATABASE_ENGINE_POSTGRESQL\x10\x01\x1a\x0e\xa2\xbb\x18\n" +
@@ -2910,7 +2934,9 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x15DATABASE_ENGINE_REDIS\x10\x04\x1a\t\xa2\xbb\x18\x05Redis\x12&\n" +
 	"\x16DATABASE_ENGINE_VALKEY\x10\x05\x1a\n" +
 	"\xa2\xbb\x18\x06Valkey\x12(\n" +
-	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB2\xd2\x12\n" +
+	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB\x12.\n" +
+	"\x1aDATABASE_ENGINE_CLICKHOUSE\x10\a\x1a\x0e\xa2\xbb\x18\n" +
+	"ClickHouse2\xd2\x12\n" +
 	"\x0fDatabaseService\x12\x80\x01\n" +
 	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12\x7f\n" +
 	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01\x12\xa8\x01\n" +

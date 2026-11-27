@@ -122,7 +122,7 @@ type DatabaseServiceClient interface {
 	// server's is protected, as revealing its secrets does. One check runs at a time on
 	// a server, and an answer is given again for 30 seconds.
 	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
-	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
 	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
 	// an import brought (ADR 0084, Connect a database). The link is a resource in the
 	// app's environment, and what meets it is a new database with a user of the app's
@@ -133,7 +133,8 @@ type DatabaseServiceClient interface {
 	// environment the request names is set from the link, the password as a value
 	// read from the user's own secret, and a URL written from the parts. A server in
 	// another project is reached on a link network of the app's own, which it joins
-	// in place. The app runs on the server the database runs on.
+	// in place. The app runs on the server the database runs on. ClickHouse uses
+	// an existing database and the credentials the service already uses.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
 	// or MariaDB server, owned either by an existing user picked on that server
@@ -381,7 +382,7 @@ type DatabaseServiceHandler interface {
 	// server's is protected, as revealing its secrets does. One check runs at a time on
 	// a server, and an answer is given again for 30 seconds.
 	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
-	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
 	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
 	// an import brought (ADR 0084, Connect a database). The link is a resource in the
 	// app's environment, and what meets it is a new database with a user of the app's
@@ -392,7 +393,8 @@ type DatabaseServiceHandler interface {
 	// environment the request names is set from the link, the password as a value
 	// read from the user's own secret, and a URL written from the parts. A server in
 	// another project is reached on a link network of the app's own, which it joins
-	// in place. The app runs on the server the database runs on.
+	// in place. The app runs on the server the database runs on. ClickHouse uses
+	// an existing database and the credentials the service already uses.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
 	// or MariaDB server, owned either by an existing user picked on that server

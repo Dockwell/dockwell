@@ -9,6 +9,7 @@ import {
   BackupState,
   ChangeService,
   type Database,
+  DatabaseEngine,
   Engine,
   type Event,
   EventKind,
@@ -532,13 +533,16 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
         id: "backup",
         icon: "archive",
         label: t`Back up now`,
-        off: !canBackUp
-          ? db.volumeExternal
-            ? t`Its volume isn't one Dockwell backs up`
-            : t`It has no volume to back up`
-          : mayBackUp.allowed
-            ? undefined
-            : mayBackUp.reason,
+        off:
+          db.engine === DatabaseEngine.CLICKHOUSE
+            ? t`Not yet for ClickHouse`
+            : !canBackUp
+              ? db.volumeExternal
+                ? t`Its volume isn't one Dockwell backs up`
+                : t`It has no volume to back up`
+              : mayBackUp.allowed
+                ? undefined
+                : mayBackUp.reason,
         onSelect: () => setBackingUp(db),
       },
       {
@@ -558,7 +562,7 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
             },
           ]
         : []),
-      ...(makesUsers(db.engine)
+      ...(makesUsers(db.engine) || db.engine === DatabaseEngine.CLICKHOUSE
         ? [
             {
               id: "databases",
@@ -568,12 +572,16 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
             },
           ]
         : []),
-      {
-        id: "users",
-        icon: "user",
-        label: t`Users`,
-        onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
-      },
+      ...(db.engine !== DatabaseEngine.CLICKHOUSE
+        ? [
+            {
+              id: "users",
+              icon: "user" as const,
+              label: t`Users`,
+              onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
+            },
+          ]
+        : []),
       {
         id: "backups",
         icon: "archive",
@@ -715,6 +723,12 @@ function DatabasesTable({
       );
     },
     backups: (db) => {
+      if (db.engine === DatabaseEngine.CLICKHOUSE)
+        return (
+          <span className="databases-muted">
+            <Trans>Not yet for ClickHouse</Trans>
+          </span>
+        );
       const { how, when, unscheduled } = backups(db, now);
       const may = mayPlan(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
       return unscheduled ? (
@@ -1111,7 +1125,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   // A catalog install's database goes by the name the person gave the install (#796).
   const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
-  const withVolume = databases.filter((db) => db.volumeId !== "");
+  const withVolume = databases.filter(backsUp);
   const scheduled = withVolume.filter((db) => policiesOf(db, policies).length > 0);
   // The newest run of any of them, whole or not: one that failed since the last whole
   // one is what "last run" has to say.

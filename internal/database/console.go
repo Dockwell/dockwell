@@ -114,6 +114,8 @@ func ConsoleCommand(e *Engine, port uint32, dbName string) (cmd, env []string, t
 			`c=$?; rm -rf "$d"; exit "$c"`
 		return []string{"/bin/sh", "-c", script}, env, "mongosh", nil
 
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return clickHouseClient(port, dbName, "--history_file=/dev/null"), nil, e.tool(), nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED:
 	}
 	return nil, nil, "", fmt.Errorf("no interactive console is available for %s", e.Name)

@@ -98,6 +98,14 @@ Each is a database as the others are: a service on its engine's own image, read,
 - Checked by hand on the real binaries, run from the images: the reading, a dump and a restore with and without an oplog, a refused sign-in, the setup server told from the real one, and 9.0 refusing data at 7.0's features until the agent's raise took it to 8.0's, after which 8.0 still ran it.
 - The agent build links nothing new. SHA-256 for ClickHouse's hash is there already, and copying a file out of a container, or into one, is two more calls in `internal/docker`.
 
+### ClickHouse inventory and creation
+
+Dockwell reads official ClickHouse images and recognizes the startup wrapper used by the catalog's Plausible entry. The agent reads version, uptime, connections, active-part size, mark-cache hits and named databases through the image's native client. Its password stays in the container environment.
+
+New ClickHouse installs use the usual catalog plan with the bundled ClickHouse entry as a fallback. The official 25.8 LTS image is pinned to an index for amd64 and arm64. The plan gives it a data volume, a generated password for the default user, one CPU and a 512 MiB container limit. A mounted config caps ClickHouse’s tracked memory at 320 MiB. Both endpoints stay on the project network by default.
+
+An app can link to an existing ClickHouse database over HTTP or native TCP. The link uses the database service's current user and reads its password from the original secret. A link across environments requires an administrator on the source and a password kept as a secret. A catalog app can keep using its own passwordless database in the same environment. ClickHouse user management, consistent database backups and version-aware upgrades are follow-ups.
+
 ### The panel
 
 The Databases section is built to `Databases-List` and `Database-Detail`, at `/databases` and `/databases/<service ID>`. A database shows its connection string with the password masked, and names the secret that holds it, where there is one. The page reads the database again every 15 seconds while it shows. Where it differs from the mocks:

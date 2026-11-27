@@ -67,7 +67,7 @@ func storageControl(t *testing.T, backend store.Backend, client *docker.Client, 
 		if err != nil {
 			t.Fatal(err)
 		}
-		runtime := &container.Docker{Client: client, RunStateDir: t.TempDir(), Settle: 20 * time.Millisecond, Poll: 20 * time.Millisecond, Soak: -1}
+		runtime := &container.Docker{Client: client, RunStateDir: t.TempDir(), Settle: 20 * time.Millisecond, Poll: 20 * time.Millisecond, Soak: -1, Files: &container.Files{Client: client, Dir: t.TempDir()}}
 		ctr := container.Driver{Runtime: runtime}
 		backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper, Work: 1000, RunControl: runtime}
 		s := &testServer{

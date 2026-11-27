@@ -60,7 +60,7 @@ func pinnedApart(ctx context.Context, tx *store.Tx, environment, service string,
 }
 
 // databaseEntries are the catalog's entries that install a database of its own.
-var databaseEntries = map[string]bool{"postgres": true, "mysql": true, "mariadb": true, "redis": true}
+var databaseEntries = map[string]bool{"postgres": true, "mysql": true, "mariadb": true, "redis": true, "clickhouse": true}
 
 // Candidates are the database servers Dockwell runs, as ways to meet an app's need
 // (ADR 0084): each with its engine, the version it says of itself where a reading

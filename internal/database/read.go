@@ -91,6 +91,9 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return r
 	}
 	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
+	if e.ClickHouse() && envMap(c.Config.Env)["CLICKHOUSE_PASSWORD_FILE"] != "" {
+		cmd = clickHousePasswordFile(cmd)
+	}
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
 		r := unread(err.Error())
@@ -139,7 +142,7 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, clientWait)
 	case code == 126 || code == 127 || notFound(said):
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
-	case code != 0 && e.SQL() && startingUp(said):
+	case code != 0 && (e.SQL() || e.ClickHouse()) && startingUp(said):
 		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case code != 0 && e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB && mongoNotListening(said):
 		// mongosh says so when nothing takes its connection, as between the image's
@@ -155,6 +158,8 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		// It answered, and refused what it was asked, in its own words, which may
 		// follow a notice or two.
 		return nil, fmt.Errorf("%s refused it: %s", e.Name, scrubbed(said[sqlRefused().FindStringIndex(said)[1]:]))
+	case code != 0 && e.ClickHouse():
+		return nil, fmt.Errorf("%s didn't answer its inventory query, with code %d", e.Name, code)
 	case code != 0:
 		return nil, fmt.Errorf("%s didn't answer, with code %d: %s", e.Name, code, scrubbed(said))
 	case out.over:
@@ -201,6 +206,8 @@ func (e *Engine) tool() string {
 		return "valkey-cli"
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		return "mongosh"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return "clickhouse-client"
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
@@ -261,7 +268,7 @@ func refusedSignIn(said string) bool {
 	for _, words := range []string{
 		"password authentication failed", "Access denied", "NOAUTH", "WRONGPASS", "no password supplied", "invalid password",
 		// MongoDB's, for a wrong password, and for none where it checks.
-		"Authentication failed", "requires authentication",
+		"Authentication failed", "requires authentication", "AUTHENTICATION_FAILED",
 	} {
 		if strings.Contains(said, words) {
 			return true
@@ -284,6 +291,8 @@ func (e *Engine) reading(port uint32) ([]string, string) {
 		return mysqlClient, mariadbSession + mysqlRead
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		return withPort("DW_PORT", port, mongoClient), mongoRead
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return clickHouseClient(port, "", "--multiquery"), clickHouseRead
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}
