@@ -4,6 +4,7 @@ import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  GitProviderService,
   ResourceService,
   Role,
   StepUpAction,
@@ -21,6 +22,7 @@ import {
   Panel,
   PHONE_QUERY,
   SelectField,
+  Sheet,
   Skeleton,
   StatusBadge,
   Table,
@@ -35,7 +37,7 @@ import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { formatDay } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { highestRole, ranksAbove } from "../auth/may";
+import { highestRole, ranksAbove, useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
@@ -93,6 +95,7 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
   const phone = useMediaQuery(PHONE_QUERY);
   const now = useControlPlaneNow();
   const [made, setMade] = useState<Made>();
+  const [editingRepo, setEditingRepo] = useState<Token>();
   const list = tokens.data?.tokens ?? [];
   const place = useListPlace(search, onSearch, SORT_KEYS);
   const rows = sortedRows(
@@ -198,7 +201,7 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
         {page.rows.map((token) => (
           <li key={token.id} className="tokens-item">
             <TokenFacts token={token} now={now} isNew={token.id === made?.id} />
-            <RevokeButton token={token} onRevoked={() => void tokens.refetch()} />
+            <RevokeButton token={token} onRevoked={() => void tokens.refetch()} onEditRepo={setEditingRepo} />
           </li>
         ))}
       </ul>
@@ -211,6 +214,7 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
         now={now}
         newId={made?.id}
         onRevoked={() => void tokens.refetch()}
+        onEditRepo={setEditingRepo}
       />
     );
   }
@@ -272,6 +276,16 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
           void tokens.refetch();
         }}
       />
+      {editingRepo ? (
+        <TokenRepositorySheet
+          token={editingRepo}
+          onClose={() => setEditingRepo(undefined)}
+          onSaved={() => {
+            setEditingRepo(undefined);
+            void tokens.refetch();
+          }}
+        />
+      ) : null}
     </Page>
   );
 }
@@ -297,6 +311,16 @@ export function expiresWithin(token: Token, now: number, ms: number): boolean {
   return token.expireTime !== undefined && timestampDate(token.expireTime).getTime() - now < ms;
 }
 
+function shortRepoLabel(repoUrl: string): string {
+  try {
+    const parsed = new URL(repoUrl);
+    const path = parsed.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+    return path ? `${parsed.host}/${path}` : parsed.host;
+  } catch {
+    return repoUrl;
+  }
+}
+
 /**
  * What a token may do, as tags: every token reads, and some write or read logs
  * too; and for one narrowed, where it acts and as what (ADR 0071).
@@ -311,20 +335,28 @@ function Scopes({ token }: { token: Token }) {
   return (
     <span className="tokens-tags">
       {token.scope === TokenScope.DEPLOY ? (
-        <Tag label={t`Deploy`}>
-          {token.deployServiceName ? (
-            <Link
-              className="cp-link"
-              to="/apps/$serviceId/deployments"
-              params={{ serviceId: token.deployService }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {token.deployServiceName}
-            </Link>
-          ) : (
-            t`App unavailable`
-          )}
-        </Tag>
+        <>
+          <Tag label={t`Deploy`}>
+            {token.deployServiceName ? (
+              <Link
+                className="cp-link"
+                to="/apps/$serviceId/deployments"
+                params={{ serviceId: token.deployService }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {token.deployServiceName}
+              </Link>
+            ) : (
+              t`App unavailable`
+            )}
+          </Tag>
+          <span className="tokens-tag-where" title={token.deployRepository || t`No status repository`}>
+            <Tag
+              label={t`status`}
+              value={token.deployRepository ? shortRepoLabel(token.deployRepository) : t`not set`}
+            />
+          </span>
+        </>
       ) : (
         <Tag label="read" value="*" />
       )}
@@ -415,12 +447,14 @@ function TokensTable({
   now,
   newId,
   onRevoked,
+  onEditRepo,
 }: {
   tokens: readonly Token[];
   place: ListPlace;
   now: number;
   newId: string | undefined;
   onRevoked: () => void;
+  onEditRepo: (token: Token) => void;
 }) {
   const { t } = useLingui();
   const columns: TableColumn<Token>[] = [
@@ -435,7 +469,7 @@ function TokensTable({
       header: <span className="dw-sr">{t`Actions`}</span>,
       width: 136,
       align: "right",
-      render: (token) => <RevokeButton token={token} onRevoked={onRevoked} />,
+      render: (token) => <RevokeButton token={token} onRevoked={onRevoked} onEditRepo={onEditRepo} />,
     },
   ];
   return (
@@ -474,7 +508,15 @@ function TokenFacts({ token, now, isNew }: { token: Token; now: number; isNew: b
 }
 
 /** Revoke, then a word to confirm it: a revoked token stops at once, and can't come back. */
-function RevokeButton({ token, onRevoked }: { token: Token; onRevoked: () => void }) {
+function RevokeButton({
+  token,
+  onRevoked,
+  onEditRepo,
+}: {
+  token: Token;
+  onRevoked: () => void;
+  onEditRepo: (token: Token) => void;
+}) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
@@ -509,6 +551,16 @@ function RevokeButton({ token, onRevoked }: { token: Token; onRevoked: () => voi
         <ActionMenu
           label={t`Actions for ${token.name}`}
           actions={[
+            ...(token.scope === TokenScope.DEPLOY
+              ? [
+                  {
+                    id: "repository",
+                    label: token.deployRepository ? t`Change status repository` : t`Set status repository`,
+                    icon: "commit" as const,
+                    onSelect: () => onEditRepo(token),
+                  },
+                ]
+              : []),
             { id: "revoke", label: t`Revoke`, icon: "trash", danger: true, onSelect: () => setConfirming(true) },
           ]}
         />
@@ -519,6 +571,101 @@ function RevokeButton({ token, onRevoked }: { token: Token; onRevoked: () => voi
         </span>
       ) : null}
     </span>
+  );
+}
+
+/** Binds a deploy token to the HTTPS repository whose commits it may report status to (ADR 0111). */
+function TokenRepositorySheet({ token, onClose, onSaved }: { token: Token; onClose: () => void; onSaved: () => void }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const explain = useAuthError();
+  const may = useMay();
+  const projectId = token.projects[0]?.id ?? "";
+  const mayGitHub = may(GitProviderService.method.listGitRepositories, projectId ? { project: projectId } : undefined);
+  const mayGitLab = may(GitProviderService.method.listGitLabProjects, projectId ? { project: projectId } : undefined);
+  const ghRepos = useQuery(
+    GitProviderService.method.listGitRepositories,
+    { project: projectId },
+    { enabled: Boolean(projectId) && mayGitHub.allowed },
+  );
+  const glProjects = useQuery(
+    GitProviderService.method.listGitLabProjects,
+    { project: projectId },
+    { enabled: Boolean(projectId) && mayGitLab.allowed },
+  );
+
+  const options: { value: string; label: string }[] = [
+    ...(ghRepos.data?.repositories ?? []).map((r) => ({
+      value: r.url.startsWith("https://") ? r.url : `https://github.com/${r.fullName}`,
+      label: `GitHub · ${r.fullName}`,
+    })),
+    ...(glProjects.data?.projects ?? []).map((p) => ({ value: p.url, label: `GitLab · ${p.pathWithNamespace}` })),
+  ];
+  const [selected, setSelected] = useState(token.deployRepository);
+  const [custom, setCustom] = useState(token.deployRepository);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+
+  const hasOptions = options.length > 0;
+  const selectOptions =
+    token.deployRepository && !options.some((o) => o.value === token.deployRepository)
+      ? [{ value: token.deployRepository, label: shortRepoLabel(token.deployRepository) }, ...options]
+      : options;
+
+  const save = async () => {
+    setBusy(true);
+    setProblem(undefined);
+    try {
+      await createClient(TokenService, transport).setTokenDeployRepository({
+        id: token.id,
+        deployRepository: hasOptions ? selected : custom.trim(),
+      });
+      onSaved();
+    } catch (err) {
+      setProblem(explain(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={t`Status repository`}
+      subtitle={token.name}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button variant="primary" loading={busy} onClick={() => void save()}>
+            <Trans>Save</Trans>
+          </Button>
+        </>
+      }
+    >
+      <div className="tokens-form">
+        {hasOptions ? (
+          <SelectField
+            label={t`Status repository`}
+            value={selected}
+            onChange={(event) => setSelected(event.target.value)}
+            hint={t`Dockwell reports commit and PR status for deploys made by this token only to this repository.`}
+            options={[...selectOptions, { value: "", label: t`Don't report status` }]}
+          />
+        ) : (
+          <TextField
+            label={t`Status repository`}
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            placeholder="https://github.com/owner/repo"
+            hint={t`Enter the full HTTPS repository URL, or leave blank to disable status reporting.`}
+          />
+        )}
+        {problem ? <Callout tone="critical" title={problem} /> : null}
+      </div>
+    </Sheet>
   );
 }
 

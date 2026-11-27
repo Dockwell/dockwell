@@ -83,7 +83,10 @@ type Handler struct {
 	// DiscardDockerArchives releases staging for a discarded Docker archive action.
 	DiscardDockerArchives func(context.Context, *dockwellv1.Change)
 	// RetryCIStatus requeues the latest CI deploy status transition for delivery.
-	RetryCIStatus func(ctx context.Context, changeID string) error
+	RetryCIStatus func(ctx context.Context, changeID, actor, via string) error
+	// GitHubPermissionsURL returns the GitHub permissions URL for an install admin
+	// when a CI status is blocked by missing Checks write permission.
+	GitHubPermissionsURL func(ctx context.Context, serviceID, repoURL string) string
 }
 
 // GitLogins checks a build's git login, as a plan is made: one named must reach
@@ -1177,7 +1180,7 @@ func (h *Handler) ExistingCIDeploy(ctx context.Context, changeID string) (*dockw
 // RetryDeployStatus requeues reporting a CI deploy's latest status back to its
 // Git provider.
 func (h *Handler) RetryDeployStatus(ctx context.Context, req *connect.Request[dockwellv1.RetryDeployStatusRequest]) (*connect.Response[dockwellv1.RetryDeployStatusResponse], error) {
-	_, p, err := by(ctx)
+	actor, p, err := by(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1194,9 +1197,12 @@ func (h *Handler) RetryDeployStatus(ctx context.Context, req *connect.Request[do
 	if h.RetryCIStatus == nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("CI deploy status reporting isn't configured on this control plane"), "not_configured")
 	}
-	if err := h.RetryCIStatus(ctx, r.ID); err != nil {
+	if err := h.RetryCIStatus(ctx, r.ID, actor.Actor, actor.Via); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, authapi.ReasonError(connect.CodeNotFound, errors.New("no CI deploy status is recorded for this change"), "not_found")
+		}
+		if errors.Is(err, store.ErrCIStatusNotRetryable) {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this deploy status is already delivered or pending"), "not_retryable")
 		}
 		return nil, h.rpcError(ctx, err)
 	}
@@ -1621,6 +1627,11 @@ func noServerNamed(fleet []store.Server, given string) error {
 // protos are records for the schema, with their actors named in one read.
 func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*dockwellv1.Change, error) {
 	out := make([]*dockwellv1.Change, len(records))
+	var needPermURL []struct {
+		status    *dockwellv1.DeployStatus
+		serviceID string
+		repo      string
+	}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		names := actors.New().In(ctx, tx)
 		placer := place.NewPlacer(tx)
@@ -1629,6 +1640,15 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 			// What reaches a project the reader holds no role in is narrowed to theirs.
 			if err := Narrow(ctx, tx, out[i]); err != nil {
 				return err
+			}
+			if out[i].DeployStatus != nil && r.CIStatus != nil {
+				if HydrateDeployStatusInTx(ctx, tx, r.CIStatus, out[i].DeployStatus) {
+					needPermURL = append(needPermURL, struct {
+						status    *dockwellv1.DeployStatus
+						serviceID string
+						repo      string
+					}{out[i].DeployStatus, r.CIStatus.ServiceID, r.CIStatus.Repository})
+				}
 			}
 			if r.State != store.ChangePlanned {
 				continue
@@ -1644,7 +1664,15 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	if h.GitHubPermissionsURL != nil {
+		for _, item := range needPermURL {
+			item.status.ActionUrl = h.GitHubPermissionsURL(ctx, item.serviceID, item.repo)
+		}
+	}
+	return out, nil
 }
 
 // ForCaller says on a planned change what applying it asks of whoever reads
@@ -1755,6 +1783,23 @@ var ciStatusTransitions = map[string]dockwellv1.DeployStatusTransition{
 	store.CIStatusHealthy:    dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_HEALTHY,
 	store.CIStatusFailed:     dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_FAILED,
 	store.CIStatusRolledBack: dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_ROLLED_BACK,
+	store.CIStatusDiscarded:  dockwellv1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_DISCARDED,
+}
+
+var ciStatusReasons = map[string]dockwellv1.DeployStatusReason{
+	store.CIStatusReasonNoTokenRepository:       dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_NO_TOKEN_REPOSITORY,
+	store.CIStatusReasonRepositoryMismatch:      dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_REPOSITORY_MISMATCH,
+	store.CIStatusReasonProviderUnsupported:     dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_PROVIDER_UNSUPPORTED,
+	store.CIStatusReasonNoGitHubApp:             dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_NO_GITHUB_APP,
+	store.CIStatusReasonMissingChecksPermission: dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION,
+	store.CIStatusReasonGitHubNotReached:        dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GITHUB_NOT_REACHED,
+	store.CIStatusReasonGitHubAuthFailed:        dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GITHUB_AUTH_FAILED,
+	store.CIStatusReasonNoGitLabConnection:      dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_NO_GITLAB_CONNECTION,
+	store.CIStatusReasonGitLabNotReached:        dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GITLAB_NOT_REACHED,
+	store.CIStatusReasonGitLabAuthFailed:        dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GITLAB_AUTH_FAILED,
+	store.CIStatusReasonGitLabMissingScope:      dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GITLAB_MISSING_SCOPE,
+	store.CIStatusReasonNetguardBlocked:         dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_NETGUARD_BLOCKED,
+	store.CIStatusReasonGaveUp:                  dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_GAVE_UP,
 }
 
 // CIDeployStatusProto converts the latest durable CI status outbox entry for
@@ -1775,6 +1820,7 @@ func CIDeployStatusProto(e *store.CIStatusEntry) *dockwellv1.DeployStatus {
 		RemoteId:         e.RemoteID,
 		RemoteUrl:        e.RemoteURL,
 		Error:            e.LastError,
+		Reason:           ciStatusReasons[e.ReasonCode],
 		Attempts:         int32(min(e.Attempts, math.MaxInt32)), //nolint:gosec // small count
 		CanRetry:         canRetry,
 	}
@@ -1788,6 +1834,31 @@ func CIDeployStatusProto(e *store.CIStatusEntry) *dockwellv1.DeployStatus {
 		out.NextAttemptTime = timestamppb.New(e.NextAttemptAt)
 	}
 	return out
+}
+
+// HydrateDeployStatusInTx fills caller-scoped fields on a DeployStatus inside
+// an existing read transaction: token_repository only when the caller owns the
+// deploy token, and reports true when the caller is an install admin who should
+// receive the GitHub permissions action_url.
+func HydrateDeployStatusInTx(ctx context.Context, tx *store.Tx, e *store.CIStatusEntry, out *dockwellv1.DeployStatus) (wantsPermissionsURL bool) {
+	if e == nil || out == nil {
+		return false
+	}
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return false
+	}
+	if e.TokenID != "" && e.AllowedRepository != "" {
+		if tok, err := tx.GetAPIToken(ctx, e.TokenID); err == nil && tok.UserID == p.User.ID {
+			out.TokenRepository = e.AllowedRepository
+		}
+	}
+	if out.Reason == dockwellv1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION {
+		if grants, err := tx.Grants(ctx, p.User.ID); err == nil && store.RoleRank(place.Holds(grants, place.Place{})) >= store.RoleRank(store.RoleAdmin) {
+			return true
+		}
+	}
+	return false
 }
 
 // confirmationOf is what a change waits for: the confirmation one of its

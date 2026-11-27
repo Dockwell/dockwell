@@ -6068,6 +6068,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/projects/{project}/gitlab-projects:
+        get:
+            tags:
+                - GitProviderService
+            description: |-
+                ListGitLabProjects returns the GitLab projects reachable by a project's
+                 connected GitLab instances, filtered by each connection's path prefix.
+            operationId: GitProviderService_ListGitLabProjects
+            parameters:
+                - name: project
+                  in: path
+                  description: The project, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+                - name: query
+                  in: query
+                  description: Optional search query forwarded to GitLab.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListGitLabProjectsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/provider-links:
         get:
             tags:
@@ -10960,6 +10993,41 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/RevokeTokenResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/tokens/{id}:setDeployRepository:
+        post:
+            tags:
+                - TokenService
+            description: |-
+                SetTokenDeployRepository binds a deploy token to the HTTPS repository
+                 whose commits it may report deploy status to, or clears the binding when
+                 empty (ADR 0111).
+            operationId: TokenService_SetTokenDeployRepository
+            parameters:
+                - name: id
+                  in: path
+                  description: The deploy token's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetTokenDeployRepositoryRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetTokenDeployRepositoryResponse'
                 default:
                     description: Default error response
                     content:
@@ -17710,6 +17778,11 @@ components:
                     description: |-
                         Required for deploy scope. A service ID; Dockwell sets its project,
                          environment and developer cap from the service.
+                deployRepository:
+                    type: string
+                    description: |-
+                        Optional for deploy scope. Normalized HTTPS repository URL whose commits
+                         deploys made with this token may report status to.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -18450,6 +18523,7 @@ components:
                         - DEPLOY_STATUS_TRANSITION_HEALTHY
                         - DEPLOY_STATUS_TRANSITION_FAILED
                         - DEPLOY_STATUS_TRANSITION_ROLLED_BACK
+                        - DEPLOY_STATUS_TRANSITION_DISCARDED
                     type: string
                     format: enum
                 transitionNumber:
@@ -18474,7 +18548,7 @@ components:
                     format: int32
                 error:
                     type: string
-                    description: One-line reason why the status could not be reported or is retrying.
+                    description: Provider error detail when reporting failed or is retrying.
                 nextAttemptTime:
                     type: string
                     format: date-time
@@ -18487,6 +18561,35 @@ components:
                 canRetry:
                     type: boolean
                     description: True when retrying delivery may succeed after fixing permissions or connectivity.
+                reason:
+                    enum:
+                        - DEPLOY_STATUS_REASON_UNSPECIFIED
+                        - DEPLOY_STATUS_REASON_NO_TOKEN_REPOSITORY
+                        - DEPLOY_STATUS_REASON_REPOSITORY_MISMATCH
+                        - DEPLOY_STATUS_REASON_PROVIDER_UNSUPPORTED
+                        - DEPLOY_STATUS_REASON_NO_GITHUB_APP
+                        - DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION
+                        - DEPLOY_STATUS_REASON_GITHUB_NOT_REACHED
+                        - DEPLOY_STATUS_REASON_GITHUB_AUTH_FAILED
+                        - DEPLOY_STATUS_REASON_NO_GITLAB_CONNECTION
+                        - DEPLOY_STATUS_REASON_GITLAB_NOT_REACHED
+                        - DEPLOY_STATUS_REASON_GITLAB_AUTH_FAILED
+                        - DEPLOY_STATUS_REASON_GITLAB_MISSING_SCOPE
+                        - DEPLOY_STATUS_REASON_NETGUARD_BLOCKED
+                        - DEPLOY_STATUS_REASON_GAVE_UP
+                    type: string
+                    description: Structured reason when state is skipped, failed, or retrying.
+                    format: enum
+                tokenRepository:
+                    type: string
+                    description: |-
+                        Repository bound to the deploy token that created this deploy, populated
+                         only for a caller who may see that token.
+                actionUrl:
+                    type: string
+                    description: |-
+                        Direct HTTPS link to fix a provider issue, such as GitHub App permissions,
+                         populated only for install admins.
             description: DeployStatus records how Dockwell reported a CI deploy back to its Git provider.
         DetectBuildRequest:
             type: object
@@ -23758,6 +23861,30 @@ components:
                     type: string
                     format: date-time
             description: GitLabConnectionInfo is a connected GitLab instance without its token.
+        GitLabProject:
+            type: object
+            properties:
+                pathWithNamespace:
+                    type: string
+                url:
+                    type: string
+                connectionId:
+                    type: string
+                connectionName:
+                    type: string
+            description: GitLabProject is one repository reachable through a GitLab connection.
+        GitLabProjectConnection:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                url:
+                    type: string
+                pathPrefix:
+                    type: string
+            description: GitLabProjectConnection summarizes a GitLab connection reachable by the project.
         GitRepository:
             type: object
             properties:
@@ -26328,6 +26455,18 @@ components:
                          open work adds to this message.
                     format: uint32
             description: ListFilesResponse is what a directory holds.
+        ListGitLabProjectsResponse:
+            type: object
+            properties:
+                projects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitLabProject'
+                connections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GitLabProjectConnection'
+            description: ListGitLabProjectsResponse carries reachable GitLab projects and connections.
         ListGitProvidersResponse:
             type: object
             properties:
@@ -34968,6 +35107,24 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetTimeZoneResponse carries the settings as they now are.
+        SetTokenDeployRepositoryRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The deploy token's ID.
+                deployRepository:
+                    type: string
+                    description: Normalized HTTPS repository URL, or empty to disable status reporting.
+            description: |-
+                SetTokenDeployRepositoryRequest updates the status-reporting repository
+                 bound to one of your deploy tokens.
+        SetTokenDeployRepositoryResponse:
+            type: object
+            properties:
+                token:
+                    $ref: '#/components/schemas/Token'
+            description: SetTokenDeployRepositoryResponse returns the updated token.
         SetUpCatalogInstallRequest:
             type: object
             properties:
@@ -36677,6 +36834,12 @@ components:
                     description: |-
                         Current name of the app where the token still works. Empty if its bound
                          service has moved, gone away, or is no longer visible to its maker.
+                deployRepository:
+                    type: string
+                    description: |-
+                        Normalized HTTPS repository URL this deploy token may report CI deploy
+                         status to. Empty disables commit/check-run reporting for deploys made by
+                         this token.
             description: Token is an API token, without its secret.
         TokenProject:
             type: object

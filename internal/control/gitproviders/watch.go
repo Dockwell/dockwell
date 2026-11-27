@@ -141,7 +141,7 @@ func (h *Handler) CheckDeliveries(ctx context.Context) {
 			return err
 		}); err == nil {
 			for i := range ins {
-				if ins[i].RemovedAt == nil && len(ins[i].Permissions) == 0 {
+				if ins[i].RemovedAt == nil && (len(ins[i].Permissions) == 0 || !github.HasChecksWrite(ins[i].Permissions)) {
 					_, _ = h.Refresh(ctx, k, ins[i].ID)
 				}
 			}

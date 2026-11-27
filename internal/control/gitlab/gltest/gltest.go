@@ -37,10 +37,17 @@ type RecordedStatus struct {
 	Ref         string `json:"ref"`
 }
 
+// Project is one GitLab project returned by GET /api/v4/projects in the stand-in.
+type Project struct {
+	PathWithNamespace string `json:"path_with_namespace"`
+	WebURL            string `json:"web_url"`
+}
+
 // Server is the fake GitLab API server.
 type Server struct {
 	mu       sync.Mutex
 	tokens   map[string]Token
+	projects []Project
 	statuses []RecordedStatus
 	nextID   int64
 	failNext int
@@ -61,8 +68,18 @@ func New() *Server {
 			TokenAPI:      {Value: TokenAPI, Name: "dockwell-ci", Scopes: []string{"api"}, Active: true},
 			TokenReadOnly: {Value: TokenReadOnly, Name: "read-only", Scopes: []string{"read_api"}, Active: true},
 		},
+		projects: []Project{
+			{PathWithNamespace: "acme/web", WebURL: "https://gitlab.example.com/acme/web"},
+		},
 		nextID: 1000,
 	}
+}
+
+// SetProjects replaces the projects returned by GET /api/v4/projects.
+func (s *Server) SetProjects(projects []Project) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.projects = slices.Clone(projects)
 }
 
 // SetToken registers or updates an accepted token.
@@ -103,6 +120,33 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.SetToken(tok)
 		w.WriteHeader(http.StatusNoContent)
+	case p == "/_projects" && r.Method == http.MethodPost:
+		var projects []Project
+		if err := json.NewDecoder(r.Body).Decode(&projects); err != nil {
+			http.Error(w, "invalid projects payload", http.StatusBadRequest)
+			return
+		}
+		s.SetProjects(projects)
+		w.WriteHeader(http.StatusNoContent)
+	case p == "/api/v4/projects" && r.Method == http.MethodGet:
+		tok, ok := s.auth(r)
+		if !ok || !tok.Active || tok.Revoked {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "401 Unauthorized"})
+			return
+		}
+		q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("search")))
+		s.mu.Lock()
+		var out []Project
+		for _, proj := range s.projects {
+			if q == "" || strings.Contains(strings.ToLower(proj.PathWithNamespace), q) {
+				out = append(out, proj)
+			}
+		}
+		s.mu.Unlock()
+		if out == nil {
+			out = []Project{}
+		}
+		writeJSON(w, http.StatusOK, out)
 	case p == "/api/v4/personal_access_tokens/self" && r.Method == http.MethodGet:
 		tok, ok := s.auth(r)
 		if !ok {

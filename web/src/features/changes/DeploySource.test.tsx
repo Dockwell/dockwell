@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import {
   DeployOriginSchema,
   DeployProvider,
+  DeployStatusReason,
   DeployStatusSchema,
   DeployStatusState,
   DeployStatusTransition,
@@ -89,16 +90,52 @@ describe("CI deploy provenance", () => {
           provider: DeployProvider.GITHUB_ACTIONS,
           state: DeployStatusState.FAILED,
           transition: DeployStatusTransition.HEALTHY,
-          error: "GitHub App lacks Checks permission.",
+          reason: DeployStatusReason.MISSING_CHECKS_PERMISSION,
+          actionUrl: "https://github.com/organizations/acme/settings/apps/dockwell/permissions",
+          error: "GitHub answered 403",
           canRetry: true,
         })}
       />,
     );
-    expect(screen.getByText("GitHub App lacks Checks permission.")).toBeVisible();
+    expect(screen.getByText("Not reported: GitHub App needs Checks permission")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Grant on GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/organizations/acme/settings/apps/dockwell/permissions",
+    );
     await user.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() =>
       expect(retried).toHaveBeenCalledWith(expect.objectContaining({ id: "chg_1" }), expect.anything()),
     );
     expect(onRetried).toHaveBeenCalledTimes(1);
+
+    // H1: Repository mismatch shows token_repository only when populated by server.
+    rerender(
+      <DeploySource
+        origin={origin}
+        changeId="chg_2"
+        status={create(DeployStatusSchema, {
+          provider: DeployProvider.GITHUB_ACTIONS,
+          state: DeployStatusState.SKIPPED,
+          transition: DeployStatusTransition.HEALTHY,
+          reason: DeployStatusReason.REPOSITORY_MISMATCH,
+          tokenRepository: "https://github.com/acme/web",
+        })}
+      />,
+    );
+    expect(screen.getByText("Not reported: this token reports to github.com/acme/web")).toBeVisible();
+
+    rerender(
+      <DeploySource
+        origin={origin}
+        changeId="chg_2"
+        status={create(DeployStatusSchema, {
+          provider: DeployProvider.GITHUB_ACTIONS,
+          state: DeployStatusState.SKIPPED,
+          transition: DeployStatusTransition.HEALTHY,
+          reason: DeployStatusReason.REPOSITORY_MISMATCH,
+        })}
+      />,
+    );
+    expect(screen.getByText("Not reported: repository doesn't match token")).toBeVisible();
   });
 });

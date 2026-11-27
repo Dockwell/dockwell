@@ -269,6 +269,9 @@ func Extract(ctx context.Context, r io.Reader, passphrase, dir string) (Header, 
 		snapshot.Backup.Generation != h.Generation || snapshot.Backup.GenerationID != h.GenerationID || len(out.key) != keySize {
 		return h, errors.New("the control plane backup does not match its header")
 	}
+	if err := store.ClearPendingCIStatusesInSnapshot(ctx, dbPath); err != nil {
+		return h, fmt.Errorf("prepare the control plane store: %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(stage, "key"), out.key, 0o600); err != nil {
 		return h, err
 	}

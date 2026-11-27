@@ -1333,6 +1333,12 @@ msgstr "Requested a control plane backup"
 msgid "Resolved: {title}"
 msgstr "Resolved: {title}"
 
+msgid "Retried reporting deploy status"
+msgstr "Retried reporting deploy status"
+
+msgid "Retried reporting deploy status for {name}"
+msgstr "Retried reporting deploy status for {name}"
+
 msgid "Revealed a secret"
 msgstr "Revealed a secret"
 
@@ -1595,11 +1601,17 @@ msgstr "Unlocked codes for {name}"
 msgid "Unlocked codes from an authenticator app"
 msgstr "Unlocked codes from an authenticator app"
 
+msgid "Updated a deploy token's status repository"
+msgstr "Updated a deploy token's status repository"
+
 msgid "Updated shared terminal command {name}"
 msgstr "Updated shared terminal command {name}"
 
 msgid "Updated shared terminal command {name}, which was {previous}"
 msgstr "Updated shared terminal command {name}, which was {previous}"
+
+msgid "Updated the status repository for {name}"
+msgstr "Updated the status repository for {name}"
 
 msgid "Uploaded {path} to {server}, which can let someone back in"
 msgstr "Uploaded {path} to {server}, which can let someone back in"
@@ -4740,6 +4752,10 @@ msgstr "CI deploy · {name}"
 msgid "CI provider"
 msgstr "CI provider"
 
+#. placeholder {0}: provider === "github" ? "GitHub" : "GitLab"
+msgid "Connect {0} in <0>Integrations</0> to report deploy status back to commits."
+msgstr "Connect {0} in <0>Integrations</0> to report deploy status back to commits."
+
 msgid "Copy token"
 msgstr "Copy token"
 
@@ -4748,6 +4764,12 @@ msgstr "Copy workflow"
 
 msgid "Create deploy token"
 msgstr "Create deploy token"
+
+msgid "Dockwell reports commit and PR status only to this repository."
+msgstr "Dockwell reports commit and PR status only to this repository."
+
+msgid "Don't report status"
+msgstr "Don't report status"
 
 msgid "Hide the token"
 msgstr "Hide the token"
@@ -4761,11 +4783,21 @@ msgstr "In 90 days"
 msgid "Manage API tokens"
 msgstr "Manage API tokens"
 
+msgid "Optional. Dockwell reports commit status only to this repository."
+msgstr "Optional. Dockwell reports commit status only to this repository."
+
 msgid "Release tag"
 msgstr "Release tag"
 
+#. placeholder {0}: made.repository
+msgid "Reports deploy status to {0}."
+msgstr "Reports deploy status to {0}."
+
 msgid "Show the whole token"
 msgstr "Show the whole token"
+
+msgid "Status repository"
+msgstr "Status repository"
 
 msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
 msgstr "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
@@ -11180,14 +11212,71 @@ msgstr "{name} restores its host settings in {left} s unless you keep them."
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 
+msgid "API tokens"
+msgstr "API tokens"
+
 msgid "CI run"
 msgstr "CI run"
 
-msgid "Couldn't report deploy status."
-msgstr "Couldn't report deploy status."
+msgid "Connect GitHub"
+msgstr "Connect GitHub"
+
+msgid "Connect GitLab"
+msgstr "Connect GitLab"
 
 msgid "From {link} on {shortRef}"
 msgstr "From {link} on {shortRef}"
+
+msgid "GitHub refused status update"
+msgstr "GitHub refused status update"
+
+msgid "GitLab address is blocked"
+msgstr "GitLab address is blocked"
+
+msgid "GitLab refused token"
+msgstr "GitLab refused token"
+
+msgid "GitLab token needs api scope"
+msgstr "GitLab token needs api scope"
+
+msgid "Grant on GitHub"
+msgstr "Grant on GitHub"
+
+msgid "Integrations"
+msgstr "Integrations"
+
+msgid "Not reported: GitHub App needs Checks permission"
+msgstr "Not reported: GitHub App needs Checks permission"
+
+msgid "Not reported: GitHub couldn't be reached"
+msgstr "Not reported: GitHub couldn't be reached"
+
+msgid "Not reported: GitHub isn't connected"
+msgstr "Not reported: GitHub isn't connected"
+
+msgid "Not reported: GitLab couldn't be reached"
+msgstr "Not reported: GitLab couldn't be reached"
+
+msgid "Not reported: GitLab isn't connected"
+msgstr "Not reported: GitLab isn't connected"
+
+msgid "Not reported: no repository set on token"
+msgstr "Not reported: no repository set on token"
+
+msgid "Not reported: provider not supported"
+msgstr "Not reported: provider not supported"
+
+msgid "Not reported: repository doesn't match token"
+msgstr "Not reported: repository doesn't match token"
+
+msgid "Not reported: this token reports to {repoLabel}"
+msgstr "Not reported: this token reports to {repoLabel}"
+
+msgid "Reported discarded"
+msgstr "Reported discarded"
+
+msgid "Reported discarded to {providerLabel}"
+msgstr "Reported discarded to {providerLabel}"
 
 msgid "Reported to {providerLabel}"
 msgstr "Reported to {providerLabel}"
@@ -11204,8 +11293,17 @@ msgstr "Retrying status"
 msgid "Retrying status on {providerLabel}"
 msgstr "Retrying status on {providerLabel}"
 
+msgid "Set repository"
+msgstr "Set repository"
+
 msgid "Status reported"
 msgstr "Status reported"
+
+msgid "Stopped retrying deploy status"
+msgstr "Stopped retrying deploy status"
+
+msgid "Stopped retrying status on {providerLabel}"
+msgstr "Stopped retrying status on {providerLabel}"
 
 msgid "Checking download access"
 msgstr "Checking download access"
@@ -23698,9 +23796,6 @@ msgstr "A sign-in link"
 msgid "API"
 msgstr "API"
 
-msgid "API tokens"
-msgstr "API tokens"
-
 msgid "All sources"
 msgstr "All sources"
 
@@ -24117,12 +24212,6 @@ msgstr "An organization"
 msgid "As a GitHub App Dockwell makes, which you install on the repositories you pick"
 msgstr "As a GitHub App Dockwell makes, which you install on the repositories you pick"
 
-msgid "Connect GitHub"
-msgstr "Connect GitHub"
-
-msgid "Connect GitLab"
-msgstr "Connect GitLab"
-
 msgid "Create on GitHub"
 msgstr "Create on GitHub"
 
@@ -24501,9 +24590,6 @@ msgstr "Filter integrations"
 
 msgid "How to route behind it"
 msgstr "How to route behind it"
-
-msgid "Integrations"
-msgstr "Integrations"
 
 #. placeholder {0}: l.name
 msgid "Keep {0} pull-only"
@@ -25163,6 +25249,9 @@ msgstr "Acts as"
 msgid "App unavailable"
 msgstr "App unavailable"
 
+msgid "Change status repository"
+msgstr "Change status repository"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "Copy this token now. It won't be shown again."
 
@@ -25187,8 +25276,14 @@ msgstr "Dockwell can't list your projects"
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell can't list your tokens"
 
+msgid "Dockwell reports commit and PR status for deploys made by this token only to this repository."
+msgstr "Dockwell reports commit and PR status for deploys made by this token only to this repository."
+
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "Each new address it's used from goes in the <0>audit log</0>"
+
+msgid "Enter the full HTTPS repository URL, or leave blank to disable status reporting."
+msgstr "Enter the full HTTPS repository URL, or leave blank to disable status reporting."
 
 msgid "Every scope"
 msgstr "Every scope"
@@ -25224,6 +25319,9 @@ msgstr "Never"
 msgid "New token"
 msgstr "New token"
 
+msgid "No status repository"
+msgstr "No status repository"
+
 msgid "No tokens yet"
 msgstr "No tokens yet"
 
@@ -25241,6 +25339,9 @@ msgstr "Read servers, apps, plans and activity. Every token can, and changes not
 
 msgid "Scopes"
 msgstr "Scopes"
+
+msgid "Set status repository"
+msgstr "Set status repository"
 
 msgid "Start with read access, and add only what the job needs."
 msgstr "Start with read access, and add only what the job needs."
@@ -25291,6 +25392,12 @@ msgstr "from <0>{0}</0>"
 #. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
 msgid "in {0}"
 msgstr "in {0}"
+
+msgid "not set"
+msgstr "not set"
+
+msgid "status"
+msgstr "status"
 
 #. placeholder {0}: list.length
 msgid "{0} tokens"

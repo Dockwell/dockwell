@@ -19,6 +19,7 @@ const (
 	CIStatusHealthy    = "healthy"
 	CIStatusFailed     = "failed"
 	CIStatusRolledBack = "rolled_back"
+	CIStatusDiscarded  = "discarded"
 )
 
 // Delivery states for ci_status_outbox entries.
@@ -30,48 +31,93 @@ const (
 	CIStatusDeliverySuperseded = "superseded"
 )
 
+// Structured reason codes stored on ci_status_outbox entries so clients can
+// localize delivery issues and link directly to the relevant fix.
+const (
+	CIStatusReasonNoTokenRepository       = "no_token_repository" //nolint:gosec // reason code name
+	CIStatusReasonRepositoryMismatch      = "repository_mismatch"
+	CIStatusReasonProviderUnsupported     = "provider_unsupported"
+	CIStatusReasonNoGitHubApp             = "no_github_app"
+	CIStatusReasonMissingChecksPermission = "missing_checks_permission"
+	CIStatusReasonGitHubNotReached        = "github_not_reached"
+	CIStatusReasonGitHubAuthFailed        = "github_auth_failed"
+	CIStatusReasonNoGitLabConnection      = "no_gitlab_connection"
+	CIStatusReasonGitLabNotReached        = "gitlab_not_reached"
+	CIStatusReasonGitLabAuthFailed        = "gitlab_auth_failed"
+	CIStatusReasonGitLabMissingScope      = "gitlab_missing_scope"
+	CIStatusReasonNetguardBlocked         = "netguard_blocked"
+	CIStatusReasonGaveUp                  = "gave_up"
+)
+
+// ErrCIStatusNotRetryable reports an attempt to retry a status that is not failed or skipped.
+var ErrCIStatusNotRetryable = errors.New("CI deploy status is not in a retryable state")
+
 // CIStatusEntry is one durable CI deploy status transition queued for delivery
 // back to GitHub or GitLab.
 type CIStatusEntry struct {
-	ID             string
-	ChangeID       string
-	Transition     int
-	State          string
-	ServiceID      string
-	ServiceName    string
-	Provider       int32
-	Repository     string
-	Commit         string
-	Ref            string
-	RunURL         string
-	Digest         string
-	ChangeURL      string
-	Summary        string
-	IdempotencyKey string
-	DeliveryState  string
-	RemoteID       string
-	RemoteURL      string
-	CredentialRef  string
-	Attempts       int
-	NextAttemptAt  time.Time
-	LastError      string
-	CreatedAt      time.Time
-	RetrySince     time.Time
-	UpdatedAt      time.Time
-	DeliveredAt    *time.Time
+	ID                string
+	ChangeID          string
+	Transition        int
+	State             string
+	ServiceID         string
+	ServiceName       string
+	EnvironmentName   string
+	Provider          int32
+	Repository        string
+	TokenID           string
+	AllowedRepository string
+	Commit            string
+	Ref               string
+	RunURL            string
+	Digest            string
+	ChangeURL         string
+	Summary           string
+	IdempotencyKey    string
+	DeliveryState     string
+	RemoteID          string
+	RemoteURL         string
+	CredentialRef     string
+	ReasonCode        string
+	Attempts          int
+	NextAttemptAt     time.Time
+	LastError         string
+	CreatedAt         time.Time
+	RetrySince        time.Time
+	UpdatedAt         time.Time
+	DeliveredAt       *time.Time
 }
 
-const ciStatusColumns = `id, change_id, transition, state, service_id, service_name, provider, repository, commit_sha, ref, run_url, digest, change_url, summary, idempotency_key, delivery_state, remote_id, remote_url, credential_ref, attempts, next_attempt_at, last_error, created_at, retry_since, updated_at, delivered_at`
+// CIStatusEnqueueOpts carries optional metadata recorded when enqueuing a CI
+// deploy status transition. Unset fields inherit from earlier transitions of
+// the same change or from the service resource.
+type CIStatusEnqueueOpts struct {
+	ServiceName       string
+	EnvironmentName   string
+	TokenID           string
+	AllowedRepository string
+	ChangeURL         string
+	Summary           string
+}
+
+// CIStatusDue identifies a change with pending transitions due for delivery,
+// with its repository and provider so the worker can group work by host.
+type CIStatusDue struct {
+	ChangeID   string
+	Repository string
+	Provider   int32
+}
+
+const ciStatusColumns = `id, change_id, transition, state, service_id, service_name, environment_name, provider, repository, token_id, allowed_repository, commit_sha, ref, run_url, digest, change_url, summary, idempotency_key, delivery_state, remote_id, remote_url, credential_ref, reason_code, attempts, next_attempt_at, last_error, created_at, retry_since, updated_at, delivered_at`
 
 func scanCIStatus(row interface{ Scan(...any) error }) (CIStatusEntry, error) {
 	var e CIStatusEntry
 	var nextAt, createdAt, retrySince, updatedAt int64
 	var deliveredAt sql.NullInt64
 	err := row.Scan(
-		&e.ID, &e.ChangeID, &e.Transition, &e.State, &e.ServiceID, &e.ServiceName,
-		&e.Provider, &e.Repository, &e.Commit, &e.Ref, &e.RunURL, &e.Digest,
+		&e.ID, &e.ChangeID, &e.Transition, &e.State, &e.ServiceID, &e.ServiceName, &e.EnvironmentName,
+		&e.Provider, &e.Repository, &e.TokenID, &e.AllowedRepository, &e.Commit, &e.Ref, &e.RunURL, &e.Digest,
 		&e.ChangeURL, &e.Summary, &e.IdempotencyKey, &e.DeliveryState,
-		&e.RemoteID, &e.RemoteURL, &e.CredentialRef, &e.Attempts,
+		&e.RemoteID, &e.RemoteURL, &e.CredentialRef, &e.ReasonCode, &e.Attempts,
 		&nextAt, &e.LastError, &createdAt, &retrySince, &updatedAt, &deliveredAt,
 	)
 	if err != nil {
@@ -79,7 +125,9 @@ func scanCIStatus(row interface{ Scan(...any) error }) (CIStatusEntry, error) {
 	}
 	e.NextAttemptAt = fromMillis(nextAt)
 	e.CreatedAt = fromMillis(createdAt)
-	e.RetrySince = fromMillis(retrySince)
+	if retrySince > 0 {
+		e.RetrySince = fromMillis(retrySince)
+	}
 	e.UpdatedAt = fromMillis(updatedAt)
 	e.DeliveredAt = timePtr(deliveredAt)
 	return e, nil
@@ -88,7 +136,7 @@ func scanCIStatus(row interface{ Scan(...any) error }) (CIStatusEntry, error) {
 // EnqueueCIStatusForChange writes a status transition to the durable outbox in
 // the same transaction as the change's state transition. Changes without a
 // recorded deploy origin get no outbox entries.
-func (t *RevisionTx) EnqueueCIStatusForChange(ctx context.Context, changeID, state, serviceName, changeURL, summary string, now time.Time) (bool, error) {
+func (t *RevisionTx) EnqueueCIStatusForChange(ctx context.Context, changeID, state string, opts CIStatusEnqueueOpts, now time.Time) (bool, error) {
 	var o CIDeployOrigin
 	err := t.queryRow(ctx, `SELECT service_id, provider, repository, commit_sha, ref, run_url, commit_url, image, digest
 		FROM ci_deploy_origins WHERE change_id = ?`, changeID).Scan(
@@ -104,19 +152,42 @@ func (t *RevisionTx) EnqueueCIStatusForChange(ctx context.Context, changeID, sta
 	if err := t.queryRow(ctx, `SELECT COALESCE(MAX(transition), 0) FROM ci_status_outbox WHERE change_id = ?`, changeID).Scan(&lastTransition); err != nil {
 		return false, fmt.Errorf("reading CI status transition for %s: %w", changeID, err)
 	}
-	var prevRemoteID, prevRemoteURL, prevCred, prevServiceName, prevChangeURL string
+	var prevRemoteID, prevRemoteURL, prevCred, prevServiceName, prevEnvName, prevTokenID, prevAllowedRepo, prevChangeURL string
 	if lastTransition > 0 {
-		_ = t.queryRow(ctx, `SELECT remote_id, remote_url, credential_ref, service_name, change_url
+		_ = t.queryRow(ctx, `SELECT remote_id, remote_url, credential_ref, service_name, environment_name, token_id, allowed_repository, change_url
 			FROM ci_status_outbox WHERE change_id = ? ORDER BY transition DESC LIMIT 1`, changeID).Scan(
-			&prevRemoteID, &prevRemoteURL, &prevCred, &prevServiceName, &prevChangeURL,
+			&prevRemoteID, &prevRemoteURL, &prevCred, &prevServiceName, &prevEnvName, &prevTokenID, &prevAllowedRepo, &prevChangeURL,
 		)
 	}
+	serviceName := opts.ServiceName
 	if serviceName == "" {
 		serviceName = prevServiceName
 	}
-	if serviceName == "" {
-		_ = t.queryRow(ctx, `SELECT name FROM resources WHERE id = ?`, o.Service).Scan(&serviceName)
+	envName := opts.EnvironmentName
+	if envName == "" {
+		envName = prevEnvName
 	}
+	if serviceName == "" || envName == "" {
+		var dbSvc, dbEnv string
+		_ = t.queryRow(ctx, `SELECT s.name, COALESCE(e.name, '')
+			FROM resources s LEFT JOIN resources e ON e.id = s.scope
+			WHERE s.id = ?`, o.Service).Scan(&dbSvc, &dbEnv)
+		if serviceName == "" {
+			serviceName = dbSvc
+		}
+		if envName == "" {
+			envName = dbEnv
+		}
+	}
+	tokenID := opts.TokenID
+	if tokenID == "" {
+		tokenID = prevTokenID
+	}
+	allowedRepo := opts.AllowedRepository
+	if allowedRepo == "" {
+		allowedRepo = prevAllowedRepo
+	}
+	changeURL := opts.ChangeURL
 	if changeURL == "" {
 		changeURL = prevChangeURL
 	}
@@ -124,25 +195,86 @@ func (t *RevisionTx) EnqueueCIStatusForChange(ctx context.Context, changeID, sta
 	key := fmt.Sprintf("dockwell:%s:%d:%s", changeID, transition, state)
 	ms := millis(now)
 	if _, err := t.exec(ctx, `INSERT INTO ci_status_outbox (`+ciStatusColumns+`)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id.New(id.CIStatus), changeID, transition, state, o.Service, serviceName,
-		o.Provider, o.Repository, o.Commit, o.Ref, o.RunURL, o.Digest,
-		changeURL, summary, key, CIStatusDeliveryPending,
-		prevRemoteID, prevRemoteURL, prevCred, 0,
-		ms, "", ms, ms, ms, nil,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id.New(id.CIStatus), changeID, transition, state, o.Service, serviceName, envName,
+		o.Provider, o.Repository, tokenID, allowedRepo, o.Commit, o.Ref, o.RunURL, o.Digest,
+		changeURL, opts.Summary, key, CIStatusDeliveryPending,
+		prevRemoteID, prevRemoteURL, prevCred, "", 0,
+		ms, "", ms, 0, ms, nil,
 	); err != nil {
 		return false, fmt.Errorf("recording CI status %s for %s: %w", state, changeID, err)
 	}
 	return true, nil
 }
 
-// CIStatusDueChanges returns up to limit distinct change IDs that have at least
+// CIStatusEnqueueDiscardedForPlanned records a discarded transition for any
+// other planned CI deploy changes touching serviceIDs that have been superseded
+// by a newer change committing on those services.
+func (t *RevisionTx) CIStatusEnqueueDiscardedForPlanned(ctx context.Context, serviceIDs []string, excludeChangeID, summary string, changeURL func(string) string, now time.Time) (bool, error) {
+	if len(serviceIDs) == 0 {
+		return false, nil
+	}
+	args := make([]any, 0, len(serviceIDs)+3)
+	args = append(args, ChangePlanned, excludeChangeID)
+	for _, sid := range serviceIDs {
+		args = append(args, sid)
+	}
+	args = append(args, CIStatusDiscarded)
+	rows, err := t.query(ctx, `SELECT o.change_id FROM ci_deploy_origins o
+		JOIN changes c ON c.id = o.change_id
+		WHERE c.state = ? AND o.change_id != ? AND o.service_id IN (`+marks(len(serviceIDs))+`)
+		  AND NOT EXISTS (
+			SELECT 1 FROM ci_status_outbox s WHERE s.change_id = o.change_id AND s.state = ?
+		  )
+		ORDER BY o.change_id ASC`, args...)
+	if err != nil {
+		return false, fmt.Errorf("finding superseded planned CI deploys: %w", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var cid string
+		if err := rows.Scan(&cid); err != nil {
+			_ = rows.Close()
+			return false, err
+		}
+		ids = append(ids, cid)
+	}
+	if err := rows.Close(); err != nil {
+		return false, err
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	enqueuedAny := false
+	for _, cid := range ids {
+		url := ""
+		if changeURL != nil {
+			url = changeURL(cid)
+		}
+		enqueued, err := t.EnqueueCIStatusForChange(ctx, cid, CIStatusDiscarded, CIStatusEnqueueOpts{
+			ChangeURL: url,
+			Summary:   summary,
+		}, now)
+		if err != nil {
+			return false, err
+		}
+		if enqueued {
+			enqueuedAny = true
+		}
+		if _, err := t.ForgetStaleCIDeploy(ctx, cid); err != nil {
+			return false, err
+		}
+	}
+	return enqueuedAny, nil
+}
+
+// CIStatusDueChanges returns up to limit distinct changes that have at least
 // one pending transition due at or before now.
-func (t *Tx) CIStatusDueChanges(ctx context.Context, now time.Time, limit int) ([]string, error) {
+func (t *Tx) CIStatusDueChanges(ctx context.Context, now time.Time, limit int) ([]CIStatusDue, error) {
 	if limit <= 0 {
 		limit = 32
 	}
-	rows, err := t.query(ctx, `SELECT change_id FROM ci_status_outbox
+	rows, err := t.query(ctx, `SELECT change_id, MIN(repository), MIN(provider) FROM ci_status_outbox
 		WHERE delivery_state = ? AND next_attempt_at <= ?
 		GROUP BY change_id
 		ORDER BY MIN(next_attempt_at) ASC, change_id ASC
@@ -151,13 +283,13 @@ func (t *Tx) CIStatusDueChanges(ctx context.Context, now time.Time, limit int) (
 		return nil, fmt.Errorf("listing due CI statuses: %w", err)
 	}
 	defer rows.Close()
-	var out []string
+	var out []CIStatusDue
 	for rows.Next() {
-		var changeID string
-		if err := rows.Scan(&changeID); err != nil {
+		var d CIStatusDue
+		if err := rows.Scan(&d.ChangeID, &d.Repository, &d.Provider); err != nil {
 			return nil, err
 		}
-		out = append(out, changeID)
+		out = append(out, d)
 	}
 	return out, rows.Err()
 }
@@ -219,7 +351,7 @@ func (t *Tx) CIStatusMarkDelivered(ctx context.Context, entryID, changeID string
 	ms := millis(at)
 	if _, err := t.exec(ctx, `UPDATE ci_status_outbox
 		SET delivery_state = ?, remote_id = ?, remote_url = ?, credential_ref = ?,
-			attempts = attempts + 1, last_error = '', delivered_at = ?, updated_at = ?
+			reason_code = '', attempts = attempts + 1, last_error = '', delivered_at = ?, updated_at = ?
 		WHERE id = ?`,
 		CIStatusDeliveryDelivered, remoteID, remoteURL, credentialRef, ms, ms, entryID); err != nil {
 		return fmt.Errorf("marking CI status %s delivered: %w", entryID, err)
@@ -252,17 +384,22 @@ func (t *Tx) CIStatusMarkSuperseded(ctx context.Context, entryID string, at time
 }
 
 // CIStatusMarkRetry records a transient failure and schedules the next retry.
-func (t *Tx) CIStatusMarkRetry(ctx context.Context, entryID, credentialRef, lastErr string, nextAttempt, at time.Time) error {
+// The retry window starts at the first attempt (retry_since = 0 until then).
+func (t *Tx) CIStatusMarkRetry(ctx context.Context, entryID, credentialRef, reasonCode, lastErr string, nextAttempt, at time.Time) error {
+	ms := millis(at)
 	_, err := t.exec(ctx, `UPDATE ci_status_outbox
-		SET attempts = attempts + 1, credential_ref = CASE WHEN ? != '' THEN ? ELSE credential_ref END,
-			last_error = ?, next_attempt_at = ?, updated_at = ?
+		SET attempts = attempts + 1,
+			credential_ref = CASE WHEN ? != '' THEN ? ELSE credential_ref END,
+			reason_code = ?, last_error = ?, next_attempt_at = ?,
+			retry_since = CASE WHEN retry_since = 0 THEN ? ELSE retry_since END,
+			updated_at = ?
 		WHERE id = ? AND delivery_state = ?`,
-		credentialRef, credentialRef, lastErr, millis(nextAttempt), millis(at), entryID, CIStatusDeliveryPending)
+		credentialRef, credentialRef, reasonCode, lastErr, millis(nextAttempt), ms, ms, entryID, CIStatusDeliveryPending)
 	return err
 }
 
 // CIStatusMarkFinal ends delivery attempts for an entry as failed or skipped.
-func (t *Tx) CIStatusMarkFinal(ctx context.Context, entryID, deliveryState, credentialRef, lastErr string, countAttempt bool, at time.Time) error {
+func (t *Tx) CIStatusMarkFinal(ctx context.Context, entryID, deliveryState, credentialRef, reasonCode, lastErr string, countAttempt bool, at time.Time) error {
 	inc := 0
 	if countAttempt {
 		inc = 1
@@ -270,9 +407,9 @@ func (t *Tx) CIStatusMarkFinal(ctx context.Context, entryID, deliveryState, cred
 	_, err := t.exec(ctx, `UPDATE ci_status_outbox
 		SET delivery_state = ?, attempts = attempts + ?,
 			credential_ref = CASE WHEN ? != '' THEN ? ELSE credential_ref END,
-			last_error = ?, updated_at = ?
+			reason_code = ?, last_error = ?, updated_at = ?
 		WHERE id = ? AND delivery_state = ?`,
-		deliveryState, inc, credentialRef, credentialRef, lastErr, millis(at), entryID, CIStatusDeliveryPending)
+		deliveryState, inc, credentialRef, credentialRef, reasonCode, lastErr, millis(at), entryID, CIStatusDeliveryPending)
 	return err
 }
 
@@ -325,7 +462,10 @@ func (t *Tx) CIStatusAllForChange(ctx context.Context, changeID string) ([]CISta
 }
 
 // CIStatusRequeueLatest schedules another delivery of the latest transition for
-// changeID, starting a fresh bounded retry window.
+// changeID, starting a fresh bounded retry window. Only failed or skipped
+// entries may be retried; pending or delivered entries return ErrCIStatusNotRetryable.
+// When the deploy was created by a deploy token, allowed_repository is refreshed
+// from the token so setting the repository on a slice-1 token takes effect on retry.
 func (t *Tx) CIStatusRequeueLatest(ctx context.Context, changeID, changeURL string, now time.Time) (CIStatusEntry, error) {
 	e, err := scanCIStatus(t.queryRow(ctx, `SELECT `+ciStatusColumns+` FROM ci_status_outbox
 		WHERE change_id = ? ORDER BY transition DESC LIMIT 1`, changeID))
@@ -335,24 +475,36 @@ func (t *Tx) CIStatusRequeueLatest(ctx context.Context, changeID, changeURL stri
 	if err != nil {
 		return CIStatusEntry{}, fmt.Errorf("reading latest CI status for %s: %w", changeID, err)
 	}
+	if e.DeliveryState != CIStatusDeliveryFailed && e.DeliveryState != CIStatusDeliverySkipped {
+		return CIStatusEntry{}, ErrCIStatusNotRetryable
+	}
+	allowedRepo := e.AllowedRepository
+	if e.TokenID != "" {
+		var current string
+		if err := t.queryRow(ctx, `SELECT deploy_repository FROM api_tokens WHERE id = ?`, e.TokenID).Scan(&current); err == nil {
+			allowedRepo = current
+		}
+	}
 	ms := millis(now)
-	urlToKeep := e.ChangeURL
-	if urlToKeep == "" && changeURL != "" {
-		urlToKeep = changeURL
+	urlToKeep := changeURL
+	if urlToKeep == "" {
+		urlToKeep = e.ChangeURL
 	}
 	if _, err := t.exec(ctx, `UPDATE ci_status_outbox
-		SET delivery_state = ?, attempts = 0, next_attempt_at = ?, last_error = '',
-			change_url = ?, retry_since = ?, updated_at = ?
+		SET delivery_state = ?, attempts = 0, next_attempt_at = ?, reason_code = '', last_error = '',
+			change_url = ?, allowed_repository = ?, retry_since = 0, updated_at = ?
 		WHERE id = ?`,
-		CIStatusDeliveryPending, ms, urlToKeep, ms, ms, e.ID); err != nil {
+		CIStatusDeliveryPending, ms, urlToKeep, allowedRepo, ms, e.ID); err != nil {
 		return CIStatusEntry{}, fmt.Errorf("requeueing CI status for %s: %w", changeID, err)
 	}
 	e.DeliveryState = CIStatusDeliveryPending
 	e.Attempts = 0
 	e.NextAttemptAt = now
+	e.ReasonCode = ""
 	e.LastError = ""
 	e.ChangeURL = urlToKeep
-	e.RetrySince = now
+	e.AllowedRepository = allowedRepo
+	e.RetrySince = time.Time{}
 	e.UpdatedAt = now
 	return e, nil
 }

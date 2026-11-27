@@ -190,6 +190,11 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "commit",
             tone: "warning",
           };
+        case "ci_status.retried":
+          return {
+            title: name ? t`Retried reporting deploy status for ${name}` : t`Retried reporting deploy status`,
+            icon: "commit",
+          };
         case "server.join":
           return event.actor?.kind === ActorKind.DOCKWELL
             ? { title: t`${server} joined as the control server`, icon: "server" }
@@ -959,6 +964,11 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: name ? t`Created the API token ${name}` : t`Created an API token`, icon: "key" };
         case "token.revoke":
           return { title: name ? t`Revoked the API token ${name}` : t`Revoked an API token`, icon: "key" };
+        case "token.deploy_repository":
+          return {
+            title: name ? t`Updated the status repository for ${name}` : t`Updated a deploy token's status repository`,
+            icon: "key",
+          };
         case "git_hook.create":
           return {
             title: name ? t`Turned on deploy on push for ${name}` : t`Turned on deploy on push`,

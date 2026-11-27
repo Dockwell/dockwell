@@ -167,6 +167,7 @@ type TokenReach struct {
 	// or empty for its maker's.
 	Role                             string
 	DeployService, DeployEnvironment string
+	DeployRepository                 string
 }
 
 // maxTokenProjects bounds the projects a token names.
@@ -187,6 +188,16 @@ func (s *Service) CreateTokenWithin(ctx context.Context, client Client, p Princi
 	if reach.DeployService != "" && (reach.DeployEnvironment == "" || scope != store.ScopeReadWrite ||
 		len(grants) != 0 || reach.Role != store.RoleDeveloper || len(reach.Projects) != 1) {
 		return NewToken{}, fmt.Errorf("%w: a deploy token must be bound to one app as a developer", ErrInvalid)
+	}
+	if reach.DeployRepository != "" {
+		if reach.DeployService == "" {
+			return NewToken{}, fmt.Errorf("%w: only deploy tokens can bind a status repository", ErrInvalid)
+		}
+		norm, err := store.NormalizeDeployRepository(reach.DeployRepository)
+		if err != nil {
+			return NewToken{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		}
+		reach.DeployRepository = norm
 	}
 	if len(reach.Projects) > maxTokenProjects {
 		return NewToken{}, fmt.Errorf("%w: a token can name up to %d projects. Leave them out for every project you hold", ErrInvalid, maxTokenProjects)
@@ -306,6 +317,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		Projects:      reach.Projects,
 		Role:          reach.Role,
 		DeployService: reach.DeployService, DeployEnvironment: reach.DeployEnvironment,
+		DeployRepository: reach.DeployRepository,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)
@@ -382,7 +394,11 @@ func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID strin
 		if env.Kind != "environment" || env.Spec == nil || env.Scope != reach.Projects[0] || store.RoleRank(held) < store.RoleRank(store.RoleDeveloper) {
 			return "", fmt.Errorf("%w: choose an app you can deploy in this environment", ErrInvalid)
 		}
-		return fmt.Sprintf(", deploys %s (%s) in %s", app.Name, app.ID, env.Name), nil
+		detail := fmt.Sprintf(", deploys %s (%s) in %s", app.Name, app.ID, env.Name)
+		if reach.DeployRepository != "" {
+			detail += ", status to " + reach.DeployRepository
+		}
+		return detail, nil
 	}
 	if reach.Role != "" && store.RoleRank(reach.Role) >= store.RoleRank(highest) {
 		return "", fmt.Errorf("%w: you're %s, so a token that acts as %s at most acts as you do already. Leave its role unset%s",
@@ -458,6 +474,38 @@ func (s *Service) RevokeToken(ctx context.Context, p Principal, tokenID string) 
 	s.streams.end(tokenID)
 	s.refusals.forget(tokenID)
 	return nil
+}
+
+// SetTokenDeployRepository binds one of the principal's deploy tokens to the
+// canonical HTTPS repository whose commits it may report deploy status to, or
+// clears the binding when repository is empty.
+func (s *Service) SetTokenDeployRepository(ctx context.Context, p Principal, tokenID, repository string) (store.APIToken, error) {
+	if p.Token != nil || p.Session.ID == "" {
+		return store.APIToken{}, ErrNeedsSession
+	}
+	norm, err := store.NormalizeDeployRepository(repository)
+	if err != nil {
+		return store.APIToken{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	var updated store.APIToken
+	err = s.db.Update(ctx, func(tx *store.Tx) error {
+		tok, err := tx.SetAPITokenDeployRepository(ctx, p.User.ID, tokenID, norm, s.now())
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return fmt.Errorf("%w: you have no API token %s, or it was already revoked. List them with ListTokens", ErrNotFound, tokenID)
+		case errors.Is(err, store.ErrTokenNotDeploy):
+			return fmt.Errorf("%w: only deploy tokens can bind a status repository", ErrInvalid)
+		case err != nil:
+			return err
+		}
+		updated = tok
+		detail := "token " + tokenID + " status repository cleared"
+		if norm != "" {
+			detail = fmt.Sprintf("token %s status repository set to %s", tokenID, norm)
+		}
+		return s.auditOn(ctx, tx, p.Actor(), "token.deploy_repository", p.User.ID, tokenID, detail)
+	})
+	return updated, err
 }
 
 // AuthenticateToken returns the principal behind an API token's secret, if

@@ -1333,6 +1333,12 @@ msgstr "已请求备份控制平面"
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
 
+msgid "Retried reporting deploy status"
+msgstr "已重试上报部署状态"
+
+msgid "Retried reporting deploy status for {name}"
+msgstr "已重试上报 {name} 的部署状态"
+
 msgid "Revealed a secret"
 msgstr "显示了一个密钥"
 
@@ -1595,11 +1601,17 @@ msgstr "为 {name} 解锁了验证码"
 msgid "Unlocked codes from an authenticator app"
 msgstr "解锁了身份验证器应用验证码"
 
+msgid "Updated a deploy token's status repository"
+msgstr "更新了部署令牌的状态仓库"
+
 msgid "Updated shared terminal command {name}"
 msgstr "已更新共享终端命令 {name}"
 
 msgid "Updated shared terminal command {name}, which was {previous}"
 msgstr "已更新共享终端命令 {name}（原为 {previous}）"
+
+msgid "Updated the status repository for {name}"
+msgstr "更新了 {name} 的状态仓库"
 
 msgid "Uploaded {path} to {server}, which can let someone back in"
 msgstr "已上传 {path} 到 {server}，这里可能让他人重新进入服务器"
@@ -4740,6 +4752,10 @@ msgstr "CI 部署 · {name}"
 msgid "CI provider"
 msgstr "CI 提供商"
 
+#. placeholder {0}: provider === "github" ? "GitHub" : "GitLab"
+msgid "Connect {0} in <0>Integrations</0> to report deploy status back to commits."
+msgstr "在<0>集成</0>中连接 {0}，即可将部署状态回传到提交。"
+
 msgid "Copy token"
 msgstr "复制令牌"
 
@@ -4748,6 +4764,12 @@ msgstr "复制工作流"
 
 msgid "Create deploy token"
 msgstr "创建部署令牌"
+
+msgid "Dockwell reports commit and PR status only to this repository."
+msgstr "Dockwell 只会向此仓库上报提交和 PR 状态。"
+
+msgid "Don't report status"
+msgstr "不上报状态"
 
 msgid "Hide the token"
 msgstr "隐藏令牌"
@@ -4761,11 +4783,21 @@ msgstr "90 天后"
 msgid "Manage API tokens"
 msgstr "管理 API 令牌"
 
+msgid "Optional. Dockwell reports commit status only to this repository."
+msgstr "可选。Dockwell 只会向此仓库上报提交状态。"
+
 msgid "Release tag"
 msgstr "发行版本标签"
 
+#. placeholder {0}: made.repository
+msgid "Reports deploy status to {0}."
+msgstr "将部署状态上报到 {0}。"
+
 msgid "Show the whole token"
 msgstr "显示完整令牌"
+
+msgid "Status repository"
+msgstr "状态仓库"
 
 msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
 msgstr "构建任务通过 dotenv 制品导出 DOCKWELL_IMAGE。"
@@ -11180,14 +11212,71 @@ msgstr "如果不保留设置，{name} 将在 {left} 秒后恢复原设置。"
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
 
+msgid "API tokens"
+msgstr "API 令牌"
+
 msgid "CI run"
 msgstr "CI 运行记录"
 
-msgid "Couldn't report deploy status."
-msgstr "无法上报部署状态。"
+msgid "Connect GitHub"
+msgstr "连接 GitHub"
+
+msgid "Connect GitLab"
+msgstr "连接 GitLab"
 
 msgid "From {link} on {shortRef}"
 msgstr "来自 {shortRef} 上的 {link}"
+
+msgid "GitHub refused status update"
+msgstr "GitHub 拒绝了状态更新"
+
+msgid "GitLab address is blocked"
+msgstr "GitLab 地址已被拦截"
+
+msgid "GitLab refused token"
+msgstr "GitLab 拒绝了令牌"
+
+msgid "GitLab token needs api scope"
+msgstr "GitLab 令牌需要 api 权限范围"
+
+msgid "Grant on GitHub"
+msgstr "前往 GitHub 授权"
+
+msgid "Integrations"
+msgstr "集成"
+
+msgid "Not reported: GitHub App needs Checks permission"
+msgstr "未上报：GitHub App 缺少 Checks 权限"
+
+msgid "Not reported: GitHub couldn't be reached"
+msgstr "未上报：无法连接到 GitHub"
+
+msgid "Not reported: GitHub isn't connected"
+msgstr "未上报：尚未连接 GitHub"
+
+msgid "Not reported: GitLab couldn't be reached"
+msgstr "未上报：无法连接到 GitLab"
+
+msgid "Not reported: GitLab isn't connected"
+msgstr "未上报：尚未连接 GitLab"
+
+msgid "Not reported: no repository set on token"
+msgstr "未上报：令牌未设置状态仓库"
+
+msgid "Not reported: provider not supported"
+msgstr "未上报：不支持此 CI 提供方"
+
+msgid "Not reported: repository doesn't match token"
+msgstr "未上报：仓库与令牌绑定的仓库不匹配"
+
+msgid "Not reported: this token reports to {repoLabel}"
+msgstr "未上报：此令牌仅向 {repoLabel} 上报"
+
+msgid "Reported discarded"
+msgstr "已上报放弃状态"
+
+msgid "Reported discarded to {providerLabel}"
+msgstr "已向 {providerLabel} 上报放弃状态"
 
 msgid "Reported to {providerLabel}"
 msgstr "已上报至 {providerLabel}"
@@ -11204,8 +11293,17 @@ msgstr "正在重试上报状态"
 msgid "Retrying status on {providerLabel}"
 msgstr "正在重试上报至 {providerLabel}"
 
+msgid "Set repository"
+msgstr "设置仓库"
+
 msgid "Status reported"
 msgstr "状态已上报"
+
+msgid "Stopped retrying deploy status"
+msgstr "已停止重试上报部署状态"
+
+msgid "Stopped retrying status on {providerLabel}"
+msgstr "已停止向 {providerLabel} 重试上报状态"
 
 msgid "Checking download access"
 msgstr "正在检查下载权限"
@@ -23698,9 +23796,6 @@ msgstr "登录链接"
 msgid "API"
 msgstr "API"
 
-msgid "API tokens"
-msgstr "API 令牌"
-
 msgid "All sources"
 msgstr "所有来源"
 
@@ -24117,12 +24212,6 @@ msgstr "某个组织"
 msgid "As a GitHub App Dockwell makes, which you install on the repositories you pick"
 msgstr "作为 Dockwell 创建的 GitHub 应用，由你安装到所选的仓库"
 
-msgid "Connect GitHub"
-msgstr "连接 GitHub"
-
-msgid "Connect GitLab"
-msgstr "连接 GitLab"
-
 msgid "Create on GitHub"
 msgstr "在 GitHub 上创建"
 
@@ -24501,9 +24590,6 @@ msgstr "筛选集成"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
-
-msgid "Integrations"
-msgstr "集成"
 
 #. placeholder {0}: l.name
 msgid "Keep {0} pull-only"
@@ -25163,6 +25249,9 @@ msgstr "身份"
 msgid "App unavailable"
 msgstr "应用不可用"
 
+msgid "Change status repository"
+msgstr "更改状态仓库"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
@@ -25187,8 +25276,14 @@ msgstr "Dockwell 无法列出你的项目"
 msgid "Dockwell can't list your tokens"
 msgstr "Dockwell 无法列出你的令牌"
 
+msgid "Dockwell reports commit and PR status for deploys made by this token only to this repository."
+msgstr "使用此令牌发起的部署，Dockwell 只会向此仓库上报提交和 PR 状态。"
+
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "每次从新地址使用都会记入<0>审计日志</0>"
+
+msgid "Enter the full HTTPS repository URL, or leave blank to disable status reporting."
+msgstr "输入完整的 HTTPS 仓库地址，留空则不回传部署状态。"
 
 msgid "Every scope"
 msgstr "所有权限范围"
@@ -25224,6 +25319,9 @@ msgstr "从不"
 msgid "New token"
 msgstr "新建令牌"
 
+msgid "No status repository"
+msgstr "未设置状态仓库"
+
 msgid "No tokens yet"
 msgstr "还没有令牌"
 
@@ -25241,6 +25339,9 @@ msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且
 
 msgid "Scopes"
 msgstr "范围"
+
+msgid "Set status repository"
+msgstr "设置状态仓库"
 
 msgid "Start with read access, and add only what the job needs."
 msgstr "从只读权限开始，只添加任务需要的权限。"
@@ -25291,6 +25392,12 @@ msgstr "来自 <0>{0}</0>"
 #. placeholder {0}: words.span(Math.max(0, when.getTime() - now))
 msgid "in {0}"
 msgstr "{0}后"
+
+msgid "not set"
+msgstr "未设置"
+
+msgid "status"
+msgstr "状态"
 
 #. placeholder {0}: list.length
 msgid "{0} tokens"

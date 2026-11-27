@@ -861,12 +861,13 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 			}
 		}
 		if cfg.Store != nil {
-			panelBase := panelLinkBase(cfg)
-			panelFn := func() string { return panelBase }
+			panelFn := func() string { return livePanelLinkBase(cfg) }
 			cfg.Changes.SetPanelURL(panelFn)
 			var targets cistatus.Targets
 			if apps != nil {
 				targets = ciStatusTargets{apps: apps}
+				ch.GitHubPermissionsURL = apps.GitHubPermissionsURL
+				serviceHandler.GitHubPermissionsURL = apps.GitHubPermissionsURL
 			}
 			worker := cistatus.New(cistatus.Config{
 				DB:       cfg.Store,
@@ -1624,17 +1625,23 @@ type GitLabConfig struct {
 	Client gitlab.Doer
 }
 
-func panelLinkBase(cfg Config) string {
+// livePanelLinkBase returns the panel's public HTTPS base URL for outbound links
+// (such as GitHub Check Run details_url and GitLab Commit Status target_url).
+// It reads the live panel_domain setting when configured and returns "" when no
+// public address is set, never leaking a private listen address.
+func livePanelLinkBase(cfg Config) string {
 	switch {
 	case cfg.PanelURL != "":
 		return strings.TrimRight(cfg.PanelURL, "/")
 	case cfg.PanelDomain.BehindProxy != "":
 		return "https://" + strings.TrimRight(cfg.PanelDomain.BehindProxy, "/")
-	case cfg.PanelListen != "":
-		return "http://" + strings.TrimRight(cfg.PanelListen, "/")
-	default:
-		return ""
 	}
+	if cfg.Store != nil {
+		if d, err := settings.PanelDomain(context.Background(), cfg.Store); err == nil && strings.TrimSpace(d) != "" {
+			return "https://" + strings.TrimRight(strings.TrimSpace(d), "/")
+		}
+	}
+	return ""
 }
 
 type ciStatusTargets struct {
@@ -1657,8 +1664,8 @@ func (t ciStatusTargets) FindGitHubStatusTarget(ctx context.Context, repoURL, se
 	}, "", nil
 }
 
-func (t ciStatusTargets) MarkChecksPermissionMissing(ctx context.Context, appID string, installationID int64) {
-	t.apps.MarkChecksPermissionMissing(ctx, appID, installationID)
+func (t ciStatusTargets) VerifyChecksPermission(ctx context.Context, appID string, installationID int64) bool {
+	return t.apps.VerifyChecksPermission(ctx, appID, installationID)
 }
 
 func (t ciStatusTargets) FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID string) (*cistatus.GitLabTarget, string, error) {

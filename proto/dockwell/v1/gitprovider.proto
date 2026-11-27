@@ -167,7 +167,7 @@ service GitProviderService {
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_INSTALL;
-    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
     option (google.api.http) = {
       post: "/v1/git-providers/{id}:refresh"
       body: "*"
@@ -191,6 +191,21 @@ service GitProviderService {
       post: "/v1/git-providers/gitlab:check"
       body: "*"
     };
+  }
+
+  // ListGitLabProjects returns the GitLab projects reachable by a project's
+  // connected GitLab instances, filtered by each connection's path prefix.
+  rpc ListGitLabProjects(ListGitLabProjectsRequest) returns (ListGitLabProjectsResponse) {
+    option (dockwell.v1.command) = {
+      noun: "git-providers"
+      verb: "list-gitlab-projects"
+    };
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/projects/{project}/gitlab-projects"};
   }
 }
 
@@ -469,4 +484,34 @@ message CheckGitLabConnectionResponse {
   string url = 3;
   string token_name = 4;
   repeated string scopes = 5;
+}
+
+// ListGitLabProjectsRequest names a project and an optional search term.
+message ListGitLabProjectsRequest {
+  // The project, by ID or name.
+  string project = 1;
+  // Optional search query forwarded to GitLab.
+  string query = 2;
+}
+
+// ListGitLabProjectsResponse carries reachable GitLab projects and connections.
+message ListGitLabProjectsResponse {
+  repeated GitLabProject projects = 1;
+  repeated GitLabProjectConnection connections = 2;
+}
+
+// GitLabProject is one repository reachable through a GitLab connection.
+message GitLabProject {
+  string path_with_namespace = 1;
+  string url = 2;
+  string connection_id = 3;
+  string connection_name = 4;
+}
+
+// GitLabProjectConnection summarizes a GitLab connection reachable by the project.
+message GitLabProjectConnection {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  string path_prefix = 4;
 }

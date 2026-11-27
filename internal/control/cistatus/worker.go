@@ -4,9 +4,10 @@
 // ci_status_outbox back to GitHub (Check Runs) and GitLab (Commit Statuses).
 // Delivery runs asynchronously outside the revision engine's write lock,
 // preserves monotonic transition order per change so an older status never
-// regresses a newer one, retries transient failures with exponential backoff,
-// and gives up after a bounded window with the reason on the change and audit
-// log (ADR 0111).
+// regresses a newer one, enforces the deploy token's bound repository before
+// touching any provider, isolates slow provider hosts, retries transient
+// failures with exponential backoff, and gives up after a bounded window with
+// structured reason codes on the change and audit log (ADR 0111).
 package cistatus
 
 import (
@@ -14,9 +15,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -28,17 +31,20 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// ActionFailed is recorded on the audit log and Activity when a CI deploy
-// status delivery permanently fails or gives up after retries.
-const ActionFailed = "ci_status.failed"
+// Audit actions recorded for CI deploy status reporting.
+const (
+	ActionFailed  = "ci_status.failed"
+	ActionRetried = "ci_status.retried"
+)
 
 // Default delivery bounds.
 const (
-	DefaultBaseBackoff  = 5 * time.Second
-	DefaultMaxBackoff   = 5 * time.Minute
-	DefaultGiveUpAfter  = 30 * time.Minute
-	DefaultMaxAttempts  = 12
-	DefaultPollInterval = 15 * time.Second
+	DefaultBaseBackoff    = 5 * time.Second
+	DefaultMaxBackoff     = 5 * time.Minute
+	DefaultGiveUpAfter    = 30 * time.Minute
+	DefaultMaxAttempts    = 12
+	DefaultPollInterval   = 15 * time.Second
+	DefaultMaxHostWorkers = 4
 )
 
 // GitHubTarget is a resolved GitHub App installation and repository.
@@ -67,24 +73,30 @@ type GitLabTarget struct {
 // this package to gitproviders directly.
 type Targets interface {
 	FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID string) (*GitHubTarget, string, error)
-	MarkChecksPermissionMissing(ctx context.Context, appID string, installationID int64)
+	VerifyChecksPermission(ctx context.Context, appID string, installationID int64) bool
 	FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID string) (*GitLabTarget, string, error)
 	NoteGitLabStatus(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string)
 }
 
 // Config configures a Worker.
 type Config struct {
-	DB           *store.DB
-	Targets      Targets
-	GitLab       *gitlab.Client
-	Logger       *slog.Logger
-	PanelURL     func() string
-	Now          func() time.Time
-	BaseBackoff  time.Duration
-	MaxBackoff   time.Duration
-	GiveUpAfter  time.Duration
-	MaxAttempts  int
-	PollInterval time.Duration
+	DB             *store.DB
+	Targets        Targets
+	GitLab         *gitlab.Client
+	Logger         *slog.Logger
+	PanelURL       func() string
+	Now            func() time.Time
+	BaseBackoff    time.Duration
+	MaxBackoff     time.Duration
+	GiveUpAfter    time.Duration
+	MaxAttempts    int
+	PollInterval   time.Duration
+	MaxHostWorkers int
+}
+
+type changeLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 // Worker drains ci_status_outbox in the background.
@@ -93,7 +105,7 @@ type Worker struct {
 	wake chan struct{}
 
 	mu       sync.Mutex
-	inFlight map[string]*sync.Mutex
+	inFlight map[string]*changeLock
 }
 
 // New constructs a Worker with sensible defaults.
@@ -119,10 +131,13 @@ func New(cfg Config) *Worker {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = DefaultPollInterval
 	}
+	if cfg.MaxHostWorkers <= 0 {
+		cfg.MaxHostWorkers = DefaultMaxHostWorkers
+	}
 	return &Worker{
 		cfg:      cfg,
 		wake:     make(chan struct{}, 1),
-		inFlight: map[string]*sync.Mutex{},
+		inFlight: map[string]*changeLock{},
 	}
 }
 
@@ -131,6 +146,13 @@ func (w *Worker) now() time.Time {
 		return w.cfg.Now()
 	}
 	return time.Now()
+}
+
+// InFlightLen returns the number of per-change locks currently held in memory.
+func (w *Worker) InFlightLen() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.inFlight)
 }
 
 // Wake nudges the background loop to check for due transitions immediately.
@@ -183,48 +205,117 @@ func (w *Worker) nextWait(ctx context.Context) time.Duration {
 }
 
 // DeliverOnce delivers every currently due change's pending transitions in
-// order. It is safe to call directly from tests.
+// order, running distinct provider hosts concurrently so one slow or down host
+// cannot stall deliveries to other hosts.
 func (w *Worker) DeliverOnce(ctx context.Context) error {
 	if w.cfg.DB == nil {
 		return nil
 	}
+	unreachableHosts := map[string]bool{}
 	for {
-		var due []string
+		var due []store.CIStatusDue
 		err := w.cfg.DB.View(ctx, func(tx *store.Tx) error {
 			var err error
-			due, err = tx.CIStatusDueChanges(ctx, w.now(), 32)
+			due, err = tx.CIStatusDueChanges(ctx, w.now(), 64)
 			return err
 		})
 		if err != nil {
 			return err
 		}
-		if len(due) == 0 {
+		groups := map[string][]string{}
+		var hostOrder []string
+		for _, d := range due {
+			hk := hostKey(d.Repository, d.Provider)
+			if unreachableHosts[hk] {
+				continue
+			}
+			if _, ok := groups[hk]; !ok {
+				hostOrder = append(hostOrder, hk)
+			}
+			groups[hk] = append(groups[hk], d.ChangeID)
+		}
+		if len(hostOrder) == 0 {
 			return nil
 		}
-		progressed := false
-		for _, changeID := range due {
+
+		var (
+			progressed atomic.Bool
+			hostMu     sync.Mutex
+			wg         sync.WaitGroup
+			sem        = make(chan struct{}, w.cfg.MaxHostWorkers)
+		)
+		for _, hk := range hostOrder {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				break
 			}
-			did, err := w.deliverChange(ctx, changeID)
-			if err != nil && ctx.Err() == nil {
-				w.cfg.Logger.WarnContext(ctx, "CI status delivery failed", slog.String("change", changeID), slog.String("error", err.Error()))
-			}
-			progressed = progressed || did
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(host string, changes []string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				for _, changeID := range changes {
+					if ctx.Err() != nil {
+						return
+					}
+					did, unreachable, err := w.deliverChange(ctx, changeID)
+					if err != nil && ctx.Err() == nil {
+						w.cfg.Logger.WarnContext(ctx, "CI status delivery failed", slog.String("change", changeID), slog.String("error", err.Error()))
+					}
+					if did {
+						progressed.Store(true)
+					}
+					if unreachable {
+						hostMu.Lock()
+						unreachableHosts[host] = true
+						hostMu.Unlock()
+						return
+					}
+				}
+			}(hk, groups[hk])
 		}
-		if !progressed {
+		wg.Wait()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if !progressed.Load() {
 			return nil
 		}
 	}
 }
 
-// Retry requeues the latest recorded status transition for changeID and wakes
-// the delivery loop.
-func (w *Worker) Retry(ctx context.Context, changeID string) error {
+func hostKey(repoURL string, provider int32) string {
+	if u, err := url.Parse(strings.TrimSpace(repoURL)); err == nil && u.Host != "" {
+		return strings.ToLower(u.Host)
+	}
+	return fmt.Sprintf("provider:%d", provider)
+}
+
+// Retry requeues the latest recorded status transition for changeID, records an
+// audit event, and wakes the delivery loop.
+func (w *Worker) Retry(ctx context.Context, changeID, actor, via string) error {
 	panelChangeURL := w.changeURL(changeID)
+	now := w.now()
 	err := w.cfg.DB.Update(ctx, func(tx *store.Tx) error {
-		_, err := tx.CIStatusRequeueLatest(ctx, changeID, panelChangeURL, w.now())
-		return err
+		entry, err := tx.CIStatusRequeueLatest(ctx, changeID, panelChangeURL, now)
+		if err != nil {
+			return err
+		}
+		if actor == "" {
+			actor = revision.SystemActor
+		}
+		if via == "" {
+			via = store.SurfaceAPI
+		}
+		return tx.RecordEvent(ctx, store.Event{
+			ID:      id.New(id.Event),
+			At:      now,
+			Actor:   actor,
+			Surface: via,
+			Action:  ActionRetried,
+			Subject: changeID,
+			Target:  entry.ServiceID,
+			Detail:  "retried CI deploy status delivery",
+		})
 	})
 	if err != nil {
 		return err
@@ -246,21 +337,29 @@ func (w *Worker) changeURL(changeID string) string {
 
 func (w *Worker) lockChange(changeID string) func() {
 	w.mu.Lock()
-	cm, ok := w.inFlight[changeID]
+	cl, ok := w.inFlight[changeID]
 	if !ok {
-		cm = &sync.Mutex{}
-		w.inFlight[changeID] = cm
+		cl = &changeLock{}
+		w.inFlight[changeID] = cl
 	}
+	cl.refs++
 	w.mu.Unlock()
-	cm.Lock()
-	return cm.Unlock
+	cl.mu.Lock()
+	return func() {
+		cl.mu.Unlock()
+		w.mu.Lock()
+		cl.refs--
+		if cl.refs == 0 {
+			delete(w.inFlight, changeID)
+		}
+		w.mu.Unlock()
+	}
 }
 
-func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, error) {
+func (w *Worker) deliverChange(ctx context.Context, changeID string) (progressed, hostUnreachable bool, err error) {
 	unlock := w.lockChange(changeID)
 	defer unlock()
 
-	progressed := false
 	for {
 		var (
 			pending      []store.CIStatusEntry
@@ -269,7 +368,7 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 			remoteURL    string
 			credRef      string
 		)
-		err := w.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		err = w.cfg.DB.View(ctx, func(tx *store.Tx) error {
 			var err error
 			pending, maxDelivered, err = tx.CIStatusPendingForChange(ctx, changeID)
 			if err != nil {
@@ -279,10 +378,10 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 			return err
 		})
 		if err != nil {
-			return progressed, err
+			return progressed, false, err
 		}
 		if len(pending) == 0 {
-			return progressed, nil
+			return progressed, false, nil
 		}
 
 		now := w.now()
@@ -299,11 +398,11 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 		}
 		if len(staleIDs) > 0 {
 			if err := w.supersede(ctx, staleIDs, now); err != nil {
-				return progressed, err
+				return progressed, false, err
 			}
 			progressed = true
 			if len(live) == 0 {
-				return progressed, nil
+				return progressed, false, nil
 			}
 		}
 
@@ -318,7 +417,7 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 			}
 		}
 		if pickIdx < 0 {
-			return progressed, nil
+			return progressed, false, nil
 		}
 		if pickIdx > 0 {
 			var drop []string
@@ -326,7 +425,7 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 				drop = append(drop, live[i].ID)
 			}
 			if err := w.supersede(ctx, drop, now); err != nil {
-				return progressed, err
+				return progressed, false, err
 			}
 			progressed = true
 		}
@@ -345,14 +444,14 @@ func (w *Worker) deliverChange(ctx context.Context, changeID string) (bool, erro
 			entry.ChangeURL = w.changeURL(entry.ChangeID)
 		}
 
-		done, err := w.deliverEntry(ctx, entry)
+		done, unreachable, err := w.deliverEntry(ctx, entry)
 		if err != nil {
-			return progressed, err
+			return progressed, unreachable, err
 		}
 		progressed = true
 		if !done {
 			// Entry went into retry backoff or stopped; do not spin in this pass.
-			return progressed, nil
+			return progressed, unreachable, nil
 		}
 	}
 }
@@ -369,22 +468,41 @@ func (w *Worker) supersede(ctx context.Context, ids []string, at time.Time) erro
 }
 
 type deliveryOutcome struct {
-	delivered     bool
-	skipped       bool
-	permanentFail bool
-	remoteID      string
-	remoteURL     string
-	credentialRef string
-	reason        string
-	retryAfter    time.Duration
+	delivered       bool
+	skipped         bool
+	permanentFail   bool
+	hostUnreachable bool
+	remoteID        string
+	remoteURL       string
+	credentialRef   string
+	reasonCode      string
+	reason          string
+	retryAfter      time.Duration
 }
 
 // deliverEntry attempts one provider HTTP call (outside any DB transaction or
-// revision lock) and persists the outcome. Returns true if the entry reached a
-// terminal state and the caller may advance to the next queued transition.
-func (w *Worker) deliverEntry(ctx context.Context, entry store.CIStatusEntry) (bool, error) {
+// revision lock) and persists the outcome. Returns done=true if the entry
+// reached a terminal state and the caller may advance to the next queued transition.
+func (w *Worker) deliverEntry(ctx context.Context, entry store.CIStatusEntry) (done, hostUnreachable bool, err error) {
+	// Enforce the deploy token's Dockwell-owned repository binding BEFORE
+	// touching any provider or checking installation reach.
+	if entry.AllowedRepository == "" {
+		return true, false, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, "", store.CIStatusReasonNoTokenRepository, "", false)
+	}
+	if !store.SameDeployRepository(entry.Repository, entry.AllowedRepository) {
+		return true, false, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, "", store.CIStatusReasonRepositoryMismatch, "", false)
+	}
+
 	if w.cfg.Targets == nil {
-		return true, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, "", "No Git provider is configured.", false)
+		code := store.CIStatusReasonProviderUnsupported
+		switch dockwellv1.DeployProvider(entry.Provider) {
+		case dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS:
+			code = store.CIStatusReasonNoGitHubApp
+		case dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI:
+			code = store.CIStatusReasonNoGitLabConnection
+		case dockwellv1.DeployProvider_DEPLOY_PROVIDER_UNSPECIFIED, dockwellv1.DeployProvider_DEPLOY_PROVIDER_OTHER:
+		}
+		return true, false, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, "", code, "", false)
 	}
 	var out deliveryOutcome
 	switch dockwellv1.DeployProvider(entry.Provider) {
@@ -393,7 +511,7 @@ func (w *Worker) deliverEntry(ctx context.Context, entry store.CIStatusEntry) (b
 	case dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI:
 		out = w.deliverGitLab(ctx, entry)
 	default:
-		out = deliveryOutcome{skipped: true, reason: "Status reporting is supported for GitHub and GitLab deploys."}
+		out = deliveryOutcome{skipped: true, reasonCode: store.CIStatusReasonProviderUnsupported}
 	}
 
 	now := w.now()
@@ -402,27 +520,28 @@ func (w *Worker) deliverEntry(ctx context.Context, entry store.CIStatusEntry) (b
 		err := w.cfg.DB.Update(ctx, func(tx *store.Tx) error {
 			return tx.CIStatusMarkDelivered(ctx, entry.ID, entry.ChangeID, entry.Transition, out.remoteID, out.remoteURL, out.credentialRef, now)
 		})
-		return true, err
+		return true, false, err
 	case out.skipped:
-		return true, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, out.credentialRef, out.reason, false)
+		return true, false, w.markFinal(ctx, entry, store.CIStatusDeliverySkipped, out.credentialRef, out.reasonCode, out.reason, false)
 	case out.permanentFail:
-		return true, w.markFinal(ctx, entry, store.CIStatusDeliveryFailed, out.credentialRef, out.reason, true)
+		return true, false, w.markFinal(ctx, entry, store.CIStatusDeliveryFailed, out.credentialRef, out.reasonCode, out.reason, true)
 	default:
-		// Transient failure: retry with bounded backoff until GiveUpAfter or MaxAttempts.
+		// Transient failure: retry with bounded backoff measured from the first
+		// attempt until GiveUpAfter or MaxAttempts.
 		attempts := entry.Attempts + 1
-		if attempts >= w.cfg.MaxAttempts || now.Sub(entry.RetrySince) >= w.cfg.GiveUpAfter {
-			reason := out.reason
-			if reason == "" {
-				reason = "Provider could not be reached after retries."
-			}
-			return true, w.markFinal(ctx, entry, store.CIStatusDeliveryFailed, out.credentialRef, reason, true)
+		retryStart := entry.RetrySince
+		if retryStart.IsZero() {
+			retryStart = now
+		}
+		if attempts >= w.cfg.MaxAttempts || now.Sub(retryStart) >= w.cfg.GiveUpAfter {
+			return true, out.hostUnreachable, w.markFinal(ctx, entry, store.CIStatusDeliveryFailed, out.credentialRef, store.CIStatusReasonGaveUp, out.reason, true)
 		}
 		delay := w.backoff(attempts, out.retryAfter)
 		nextAt := now.Add(delay)
 		err := w.cfg.DB.Update(ctx, func(tx *store.Tx) error {
-			return tx.CIStatusMarkRetry(ctx, entry.ID, out.credentialRef, out.reason, nextAt, now)
+			return tx.CIStatusMarkRetry(ctx, entry.ID, out.credentialRef, out.reasonCode, out.reason, nextAt, now)
 		})
-		return false, err
+		return false, out.hostUnreachable, err
 	}
 }
 
@@ -438,13 +557,17 @@ func (w *Worker) backoff(attempt int, retryAfter time.Duration) time.Duration {
 	return d
 }
 
-func (w *Worker) markFinal(ctx context.Context, entry store.CIStatusEntry, deliveryState, credRef, reason string, countAttempt bool) error {
+func (w *Worker) markFinal(ctx context.Context, entry store.CIStatusEntry, deliveryState, credRef, reasonCode, reason string, countAttempt bool) error {
 	now := w.now()
 	return w.cfg.DB.Update(ctx, func(tx *store.Tx) error {
-		if err := tx.CIStatusMarkFinal(ctx, entry.ID, deliveryState, credRef, reason, countAttempt, now); err != nil {
+		if err := tx.CIStatusMarkFinal(ctx, entry.ID, deliveryState, credRef, reasonCode, reason, countAttempt, now); err != nil {
 			return err
 		}
 		if deliveryState == store.CIStatusDeliveryFailed {
+			detail := reason
+			if detail == "" {
+				detail = reasonCode
+			}
 			return tx.RecordEvent(ctx, store.Event{
 				ID:      id.New(id.Event),
 				At:      now,
@@ -453,7 +576,7 @@ func (w *Worker) markFinal(ctx context.Context, entry store.CIStatusEntry, deliv
 				Action:  ActionFailed,
 				Subject: entry.ChangeID,
 				Target:  entry.ServiceID,
-				Detail:  reason,
+				Detail:  detail,
 			})
 		}
 		return nil
@@ -461,12 +584,12 @@ func (w *Worker) markFinal(ctx context.Context, entry store.CIStatusEntry, deliv
 }
 
 func (w *Worker) deliverGitHub(ctx context.Context, entry store.CIStatusEntry) deliveryOutcome {
-	target, skipReason, err := w.cfg.Targets.FindGitHubStatusTarget(ctx, entry.Repository, entry.ServiceID)
+	target, reasonCode, err := w.cfg.Targets.FindGitHubStatusTarget(ctx, entry.Repository, entry.ServiceID)
 	if err != nil {
-		return deliveryOutcome{reason: fmt.Sprintf("Couldn't read GitHub App settings: %v", err)}
+		return deliveryOutcome{reasonCode: store.CIStatusReasonGitHubNotReached, reason: err.Error()}
 	}
 	if target == nil {
-		return deliveryOutcome{skipped: true, reason: skipReason}
+		return deliveryOutcome{skipped: true, reasonCode: reasonCode}
 	}
 
 	req := buildGitHubCheckRun(entry, w.now())
@@ -474,10 +597,10 @@ func (w *Worker) deliverGitHub(ctx context.Context, entry store.CIStatusEntry) d
 	if entry.RemoteID != "" {
 		checkRunID, _ = strconv.ParseInt(entry.RemoteID, 10, 64)
 	}
-	// If we retried after a lost response before recording remote_id, look up
-	// an existing check run by external_id so we update in place instead of
-	// creating duplicates.
-	if checkRunID == 0 && entry.Attempts > 0 {
+	// Always look up an existing check run by external_id before creating one,
+	// so even a process restart or lost response on attempt 0 updates in place
+	// instead of creating a duplicate check run.
+	if checkRunID == 0 {
 		if existing, _, ferr := target.App.FindCheckRun(ctx, target.InstallationID, target.RepositoryID, target.FullName, entry.Commit, req.Name, entry.ChangeID); ferr == nil && existing != nil {
 			checkRunID = existing.ID
 		}
@@ -506,27 +629,38 @@ func (w *Worker) deliverGitHub(ctx context.Context, entry store.CIStatusEntry) d
 		switch {
 		case ge.Status == 403 && !rate.Limited,
 			ge.Status == 422 && strings.Contains(strings.ToLower(ge.Message), "permission"):
-			w.cfg.Targets.MarkChecksPermissionMissing(ctx, target.AppID, target.InstallationID)
+			if w.cfg.Targets.VerifyChecksPermission(ctx, target.AppID, target.InstallationID) {
+				return deliveryOutcome{
+					permanentFail: true,
+					credentialRef: target.CredentialRef,
+					reasonCode:    store.CIStatusReasonMissingChecksPermission,
+					reason:        ge.Error(),
+				}
+			}
 			return deliveryOutcome{
 				permanentFail: true,
 				credentialRef: target.CredentialRef,
-				reason:        "GitHub App lacks Checks permission. Grant Checks (read and write) in Settings, Integrations, then retry.",
+				reasonCode:    store.CIStatusReasonGitHubAuthFailed,
+				reason:        ge.Error(),
 			}
 		case ge.Status == 401:
 			return deliveryOutcome{
 				permanentFail: true,
 				credentialRef: target.CredentialRef,
-				reason:        "GitHub refused the App's credentials. Check the GitHub App in Settings, Integrations.",
+				reasonCode:    store.CIStatusReasonGitHubAuthFailed,
+				reason:        ge.Error(),
 			}
 		case ge.Status == 404 || ge.Status == 422:
 			return deliveryOutcome{
 				permanentFail: true,
 				credentialRef: target.CredentialRef,
+				reasonCode:    store.CIStatusReasonGitHubNotReached,
 				reason:        ge.Error(),
 			}
 		case ge.Status == 429 || rate.Limited || ge.Status >= 500:
 			return deliveryOutcome{
 				credentialRef: target.CredentialRef,
+				reasonCode:    store.CIStatusReasonGitHubNotReached,
 				reason:        ge.Error(),
 				retryAfter:    rate.RetryAfter,
 			}
@@ -534,34 +668,34 @@ func (w *Worker) deliverGitHub(ctx context.Context, entry store.CIStatusEntry) d
 			return deliveryOutcome{
 				permanentFail: true,
 				credentialRef: target.CredentialRef,
+				reasonCode:    store.CIStatusReasonGitHubNotReached,
 				reason:        ge.Error(),
 			}
 		}
 	}
 	return deliveryOutcome{
-		credentialRef: target.CredentialRef,
-		reason:        fmt.Sprintf("Couldn't reach GitHub: %v", err),
-		retryAfter:    rate.RetryAfter,
+		hostUnreachable: true,
+		credentialRef:   target.CredentialRef,
+		reasonCode:      store.CIStatusReasonGitHubNotReached,
+		reason:          err.Error(),
+		retryAfter:      rate.RetryAfter,
 	}
 }
 
 func (w *Worker) deliverGitLab(ctx context.Context, entry store.CIStatusEntry) deliveryOutcome {
-	target, skipReason, err := w.cfg.Targets.FindGitLabStatusTarget(ctx, entry.Repository, entry.ServiceID)
+	target, reasonCode, err := w.cfg.Targets.FindGitLabStatusTarget(ctx, entry.Repository, entry.ServiceID)
 	if err != nil {
-		return deliveryOutcome{reason: fmt.Sprintf("Couldn't read GitLab connection settings: %v", err)}
+		return deliveryOutcome{reasonCode: store.CIStatusReasonGitLabNotReached, reason: err.Error()}
 	}
 	if target == nil {
-		return deliveryOutcome{skipped: true, reason: skipReason}
+		return deliveryOutcome{skipped: true, reasonCode: reasonCode}
 	}
 
 	req := buildGitLabCommitStatus(entry)
 	got, err := w.cfg.GitLab.PostCommitStatus(ctx, target.BaseURL, target.Token, target.ProjectPath, entry.Commit, req)
 	if err == nil {
 		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "")
-		remoteURL := strings.TrimRight(target.BaseURL, "/") + "/" + target.ProjectPath + "/-/commit/" + entry.Commit
-		if got.PipelineID > 0 {
-			remoteURL = strings.TrimRight(target.BaseURL, "/") + "/" + target.ProjectPath + "/-/pipelines/" + strconv.FormatInt(got.PipelineID, 10)
-		}
+		remoteURL := gitlab.CommitStatusURL(target.BaseURL, target.ProjectPath, entry.Commit, got.PipelineID)
 		return deliveryOutcome{
 			delivered:     true,
 			remoteID:      strconv.FormatInt(got.ID, 10),
@@ -574,33 +708,35 @@ func (w *Worker) deliverGitLab(ctx context.Context, entry store.CIStatusEntry) d
 	switch {
 	case errors.Is(err, netguard.ErrForbidden):
 		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error())
-		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reason: err.Error()}
+		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonNetguardBlocked, reason: err.Error()}
 	case errors.As(err, &ge) && ge.Status == 401:
-		msg := "GitLab refused the connection's token. Update the token in Settings, Integrations, then retry."
-		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED, msg)
-		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reason: msg}
+		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED, ge.Error())
+		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabAuthFailed, reason: ge.Error()}
 	case errors.As(err, &ge) && ge.Status == 403:
-		msg := "GitLab token lacks permission to report commit statuses. Use a token with the api scope in Settings, Integrations, then retry."
-		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE, msg)
-		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reason: msg}
+		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE, ge.Error())
+		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabMissingScope, reason: ge.Error()}
 	case errors.As(err, &ge) && !ge.Transient():
-		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reason: ge.Error()}
+		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabNotReached, reason: ge.Error()}
 	case errors.As(err, &ge):
-		return deliveryOutcome{credentialRef: target.CredentialRef, reason: ge.Error(), retryAfter: ge.RetryAfter}
+		return deliveryOutcome{credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabNotReached, reason: ge.Error(), retryAfter: ge.RetryAfter}
 	default:
-		return deliveryOutcome{credentialRef: target.CredentialRef, reason: err.Error()}
+		return deliveryOutcome{hostUnreachable: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabNotReached, reason: err.Error()}
 	}
 }
 
-func checkRunName(serviceName string) string {
-	if serviceName == "" {
+func checkRunName(envName, serviceName string) string {
+	switch {
+	case envName != "" && serviceName != "":
+		return "Dockwell / " + envName + " / " + serviceName
+	case serviceName != "":
+		return "Dockwell / " + serviceName
+	default:
 		return "Dockwell"
 	}
-	return "Dockwell / " + serviceName
 }
 
 func buildGitHubCheckRun(entry store.CIStatusEntry, now time.Time) github.CheckRunRequest {
-	name := checkRunName(entry.ServiceName)
+	name := checkRunName(entry.EnvironmentName, entry.ServiceName)
 	svc := entry.ServiceName
 	if svc == "" {
 		svc = "service"
@@ -653,6 +789,15 @@ func buildGitHubCheckRun(entry store.CIStatusEntry, now time.Time) github.CheckR
 			summary = fmt.Sprintf("%s was rolled back: %s", svc, entry.Summary)
 		}
 		req.Output = &github.CheckRunOutput{Title: "Rolled back", Summary: summary}
+	case store.CIStatusDiscarded:
+		req.Status = "completed"
+		req.Conclusion = "cancelled"
+		req.CompletedAt = &ts
+		summary := svc + " deploy was discarded."
+		if entry.Summary != "" {
+			summary = entry.Summary
+		}
+		req.Output = &github.CheckRunOutput{Title: "Deploy discarded", Summary: summary}
 	}
 	return req
 }
@@ -663,7 +808,7 @@ func buildGitLabCommitStatus(entry store.CIStatusEntry) gitlab.CommitStatusReque
 		svc = "service"
 	}
 	req := gitlab.CommitStatusRequest{
-		Name:      checkRunName(entry.ServiceName),
+		Name:      checkRunName(entry.EnvironmentName, entry.ServiceName),
 		TargetURL: entry.ChangeURL,
 		Ref:       shortRef(entry.Ref),
 	}
@@ -687,6 +832,13 @@ func buildGitLabCommitStatus(entry store.CIStatusEntry) gitlab.CommitStatusReque
 	case store.CIStatusRolledBack:
 		req.State = "failed"
 		req.Description = "Rolled back " + svc
+	case store.CIStatusDiscarded:
+		req.State = "canceled"
+		if entry.Summary != "" {
+			req.Description = entry.Summary
+		} else {
+			req.Description = "Deploy discarded for " + svc
+		}
 	}
 	return req
 }

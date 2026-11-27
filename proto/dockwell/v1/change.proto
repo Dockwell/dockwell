@@ -1333,6 +1333,27 @@ enum DeployStatusTransition {
   DEPLOY_STATUS_TRANSITION_HEALTHY = 3;
   DEPLOY_STATUS_TRANSITION_FAILED = 4;
   DEPLOY_STATUS_TRANSITION_ROLLED_BACK = 5;
+  DEPLOY_STATUS_TRANSITION_DISCARDED = 6;
+}
+
+// DeployStatusReason classifies why a CI deploy status was skipped, failed, or
+// is waiting to retry so clients can localize the message and offer a direct
+// fix without parsing server text.
+enum DeployStatusReason {
+  DEPLOY_STATUS_REASON_UNSPECIFIED = 0;
+  DEPLOY_STATUS_REASON_NO_TOKEN_REPOSITORY = 1;
+  DEPLOY_STATUS_REASON_REPOSITORY_MISMATCH = 2;
+  DEPLOY_STATUS_REASON_PROVIDER_UNSUPPORTED = 3;
+  DEPLOY_STATUS_REASON_NO_GITHUB_APP = 4;
+  DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION = 5;
+  DEPLOY_STATUS_REASON_GITHUB_NOT_REACHED = 6;
+  DEPLOY_STATUS_REASON_GITHUB_AUTH_FAILED = 7;
+  DEPLOY_STATUS_REASON_NO_GITLAB_CONNECTION = 8;
+  DEPLOY_STATUS_REASON_GITLAB_NOT_REACHED = 9;
+  DEPLOY_STATUS_REASON_GITLAB_AUTH_FAILED = 10;
+  DEPLOY_STATUS_REASON_GITLAB_MISSING_SCOPE = 11;
+  DEPLOY_STATUS_REASON_NETGUARD_BLOCKED = 12;
+  DEPLOY_STATUS_REASON_GAVE_UP = 13;
 }
 
 // DeployStatus records how Dockwell reported a CI deploy back to its Git provider.
@@ -1346,13 +1367,21 @@ message DeployStatus {
   // HTTPS link to the check run or commit status on the provider.
   string remote_url = 6;
   int32 attempts = 7;
-  // One-line reason why the status could not be reported or is retrying.
+  // Provider error detail when reporting failed or is retrying.
   string error = 8;
   google.protobuf.Timestamp next_attempt_time = 9;
   google.protobuf.Timestamp deliver_time = 10;
   google.protobuf.Timestamp update_time = 11;
   // True when retrying delivery may succeed after fixing permissions or connectivity.
   bool can_retry = 12;
+  // Structured reason when state is skipped, failed, or retrying.
+  DeployStatusReason reason = 13;
+  // Repository bound to the deploy token that created this deploy, populated
+  // only for a caller who may see that token.
+  string token_repository = 14;
+  // Direct HTTPS link to fix a provider issue, such as GitHub App permissions,
+  // populated only for install admins.
+  string action_url = 15;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for

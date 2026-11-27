@@ -73,15 +73,32 @@ func staleCIDeploy(err error) bool {
 }
 
 // Agent-side drift can invalidate a plan even when all its base revisions
-// match. Release its key when apply proves it stale.
+// match. Release its key when apply proves it stale and mark its status discarded.
 func (e *Engine) releaseStaleCIDeploy(ctx context.Context, id string, err error) {
 	if !staleCIDeploy(err) {
 		return
 	}
 	writeCtx := context.WithoutCancel(ctx)
+	enqueuedCI := false
 	if releaseErr := e.db.Revise(writeCtx, func(tx *store.RevisionTx) error {
-		return tx.ForgetStaleCIDeploy(writeCtx, id)
+		released, err := tx.ForgetStaleCIDeploy(writeCtx, id)
+		if err != nil || !released {
+			return err
+		}
+		enqueued, err := tx.EnqueueCIStatusForChange(writeCtx, id, store.CIStatusDiscarded, store.CIStatusEnqueueOpts{
+			ChangeURL: e.changeURL(id),
+			Summary:   "Deploy plan became stale before apply",
+		}, e.now())
+		if err != nil {
+			return err
+		}
+		enqueuedCI = enqueued
+		return nil
 	}); releaseErr != nil {
 		e.logger.WarnContext(ctx, "couldn't release a stale CI deploy", "change", id, "error", releaseErr)
+		return
+	}
+	if enqueuedCI {
+		e.notifyCIStatus()
 	}
 }

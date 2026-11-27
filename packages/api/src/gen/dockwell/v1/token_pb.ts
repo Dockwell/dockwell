@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/token.proto.
  */
 export const file_dockwell_v1_token: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEi0AMKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSKwoIcHJvamVjdHMYCiADKAsyGS5kb2Nrd2VsbC52MS5Ub2tlblByb2plY3QSJAoEcm9sZRgLIAEoDjIWLmRvY2t3ZWxsLnYxLlRva2VuUm9sZRIWCg5kZXBsb3lfc2VydmljZRgMIAEoCRIaChJkZXBsb3lfZW52aXJvbm1lbnQYDSABKAkSGwoTZGVwbG95X3NlcnZpY2VfbmFtZRgOIAEoCSIoCgxUb2tlblByb2plY3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSLKAgoSQ3JlYXRlVG9rZW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSJgoFc2NvcGUYAiABKA4yFy5kb2Nrd2VsbC52MS5Ub2tlblNjb3BlEjEKC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEigKA3R0bBgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkgAEg0KBXByb29mGAUgASgJEicKBmdyYW50cxgGIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSHQoIcHJvamVjdHMYByADKAlCC6K7GAdwcm9qZWN0EiQKBHJvbGUYCCABKA4yFi5kb2Nrd2VsbC52MS5Ub2tlblJvbGUSFgoOZGVwbG95X3NlcnZpY2UYCSABKAlCDAoKZXhwaXJhdGlvbiJIChNDcmVhdGVUb2tlblJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4SDgoGc2VjcmV0GAIgASgJIhMKEUxpc3RUb2tlbnNSZXF1ZXN0IjgKEkxpc3RUb2tlbnNSZXNwb25zZRIiCgZ0b2tlbnMYASADKAsyEi5kb2Nrd2VsbC52MS5Ub2tlbiIgChJSZXZva2VUb2tlblJlcXVlc3QSCgoCaWQYASABKAkiFQoTUmV2b2tlVG9rZW5SZXNwb25zZSp4CgpUb2tlblNjb3BlEhsKF1RPS0VOX1NDT1BFX1VOU1BFQ0lGSUVEEAASGQoVVE9LRU5fU0NPUEVfUkVBRF9PTkxZEAESGgoWVE9LRU5fU0NPUEVfUkVBRF9XUklURRACEhYKElRPS0VOX1NDT1BFX0RFUExPWRADKlgKCVRva2VuUm9sZRIaChZUT0tFTl9ST0xFX1VOU1BFQ0lGSUVEEAASGAoUVE9LRU5fUk9MRV9ERVZFTE9QRVIQARIVChFUT0tFTl9ST0xFX1ZJRVdFUhACMrUDCgxUb2tlblNlcnZpY2UShwEKC0NyZWF0ZVRva2VuEh8uZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXNwb25zZSI1oLsYA6q7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAg86ASoiCi92MS90b2tlbnMShAEKCkxpc3RUb2tlbnMSHi5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RUb2tlbnNSZXNwb25zZSI1kAIBoLsYAaq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAgwSCi92MS90b2tlbnMSkwEKC1Jldm9rZVRva2VuEh8uZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXNwb25zZSJBoLsYBKq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAhs6ASoiFi92MS90b2tlbnMve2lkfTpyZXZva2VCowEKD2NvbS5kb2Nrd2VsbC52MUIKVG9rZW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEi6wMKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSKwoIcHJvamVjdHMYCiADKAsyGS5kb2Nrd2VsbC52MS5Ub2tlblByb2plY3QSJAoEcm9sZRgLIAEoDjIWLmRvY2t3ZWxsLnYxLlRva2VuUm9sZRIWCg5kZXBsb3lfc2VydmljZRgMIAEoCRIaChJkZXBsb3lfZW52aXJvbm1lbnQYDSABKAkSGwoTZGVwbG95X3NlcnZpY2VfbmFtZRgOIAEoCRIZChFkZXBsb3lfcmVwb3NpdG9yeRgPIAEoCSIoCgxUb2tlblByb2plY3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSLlAgoSQ3JlYXRlVG9rZW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSJgoFc2NvcGUYAiABKA4yFy5kb2Nrd2VsbC52MS5Ub2tlblNjb3BlEjEKC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEigKA3R0bBgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkgAEg0KBXByb29mGAUgASgJEicKBmdyYW50cxgGIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSHQoIcHJvamVjdHMYByADKAlCC6K7GAdwcm9qZWN0EiQKBHJvbGUYCCABKA4yFi5kb2Nrd2VsbC52MS5Ub2tlblJvbGUSFgoOZGVwbG95X3NlcnZpY2UYCSABKAkSGQoRZGVwbG95X3JlcG9zaXRvcnkYCiABKAlCDAoKZXhwaXJhdGlvbiJIChNDcmVhdGVUb2tlblJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4SDgoGc2VjcmV0GAIgASgJIhMKEUxpc3RUb2tlbnNSZXF1ZXN0IjgKEkxpc3RUb2tlbnNSZXNwb25zZRIiCgZ0b2tlbnMYASADKAsyEi5kb2Nrd2VsbC52MS5Ub2tlbiIgChJSZXZva2VUb2tlblJlcXVlc3QSCgoCaWQYASABKAkiFQoTUmV2b2tlVG9rZW5SZXNwb25zZSJICh9TZXRUb2tlbkRlcGxveVJlcG9zaXRvcnlSZXF1ZXN0EgoKAmlkGAEgASgJEhkKEWRlcGxveV9yZXBvc2l0b3J5GAIgASgJIkUKIFNldFRva2VuRGVwbG95UmVwb3NpdG9yeVJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4qeAoKVG9rZW5TY29wZRIbChdUT0tFTl9TQ09QRV9VTlNQRUNJRklFRBAAEhkKFVRPS0VOX1NDT1BFX1JFQURfT05MWRABEhoKFlRPS0VOX1NDT1BFX1JFQURfV1JJVEUQAhIWChJUT0tFTl9TQ09QRV9ERVBMT1kQAypYCglUb2tlblJvbGUSGgoWVE9LRU5fUk9MRV9VTlNQRUNJRklFRBAAEhgKFFRPS0VOX1JPTEVfREVWRUxPUEVSEAESFQoRVE9LRU5fUk9MRV9WSUVXRVIQAjKWBQoMVG9rZW5TZXJ2aWNlEocBCgtDcmVhdGVUb2tlbhIfLmRvY2t3ZWxsLnYxLkNyZWF0ZVRva2VuUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkNyZWF0ZVRva2VuUmVzcG9uc2UiNaC7GAOquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIPOgEqIgovdjEvdG9rZW5zEoQBCgpMaXN0VG9rZW5zEh4uZG9ja3dlbGwudjEuTGlzdFRva2Vuc1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVzcG9uc2UiNZACAaC7GAGquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIMEgovdjEvdG9rZW5zEpMBCgtSZXZva2VUb2tlbhIfLmRvY2t3ZWxsLnYxLlJldm9rZVRva2VuUmVxdWVzdBogLmRvY2t3ZWxsLnYxLlJldm9rZVRva2VuUmVzcG9uc2UiQaC7GASquxgMCgphcGktdG9rZW5zwLsYAsi7GALQuxgCgtPkkwIbOgEqIhYvdjEvdG9rZW5zL3tpZH06cmV2b2tlEt4BChhTZXRUb2tlbkRlcGxveVJlcG9zaXRvcnkSLC5kb2Nrd2VsbC52MS5TZXRUb2tlbkRlcGxveVJlcG9zaXRvcnlSZXF1ZXN0Gi0uZG9ja3dlbGwudjEuU2V0VG9rZW5EZXBsb3lSZXBvc2l0b3J5UmVzcG9uc2UiZaC7GAOquxgjCgphcGktdG9rZW5zEhVzZXQtZGVwbG95LXJlcG9zaXRvcnnAuxgCyLsYAtC7GAKC0+STAig6ASoiIy92MS90b2tlbnMve2lkfTpzZXREZXBsb3lSZXBvc2l0b3J5QqMBCg9jb20uZG9ja3dlbGwudjFCClRva2VuUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * Token is an API token, without its secret.
@@ -126,6 +126,15 @@ export type Token = Message<"dockwell.v1.Token"> & {
    * @generated from field: string deploy_service_name = 14;
    */
   deployServiceName: string;
+
+  /**
+   * Normalized HTTPS repository URL this deploy token may report CI deploy
+   * status to. Empty disables commit/check-run reporting for deploys made by
+   * this token.
+   *
+   * @generated from field: string deploy_repository = 15;
+   */
+  deployRepository: string;
 };
 
 /**
@@ -249,6 +258,14 @@ export type CreateTokenRequest = Message<"dockwell.v1.CreateTokenRequest"> & {
    * @generated from field: string deploy_service = 9;
    */
   deployService: string;
+
+  /**
+   * Optional for deploy scope. Normalized HTTPS repository URL whose commits
+   * deploys made with this token may report status to.
+   *
+   * @generated from field: string deploy_repository = 10;
+   */
+  deployRepository: string;
 };
 
 /**
@@ -358,6 +375,54 @@ export type RevokeTokenResponse = Message<"dockwell.v1.RevokeTokenResponse"> & {
  */
 export const RevokeTokenResponseSchema: GenMessage<RevokeTokenResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_token, 7);
+
+/**
+ * SetTokenDeployRepositoryRequest updates the status-reporting repository
+ * bound to one of your deploy tokens.
+ *
+ * @generated from message dockwell.v1.SetTokenDeployRepositoryRequest
+ */
+export type SetTokenDeployRepositoryRequest = Message<"dockwell.v1.SetTokenDeployRepositoryRequest"> & {
+  /**
+   * The deploy token's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Normalized HTTPS repository URL, or empty to disable status reporting.
+   *
+   * @generated from field: string deploy_repository = 2;
+   */
+  deployRepository: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SetTokenDeployRepositoryRequest.
+ * Use `create(SetTokenDeployRepositoryRequestSchema)` to create a new message.
+ */
+export const SetTokenDeployRepositoryRequestSchema: GenMessage<SetTokenDeployRepositoryRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_token, 8);
+
+/**
+ * SetTokenDeployRepositoryResponse returns the updated token.
+ *
+ * @generated from message dockwell.v1.SetTokenDeployRepositoryResponse
+ */
+export type SetTokenDeployRepositoryResponse = Message<"dockwell.v1.SetTokenDeployRepositoryResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Token token = 1;
+   */
+  token?: Token | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SetTokenDeployRepositoryResponse.
+ * Use `create(SetTokenDeployRepositoryResponseSchema)` to create a new message.
+ */
+export const SetTokenDeployRepositoryResponseSchema: GenMessage<SetTokenDeployRepositoryResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_token, 9);
 
 /**
  * TokenScope is what a token may do, by the effect of each method.
@@ -480,6 +545,18 @@ export const TokenService: GenService<{
     methodKind: "unary";
     input: typeof RevokeTokenRequestSchema;
     output: typeof RevokeTokenResponseSchema;
+  },
+  /**
+   * SetTokenDeployRepository binds a deploy token to the HTTPS repository
+   * whose commits it may report deploy status to, or clears the binding when
+   * empty (ADR 0111).
+   *
+   * @generated from rpc dockwell.v1.TokenService.SetTokenDeployRepository
+   */
+  setTokenDeployRepository: {
+    methodKind: "unary";
+    input: typeof SetTokenDeployRepositoryRequestSchema;
+    output: typeof SetTokenDeployRepositoryResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_token, 0);

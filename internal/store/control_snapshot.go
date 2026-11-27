@@ -95,6 +95,30 @@ func VerifyControlSnapshot(ctx context.Context, path string) (ControlSnapshot, e
 	return s, err
 }
 
+// ClearPendingCIStatusesInSnapshot marks any pending CI deploy status outbox
+// rows in an extracted snapshot as superseded so a restored control plane does
+// not replay historical statuses to GitHub or GitLab.
+func ClearPendingCIStatusesInSnapshot(ctx context.Context, path string) error {
+	db, err := openControlSnapshot(path, false)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var exists int
+	err = db.QueryRowContext(ctx, `SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'ci_status_outbox'`).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("checking ci_status_outbox in snapshot: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE ci_status_outbox SET delivery_state = ? WHERE delivery_state = ?`,
+		CIStatusDeliverySuperseded, CIStatusDeliveryPending); err != nil {
+		return fmt.Errorf("clearing pending CI statuses in snapshot: %w", err)
+	}
+	return nil
+}
+
 func (db *DB) copyControlToSQLite(ctx context.Context, path string) error {
 	dst, err := openControlSnapshot(path, false)
 	if err != nil {

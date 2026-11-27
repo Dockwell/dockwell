@@ -5,7 +5,6 @@ package gitproviders
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/url"
 	"strconv"
@@ -53,19 +52,20 @@ func githubFullName(web, repoURL string) string {
 
 // FindGitHubStatusTarget resolves the GitHub App installation that reaches
 // serviceID's project and repository repoURL for posting Check Runs.
-// Returns (nil, skipReason, nil) when no installation can report for this deploy.
+// Returns (nil, reasonCode, nil) when no installation can report for this deploy.
+// Installations that do not reach serviceID's project are skipped before
+// inspecting repository lists so callers cannot enumerate repositories across
+// projects.
 func (h *Handler) FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID string) (*GitHubStatusTarget, string, error) {
 	full := githubFullName(h.cfg.Web, repoURL)
 	if full == "" {
-		return nil, "This deploy's repository isn't on GitHub.", nil
+		return nil, store.CIStatusReasonGitHubNotReached, nil
 	}
 	var (
 		chosen        *GitHubStatusTarget
 		chosenApp     kept
 		sawApp        bool
 		sawMissingChk bool
-		sawSuspended  bool
-		sawOutOfReach bool
 	)
 	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
 		project, err := projectOf(ctx, tx, serviceID)
@@ -87,7 +87,10 @@ func (h *Handler) FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID
 			}
 			for i := range ins {
 				in := &ins[i]
-				if in.RemovedAt != nil {
+				if in.RemovedAt != nil || in.SuspendedAt != nil {
+					continue
+				}
+				if !githubapp.Reaches(a.spec, in.ID, project) {
 					continue
 				}
 				var repoID int64
@@ -98,14 +101,6 @@ func (h *Handler) FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID
 					}
 				}
 				if repoID == 0 {
-					continue
-				}
-				if in.SuspendedAt != nil {
-					sawSuspended = true
-					continue
-				}
-				if !githubapp.Reaches(a.spec, in.ID, project) {
-					sawOutOfReach = true
 					continue
 				}
 				if len(in.Permissions) > 0 && !github.HasChecksWrite(in.Permissions) {
@@ -139,50 +134,105 @@ func (h *Handler) FindGitHubStatusTarget(ctx context.Context, repoURL, serviceID
 	}
 	switch {
 	case sawMissingChk:
-		return nil, "GitHub App lacks Checks permission. Grant Checks (read and write) in Settings, Integrations, then retry.", nil
-	case sawOutOfReach:
-		return nil, "No GitHub App installation reaches this project. Allow the installation for this project in Settings, Integrations.", nil
-	case sawSuspended:
-		return nil, "The GitHub App installation for this repository is suspended on GitHub.", nil
+		return nil, store.CIStatusReasonMissingChecksPermission, nil
 	case !sawApp:
-		return nil, "No GitHub App is connected. Connect GitHub in Settings, Integrations to report deploy status.", nil
+		return nil, store.CIStatusReasonNoGitHubApp, nil
 	default:
-		return nil, fmt.Sprintf("No GitHub App installation reaches %s. Add the repository to the installation on GitHub.", full), nil
+		return nil, store.CIStatusReasonGitHubNotReached, nil
 	}
 }
 
-// MarkChecksPermissionMissing records that a GitHub App installation refused
-// checks: write so Settings, Integrations surfaces the missing permission.
-func (h *Handler) MarkChecksPermissionMissing(ctx context.Context, appID string, installationID int64) {
+// VerifyChecksPermission re-reads the installation's live permissions from
+// GitHub before concluding that checks: write is missing, so a repo-local 403
+// (such as an archived repository) never disables reporting for the whole
+// installation. Returns true only when GitHub confirms checks: write is absent.
+func (h *Handler) VerifyChecksPermission(ctx context.Context, appID string, installationID int64) bool {
+	k, err := h.one(ctx, appID)
+	if err != nil {
+		return false
+	}
+	app, err := h.acting(k)
+	if err != nil {
+		return false
+	}
+	got, err := app.Installation(ctx, installationID)
+	if err != nil {
+		return false
+	}
 	if err := h.cfg.DB.Update(ctx, func(tx *store.Tx) error {
 		in, err := tx.GetGitHubInstallation(ctx, installationID)
 		if err != nil {
 			return err
 		}
-		if in.Permissions == nil {
-			in.Permissions = map[string]string{}
-		}
-		in.Permissions[string(github.Checks)] = "none"
+		in.Permissions = got.Permissions
+		in.SuspendedAt = got.Suspended
 		in.UpdatedAt = h.now()
 		return tx.SetGitHubInstallation(ctx, in)
 	}); err != nil && !errors.Is(err, store.ErrNotFound) {
-		h.cfg.Logger.WarnContext(ctx, "can't record missing GitHub Checks permission", slog.String("error", err.Error()))
+		h.cfg.Logger.WarnContext(ctx, "can't update GitHub installation permissions", slog.String("error", err.Error()))
 	}
+	return !github.HasChecksWrite(got.Permissions)
+}
+
+// GitHubPermissionsURL returns the HTTPS link on GitHub where an install admin
+// can grant or accept missing Checks write permission for serviceID/repoURL.
+func (h *Handler) GitHubPermissionsURL(ctx context.Context, serviceID, repoURL string) string {
+	full := githubFullName(h.cfg.Web, repoURL)
+	var out string
+	_ = h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		project, _ := projectOf(ctx, tx, serviceID)
+		apps, err := h.all(ctx, tx)
+		if err != nil {
+			return err
+		}
+		var fallback string
+		for _, a := range apps {
+			ins, err := tx.GitHubInstallationsOf(ctx, a.r.ID)
+			if err != nil {
+				continue
+			}
+			view := h.appProto(a, ins)
+			if !view.GetChecksPermissionMissing() || view.GetPermissionsUrl() == "" {
+				continue
+			}
+			if fallback == "" {
+				fallback = view.GetPermissionsUrl()
+			}
+			if full == "" || project == "" {
+				continue
+			}
+			for i := range ins {
+				in := &ins[i]
+				if in.RemovedAt != nil || in.SuspendedAt != nil || !githubapp.Reaches(a.spec, in.ID, project) {
+					continue
+				}
+				for _, r := range in.Repositories {
+					if strings.EqualFold(r.FullName, full) {
+						out = view.GetPermissionsUrl()
+						return nil
+					}
+				}
+			}
+		}
+		if out == "" {
+			out = fallback
+		}
+		return nil
+	})
+	return out
 }
 
 // FindGitLabStatusTarget resolves the GitLab connection matching repoURL and
 // serviceID's project (most specific path_prefix wins).
-// Returns (nil, skipReason, nil) when no connection matches.
+// Returns (nil, reasonCode, nil) when no connection matches.
 func (h *Handler) FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID string) (*GitLabStatusTarget, string, error) {
 	repoParsed, err := url.Parse(strings.TrimSpace(repoURL))
 	if err != nil || repoParsed.Host == "" {
-		return nil, "This deploy's repository URL isn't valid.", nil //nolint:nilerr // invalid repo URL is a skip reason, not a store error
+		return nil, store.CIStatusReasonGitLabNotReached, nil //nolint:nilerr // invalid repo URL is a skip reason, not a store error
 	}
 	var (
 		best          *GitLabStatusTarget
 		bestPrefixLen = -1
-		sawHost       bool
-		sawOutOfReach bool
 		sawAny        bool
 	)
 	err = h.cfg.DB.View(ctx, func(tx *store.Tx) error {
@@ -199,16 +249,14 @@ func (h *Handler) FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID
 		}
 		sawAny = len(all) > 0
 		for _, k := range all {
+			if !gitlabconnection.Reaches(k.spec, project) {
+				continue
+			}
 			projectPath := gitlab.ProjectPath(k.spec.GetInstanceUrl(), repoURL)
 			if projectPath == "" {
 				continue
 			}
-			sawHost = true
 			if !gitlab.MatchesPrefix(projectPath, k.spec.GetPathPrefix()) {
-				continue
-			}
-			if !gitlabconnection.Reaches(k.spec, project) {
-				sawOutOfReach = true
 				continue
 			}
 			prefixLen := len(k.spec.GetPathPrefix())
@@ -233,14 +281,8 @@ func (h *Handler) FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID
 	if best != nil {
 		return best, "", nil
 	}
-	switch {
-	case sawOutOfReach:
-		return nil, "No GitLab connection reaches this project. Allow the connection for this project in Settings, Integrations.", nil
-	case sawHost:
-		return nil, fmt.Sprintf("No GitLab connection's path prefix matches %s.", strings.Trim(repoParsed.Path, "/")), nil
-	case !sawAny:
-		return nil, "No GitLab connection is configured. Connect GitLab in Settings, Integrations to report deploy status.", nil
-	default:
-		return nil, fmt.Sprintf("No GitLab connection matches %s. Add one in Settings, Integrations.", repoParsed.Host), nil
+	if !sawAny {
+		return nil, store.CIStatusReasonNoGitLabConnection, nil
 	}
+	return nil, store.CIStatusReasonGitLabNotReached, nil
 }

@@ -113,10 +113,48 @@ func TestProjectPathAndMatchesPrefix(t *testing.T) {
 	if got := gitlab.ProjectPath("https://gitlab.example.com/gl", "https://gitlab.example.com/gl/acme/web"); got != "acme/web" {
 		t.Fatalf("ProjectPath with subpath = %q", got)
 	}
-	if got := gitlab.ProjectPath("https://gitlab.example.com", "https://other.example.com/acme/web"); got != "" {
-		t.Fatalf("wrong host returned %q", got)
+	for _, bad := range []string{
+		"https://other.example.com/acme/web",
+		"https://gitlab.example.com/acme",
+		"https://gitlab.example.com/acme/../other",
+		"https://gitlab.example.com/acme/./web",
+		"https://gitlab.example.com/acme//web",
+		"https://gitlab.example.com/acme/web?x=1",
+		"https://gitlab.example.com/acme/web#frag",
+		"https://user:pass@gitlab.example.com/acme/web",
+	} {
+		if got := gitlab.ProjectPath("https://gitlab.example.com", bad); got != "" {
+			t.Errorf("ProjectPath(%q) = %q, want empty", bad, got)
+		}
+	}
+	if got := gitlab.CommitStatusURL("https://gitlab.example.com", "acme/my group/web", "abc123", 42); got != "https://gitlab.example.com/acme/my%20group/web/-/pipelines/42" {
+		t.Fatalf("CommitStatusURL(pipeline) = %q", got)
+	}
+	if got := gitlab.CommitStatusURL("https://gitlab.example.com", "acme/web", "abc123", 0); got != "https://gitlab.example.com/acme/web/-/commit/abc123" {
+		t.Fatalf("CommitStatusURL(commit) = %q", got)
 	}
 	if !gitlab.MatchesPrefix("acme/sub/web", "acme") || !gitlab.MatchesPrefix("acme/web", "acme/web") || gitlab.MatchesPrefix("acme2/web", "acme") {
 		t.Fatal("MatchesPrefix mismatch")
+	}
+}
+
+func TestListProjects(t *testing.T) {
+	t.Parallel()
+	gl := gltest.New()
+	gl.SetProjects([]gltest.Project{
+		{PathWithNamespace: "acme/web", WebURL: "https://gitlab.example.com/acme/web"},
+		{PathWithNamespace: "acme/api", WebURL: "https://gitlab.example.com/acme/api"},
+	})
+	fake := httptest.NewServer(gl)
+	t.Cleanup(fake.Close)
+	client := &gitlab.Client{HTTP: fake.Client(), TestBase: fake.URL}
+
+	all, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "")
+	if err != nil || len(all) != 2 {
+		t.Fatalf("ListProjects() = %+v, %v", all, err)
+	}
+	filtered, err := client.ListProjects(t.Context(), "https://gitlab.example.com", gltest.TokenAPI, "web")
+	if err != nil || len(filtered) != 1 || filtered[0].PathWithNamespace != "acme/web" {
+		t.Fatalf("ListProjects(web) = %+v, %v", filtered, err)
 	}
 }

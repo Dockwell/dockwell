@@ -166,10 +166,11 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ImageServiceSearchImagesProcedure:  true,
 	dockwellv1connect.ImageServiceListImageTagsProcedure: true,
 	dockwellv1connect.ImageServiceGetImageProcedure:      true,
-	// The repositories a project's apps may build from through a GitHub App are
-	// GitHub's, listed for the project the request names, which the resolver
-	// places (ADR 0098).
+	// The repositories a project's apps may build from through a GitHub App or
+	// report status to through a GitLab connection are listed for the project
+	// the request names, which the resolver places (ADR 0098, ADR 0111).
 	dockwellv1connect.GitProviderServiceListGitRepositoriesProcedure: true,
+	dockwellv1connect.GitProviderServiceListGitLabProjectsProcedure:  true,
 	// Counts hold nothing to place, so CountEvents places each event itself, as
 	// ListEvents' list is narrowed, and counts what the caller may list (#639).
 	dockwellv1connect.EventServiceCountEventsProcedure: true,

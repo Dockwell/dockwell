@@ -270,6 +270,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "GitProviderService.addGitHubInstallation": { within: "GitProviderService.startGitHubApp" },
   "GitProviderService.checkGitLabConnection": "may",
   "GitProviderService.finishGitHubApp": { within: "GitProviderService.startGitHubApp" },
+  "GitProviderService.listGitLabProjects": "may",
   "GitProviderService.listGitProviders": "may",
   "GitProviderService.listGitRepositories": "may",
   "GitProviderService.refreshGitHubApp": "may",
@@ -388,6 +389,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "TokenService.createToken": "open",
   "TokenService.listTokens": "open",
   "TokenService.revokeToken": "open",
+  "TokenService.setTokenDeployRepository": "open",
 
   "UpdateService.checkServerUpdates": { within: "UpdateService.getServerUpdates" },
   "UpdateService.getServerUpdates": "may",

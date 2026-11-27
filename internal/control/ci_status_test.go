@@ -3,23 +3,32 @@
 package control
 
 import (
+	"crypto/sha256"
+	"hash/crc32"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/cistatus"
 	"github.com/dockwell/dockwell/internal/control/github/ghtest"
 	"github.com/dockwell/dockwell/internal/control/gitlab/gltest"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -53,10 +62,70 @@ func connectFakeGitHubApp(t *testing.T, gp dockwellv1connect.GitProviderServiceC
 	return app
 }
 
+func makeDeployToken(t *testing.T, b *browser, serviceID, repo string) (secret string, tok *v1.Token) {
+	t.Helper()
+	tokens := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON())
+	made, err := tokens.CreateToken(t.Context(), connect.NewRequest(&v1.CreateTokenRequest{
+		Name:             "CI deploy " + serviceID,
+		Scope:            v1.TokenScope_TOKEN_SCOPE_DEPLOY,
+		DeployService:    serviceID,
+		DeployRepository: repo,
+		Proof:            stepUpFor(t, b, v1.StepUpAction_STEP_UP_ACTION_CREATE_TOKEN, ""),
+	}))
+	if err != nil {
+		t.Fatalf("CreateToken(deploy, %s): %v", repo, err)
+	}
+	return made.Msg.GetSecret(), made.Msg.GetToken()
+}
+
+// setupStagingWeb imports shopFile into an unprotected "staging" environment so
+// a developer-role deploy token can both plan and apply its own CI deploys, and
+// returns the staging service plus the initial non-CI import change.
+func setupStagingWeb(t *testing.T, c dockwellv1connect.ChangeServiceClient, cc dockwellv1connect.ComposeServiceClient, s dockwellv1connect.ServiceServiceClient) (*v1.ServiceInfo, *v1.Change) {
+	t.Helper()
+	imp, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Compose: shopFile}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := doneChange(t, c, imp.Msg.GetChange())
+	envProp, err := c.ProposeChange(t.Context(), connect.NewRequest(&v1.ProposeChangeRequest{
+		Summary: "Add staging",
+		Edits: []*v1.Edit{{
+			Resource: &v1.ResourceRef{Kind: "environment", Scope: projectOf(first), Name: "staging"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{}}},
+		}},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doneChange(t, c, envProp.Msg.GetChange())
+	stageImp, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{
+		Project: "shop", Environment: "staging", Compose: shopFile,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := doneChange(t, c, stageImp.Msg.GetChange())
+	wantScope := serviceScope(stage)
+	listed, err := s.ListServices(t.Context(), connect.NewRequest(&v1.ListServicesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, svc := range listed.Msg.GetServices() {
+		if svc.GetResource().GetScope() == wantScope {
+			return svc, first
+		}
+	}
+	t.Fatalf("staging service in scope %s not found in %+v", wantScope, listed.Msg.GetServices())
+	return nil, nil
+}
+
 // End-to-end GitHub CI deploy status reporting: missing Checks permission shows
-// on Settings/Integrations and causes delivery failure; granting Checks and
-// refreshing clears the warning; RetryDeployStatus reports the check run with
-// panel change URL; a failing deploy reports failed + rolled_back.
+// on Settings/Integrations and surfaces structured reason + admin action_url;
+// granting Checks and refreshing clears the warning; RetryDeployStatus audits
+// ci_status.retried and delivers the env-scoped check run; delivered retry is
+// refused; failing deploy reports rolled_back; discarded and superseded planned
+// deploys report cancelled; repo-local 403 does not poison the installation.
 func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		gh, err := ghtest.New()
@@ -64,7 +133,10 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 			t.Fatal(err)
 		}
 		gh.SetPermissions(map[string]string{"contents": "read", "metadata": "read"})
-		gh.SetRepos([]ghtest.Repository{{FullName: "acme/web", Path: "web.git", Private: true, DefaultBranch: "main"}})
+		gh.SetRepos([]ghtest.Repository{
+			{FullName: "acme/web", Path: "web.git", Private: true, DefaultBranch: "main"},
+			{FullName: "acme/archived", Path: "archived.git", Private: true, DefaultBranch: "main"},
+		})
 		gh.SeedCode("code-1", "dockwell-e2e")
 		ghSrv := httptest.NewServer(gh)
 		t.Cleanup(ghSrv.Close)
@@ -90,19 +162,20 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 			t.Fatalf("expected ChecksPermissionMissing with PermissionsUrl, got %+v", listed.Msg.GetApps())
 		}
 
-		// Import a service ("web" -> repo acme/web in ghtest).
-		imp, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Compose: shopFile}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		doneChange(t, c, imp.Msg.GetChange())
-		svc := onlyService(t, s)
+		// Import a service into unprotected "staging" ("web" -> repo acme/web in ghtest).
+		svc, _ := setupStagingWeb(t, c, cc, s)
 
-		// Deploy via CI while checks:write is missing -> skipped/failed with reason.
+		// Create deploy token bound to https://github.com/acme/web.
+		tokSecret, _ := makeDeployToken(t, b, svc.GetId(), "https://github.com/acme/web")
+		tokClient := bearer{token: tokSecret, rt: b.client.Transport}
+		tokServices := dockwellv1connect.NewServiceServiceClient(tokClient, b.origin, connect.WithProtoJSON())
+		tokChanges := changeClient(tokClient, b.origin)
+
+		// Deploy via CI while checks:write is missing -> skipped with structured reason + admin action_url.
 		d1 := "sha256:" + strings.Repeat("1", 64)
 		img1 := "ghcr.io/acme/web:1.0@" + d1
 		e.Registry[img1] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d1}
-		planned, err := s.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+		planned, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
 			Id: svc.GetId(), Image: img1,
 			DeployOrigin: &v1.DeployOrigin{
 				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
@@ -115,7 +188,7 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		chg1 := doneChange(t, c, planned.Msg.GetChange())
+		chg1 := doneChange(t, tokChanges, planned.Msg.GetChange())
 		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -124,8 +197,9 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 			t.Fatal(err)
 		}
 		st1 := got1.Msg.GetChange().GetDeployStatus()
-		if st1 == nil || st1.GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_SKIPPED || !st1.GetCanRetry() || !strings.Contains(st1.GetError(), "Checks permission") {
-			t.Fatalf("expected skipped due to Checks permission, got %+v", st1)
+		if st1 == nil || st1.GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_SKIPPED || !st1.GetCanRetry() ||
+			st1.GetReason() != v1.DeployStatusReason_DEPLOY_STATUS_REASON_MISSING_CHECKS_PERMISSION || st1.GetActionUrl() == "" {
+			t.Fatalf("expected skipped due to MISSING_CHECKS_PERMISSION with action_url, got %+v", st1)
 		}
 
 		// Grant checks:write on fake GitHub and refresh via RefreshGitHubApp.
@@ -138,7 +212,7 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 			t.Fatalf("ChecksPermissionMissing still true after refresh: %+v", refreshed.Msg.GetApp())
 		}
 
-		// RetryDeployStatus and deliver -> Check Run created with panel change URL.
+		// RetryDeployStatus audits ci_status.retried and delivers Check Run with env-scoped name (M2).
 		if _, err := c.RetryDeployStatus(t.Context(), connect.NewRequest(&v1.RetryDeployStatusRequest{Id: chg1.GetId()})); err != nil {
 			t.Fatal(err)
 		}
@@ -153,8 +227,28 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 		if st1.GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED || st1.GetRemoteUrl() == "" || st1.GetTransition() != v1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_HEALTHY {
 			t.Fatalf("expected delivered healthy status after retry, got %+v", st1)
 		}
+		// L6: retrying an already-delivered status is refused.
+		if _, err := c.RetryDeployStatus(t.Context(), connect.NewRequest(&v1.RetryDeployStatusRequest{Id: chg1.GetId()})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatalf("RetryDeployStatus on delivered = %v, want FailedPrecondition", err)
+		}
+		// Verify ci_status.retried was audited.
+		evClient := dockwellv1connect.NewEventServiceClient(b, b.origin, connect.WithProtoJSON())
+		evs, err := evClient.ListEvents(t.Context(), connect.NewRequest(&v1.ListEventsRequest{PageSize: 50}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sawRetried := false
+		for _, ev := range evs.Msg.GetEvents() {
+			if ev.GetAction() == cistatus.ActionRetried && ev.GetSubject().GetId() == svc.GetId() {
+				sawRetried = true
+			}
+		}
+		if !sawRetried {
+			t.Fatalf("expected %s audit event for %s", cistatus.ActionRetried, chg1.GetId())
+		}
+
 		runs := gh.CheckRuns()
-		if len(runs) != 1 || runs[0].Status != "completed" || runs[0].Conclusion != "success" ||
+		if len(runs) != 1 || runs[0].Name != "Dockwell / staging / web" || runs[0].Status != "completed" || runs[0].Conclusion != "success" ||
 			runs[0].DetailsURL != "https://panel.example.com/changes/"+chg1.GetId() {
 			t.Fatalf("unexpected GitHub check runs: %+v", runs)
 		}
@@ -174,7 +268,7 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 		img2 := "ghcr.io/acme/web:2.0@" + d2
 		e.Registry[img2] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d2}
 		e.SetExits(img2, true)
-		planned2, err := s.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+		planned2, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
 			Id: svc.GetId(), Image: img2,
 			DeployOrigin: &v1.DeployOrigin{
 				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
@@ -187,7 +281,7 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		failed := applied(t, c, planned2.Msg.GetChange())
+		failed := applied(t, tokChanges, planned2.Msg.GetChange())
 		f.engine.Wait()
 		if failed.GetState() != v1.ChangeState_CHANGE_STATE_FAILED {
 			t.Fatalf("expected failed deploy, got %v", failed.GetState())
@@ -203,14 +297,323 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 			got2.Msg.GetChange().GetDeployStatus().GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED {
 			t.Fatalf("expected delivered rolled_back status, got %+v", got2.Msg.GetChange().GetDeployStatus())
 		}
+
+		// M1: Discarding a planned CI deploy delivers a final cancelled check run.
+		d3 := "sha256:" + strings.Repeat("3", 64)
+		img3 := "ghcr.io/acme/web:3.0@" + d3
+		e.Registry[img3] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d3}
+		planned3, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img3,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/web",
+				Commit:     strings.Repeat("c", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/web/actions/runs/102",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&v1.DiscardChangeRequest{Id: planned3.Msg.GetChange().GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		got3, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: planned3.Msg.GetChange().GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got3.Msg.GetChange().GetDeployStatus().GetTransition() != v1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_DISCARDED ||
+			got3.Msg.GetChange().GetDeployStatus().GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED {
+			t.Fatalf("expected delivered discarded status, got %+v", got3.Msg.GetChange().GetDeployStatus())
+		}
+		var discRun *ghtest.CheckRun
+		for i := range gh.CheckRuns() {
+			r := gh.CheckRuns()[i]
+			if r.ExternalID == planned3.Msg.GetChange().GetId() {
+				discRun = &r
+				break
+			}
+		}
+		if discRun == nil || discRun.Status != "completed" || discRun.Conclusion != "cancelled" {
+			t.Fatalf("expected cancelled check run for discarded change, got %+v", discRun)
+		}
+
+		// M1: Superseding a planned CI deploy by applying a newer deploy marks the old one cancelled.
+		d4 := "sha256:" + strings.Repeat("4", 64)
+		img4 := "ghcr.io/acme/web:4.0@" + d4
+		e.Registry[img4] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d4}
+		plannedOld, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img4,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/web",
+				Commit:     strings.Repeat("d", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/web/actions/runs/103",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		d5 := "sha256:" + strings.Repeat("5", 64)
+		img5 := "ghcr.io/acme/web:5.0@" + d5
+		e.Registry[img5] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d5}
+		plannedNew, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img5,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/web",
+				Commit:     strings.Repeat("e", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/web/actions/runs/104",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doneChange(t, tokChanges, plannedNew.Msg.GetChange())
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		gotOld, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: plannedOld.Msg.GetChange().GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotOld.Msg.GetChange().GetDeployStatus().GetTransition() != v1.DeployStatusTransition_DEPLOY_STATUS_TRANSITION_DISCARDED ||
+			gotOld.Msg.GetChange().GetDeployStatus().GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_DELIVERED {
+			t.Fatalf("expected superseded planned change to deliver discarded, got %+v", gotOld.Msg.GetChange().GetDeployStatus())
+		}
+
+		// L1: A repo-local 403 on an archived repository does NOT mark ChecksPermissionMissing
+		// on the installation when GitHub's installation permissions still grant checks:write.
+		gh.SetRepoCheckRunError("acme/archived", http.StatusForbidden, "Repository was archived so is read-only.")
+		archTokSecret, _ := makeDeployToken(t, b, svc.GetId(), "https://github.com/acme/archived")
+		archClient := bearer{token: archTokSecret, rt: b.client.Transport}
+		archServices := dockwellv1connect.NewServiceServiceClient(archClient, b.origin, connect.WithProtoJSON())
+		archChanges := changeClient(archClient, b.origin)
+		d6 := "sha256:" + strings.Repeat("6", 64)
+		img6 := "ghcr.io/acme/web:6.0@" + d6
+		e.Registry[img6] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d6}
+		plannedArch, err := archServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img6,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/archived",
+				Commit:     strings.Repeat("f", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/archived/actions/runs/105",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		archChg := doneChange(t, archChanges, plannedArch.Msg.GetChange())
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		gotArch, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: archChg.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotArch.Msg.GetChange().GetDeployStatus().GetReason() != v1.DeployStatusReason_DEPLOY_STATUS_REASON_GITHUB_AUTH_FAILED {
+			t.Fatalf("archived repo 403 reason = %v, want GITHUB_AUTH_FAILED", gotArch.Msg.GetChange().GetDeployStatus().GetReason())
+		}
+		afterArch, err := gp.ListGitProviders(t.Context(), connect.NewRequest(&v1.ListGitProvidersRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if afterArch.Msg.GetApps()[0].GetChecksPermissionMissing() {
+			t.Fatalf("repo-local 403 wrongly flipped ChecksPermissionMissing on installation: %+v", afterArch.Msg.GetApps()[0])
+		}
+	})
+}
+
+// H1: A deploy token bound to acme/web cannot post status to acme/someone-elses-repo
+// even when the GitHub App reaches both; slice-1 tokens without a repository report
+// nothing until SetTokenDeployRepository sets it; token_repository is visible only
+// to the token's owner and hidden from other project members.
+func TestCIStatusH1TokenRepositoryBindingAndPrivacy(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		gh, err := ghtest.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		gh.SetRepos([]ghtest.Repository{
+			{FullName: "acme/web", Path: "web.git", Private: true, DefaultBranch: "main"},
+			{FullName: "acme/someone-elses-repo", Path: "other.git", Private: true, DefaultBranch: "main"},
+		})
+		gh.SeedCode("code-1", "dockwell-e2e")
+		ghSrv := httptest.NewServer(gh)
+		t.Cleanup(ghSrv.Close)
+		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+			cfg.GitHub = GitHubConfig{API: ghSrv.URL, Web: ghSrv.URL, Client: ghSrv.Client()}
+			cfg.PanelURL = "https://panel.example.com"
+			cfg.ManualCIStatus = true
+		})
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+		tokens := dockwellv1connect.NewTokenServiceClient(b, b.origin, connect.WithProtoJSON())
+
+		connectFakeGitHubApp(t, gp, c, b)
+		svc, _ := setupStagingWeb(t, c, cc, s)
+
+		// 1. Token bound to acme/web deploying with provenance naming acme/someone-elses-repo:
+		// deploys normally, posts ZERO check runs to GitHub.
+		tokSecret, _ := makeDeployToken(t, b, svc.GetId(), "https://github.com/acme/web")
+		tokClient := bearer{token: tokSecret, rt: b.client.Transport}
+		tokServices := dockwellv1connect.NewServiceServiceClient(tokClient, b.origin, connect.WithProtoJSON())
+		tokChanges := changeClient(tokClient, b.origin)
+		d1 := "sha256:" + strings.Repeat("a", 64)
+		img1 := "ghcr.io/acme/web:1.0@" + d1
+		e.Registry[img1] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d1}
+		plannedForeign, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img1,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/someone-elses-repo",
+				Commit:     strings.Repeat("1", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/someone-elses-repo/actions/runs/1",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		chgForeign := doneChange(t, tokChanges, plannedForeign.Msg.GetChange())
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(gh.CheckRuns()) != 0 {
+			t.Fatalf("foreign repository posted check runs to GitHub: %+v", gh.CheckRuns())
+		}
+		// Token owner sees token_repository.
+		ownerGot, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: chgForeign.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stOwner := ownerGot.Msg.GetChange().GetDeployStatus()
+		if stOwner.GetState() != v1.DeployStatusState_DEPLOY_STATUS_STATE_SKIPPED ||
+			stOwner.GetReason() != v1.DeployStatusReason_DEPLOY_STATUS_REASON_REPOSITORY_MISMATCH ||
+			stOwner.GetTokenRepository() != "https://github.com/acme/web" {
+			t.Fatalf("owner view of mismatch = %+v", stOwner)
+		}
+
+		// Another user (a second member with install viewer access) must NOT see token_repository.
+		otherUserID := id.New(id.User)
+		const base62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+		body := strings.Repeat("a", 43)
+		sum := new(big.Int).SetUint64(uint64(crc32.ChecksumIEEE([]byte(body))))
+		chk := make([]byte, 6)
+		b62, rem := big.NewInt(62), new(big.Int)
+		for i := len(chk) - 1; i >= 0; i-- {
+			sum.QuoRem(sum, b62, rem)
+			chk[i] = base62[rem.Int64()]
+		}
+		otherTokenSecret := "dwt_" + body + string(chk)
+		otherTokenHash := sha256.Sum256([]byte(otherTokenSecret))
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+			if err := tx.CreateUser(t.Context(), store.User{
+				ID: otherUserID, Email: "other@example.com", Name: "Other", WebAuthnHandle: []byte("other"), CreatedAt: now,
+			}); err != nil {
+				return err
+			}
+			if err := tx.SetGrant(t.Context(), store.Grant{UserID: otherUserID, ProjectID: "", Role: store.RoleViewer, CreatedAt: now}); err != nil {
+				return err
+			}
+			return tx.CreateAPIToken(t.Context(), store.APIToken{
+				ID:        id.New(id.Token),
+				UserID:    otherUserID,
+				Name:      "other read",
+				TokenHash: otherTokenHash[:],
+				Scope:     store.ScopeReadOnly,
+				CreatedAt: now,
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		otherChanges := changeClient(bearer{token: otherTokenSecret, rt: b.client.Transport}, b.origin)
+		otherGot, err := otherChanges.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: chgForeign.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if otherGot.Msg.GetChange().GetDeployStatus().GetTokenRepository() != "" {
+			t.Fatalf("other user saw token_repository: %q", otherGot.Msg.GetChange().GetDeployStatus().GetTokenRepository())
+		}
+
+		// 2. Slice-1 token (empty deploy_repository) posts nothing until SetTokenDeployRepository sets it.
+		s1Secret, s1Tok := makeDeployToken(t, b, svc.GetId(), "")
+		s1Client := bearer{token: s1Secret, rt: b.client.Transport}
+		s1Services := dockwellv1connect.NewServiceServiceClient(s1Client, b.origin, connect.WithProtoJSON())
+		s1Changes := changeClient(s1Client, b.origin)
+		d2 := "sha256:" + strings.Repeat("b", 64)
+		img2 := "ghcr.io/acme/web:2.0@" + d2
+		e.Registry[img2] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d2}
+		plannedS1, err := s1Services.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: img2,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				Repository: "https://github.com/acme/web",
+				Commit:     strings.Repeat("2", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://github.com/acme/web/actions/runs/2",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		chgS1 := doneChange(t, s1Changes, plannedS1.Msg.GetChange())
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(gh.CheckRuns()) != 0 {
+			t.Fatalf("slice-1 token without deploy_repository posted check runs: %+v", gh.CheckRuns())
+		}
+		gotS1, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: chgS1.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if gotS1.Msg.GetChange().GetDeployStatus().GetReason() != v1.DeployStatusReason_DEPLOY_STATUS_REASON_NO_TOKEN_REPOSITORY {
+			t.Fatalf("slice-1 token reason = %v, want NO_TOKEN_REPOSITORY", gotS1.Msg.GetChange().GetDeployStatus().GetReason())
+		}
+
+		// Set repository on the slice-1 token via SetTokenDeployRepository, then RetryDeployStatus -> delivers!
+		updatedTok, err := tokens.SetTokenDeployRepository(t.Context(), connect.NewRequest(&v1.SetTokenDeployRepositoryRequest{
+			Id: s1Tok.GetId(), DeployRepository: "https://github.com/acme/web",
+		}))
+		if err != nil || updatedTok.Msg.GetToken().GetDeployRepository() != "https://github.com/acme/web" {
+			t.Fatalf("SetTokenDeployRepository = %+v, %v", updatedTok, err)
+		}
+		if _, err := c.RetryDeployStatus(t.Context(), connect.NewRequest(&v1.RetryDeployStatusRequest{Id: chgS1.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(gh.CheckRuns()) != 1 || gh.CheckRuns()[0].Conclusion != "success" {
+			t.Fatalf("expected 1 delivered check run after setting repository + retry, got %+v", gh.CheckRuns())
+		}
 	})
 }
 
 // End-to-end GitLab CI deploy status reporting via gitlab.connection resource,
-// CheckGitLabConnection verification, path prefix matching, and commit status delivery.
+// CheckGitLabConnection verification, ListGitLabProjects, protojson secret-leak
+// checks (L8), foreign-repo block (H1), and commit status delivery.
 func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		gl := gltest.New()
+		gl.SetProjects([]gltest.Project{
+			{PathWithNamespace: "acme/web", WebURL: "https://gitlab.example.com/acme/web"},
+			{PathWithNamespace: "acme/someone-elses-repo", WebURL: "https://gitlab.example.com/acme/someone-elses-repo"},
+			{PathWithNamespace: "other/app", WebURL: "https://gitlab.example.com/other/app"},
+		})
 		glSrv := httptest.NewServer(gl)
 		t.Cleanup(glSrv.Close)
 		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
@@ -224,6 +627,8 @@ func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 		cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
 		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
 		gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+		resClient := dockwellv1connect.NewResourceServiceClient(b, b.origin, connect.WithProtoJSON())
+		evClient := dockwellv1connect.NewEventServiceClient(b, b.origin, connect.WithProtoJSON())
 
 		// CheckGitLabConnection distinguishes valid api token, read_api token, and bad token.
 		chkOK, err := gp.CheckGitLabConnection(t.Context(), connect.NewRequest(&v1.CheckGitLabConnectionRequest{
@@ -260,13 +665,42 @@ func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		doneChange(t, c, prop.Msg.GetChange())
+		glConnChg := doneChange(t, c, prop.Msg.GetChange())
+
+		// L8: assert the GitLab token never leaks in ProposeChange, GetChange, ListResources, or ListEvents.
+		assertNoToken := func(label string, msg proto.Message) {
+			t.Helper()
+			raw, err := protojson.Marshal(msg)
+			if err != nil {
+				t.Fatalf("protojson.Marshal(%s): %v", label, err)
+			}
+			if strings.Contains(string(raw), gltest.TokenAPI) {
+				t.Fatalf("%s leaked GitLab access token!", label)
+			}
+		}
+		assertNoToken("ProposeChange", prop.Msg)
+		gotGLChg, err := c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: glConnChg.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNoToken("GetChange", gotGLChg.Msg)
+		allRes, err := resClient.ListResources(t.Context(), connect.NewRequest(&v1.ListResourcesRequest{Kind: "gitlab.connection"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNoToken("ListResources", allRes.Msg)
+		allEvs, err := evClient.ListEvents(t.Context(), connect.NewRequest(&v1.ListEventsRequest{PageSize: 50}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNoToken("ListEvents", allEvs.Msg)
 
 		// ListGitProviders exposes the GitLab connection without its token.
 		listed, err := gp.ListGitProviders(t.Context(), connect.NewRequest(&v1.ListGitProvidersRequest{}))
 		if err != nil || len(listed.Msg.GetGitlabConnections()) != 1 || listed.Msg.GetGitlabConnections()[0].GetUrl() != "https://gitlab.example.com" {
 			t.Fatalf("ListGitProviders = %+v, %v", listed, err)
 		}
+		assertNoToken("ListGitProviders", listed.Msg)
 
 		// Re-check saved connection reusing its stored token (token omitted).
 		recheck, err := gp.CheckGitLabConnection(t.Context(), connect.NewRequest(&v1.CheckGitLabConnectionRequest{
@@ -276,18 +710,53 @@ func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 			t.Fatalf("saved recheck = %+v, %v", recheck, err)
 		}
 
-		// Deploy via GitLab CI and verify commit statuses delivered in order.
-		imp, err := cc.ImportCompose(t.Context(), connect.NewRequest(&v1.ImportComposeRequest{Compose: shopFile}))
+		// Import service into unprotected "staging" and verify ListGitLabProjects filters by path_prefix ("acme").
+		svc, imp := setupStagingWeb(t, c, cc, s)
+
+		glProjects, err := gp.ListGitLabProjects(t.Context(), connect.NewRequest(&v1.ListGitLabProjectsRequest{Project: "shop"}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		doneChange(t, c, imp.Msg.GetChange())
-		svc := onlyService(t, s)
+		if len(glProjects.Msg.GetProjects()) != 2 {
+			t.Fatalf("ListGitLabProjects = %+v, want 2 acme/* projects (excluding other/app)", glProjects.Msg.GetProjects())
+		}
 
+		// Create deploy token bound to https://gitlab.example.com/acme/web.
+		tokSecret, _ := makeDeployToken(t, b, svc.GetId(), "https://gitlab.example.com/acme/web")
+		tokClient := bearer{token: tokSecret, rt: b.client.Transport}
+		tokServices := dockwellv1connect.NewServiceServiceClient(tokClient, b.origin, connect.WithProtoJSON())
+		tokChanges := changeClient(tokClient, b.origin)
+
+		// H1: Foreign GitLab repo deploys cleanly but posts ZERO commit statuses!
+		dForeign := "sha256:" + strings.Repeat("e", 64)
+		imgForeign := "registry.gitlab.example.com/acme/web:0.9@" + dForeign
+		e.Registry[imgForeign] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: dForeign}
+		plannedForeign, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+			Id: svc.GetId(), Image: imgForeign,
+			DeployOrigin: &v1.DeployOrigin{
+				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI,
+				Repository: "https://gitlab.example.com/acme/someone-elses-repo",
+				Commit:     strings.Repeat("9", 40),
+				Ref:        "refs/heads/main",
+				RunUrl:     "https://gitlab.example.com/acme/someone-elses-repo/-/jobs/1",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		doneChange(t, tokChanges, plannedForeign.Msg.GetChange())
+		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if len(gl.Statuses()) != 0 {
+			t.Fatalf("foreign GitLab repo posted statuses: %+v", gl.Statuses())
+		}
+
+		// Matching repo delivers pending -> running -> success with env-scoped name.
 		d1 := "sha256:" + strings.Repeat("c", 64)
 		img1 := "registry.gitlab.example.com/acme/web:1.0@" + d1
 		e.Registry[img1] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d1}
-		planned, err := s.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+		planned, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
 			Id: svc.GetId(), Image: img1,
 			DeployOrigin: &v1.DeployOrigin{
 				Provider:   v1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI,
@@ -300,7 +769,7 @@ func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		chg := doneChange(t, c, planned.Msg.GetChange())
+		chg := doneChange(t, tokChanges, planned.Msg.GetChange())
 		if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -317,15 +786,100 @@ func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
 		if len(statuses) != 3 || statuses[0].State != "pending" || statuses[1].State != "running" || statuses[2].State != "success" {
 			t.Fatalf("unexpected GitLab statuses sequence: %+v", statuses)
 		}
-		if statuses[2].TargetURL != "https://panel.example.com/changes/"+chg.GetId() || statuses[2].Project != "acme/web" {
-			t.Fatalf("unexpected GitLab status target/project: %+v", statuses[2])
+		if statuses[2].Name != "Dockwell / staging / web" || statuses[2].TargetURL != "https://panel.example.com/changes/"+chg.GetId() || statuses[2].Project != "acme/web" {
+			t.Fatalf("unexpected GitLab status target/project/name: %+v", statuses[2])
 		}
 
 		// Non-CI change gets no deploy_status and RetryDeployStatus refuses it cleanly.
-		if _, err := c.RetryDeployStatus(t.Context(), connect.NewRequest(&v1.RetryDeployStatusRequest{Id: imp.Msg.GetChange().GetId()})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		if _, err := c.RetryDeployStatus(t.Context(), connect.NewRequest(&v1.RetryDeployStatusRequest{Id: imp.GetId()})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 			t.Fatalf("RetryDeployStatus on non-CI change = %v, want InvalidArgument", err)
 		}
 	})
+}
+
+// L2: With no public panel domain set, outbound status links omit details_url
+// (never leaking PanelListen). Once panel_domain is saved in settings, subsequent
+// deploys pick up the public HTTPS domain live without restart.
+func TestCIStatusL2DynamicPanelDomainAndNoListenLeak(t *testing.T) {
+	t.Parallel()
+	gh, err := ghtest.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gh.SetRepos([]ghtest.Repository{{FullName: "acme/web", Path: "web.git", Private: true, DefaultBranch: "main"}})
+	gh.SeedCode("code-1", "dockwell-e2e")
+	ghSrv := httptest.NewServer(gh)
+	t.Cleanup(ghSrv.Close)
+
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+		cfg.GitHub = GitHubConfig{API: ghSrv.URL, Web: ghSrv.URL, Client: ghSrv.Client()}
+		cfg.PanelListen = "127.0.0.1:8080" // Must NOT be leaked!
+		cfg.PanelURL = ""
+		cfg.ManualCIStatus = true
+	})
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+
+	connectFakeGitHubApp(t, gp, c, b)
+	svc, _ := setupStagingWeb(t, c, cc, s)
+	tokSecret, _ := makeDeployToken(t, b, svc.GetId(), "https://github.com/acme/web")
+	tokClient := bearer{token: tokSecret, rt: b.client.Transport}
+	tokServices := dockwellv1connect.NewServiceServiceClient(tokClient, b.origin, connect.WithProtoJSON())
+	tokChanges := changeClient(tokClient, b.origin)
+
+	// Deploy 1: no panel_domain set -> DetailsURL MUST be empty (never 127.0.0.1:8080).
+	d1 := "sha256:" + strings.Repeat("1", 64)
+	img1 := "ghcr.io/acme/web:1.0@" + d1
+	e.Registry[img1] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d1}
+	p1, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+		Id: svc.GetId(), Image: img1,
+		DeployOrigin: &v1.DeployOrigin{
+			Provider: v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS, Repository: "https://github.com/acme/web",
+			Commit: strings.Repeat("1", 40), Ref: "refs/heads/main", RunUrl: "https://github.com/acme/web/actions/runs/1",
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doneChange(t, tokChanges, p1.Msg.GetChange())
+	if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if runs := gh.CheckRuns(); len(runs) != 1 || runs[0].DetailsURL != "" {
+		t.Fatalf("expected empty details_url without public panel domain, got %+v", runs)
+	}
+
+	// Set panel_domain dynamically in settings -> Deploy 2 gets https://panel.live.example.com/changes/<id>.
+	if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		return tx.PutSetting(t.Context(), settings.KeyPanelDomain, []byte("panel.live.example.com"))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	d2 := "sha256:" + strings.Repeat("2", 64)
+	img2 := "ghcr.io/acme/web:2.0@" + d2
+	e.Registry[img2] = dockertest.Image{Config: docker.Config{Cmd: []string{"web"}}, Digest: d2}
+	p2, err := tokServices.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+		Id: svc.GetId(), Image: img2,
+		DeployOrigin: &v1.DeployOrigin{
+			Provider: v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS, Repository: "https://github.com/acme/web",
+			Commit: strings.Repeat("2", 40), Ref: "refs/heads/main", RunUrl: "https://github.com/acme/web/actions/runs/2",
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chg2 := doneChange(t, tokChanges, p2.Msg.GetChange())
+	if err := f.server.CIStatus().DeliverOnce(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	runs := gh.CheckRuns()
+	if len(runs) != 2 || runs[1].DetailsURL != "https://panel.live.example.com/changes/"+chg2.GetId() {
+		t.Fatalf("expected dynamic panel_domain in details_url, got %+v", runs)
+	}
 }
 
 func doneChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *v1.Change) *v1.Change {
@@ -336,5 +890,3 @@ func doneChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *v1.Ch
 	}
 	return got
 }
-
-var _ = http.StatusOK

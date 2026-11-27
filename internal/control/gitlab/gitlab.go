@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dockwell/dockwell/internal/netguard"
 )
@@ -280,13 +281,53 @@ func (c *Client) findCommitStatus(ctx context.Context, baseURL, token, projectPa
 	return &latest, nil
 }
 
+// Project is a GitLab project returned by GET /api/v4/projects.
+type Project struct {
+	PathWithNamespace string `json:"path_with_namespace"`
+	WebURL            string `json:"web_url"`
+}
+
+// ListProjects lists GitLab projects accessible to token, filtered by an optional search query.
+func (c *Client) ListProjects(ctx context.Context, baseURL, token, query string) ([]Project, error) {
+	apiPath := "/api/v4/projects?membership=true&simple=true&per_page=100"
+	if q := strings.TrimSpace(query); q != "" {
+		apiPath += "&search=" + url.QueryEscape(q)
+	}
+	var list []Project
+	if err := c.call(ctx, http.MethodGet, baseURL, apiPath, token, nil, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// CommitStatusURL builds the HTTPS link to a GitLab pipeline or commit status
+// with each path segment safely escaped.
+func CommitStatusURL(baseURL, projectPath, commitSHA string, pipelineID int64) string {
+	parts := strings.Split(strings.Trim(projectPath, "/"), "/")
+	escaped := make([]string, 0, len(parts))
+	for _, seg := range parts {
+		if seg != "" {
+			escaped = append(escaped, url.PathEscape(seg))
+		}
+	}
+	base := strings.TrimRight(baseURL, "/") + "/" + strings.Join(escaped, "/")
+	if pipelineID > 0 {
+		return base + "/-/pipelines/" + strconv.FormatInt(pipelineID, 10)
+	}
+	return base + "/-/commit/" + url.PathEscape(commitSHA)
+}
+
 // ProjectPath extracts the GitLab project path (such as "acme/web" or
 // "acme/group/web") from repoURL when it belongs to the GitLab instance at
-// baseURL. Returns "" if the host or base path doesn't match.
+// baseURL. Returns "" if the host, base path, or path segments are invalid.
 func ProjectPath(baseURL, repoURL string) string {
+	rawRepo := strings.TrimSpace(repoURL)
+	if rawRepo == "" || strings.ContainsAny(rawRepo, "\\#?") {
+		return ""
+	}
 	base, berr := url.Parse(strings.TrimSpace(baseURL))
-	repo, rerr := url.Parse(strings.TrimSpace(repoURL))
-	if berr != nil || rerr != nil || !strings.EqualFold(base.Host, repo.Host) {
+	repo, rerr := url.Parse(rawRepo)
+	if berr != nil || rerr != nil || !strings.EqualFold(base.Host, repo.Host) || repo.User != nil || repo.RawQuery != "" || repo.Fragment != "" {
 		return ""
 	}
 	basePath := strings.TrimRight(base.Path, "/")
@@ -298,10 +339,22 @@ func ProjectPath(baseURL, repoURL string) string {
 		repoPath = strings.TrimPrefix(repoPath, basePath)
 	}
 	project := strings.TrimSuffix(strings.Trim(repoPath, "/"), ".git")
-	if project == "" || !strings.Contains(project, "/") {
+	project = strings.TrimSuffix(project, "/")
+	if project == "" {
 		return ""
 	}
-	return project
+	parts := strings.Split(project, "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	for _, seg := range parts {
+		if seg == "" || seg == "." || seg == ".." || strings.ContainsAny(seg, "\\#?") || strings.ContainsFunc(seg, func(r rune) bool {
+			return unicode.IsControl(r) || unicode.IsSpace(r)
+		}) {
+			return ""
+		}
+	}
+	return strings.Join(parts, "/")
 }
 
 // MatchesPrefix reports whether projectPath matches an optional pathPrefix

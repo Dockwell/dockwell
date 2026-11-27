@@ -219,7 +219,14 @@ export function GitLabSheet({
       ],
       onClose: (change) => {
         if (change) {
-          onChanged();
+          if (mayCheck.allowed) {
+            void createClient(GitProviderService, transport)
+              .checkGitLabConnection({ name: trimmedName, url: trimmedURL })
+              .catch(() => {})
+              .finally(() => onChanged());
+          } else {
+            onChanged();
+          }
           onClose();
         }
       },

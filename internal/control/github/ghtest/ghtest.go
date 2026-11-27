@@ -85,6 +85,17 @@ type Server struct {
 	// checkRuns recorded via POST/PATCH /repos/:owner/:repo/check-runs.
 	checkRuns []CheckRun
 	nextCheck int64
+	// dropNextCheckResponse creates the check run on POST and then answers 503
+	// so tests can verify duplicate-free recovery after a lost response.
+	dropNextCheckResponse bool
+	// repoCheckErrors simulates repo-specific check-run errors (e.g. archived 403)
+	// while the installation still holds checks: write.
+	repoCheckErrors map[string]repoCheckErr
+}
+
+type repoCheckErr struct {
+	status  int
+	message string
 }
 
 // manifest is what GitHub reads of a manifest posted to it.
@@ -119,6 +130,29 @@ func (s *Server) SetPermissions(perms map[string]string) {
 	s.mu.Lock()
 	s.permissions = mapsCopy(perms)
 	s.mu.Unlock()
+}
+
+// DropNextCheckRunResponse causes the next POST /check-runs to record the check
+// run and then answer 503, simulating a lost response or restart before recording.
+func (s *Server) DropNextCheckRunResponse() {
+	s.mu.Lock()
+	s.dropNextCheckResponse = true
+	s.mu.Unlock()
+}
+
+// SetRepoCheckRunError forces POST /repos/:repo/check-runs to fail with status
+// and message (pass status 0 to clear).
+func (s *Server) SetRepoCheckRunError(repo string, status int, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.repoCheckErrors == nil {
+		s.repoCheckErrors = map[string]repoCheckErr{}
+	}
+	if status == 0 {
+		delete(s.repoCheckErrors, repo)
+		return
+	}
+	s.repoCheckErrors[repo] = repoCheckErr{status: status, message: message}
 }
 
 // SetRepos replaces the repositories listed by installation 7.
@@ -503,6 +537,11 @@ func (s *Server) handleCheckRuns(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.mu.Lock()
+		if repoErr, ok := s.repoCheckErrors[repo]; ok {
+			s.mu.Unlock()
+			refuse(w, repoErr.status, repoErr.message)
+			return
+		}
 		s.nextCheck++
 		cr := CheckRun{
 			ID: s.nextCheck, Repo: repo, Name: body.Name, HeadSHA: body.HeadSHA,
@@ -512,7 +551,13 @@ func (s *Server) handleCheckRuns(w http.ResponseWriter, r *http.Request) {
 			HTMLURL: fmt.Sprintf("https://github.com/%s/runs/%d", repo, s.nextCheck),
 		}
 		s.checkRuns = append(s.checkRuns, cr)
+		drop := s.dropNextCheckResponse
+		s.dropNextCheckResponse = false
 		s.mu.Unlock()
+		if drop {
+			refuse(w, http.StatusServiceUnavailable, "Service Unavailable")
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]any{

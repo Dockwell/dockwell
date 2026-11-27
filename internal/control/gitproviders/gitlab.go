@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -183,4 +184,87 @@ func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabCon
 			"This token doesn't have the api scope needed to report commit statuses. Create a token with the api scope.", info.Scopes, info.Name
 	}
 	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name
+}
+
+// ListGitLabProjects returns the GitLab projects reachable by a project's
+// connected GitLab instances, filtered by each connection's path prefix.
+func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[dockwellv1.ListGitLabProjectsRequest]) (*connect.Response[dockwellv1.ListGitLabProjectsResponse], error) {
+	var reachable []keptGitLab
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		project := ""
+		for _, p := range tree.Projects {
+			if p.ID == req.Msg.GetProject() || p.Name == req.Msg.GetProject() {
+				project = p.ID
+				break
+			}
+		}
+		if project == "" {
+			return said(connect.CodeNotFound, "not_found", "there's no project %s", req.Msg.GetProject())
+		}
+		all, err := h.allGitLab(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, k := range all {
+			if gitlabconnection.Reaches(k.spec, project) {
+				reachable = append(reachable, k)
+			}
+		}
+		return nil
+	})
+	var ce *connect.Error
+	if errors.As(err, &ce) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, h.internal(ctx, "listing a project's GitLab connections", err)
+	}
+	out := &dockwellv1.ListGitLabProjectsResponse{}
+	query := strings.TrimSpace(req.Msg.GetQuery())
+	seen := map[string]bool{}
+	for _, k := range reachable {
+		baseURL := strings.TrimRight(k.spec.GetInstanceUrl(), "/")
+		out.Connections = append(out.Connections, &dockwellv1.GitLabProjectConnection{
+			Id:         k.r.ID,
+			Name:       k.r.Name,
+			Url:        baseURL,
+			PathPrefix: k.spec.GetPathPrefix(),
+		})
+		projects, err := h.cfg.GitLab.ListProjects(ctx, baseURL, k.spec.GetToken(), query)
+		if err != nil {
+			continue
+		}
+		for _, p := range projects {
+			if !gitlab.MatchesPrefix(p.PathWithNamespace, k.spec.GetPathPrefix()) {
+				continue
+			}
+			repoURL := strings.TrimSpace(p.WebURL)
+			if repoURL == "" {
+				repoURL = baseURL + "/" + strings.TrimLeft(p.PathWithNamespace, "/")
+			}
+			norm, err := store.NormalizeDeployRepository(repoURL)
+			if err != nil || norm == "" {
+				continue
+			}
+			key := strings.ToLower(norm)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out.Projects = append(out.Projects, &dockwellv1.GitLabProject{
+				PathWithNamespace: p.PathWithNamespace,
+				Url:               norm,
+				ConnectionId:      k.r.ID,
+				ConnectionName:    k.r.Name,
+			})
+		}
+	}
+	slices.SortFunc(out.Projects, func(a, b *dockwellv1.GitLabProject) int {
+		return strings.Compare(a.GetPathWithNamespace(), b.GetPathWithNamespace())
+	})
+	return connect.NewResponse(out), nil
 }

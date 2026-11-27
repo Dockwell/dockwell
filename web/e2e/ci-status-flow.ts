@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// CI deploy status reporting (ADR 0111, issue #948): exercises missing GitHub
-// Checks permission on Settings -> Integrations, granting & refreshing it,
-// retrying a failed/skipped deploy status from Deployments, connecting a GitLab
-// instance with live token scope checks, and verifying Check Runs + GitLab
-// Commit Statuses + Deployments/Activity UI links at 1440 and 390.
+// CI deploy status reporting (ADR 0111, issue #948): exercises token-bound
+// status repositories in Deploy from CI and Settings -> API tokens, missing
+// GitHub Checks permission on Settings -> Integrations, granting & refreshing
+// it, retrying a failed/skipped deploy status from Deployments, connecting a
+// GitLab instance with live token scope checks and automatic post-save check,
+// and verifying Check Runs + GitLab Commit Statuses (env-scoped names, no
+// private listen URL leak) + Deployments/Activity UI links at 1440 and 390.
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -90,21 +92,12 @@ export const flow: Flow = {
     const app = apps.services.find((s) => s.resource.name === "status-web")?.id;
     if (!app) fail("status-web isn't listed");
 
-    // Create a deploy token via the panel's Deploy from CI sheet (tests the real flow).
-    await atWidth(page, { width: 1440, height: 900 });
     const deploymentsUrl = `${origin}/apps/${app}/deployments`;
-    await page.goto(deploymentsUrl);
-    await page.getByRole("button", { name: "Deploy from CI" }).click();
-    const ciSheet = page.getByRole("dialog", { name: "Deploy from CI" });
-    await ciSheet.getByRole("button", { name: "Create deploy token" }).click();
-    await ciSheet.getByRole("button", { name: "Show the whole token" }).click();
-    const token = (await ciSheet.locator(".ci-deploy-secret").innerText()).trim();
-    await ciSheet.getByRole("button", { name: "Done" }).click();
-    await ciSheet.waitFor({ state: "hidden" });
 
     try {
-      // If running standalone (--flow ci-status) without github-app-flow ahead
-      // of us, connect the fake GitHub App on acme with acme/web first.
+      await atWidth(page, { width: 1440, height: 900 });
+      // Ensure the fake GitHub App on acme with acme/web is connected first so
+      // Deploy from CI offers acme/web in its Status repository picker.
       await page.goto(`${origin}/settings/integrations`);
       const gitRegion = page.getByRole("region", { name: "Git" });
       const ghInitial = gitRegion.getByRole("article", { name: "GitHub" });
@@ -126,6 +119,19 @@ export const flow: Flow = {
         await ghInitial.getByText("GitHub App on acme · 1 repository").waitFor({ timeout: 60_000 });
         await ghInitial.getByText("Connected", { exact: true }).waitFor({ timeout: 20_000 });
       }
+
+      step("CI status: create a GitHub deploy token bound to acme/web from Deploy from CI");
+      await page.goto(deploymentsUrl);
+      await page.getByRole("button", { name: "Deploy from CI" }).click();
+      const ciSheet = page.getByRole("dialog", { name: "Deploy from CI" });
+      const ghRepoSelect = ciSheet.getByLabel("Status repository");
+      await ghRepoSelect.waitFor({ timeout: 15_000 });
+      await ghRepoSelect.selectOption({ label: "acme/web" });
+      await ciSheet.getByRole("button", { name: "Create deploy token" }).click();
+      await ciSheet.getByRole("button", { name: "Show the whole token" }).click();
+      const ghToken = (await ciSheet.locator(".ci-deploy-secret").innerText()).trim();
+      await ciSheet.getByRole("button", { name: "Done" }).click();
+      await ciSheet.waitFor({ state: "hidden" });
 
       step("CI status: remove GitHub checks:write permission and deploy to surface missing permission + Retry");
       const revoke = await fetch(`${gh}/_permissions`, {
@@ -154,13 +160,13 @@ export const flow: Flow = {
               provider: "DEPLOY_PROVIDER_GITHUB_ACTIONS",
             }),
           ],
-          token,
+          ghToken,
         ).split("\n")[0] ?? "{}",
       ) as { change?: { id?: string } };
       const ghChangeId = ghDeploy.change?.id;
       if (!ghChangeId) fail("GitHub CI deploy returned no change ID");
 
-      // Wait for Deployments to display the missing Checks permission reason + Retry button.
+      // Wait for Deployments to display the localized missing Checks permission reason + Retry button.
       await page.goto(deploymentsUrl);
       await pollUntil("missing Checks permission reason on Deployments", async () => {
         const retryBtn = page.getByRole("button", { name: "Retry" }).first();
@@ -169,7 +175,7 @@ export const flow: Flow = {
         return undefined;
       });
       await page
-        .getByText(/Checks permission/)
+        .getByText(/needs Checks permission/)
         .first()
         .waitFor({ timeout: 15_000 });
       await saveShot(page, "deployments-retry-1440");
@@ -217,7 +223,8 @@ export const flow: Flow = {
         return match ? list : undefined;
       });
       const ghRun = runs.find((r) => r.external_id === ghChangeId);
-      if (ghRun?.name !== "Dockwell / status-web" || !ghRun.details_url.endsWith(`/changes/${ghChangeId}`)) {
+      // M2: env-scoped check name; L2: no private listen address leaked when panel_domain is unset.
+      if (ghRun?.name !== "Dockwell / ci / status-web" || ghRun.details_url.includes("127.0.0.1")) {
         fail(`unexpected GitHub check run: ${JSON.stringify(ghRun)}`);
       }
       await page.reload();
@@ -247,6 +254,7 @@ export const flow: Flow = {
         timeout: 15_000,
       });
 
+      // N4: post-save check runs automatically so the card shows Connected right away.
       const glCard = gitSection.getByRole("article", { name: "GitLab self-managed" });
       await glCard.getByText("Connected", { exact: true }).waitFor({ timeout: 15_000 });
       await saveShot(page, "integrations-connected-1440");
@@ -254,7 +262,21 @@ export const flow: Flow = {
       await glCard.getByText("Connected", { exact: true }).waitFor({ timeout: 15_000 });
       await saveShot(page, "integrations-connected-390");
 
-      step("CI status: deploy via GitLab CI and verify commit status + Deployments and Activity");
+      step("CI status: create a GitLab deploy token bound to acme/web and deploy via GitLab CI");
+      await atWidth(page, { width: 1440, height: 900 });
+      await page.goto(deploymentsUrl);
+      await page.getByRole("button", { name: "Deploy from CI" }).click();
+      const glCiSheet = page.getByRole("dialog", { name: "Deploy from CI" });
+      await glCiSheet.getByRole("radio", { name: "GitLab CI" }).click();
+      const glRepoSelect = glCiSheet.getByLabel("Status repository");
+      await glRepoSelect.waitFor({ timeout: 15_000 });
+      await glRepoSelect.selectOption({ label: "acme/web" });
+      await glCiSheet.getByRole("button", { name: "Create deploy token" }).click();
+      await glCiSheet.getByRole("button", { name: "Show the whole token" }).click();
+      const glToken = (await glCiSheet.locator(".ci-deploy-secret").innerText()).trim();
+      await glCiSheet.getByRole("button", { name: "Done" }).click();
+      await glCiSheet.waitFor({ state: "hidden" });
+
       const glCommit = "d".repeat(40);
       const glDeploy = JSON.parse(
         cli(
@@ -275,7 +297,7 @@ export const flow: Flow = {
               provider: "DEPLOY_PROVIDER_GITLAB_CI",
             }),
           ],
-          token,
+          glToken,
         ).split("\n")[0] ?? "{}",
       ) as { change?: { id?: string } };
       const glChangeId = glDeploy.change?.id;
@@ -295,9 +317,9 @@ export const flow: Flow = {
       });
       const glSuccess = statuses.find((s) => s.sha === glCommit && s.state === "success");
       if (
-        glSuccess?.name !== "Dockwell / status-web" ||
+        glSuccess?.name !== "Dockwell / ci / status-web" ||
         glSuccess.project !== "acme/web" ||
-        !glSuccess.target_url.endsWith(`/changes/${glChangeId}`)
+        glSuccess.target_url.includes("127.0.0.1")
       ) {
         fail(`unexpected GitLab commit status: ${JSON.stringify(glSuccess)}`);
       }

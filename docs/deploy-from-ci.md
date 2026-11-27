@@ -57,10 +57,11 @@ Rerunning a job with the same service, digest and commit follows an active chang
 
 ## Status back to GitHub and GitLab
 
-Dockwell reports each CI deploy's state (`queued`, `applying`, `healthy`, `failed`, or `rolled_back`) back to the source commit with a link to the change in the panel.
+Dockwell reports each CI deploy's state (`queued`, `applying`, `healthy`, `failed`, `rolled_back`, or `discarded`) back to the source commit with a link to the change in the panel when a public panel domain is configured.
 
-- **GitHub:** Uses the connected GitHub App in **Settings -> Integrations** to create and update a Check Run named `Dockwell / <app>`. The App needs the `Checks` (read and write) permission and an installation reaching the repository and project. If the permission is missing, **Settings -> Integrations** shows a direct link to update it on GitHub and a **Check again** button.
-- **GitLab:** Uses a GitLab connection in **Settings -> Integrations** (for `gitlab.com` or a self-managed HTTPS instance) with an access token carrying the `api` scope.
-- **Retries:** Delivery runs through a durable outbox with exponential backoff and survives control-plane restarts. Deployments and Activity show the provider link once delivered, or a one-line reason with a **Retry** button when skipped or failed.
+- **Repository binding:** When you create a deploy token in **Deploy from CI**, pick the GitHub repository or GitLab project that deploys using that token may report status to. You can set or change this binding later on **Settings -> API tokens**. Deploys whose CI provenance names another repository still deploy, but Dockwell posts nothing to the provider.
+- **GitHub:** Uses the connected GitHub App in **Settings -> Integrations** to create and update a Check Run named `Dockwell / <environment> / <app>`. The App needs the `Checks` (read and write) permission and an installation reaching the repository and project. If the permission is missing, **Settings -> Integrations** shows a direct link to update it on GitHub and a **Check again** button.
+- **GitLab:** Uses a GitLab connection in **Settings -> Integrations** (for `gitlab.com` or a self-managed HTTPS instance) with an access token carrying the `api` scope, posting commit statuses named `Dockwell / <environment> / <app>`.
+- **Retries:** Delivery runs through a durable outbox with exponential backoff and survives control-plane restarts. Deployments and Activity show the provider link once delivered, or a short status with a direct fix link and **Retry** button when skipped or failed.
 
 See [ADR 0111](adr/0111-ci-deploys-of-prebuilt-images.md) and [verify a Dockwell release](releasing.md#verify-a-release).

@@ -225,9 +225,10 @@ GitHookService.SetGitHookRole                        apply        developer  adm
 GitProviderService.AddGitHubInstallation             apply        admin      admin      install  session
 GitProviderService.CheckGitLabConnection             read         admin      admin      install  session
 GitProviderService.FinishGitHubApp                   apply        admin      admin      install  session
+GitProviderService.ListGitLabProjects                read         viewer     viewer     project
 GitProviderService.ListGitProviders                  read         viewer     viewer     named
 GitProviderService.ListGitRepositories               read         viewer     viewer     project
-GitProviderService.RefreshGitHubApp                  read         admin      admin      install
+GitProviderService.RefreshGitHubApp                  apply        admin      admin      install
 GitProviderService.RemoveGitHubApp                   destructive  admin      admin      install  session
 GitProviderService.ReplaceGitHubPrivateKey           apply        admin      admin      install  session
 GitProviderService.RotateGitHubWebhookSecret         apply        admin      admin      install  session
@@ -322,6 +323,7 @@ TerminalService.WriteTerminal                        destructive  admin      adm
 TokenService.CreateToken                             apply        viewer     viewer     self
 TokenService.ListTokens                              read         viewer     viewer     self
 TokenService.RevokeToken                             destructive  viewer     viewer     self
+TokenService.SetTokenDeployRepository                apply        viewer     viewer     self
 UpdateService.CheckServerUpdates                     read         admin      admin      install  session
 UpdateService.GetServerUpdates                       read         admin      admin      install
 VariableService.ListVariables                        read         viewer     viewer     project

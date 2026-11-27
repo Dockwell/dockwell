@@ -2,7 +2,13 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type GitHubAppInfo, type GitLabConnectionInfo, GitProviderService, StepUpAction } from "@dockwell/api";
+import {
+  ChangeService,
+  type GitHubAppInfo,
+  type GitLabConnectionInfo,
+  GitProviderService,
+  StepUpAction,
+} from "@dockwell/api";
 import { BrandMark, Button, ButtonLink, Callout, SegmentedControl, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -30,6 +36,7 @@ export function GitHubSection({ query }: { query: string }) {
   const may = useMay();
   const apps = useGitHubApps();
   const mayConnect = may(GitProviderService.method.startGitHubApp);
+  const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const [connecting, setConnecting] = useState(false);
   const [managing, setManaging] = useState<string>();
   const [gitlabSheet, setGitlabSheet] = useState<{ editing?: GitLabConnectionInfo }>();
@@ -66,6 +73,7 @@ export function GitHubSection({ query }: { query: string }) {
             icon="plus"
             className="integrations-more"
             onClick={() => setGitlabSheet({})}
+            {...mayPlan.off}
           >
             <Trans>Connect GitLab</Trans>
           </Button>
