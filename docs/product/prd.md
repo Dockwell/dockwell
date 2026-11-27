@@ -366,6 +366,42 @@ The platform must be light enough for a 1 GB VPS and sturdy enough for a 1,000-n
 | Access | Languages at launch | English and Simplified Chinese; community translations after |
 | Access | Devices | Every feature at 360 px; 44 px touch targets; installable PWA with push |
 
+### The 1 GiB mixed-load budget
+
+Run `make small-host` to exercise one `dockwell run` process, which contains the control
+plane and embedded agent, with real Caddy and the test Docker Engine. Three HTTP
+stand-ins hold 312 MiB between them. After a 20-second latency baseline, Caddy
+serves 180 seconds of traffic while the panel makes Connect GETs in its development
+format, follows and searches logs, and the agent builds an image, uploads four
+files, copies a volume and dumps a PostgreSQL database. The fake Engine checks out
+Git and publishes an image through Dockwell's build path. The harness holds 128 MiB
+while that build runs to model its working set. A second build under extra memory
+pressure must refuse cleanly.
+
+The target runs under a systemd cgroup v2 scope with `MemoryMax=1G` where available.
+It fails on a scope OOM kill, a peak above 1 GiB, Dockwell RSS of 250 MB or more,
+any app restart, or an app's p99 exceeding three times its baseline. On other
+Linux runners it gates the same memory ceiling on process-tree PSS sampled every
+250 ms. That estimate omits unmapped page cache and kernel charges, and scope
+OOM counts are unavailable. CI publishes the mode, measurements and verification
+results in the job summary and the `small-host` JSON artifact.
+
+The first three local runs used process-tree sampling and passed all available gates.
+Each measured zero swap and no app restarts. The admitted build completed and
+the pressure build refused before launch.
+
+| Run | Process-tree peak (MiB) | Dockwell peak / settled RSS (MiB) | Worst p99 ratio | Build admission wait |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 791.8 | 126.7 / 105.7 | 1.56× | 0.033 s |
+| 2 | 789.7 | 126.0 / 106.9 | 1.03× | 0.062 s |
+| 3 | 768.4 | 125.2 / 104.5 | 1.03× | 0.033 s |
+
+Build admission was the first guard to trip under added memory pressure. A host
+or scope of at most 1 GiB refuses new builds below 448 MiB of available memory
+([ADR 0046](../adr/0046-builds-from-git.md)). Production Docker and BuildKit
+memory, kernel charges and scope OOM counts remain unmeasured in these local runs.
+The first CI measurement is pending the pull request.
+
 ## Roadmap and milestones
 
 The first public release is the Solo beta around month 7: a better 1Panel with real deploys and free multi-node, which earns the users that the Team and Fleet phases are built for.

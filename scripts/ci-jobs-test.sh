@@ -20,7 +20,7 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel swarm-docker snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel small-host swarm-docker snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
 go="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
 web="schema panel e2e docker-panel"
@@ -57,27 +57,34 @@ picks "schema panel" design/system/tokens.json
 # The release archives carry LICENSE and README.md.
 picks "snapshot" LICENSE
 picks "snapshot" README.md
-picks "$go" internal/control/server.go
+picks "$go small-host" internal/control/server.go
 picks "$go" internal/cli/apicmd/apicmd.gen.go
 picks "$go" internal/cli/api.go
 picks "$go" internal/cli/join.go
-picks "$go" cmd/dockwell/main.go
+picks "$go small-host" cmd/dockwell/main.go
 picks "$go" proto/dockwell/v1/servers.proto gen/openapi/openapi.yaml
 picks "$go" scripts/docker-e2e.sh
 # What reaches a Swarm runs Swarm import on Docker too; other Go code doesn't.
 picks "$go swarm-docker" scripts/swarm-e2e.sh
-picks "$go swarm-docker" internal/control/importapi/panels.go
-picks "$go swarm-docker" internal/agent/panels/stop.go internal/control/server.go
-picks "$go swarm-docker" internal/resource/panel.go
-picks "$go swarm-docker" internal/resource/resourcepb/resourcepb.go
-picks "$go swarm-docker" internal/resource/host/host.go
-picks "$go swarm-docker" internal/revision/units.go
-picks "$go" internal/revision/revision.go internal/resource/resource.go
+picks "$go small-host swarm-docker" internal/control/importapi/panels.go
+picks "$go small-host swarm-docker" internal/agent/panels/stop.go internal/control/server.go
+picks "$go small-host swarm-docker" internal/resource/panel.go
+picks "$go small-host swarm-docker" internal/resource/resourcepb/resourcepb.go
+picks "$go small-host swarm-docker" internal/resource/host/host.go
+picks "$go small-host swarm-docker" internal/revision/units.go
+picks "$go small-host" internal/revision/revision.go internal/resource/resource.go
 # What the agent reads of each container is measured by Hundreds of containers, among the Go jobs (#797).
-picks "$go" internal/agent/collect/containers.go
+picks "$go small-host" internal/agent/collect/containers.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
-picks "$go" scripts/fakedocker/main.go
+picks "$go small-host" scripts/load-files.sh scripts/logfixture/server.go
+picks "$go small-host" internal/build/build.go
+picks "$go small-host" internal/control/services/services.go
+picks "$go small-host" internal/store/store.go
+picks "$go small-host" proto/dockwell/v1/file.proto
+picks "small-host" scripts/small-host.py
+picks "small-host" scripts/small-host.sh
+picks "$go small-host" scripts/fakedocker/main.go
 picks "go" ci/github/action.yml ci/gitlab/dockwell-deploy.yml ci/deploy.sh
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
 picks "go chaos" scripts/chaos/recovery_test.go
@@ -92,12 +99,12 @@ picks "$go" scripts/store-e2e.sh
 picks "$go" docs/example/main.go
 picks "go docker-go caddy-go" internal/agent/files/stuck_test.go
 picks "go docker-go caddy-go" internal/cli/api_test.go cmd/dockwell/build_test.go
-picks "$go" internal/agent/files/stuck_test.go internal/docker/dockertest/fake.go
+picks "$go small-host" internal/agent/files/stuck_test.go internal/docker/dockertest/fake.go
 picks "go docker-go caddy-go $web" internal/control/changes_test.go web/src/main.tsx
-picks "$go every-leg" go.mod go.sum
-picks "$go every-leg" tools/go.mod
+picks "$go small-host every-leg" go.mod go.sum
+picks "$go small-host every-leg" tools/go.mod
 picks "$web" web/src/features/apps/AppsPage.tsx
-picks "$go $web" internal/docker/lifecycle-signals.json
+picks "$go $web small-host" internal/docker/lifecycle-signals.json
 picks "$web" web/src/locales/zh-CN/messages.po packages/ui/src/Button.tsx
 picks "$web" pnpm-lock.yaml package.json
 # The panel's stylesheet bundles the fonts.
@@ -110,7 +117,7 @@ picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/entries/media
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/commit
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/checks/redis.sh
 # Service end to end on Docker uninstalls with it.
-picks "go containers-load transfers-load docker-e2e snapshot budgets $install" scripts/install.sh
+picks "go containers-load transfers-load docker-e2e small-host snapshot budgets $install" scripts/install.sh
 # It runs inside the install legs, under mawk, gawk and busybox awk.
 picks "$go $install" scripts/connected.awk
 picks "$install" scripts/install-test/run.sh

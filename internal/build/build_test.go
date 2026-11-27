@@ -411,7 +411,7 @@ func TestOneBuildAtATimeOnAServer(t *testing.T) {
 
 func TestABuildThatRunsOutOfMemorySaysSo(t *testing.T) {
 	b := newBench(t)
-	b.builder.Memory = func() (int64, int64, error) { return 600 << 20, 1 << 30, nil }
+	b.builder.Memory = func() (int64, int64, error) { return 704 << 20, 1 << 30, nil }
 	commit := b.repo.Commit("main", "Big", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN make oom\n"})
 	err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A"))
 	plain, _ := resource.Explain(err)
@@ -423,18 +423,18 @@ func TestABuildThatRunsOutOfMemorySaysSo(t *testing.T) {
 func TestABuildsLimitsLeaveRoomForWhatRuns(t *testing.T) {
 	for _, c := range []struct {
 		name               string
-		available          int64
+		available, total   int64
 		cpus               int
 		wantMemory, wantNs int64
 	}{
-		{"a server of 1 GB", 600 << 20, 1, 512 << 20, 1e9},
-		{"a server of 4 GB", 3 << 30, 2, 3<<30 - 256<<20, 1e9},
-		{"a large server", 60 << 30, 16, 8 << 30, 15e9},
+		{"a server of 1 GB", 600 << 20, 1 << 30, 1, 408 << 20, 1e9},
+		{"a server of 4 GB", 3 << 30, 4 << 30, 2, 3<<30 - 256<<20, 1e9},
+		{"a large server", 60 << 30, 64 << 30, 16, 8 << 30, 15e9},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := newBench(t)
 			b.engine.NCPU = 16
-			b.builder.Memory = func() (int64, int64, error) { return c.available, 2 * c.available, nil }
+			b.builder.Memory = func() (int64, int64, error) { return c.available, c.total, nil }
 			b.builder.CPUs = func() int { return c.cpus }
 			commit := b.repo.Commit("main", "x", map[string]string{"Dockerfile": nodeDockerfile})
 			if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {
@@ -448,6 +448,20 @@ func TestABuildsLimitsLeaveRoomForWhatRuns(t *testing.T) {
 				t.Errorf("the builder runs with %+v, not first to go, at a quarter of the weight, and 4096 processes", h)
 			}
 		})
+	}
+}
+
+func TestABuildIsRefusedBeforeCreatingABuilderWhenMemoryIsLow(t *testing.T) {
+	b := newBench(t)
+	b.builder.Memory = func() (int64, int64, error) { return (448 << 20) - 1, 1 << 30, nil }
+	commit := b.repo.Commit("main", "Small", map[string]string{"Dockerfile": nodeDockerfile})
+	err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A"))
+	plain, _ := resource.Explain(err)
+	if resource.ReasonOf(err) != resource.ReasonBuild || !strings.Contains(plain, "Free memory") {
+		t.Fatalf("a build without room says %q", plain)
+	}
+	if made := b.made("dockwell-build"); len(made) != 0 {
+		t.Fatalf("a build without room started %d builders", len(made))
 	}
 }
 

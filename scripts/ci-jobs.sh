@@ -39,7 +39,7 @@ shopt -s inherit_errexit
 # listed. Licenses and links and Install, every job always run, and Build of
 # main runs on every pull request, as it can't run this before it builds.
 # every-leg isn't a job: it runs every install leg, not only some.
-ci_jobs="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel swarm-docker"
+ci_jobs="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel small-host swarm-docker"
 install_jobs="snapshot budgets install systemd every-leg"
 every_job="$ci_jobs $install_jobs"
 
@@ -48,7 +48,7 @@ declare -A names=(
   [go]="Go" [docker-go]="Go on Docker" [caddy-go]="Go on Caddy" [docker-e2e]="Service end to end on Docker"
   [catalog-docker]="Catalog on Docker" [store-docker]="Other stores on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
   [containers-load]="Hundreds of containers" [transfers-load]="Transfer load" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
-  [chaos]="Chaos on Docker" [swarm-docker]="Swarm import on Docker"
+  [small-host]="Small host" [chaos]="Chaos on Docker" [swarm-docker]="Swarm import on Docker"
   [snapshot]="Release snapshot" [budgets]="Memory budgets"
   [install]="Install on each image" [systemd]="Install with systemd" [every-leg]="every install leg"
 )
@@ -67,7 +67,7 @@ some_systemd_arches='["arm64"]'
 # run. The idle memory budgets move with any of it, and some install legs run,
 # as the install script runs the binary's run, join, token, claim and role,
 # which reach most of the control plane and the agent.
-go="${ci_jobs% swarm-docker} snapshot budgets install systemd"
+go="${ci_jobs% small-host swarm-docker} snapshot budgets install systemd"
 # What makes a Swarm-run app again, or reads one (ADR 0089): the panels' reader and
 # stopper, the import and the take-on it reads through, Docker's client, and what
 # carries a panel's step from the plan to the agent and back. Only
@@ -115,15 +115,29 @@ jobs_for() {
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
   scripts/docker-stops-evidence.sh) echo "chaos" ;;
   *_test.go) echo "$gotest" ;;
-  internal/docker/lifecycle-signals.json) echo "$go $web" ;;
+  internal/docker/lifecycle-signals.json) echo "$go $web small-host" ;;
   # The fake Docker Engine is the tests', which reach no Swarm.
-  internal/docker/dockertest/*) echo "$go" ;;
+  internal/docker/dockertest/*) echo "$go small-host" ;;
+  scripts/swarm-e2e.sh) echo "$swarm" ;;
   internal/agent/panels/*.go | internal/control/importapi/*.go | internal/control/composeapi/*.go | internal/docker/*.go | \
     internal/resource/container/*.go | internal/resource/panel.go | internal/resource/resourcepb/*.go | internal/resource/host/*.go | \
-    internal/revision/units.go | scripts/swarm-e2e.sh)
-    echo "$swarm"
+    internal/revision/units.go)
+    echo "$swarm small-host"
+    ;;
+  scripts/small-host.*) echo "small-host" ;;
+  scripts/load-files.sh | scripts/logfixture/* | scripts/fakedocker/* | scripts/gitserve/* | \
+    scripts/claim/* | scripts/ingress-tools.sh | internal/store/migrations/* | proto/dockwell/agent/* | \
+    proto/dockwell/v1/backup.proto | proto/dockwell/v1/build.proto | proto/dockwell/v1/file.proto | proto/dockwell/v1/log.proto)
+    echo "$go small-host"
     ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.
+  internal/agent/*.go | internal/build/*.go | internal/control/agentapi/*.go | internal/control/authapi/*.go | internal/control/backups/*.go | \
+    internal/control/builds/*.go | internal/control/files/*.go | internal/control/logs/*.go | internal/control/services/*.go | \
+    internal/control/servers/*.go | internal/control/volumes/*.go | \
+    internal/control/server.go | internal/control/rest*.go | internal/cli/run*.go | internal/backup/*.go | \
+    internal/auth/*.go | internal/store/*.go | internal/revision/revision.go | cmd/dockwell/main.go)
+    echo "$go small-host"
+    ;;
   *.go) echo "$go" ;;
   # The release archives carry both, and the snapshot builds them.
   LICENSE | README.md) echo "snapshot" ;;
@@ -133,7 +147,7 @@ jobs_for() {
   internal/catalog/snapshot/entries/* | internal/catalog/snapshot/checks/* | internal/catalog/snapshot/commit) echo "$catalog" ;;
   # The Go tests source it, the load tests and the budgets read its memory
   # limit, and Service end to end on Docker uninstalls with it.
-  scripts/install.sh) echo "go containers-load transfers-load docker-e2e $install $budgets" ;;
+  scripts/install.sh) echo "go containers-load transfers-load docker-e2e small-host $install $budgets" ;;
   # A Go test runs it, and so do the install legs, under mawk, gawk and busybox.
   scripts/connected.awk) echo "$go $install" ;;
   scripts/install-test/* | scripts/sigstore_trusted_root.json) echo "$install" ;;
@@ -142,7 +156,7 @@ jobs_for() {
   scripts/check-spdx.sh | scripts/check-trust-root.sh | scripts/check-cloudflare-ranges.sh | scripts/latest-release.sh | scripts/require-green.sh | scripts/adrs.sh) ;;
   .goreleaser.yaml) echo "$install $budgets" ;;
   # The toolchain, the modules and the tools, GoReleaser among them, build the release.
-  go.mod | go.sum | tools/*) echo "$go $install" ;;
+  go.mod | go.sum | tools/*) echo "$go $install small-host" ;;
   cmd/* | internal/* | gen/* | proto/* | buf.yaml | buf.gen.yaml | buf.lock | .golangci.yml | scripts/*) echo "$go" ;;
   # The panel's stylesheet bundles the fonts.
   design/system/fonts/*) echo "$web" ;;

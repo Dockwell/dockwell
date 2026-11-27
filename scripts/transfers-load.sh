@@ -105,12 +105,8 @@ for _ in $(seq 150); do
 done
 grep -q 'connected to the control plane' "$work/agent.log" || fail "the agent build didn't connect"
 
-# api calls the REST API as the panel does, signed in.
-api() {
-  local verb=$1 path=$2
-  shift 2
-  curl -sS -X "$verb" -H "Cookie: $cookie" -H "Origin: $origin" -H "Sec-Fetch-Site: same-origin" "$@" "$origin$path"
-}
+# shellcheck source=scripts/load-files.sh
+source "$root/scripts/load-files.sh"
 id=$(api GET /v1/servers | jq -r '.servers[] | select(.name == "load-agent") | .id')
 [[ -n $id ]] || fail "the joined agent isn't among the servers"
 
@@ -130,42 +126,10 @@ echo "agent build, settled: $settled MB"
 # Keep the bytes incompressible without letting random data happen to look like
 # a password-hash line, which downloads refuse. The size and byte checks stay.
 head -c "$((mib << 20))" /dev/urandom | LC_ALL=C tr ':' '_' >"$work/source.bin"
-size=$(stat -c %s "$work/source.bin")
+source_file="$work/source.bin"
+size=$(stat -c %s "$source_file")
 sum=$(sha256sum "$work/source.bin" | cut -d' ' -f1)
 mkdir -p "$work/dest"
-
-# upload sends the source to $1 in 64 MiB parts, each from where the last ended. A
-# part the server had no place for goes again, as the panel's does.
-upload() {
-  local to=$1 began upload offset=0 part=$((64 << 20)) code
-  began=$(api POST "/v1/servers/$id/uploads" -H "Content-Type: application/json" -d "{\"path\":\"$to\",\"sizeBytes\":\"$size\"}")
-  upload=$(jq -r .upload.uploadId <<<"$began")
-  [[ -n $upload && $upload != null ]] || fail "BeginUpload for $to: $began"
-  while ((offset < size)); do
-    code=$(dd if="$work/source.bin" bs=1M skip=$((offset >> 20)) count=$((part >> 20)) status=none |
-      api PUT "/v1/servers/$id/uploads/$upload?offset=$offset" -H "Content-Type: application/octet-stream" --data-binary @- -o "$to.put" -w '%{http_code}')
-    case $code in
-    200) offset=$((offset + part < size ? offset + part : size)) ;;
-    429) sleep 2 ;;
-    *) fail "PUT $to at $offset: $code $(cat "$to.put")" ;;
-    esac
-  done
-  api POST "/v1/servers/$id/uploads/$upload:finish" -H "Content-Type: application/json" -d '{}' >"$to.finish"
-  jq -e .path "$to.finish" >/dev/null || fail "FinishUpload for $to: $(cat "$to.finish")"
-}
-
-# download reads $1 and prints what it holds, as a checksum.
-download() {
-  local code
-  while :; do
-    api GET "/v1/servers/$id/files:download?path=$1" -D "$2.headers" | sha256sum | cut -d' ' -f1 >"$2" ||
-      fail "GET $1 was cut short"
-    code=$(awk 'NR == 1 { print $2 }' "$2.headers")
-    [[ $code != 429 ]] && break
-    sleep 2
-  done
-  [[ $code == 200 ]] || fail "GET $1: $code"
-}
 
 went=$SECONDS
 each=()

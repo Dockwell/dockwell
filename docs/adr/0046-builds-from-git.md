@@ -172,7 +172,7 @@ What this costs: pulling BuildKit's image once, 111 MB for amd64; starting `buil
 ### What a build may use
 
 A build gets a container's limits, which the kernel holds it to, so a build can't take a small server down:
-- **Memory:** what the server has available as the build starts, less 256 MiB kept for what runs, at least 512 MiB and at most 8 GiB, with no swap. On a server of 1 GB running a few apps, that is 512 MiB.
+- **Memory:** the available host memory as the build starts, bounded by any visible cgroup v2 memory limit and its headroom, including reclaimable inactive file cache. A build leaves 256 MiB for running apps and needs at least 512 MiB for itself. On a host or cgroup of at most 1 GiB, it leaves 192 MiB and needs at least 256 MiB. If there is less available, the build is refused before it starts. A build gets at most 8 GiB and no swap.
 - **First to go:** its `oom_score_adj` is 1000, so if the server runs short anyway, the kernel kills the build before anything else.
 - **CPU:** every CPU but one, and at least one, at a quarter of the weight of an ordinary container (`cpu-shares` 256), so on a busy server what runs comes first and the build takes what's left.
 - **Processes:** 4,096 at most.

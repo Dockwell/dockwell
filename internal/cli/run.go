@@ -526,6 +526,9 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		}
 	}
 	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
+	if proc := stdio.Getenv("DOCKWELL_TEST_BUILD_PROC"); proc != "" && isSet(stdio.Getenv(envTest)) {
+		builder.Memory = func() (int64, int64, error) { return imagebuild.ReadMemory(os.DirFS(proc), nil) }
+	}
 	if dir := testBuildSecrets(stdio.Getenv); dir != "" {
 		// A test's machine may have nowhere in memory a test may write, as /run is
 		// root's: its builds keep their secrets and registry logins in the folder it

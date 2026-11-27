@@ -65,6 +65,9 @@ const (
 	// keepForRunning is the memory a build leaves for what runs.
 	keepForRunning = 256 << 20
 	minMemory      = 512 << 20
+	smallMemory    = 256 << 20
+	smallReserve   = 192 << 20
+	smallHost      = 1 << 30
 	maxMemory      = 8 << 30
 	// cpuShares is a quarter of an ordinary container's weight.
 	cpuShares = 256
@@ -91,7 +94,7 @@ type Builder struct {
 	// memory, as a tmpfs is.
 	SecretsDir string
 	// Memory says what memory the server has available and in all, in bytes. It
-	// reads /proc/meminfo unless set.
+	// reads /proc/meminfo and cgroup v2 limits unless set.
 	Memory func() (available, total int64, err error)
 	// CPUs is how many CPUs the server has: what Docker says unless set.
 	CPUs func() int
@@ -872,13 +875,23 @@ func (b *Builder) ensureImage(ctx context.Context) error {
 func (b *Builder) limits(ctx context.Context) (memory, cpus int64, err error) {
 	read := b.Memory
 	if read == nil {
-		read = meminfo
+		read = hostMemory
 	}
-	available, _, err := read()
+	available, total, err := read()
 	if err != nil {
 		return 0, 0, fmt.Errorf("can't read how much memory this server has free: %w", err)
 	}
-	memory = min(max(available-keepForRunning, minMemory), maxMemory)
+	least, reserve := int64(minMemory), int64(keepForRunning)
+	if total <= smallHost {
+		least, reserve = smallMemory, smallReserve
+	}
+	if available < reserve+least {
+		return 0, 0, resource.PlainlyBecause(resource.ReasonBuild,
+			fmt.Sprintf("This server has %s of memory available and a build needs %s after leaving %s for running apps. Free memory, or build the image in CI and deploy that",
+				human.Size(available), human.Size(least), human.Size(reserve)),
+			errors.New("insufficient memory to admit a build"))
+	}
+	memory = min(available-reserve, maxMemory)
 	n := runtime.NumCPU()
 	switch {
 	case b.CPUs != nil:
@@ -1046,36 +1059,6 @@ func (b *Builder) Clean(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// meminfo reads what memory the server has available and in all.
-func meminfo() (available, total int64, err error) {
-	f, err := os.Open("/proc/meminfo")
-	if err != nil {
-		return 0, 0, err
-	}
-	defer f.Close()
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		fields := strings.Fields(s.Text())
-		if len(fields) < 2 {
-			continue
-		}
-		n, err := strconv.ParseInt(fields[1], 10, 64)
-		if err != nil {
-			continue
-		}
-		switch fields[0] {
-		case "MemAvailable:":
-			available = n << 10
-		case "MemTotal:":
-			total = n << 10
-		}
-	}
-	if total == 0 {
-		return 0, 0, errors.New("/proc/meminfo says nothing of MemTotal")
-	}
-	return available, total, s.Err()
 }
 
 // statfsSize is how large the filesystem path is on is.
