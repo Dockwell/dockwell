@@ -225,7 +225,8 @@ func privateTestIPv4() string {
 }
 
 func TestAlertEmailThroughAMailConnection(t *testing.T) {
-	storetest.Each(t, testAlertEmailThroughAMailConnection)
+	t.Parallel()
+	eachStoreParallel(t, testAlertEmailThroughAMailConnection)
 }
 
 func testAlertEmailThroughAMailConnection(t *testing.T, backend store.Backend) {
@@ -582,7 +583,8 @@ func testAlertEmailThroughAMailConnection(t *testing.T, backend store.Backend) {
 }
 
 func TestSMTPConnectionHeldAndAppExclusion(t *testing.T) {
-	storetest.Each(t, testSMTPConnectionHeldAndAppExclusion)
+	t.Parallel()
+	eachStoreParallel(t, testSMTPConnectionHeldAndAppExclusion)
 }
 
 func testSMTPConnectionHeldAndAppExclusion(t *testing.T, backend store.Backend) {

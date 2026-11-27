@@ -15,7 +15,6 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // Every way a change can reach further over what a service writes asks for a person,
@@ -24,7 +23,7 @@ import (
 // that isn't a server path. From #252's review.
 func TestEveryWayToReachFurtherOverWhatsWrittenAsks(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testEveryWayToReachFurtherOverWhatsWrittenAsks)
+	eachStoreParallel(t, testEveryWayToReachFurtherOverWhatsWrittenAsks)
 }
 
 func testEveryWayToReachFurtherOverWhatsWrittenAsks(t *testing.T, backend store.Backend) {

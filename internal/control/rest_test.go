@@ -698,7 +698,7 @@ func wantForToken(procedure string, md protoreflect.MethodDescriptor, scope dock
 // when its effect, or its service, puts it out of the token's reach.
 func TestWhatEachTokenMayCall(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testWhatEachTokenMayCall)
+	eachStoreParallel(t, testWhatEachTokenMayCall)
 }
 
 func testWhatEachTokenMayCall(t *testing.T, backend store.Backend) {

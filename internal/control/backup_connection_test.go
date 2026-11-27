@@ -213,7 +213,8 @@ func testBackupsThroughAnS3Connection(t *testing.T, backend store.Backend) {
 }
 
 func TestUseDestinationAsConnection(t *testing.T) {
-	storetest.Each(t, testUseDestinationAsConnection)
+	t.Parallel()
+	eachStoreParallel(t, testUseDestinationAsConnection)
 }
 
 func testUseDestinationAsConnection(t *testing.T, backend store.Backend) {
@@ -331,7 +332,8 @@ func testUseDestinationAsConnection(t *testing.T, backend store.Backend) {
 }
 
 func TestBackupDestinationConnectionVisibilityAndIsolation(t *testing.T) {
-	storetest.Each(t, testBackupDestinationConnectionVisibilityAndIsolation)
+	t.Parallel()
+	eachStoreParallel(t, testBackupDestinationConnectionVisibilityAndIsolation)
 }
 
 func testBackupDestinationConnectionVisibilityAndIsolation(t *testing.T, backend store.Backend) {
@@ -456,7 +458,8 @@ func testBackupDestinationConnectionVisibilityAndIsolation(t *testing.T, backend
 }
 
 func TestH2RepointingDestinationWithStoredCopyRefused(t *testing.T) {
-	storetest.Each(t, testH2RepointingDestinationWithStoredCopyRefused)
+	t.Parallel()
+	eachStoreParallel(t, testH2RepointingDestinationWithStoredCopyRefused)
 }
 
 func testH2RepointingDestinationWithStoredCopyRefused(t *testing.T, backend store.Backend) {
@@ -523,7 +526,8 @@ func testH2RepointingDestinationWithStoredCopyRefused(t *testing.T, backend stor
 }
 
 func TestH6PlainHTTPConnectionRefusedForBackups(t *testing.T) {
-	storetest.Each(t, testH6PlainHTTPConnectionRefusedForBackups)
+	t.Parallel()
+	eachStoreParallel(t, testH6PlainHTTPConnectionRefusedForBackups)
 }
 
 func testH6PlainHTTPConnectionRefusedForBackups(t *testing.T, backend store.Backend) {
@@ -559,7 +563,8 @@ func testH6PlainHTTPConnectionRefusedForBackups(t *testing.T, backend store.Back
 }
 
 func TestH3OlderAgentRefusedForVirtualHostBackups(t *testing.T) {
-	storetest.Each(t, testH3OlderAgentRefusedForVirtualHostBackups)
+	t.Parallel()
+	eachStoreParallel(t, testH3OlderAgentRefusedForVirtualHostBackups)
 }
 
 func testH3OlderAgentRefusedForVirtualHostBackups(t *testing.T, backend store.Backend) {
@@ -649,7 +654,8 @@ func testH3OlderAgentRefusedForVirtualHostBackups(t *testing.T, backend store.Ba
 }
 
 func TestH5PreflightChecksBackupUseAndFailsClosed(t *testing.T) {
-	storetest.Each(t, testH5PreflightChecksBackupUseAndFailsClosed)
+	t.Parallel()
+	eachStoreParallel(t, testH5PreflightChecksBackupUseAndFailsClosed)
 }
 
 func testH5PreflightChecksBackupUseAndFailsClosed(t *testing.T, backend store.Backend) {
@@ -738,7 +744,8 @@ func testH5PreflightChecksBackupUseAndFailsClosed(t *testing.T, backend store.Ba
 }
 
 func TestM1AndM4UseDestinationAsConnectionEdgeCases(t *testing.T) {
-	storetest.Each(t, testM1AndM4UseDestinationAsConnectionEdgeCases)
+	t.Parallel()
+	eachStoreParallel(t, testM1AndM4UseDestinationAsConnectionEdgeCases)
 }
 
 func testM1AndM4UseDestinationAsConnectionEdgeCases(t *testing.T, backend store.Backend) {
@@ -910,7 +917,8 @@ func testM1AndM4UseDestinationAsConnectionEdgeCases(t *testing.T, backend store.
 }
 
 func TestFetchRejectsNewerSealedFormatBeforeDispatch(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		s3 := s3test.New(t)
 		s3.Buckets = []string{"backups"}
 		f := startFull(t, backend, nil)

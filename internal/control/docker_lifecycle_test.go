@@ -56,6 +56,7 @@ func (s *storageFixture) applyLifecycleWithPasskey(t *testing.T, change *v1.Chan
 }
 
 func TestDockerExternalLifecyclePasskeyGates(t *testing.T) {
+	t.Parallel()
 	f := storageControl(t, store.SQLite, nil, "")
 	const volume = "18fae5d7d7a13f0edfcd5b644a46c33e27de3cef51230b79c7857fcec0f1eb36"
 	f.engine.AddVolume(docker.Volume{Name: volume, Driver: "local", Scope: "local", Labels: map[string]string{"com.docker.volume.anonymous": ""}})
@@ -170,6 +171,7 @@ func TestDockerExternalLifecycleAndRunImportOnRealDocker(t *testing.T) {
 }
 
 func TestManagedPausedRedeployPlansAndKeepsPause(t *testing.T) {
+	t.Parallel()
 	f := storageControl(t, store.SQLite, nil, "")
 	pullsAnything(f.engine)
 	made := propose(t, f.changes, "Run app", runImage("nginx:1"))
@@ -237,6 +239,7 @@ func TestManagedPausedRedeployPlansAndKeepsPause(t *testing.T) {
 }
 
 func TestPlanDockerLifecycleRefusesNonSIGKILLOnPausedContainer(t *testing.T) {
+	t.Parallel()
 	f := storageControl(t, store.SQLite, nil, "")
 	item := f.engine.AddContainer(docker.Container{
 		Name: "/frozen-ext", Config: docker.Config{Image: "busybox:1"},

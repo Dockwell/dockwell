@@ -18,11 +18,11 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestComposeTemplateRevisionAndSecretOnBothStores(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		logs := &syncBuffer{}
 		f := startFullLogging(t, backend, nil, slog.New(slog.NewTextHandler(logs, nil)))
 		b := signedIn(t, f)
@@ -168,7 +168,8 @@ func TestComposeTemplateRevisionAndSecretOnBothStores(t *testing.T) {
 }
 
 func TestComposeTemplateRoles(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		s := newReachStand(t, backend)
 		ctx := t.Context()
 		client := dockwellv1connect.NewComposeServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
@@ -248,7 +249,8 @@ func TestComposeTemplateRoles(t *testing.T) {
 }
 
 func TestTemplatePrepareDoesNotOpenTheSourceSpec(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		f.addDockerServer(t)
@@ -358,7 +360,8 @@ func TestTemplatePrepareDoesNotOpenTheSourceSpec(t *testing.T) {
 }
 
 func TestComposeTemplateGoesWithItsProject(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		changes := changeClient(b, b.origin)

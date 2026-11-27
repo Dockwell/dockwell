@@ -31,7 +31,11 @@ type gitBench struct {
 
 func newGitBench(t *testing.T, backend store.Backend) *gitBench {
 	t.Helper()
-	b := newBench(t, backend)
+	return gitBenchOn(t, newBench(t, backend))
+}
+
+func gitBenchOn(t *testing.T, b *bench) *gitBench {
+	t.Helper()
 	g := &gitBench{bench: b, git: gittest.Start(t), builds: dockwellv1connect.NewBuildServiceClient(b.b, b.b.origin, connect.WithProtoJSON())}
 	g.repo = g.git.Repo("web")
 	return g

@@ -32,7 +32,6 @@ import (
 	rulekind "github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/sshconfig"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestSSHOperationsTakeAProofForTheReviewedTarget(t *testing.T) {
@@ -276,7 +275,8 @@ func (*sshPortFixture) Proved(_ context.Context, trial *access.SSHChange) (*acce
 func (*sshPortFixture) Disarm(context.Context, string) error { return nil }
 
 func TestSSHMoveKeepsThePortWhenEditingTheStoredFirewallRule(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		listener := &sshPortFixture{}
@@ -399,7 +399,8 @@ func TestSSHMoveKeepsThePortWhenEditingTheStoredFirewallRule(t *testing.T) {
 }
 
 func TestFirewallProposeRejectsDenyOfCurrentAddress(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		f.addServerWith(t, func() []resource.Type {
 			return []resource.Type{&rulekind.Driver{Backend: rulekind.NewFake()}}

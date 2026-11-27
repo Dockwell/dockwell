@@ -86,7 +86,7 @@ func (m *routesInMemory) ReadyKey() any                                  { retur
 // the server's own refusal is what counts.
 func TestARoutesReachNeedsAPerson(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testARoutesReach)
+	eachStoreParallel(t, testARoutesReach)
 }
 
 func testARoutesReach(t *testing.T, backend store.Backend) {

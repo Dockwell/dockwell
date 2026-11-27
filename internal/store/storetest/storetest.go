@@ -58,10 +58,12 @@ func Require(t testing.TB, b store.Backend) {
 func Open(t testing.TB, b store.Backend) (*store.DB, string) {
 	t.Helper()
 	location := New(t, b)
+	open := store.Open
 	if b == store.SQLite {
 		migrated(t, location)
+		open = store.OpenExisting
 	}
-	db, err := store.Open(context.Background(), location)
+	db, err := open(context.Background(), location)
 	if err != nil {
 		t.Fatal(err)
 	}

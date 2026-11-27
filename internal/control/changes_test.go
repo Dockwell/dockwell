@@ -350,14 +350,17 @@ func signedIn(t *testing.T, f *fullServer) *browser {
 func changeClient(c connect.HTTPClient, origin string) dockwellv1connect.ChangeServiceClient {
 	client := dockwellv1connect.NewChangeServiceClient(c, origin, connect.WithProtoJSON())
 	if b, ok := c.(*browser); ok {
-		browsers.Store(client, b)
+		return &browserChangeClient{ChangeServiceClient: client, browser: b}
 	}
 	return client
 }
 
-// browsers are the browsers change clients were made from, so apply can confirm
-// a plan that takes a passkey with the browser's, as a person does.
-var browsers sync.Map
+// browserChangeClient keeps the browser handy so apply can confirm a plan
+// that takes its passkey, as a person does.
+type browserChangeClient struct {
+	dockwellv1connect.ChangeServiceClient
+	browser *browser
+}
 
 // webEdit runs a container named web on the only server, which it leaves
 // to be filled in.
@@ -481,11 +484,11 @@ func applyChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, req *doc
 	if reasonOf(err) != authapi.ReasonNeedsStepUp {
 		return res, err
 	}
-	b, ok := browsers.Load(c)
+	b, ok := c.(*browserChangeClient)
 	if !ok {
 		return res, err
 	}
-	proof := stepUpFor(t, b.(*browser), dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, req.GetId())
+	proof := stepUpFor(t, b.browser, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, req.GetId())
 	again := proto.CloneOf(req)
 	again.Proof = proof
 	return c.ApplyChange(t.Context(), connect.NewRequest(again))

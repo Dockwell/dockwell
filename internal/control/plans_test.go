@@ -39,14 +39,7 @@ type bench struct {
 
 func newBench(t *testing.T, backend store.Backend) *bench {
 	t.Helper()
-	f := startFull(t, backend, nil)
-	b := signedIn(t, f)
-	return &bench{
-		f: f, b: b, e: f.addDockerServer(t),
-		c:  changeClient(b, b.origin),
-		cc: dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON()),
-		s:  dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON()),
-	}
+	return benchOn(t, startFull(t, backend, nil))
 }
 
 // file plans a Compose file, and fails the test if it can't.

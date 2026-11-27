@@ -159,20 +159,27 @@ func (s *checkStand) tick(d time.Duration) {
 
 func (s *checkStand) sent() []string { return s.h.of("check-down") }
 
-// cadence runs the check once each every, as the runner would, failing as pattern
-// says, rounds times over, and ticks the evaluator each 15 s between, as it does.
+// cadence runs the check at the given interval, failing as pattern says. It
+// evaluates at each result and when the two-minute hold or group wait can expire.
 func (s *checkStand) cadence(every time.Duration, pattern []bool, rounds int) {
 	s.t.Helper()
+	const hold = 2 * time.Minute
 	for range rounds {
 		for _, fail := range pattern {
 			s.failing.Store(fail)
 			if _, ok := s.runner.RunNow(s.t.Context(), s.id); !ok {
 				s.t.Fatal("the check didn't run")
 			}
-			for gone := time.Duration(0); gone < every; gone += 15 * time.Second {
+			var elapsed time.Duration
+			for _, at := range []time.Duration{0, alerts.GroupWait, hold, hold + alerts.GroupWait} {
+				if at >= every {
+					break
+				}
+				s.at.add(at - elapsed)
 				tickOn(s.t, s.e)
-				s.at.add(15 * time.Second)
+				elapsed = at
 			}
+			s.at.add(every - elapsed)
 		}
 	}
 }
@@ -240,6 +247,7 @@ func TestACheckThatFlapsIsOneAlert(t *testing.T) {
 	t.Parallel()
 	for _, every := range []time.Duration{5 * time.Minute, time.Minute} {
 		t.Run(alert.FormatDuration(every), func(t *testing.T) {
+			t.Parallel()
 			s := checkStandOf(t, &resourcev1.AlertCheck{Address: "http://shop.example.com/", Every: alert.FormatDuration(every)})
 			s.cadence(every, []bool{false}, 1)
 			s.cadence(every, []bool{true, true, false}, int(20*time.Minute/every))

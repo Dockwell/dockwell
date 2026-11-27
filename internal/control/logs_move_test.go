@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"sync/atomic"
@@ -93,7 +94,12 @@ type moveRig struct {
 
 func startMoveRig(t *testing.T, wrap func(agent.LogReader) agent.LogReader) *moveRig {
 	t.Helper()
-	f := startFull(t, store.SQLite, nil)
+	return startMoveRigWith(t, logs.Options{}, wrap)
+}
+
+func startMoveRigWith(t *testing.T, options logs.Options, wrap func(agent.LogReader) agent.LogReader) *moveRig {
+	t.Helper()
+	f := startFullWith(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, options)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
 	c := changeClient(b, b.origin)
@@ -184,6 +190,7 @@ func TestAMoveIsntAnOfflineServerToAFollower(t *testing.T) {
 	t.Parallel()
 	for _, reconnect := range []time.Duration{0, 150 * time.Millisecond, 400 * time.Millisecond} {
 		t.Run(reconnect.String(), func(t *testing.T) {
+			t.Parallel()
 			m := startMoveRig(t, nil)
 			m.door.hold.Store(int64(reconnect))
 			m.print("start")
@@ -351,12 +358,13 @@ func TestAMoveDoesntCutAReadShort(t *testing.T) {
 }
 
 // An agent that moves and doesn't come back has a server that really is gone: each
-// read says so once logs.MoveGrace is up, and any read after that says so at once.
+// read says so once the move grace is up, and any read after that says so at once.
 // It carries on when the agent does come back.
 func TestAServerThatDoesntReturnFromAMoveReadsOfflineInTime(t *testing.T) {
 	t.Parallel()
+	const grace = 500 * time.Millisecond
 	const late = 3 * time.Second // what a busy machine adds to the grace
-	m := startMoveRig(t, nil)
+	m := startMoveRigWith(t, logs.Options{MoveGrace: grace}, nil)
 	m.print("start")
 	r := follow(t, m.logs, &dockwellv1.WatchLogsRequest{Id: "web"})
 	r.waitLines("start")
@@ -386,11 +394,11 @@ func TestAServerThatDoesntReturnFromAMoveReadsOfflineInTime(t *testing.T) {
 	check := func(what string, took time.Duration) {
 		t.Helper()
 		t.Logf("%s said offline %s after the move", what, took)
-		if took < logs.MoveGrace-time.Second || took > logs.MoveGrace+late {
-			t.Errorf("%s said offline %s after the move, want it about %s", what, took, logs.MoveGrace)
+		if took < grace-50*time.Millisecond || took > grace+late {
+			t.Errorf("%s said offline %s after the move, want it about %s", what, took, grace)
 		}
 	}
-	waitWithin(t, logs.MoveGrace+late, "the follower to say the server is offline", func() bool { return r.told(offline) })
+	waitWithin(t, grace+late, "the follower to say the server is offline", func() bool { return r.told(offline) })
 	check("a follower", time.Since(moved))
 	waitWithin(t, late, "the read to the end to say the server is offline", func() bool { return once.told(offline) })
 	check("a read to the end", time.Since(moved))

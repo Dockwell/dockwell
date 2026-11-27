@@ -37,7 +37,8 @@ func narrowedToken(t *testing.T, b *browser, req *dockwellv1.CreateTokenRequest)
 // audited once. Within its project, an owner's token acts as an admin would
 // (ADR 0071).
 func TestATokenNarrowedToAProjectReachesItAlone(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		f.addDockerServer(t)
@@ -163,7 +164,8 @@ func TestATokenNarrowedToAProjectReachesItAlone(t *testing.T) {
 // waits for an admin, while its maker's uncapped token applies there; capped at
 // viewer, it only reads. What it's refused says the cap is why (ADR 0071).
 func TestATokenCappedAtARoleActsAsThatRole(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		f.addDockerServer(t)
@@ -214,7 +216,8 @@ func TestATokenCappedAtARoleActsAsThatRole(t *testing.T) {
 // they hold nothing in, one that isn't there, or a cap at their own role are
 // refused. Once its maker loses its project, it reaches nothing (ADR 0071).
 func TestATokenIsNarrowedWithinWhatItsMakerHolds(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		c := changeClient(b, b.origin)

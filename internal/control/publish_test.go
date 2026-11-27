@@ -998,6 +998,7 @@ func TestAReplaceAfterDriftKeepsTheirRecord(t *testing.T) {
 // The servers that leave from one of a server's addresses are named, the server
 // itself never.
 func TestServersSharingAnAddress(t *testing.T) {
+	t.Parallel()
 	at := func(id, name, v4, out string) *dockwellv1.Server {
 		return &dockwellv1.Server{Id: id, Name: name, Network: &dockwellv1.ServerNetwork{Ipv4: &dockwellv1.PublicAddress{Address: v4}}, Inventory: &dockwellv1.ServerInventory{OutboundAddress: out}}
 	}

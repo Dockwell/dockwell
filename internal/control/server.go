@@ -281,6 +281,9 @@ type Config struct {
 	// control plane stops, before they are cancelled; DefaultStepGrace when
 	// zero. Their changes finish when it starts again.
 	StepGrace time.Duration
+	// StreamGrace is how long requests get to finish when a listener stops,
+	// before their contexts are cancelled; serve.DefaultStreamGrace when zero.
+	StreamGrace time.Duration
 	// Releases is the URL of Dockwell's releases, in GitHub's layout, which
 	// UpdateService reads the newest release from. Empty reads none.
 	Releases string
@@ -359,10 +362,11 @@ type Server struct {
 	// connected reports a server whose agent is connected now, for what waits on one.
 	connected func(server string) bool
 	// catalogs gives the install Dockwell's own catalog at its first start (ADR 0077).
-	catalogs  *catalogapi.Follower
-	store     *store.DB
-	stepGrace time.Duration
-	ports     *PublicPorts
+	catalogs    *catalogapi.Follower
+	store       *store.DB
+	stepGrace   time.Duration
+	streamGrace time.Duration
+	ports       *PublicPorts
 }
 
 // New builds a Server from cfg.
@@ -490,7 +494,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, ciStatus: ciStatusWorker, manualCIStatus: cfg.ManualCIStatus, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, ciStatus: ciStatusWorker, manualCIStatus: cfg.ManualCIStatus, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, streamGrace: cfg.StreamGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
@@ -1066,7 +1070,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 
 // Serve serves the API and panel on ln until ctx is done.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
-	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger})
+	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger, StreamGrace: s.streamGrace})
 }
 
 // agentFrame is the largest HTTP/2 frame the agent listener takes.
@@ -1080,7 +1084,7 @@ func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	// HTTP/2's smallest frame, a TLS record's size: an agent writes each stream's body
 	// through a buffer of the frame's size, and with Go's own, 1 MiB, that's 512 KiB
 	// for each upload, download and forward under way (ADR 0061).
-	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS, MaxFrame: agentFrame})
+	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS, MaxFrame: agentFrame, StreamGrace: s.streamGrace})
 }
 
 // AddAgentHost has the agent listener's certificate name host too, from the next
@@ -1162,8 +1166,8 @@ func (p *PublicPorts) serve(httpsLn, httpLn net.Listener) {
 		h    http.Handler
 		opts serve.Options
 	}{
-		{httpsLn, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig()}},
-		{httpLn, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger}},
+		{httpsLn, s.api, serve.Options{Name: "panel over HTTPS", Logger: s.logger, TLS: s.public.TLSConfig(), StreamGrace: s.streamGrace}},
+		{httpLn, s.public.HTTPHandler(), serve.Options{Name: "HTTP redirect", Logger: s.logger, StreamGrace: s.streamGrace}},
 	}
 	for _, l := range listeners {
 		if l.ln == nil {
@@ -1379,7 +1383,7 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if ls.Ingress != nil {
 		run(func() error {
-			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger})
+			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger, StreamGrace: s.streamGrace})
 		})
 	}
 	s.ports.begin(apiCtx, func(err error) {

@@ -16,7 +16,6 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // A person approves a folder for what runs there. Root writes what anyone owns in
@@ -28,7 +27,7 @@ import (
 // the user (#247).
 func TestWhoWritesAFolderIsOutOfATokensReach(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testWhoWritesAFolderIsOutOfATokensReach)
+	eachStoreParallel(t, testWhoWritesAFolderIsOutOfATokensReach)
 }
 
 func testWhoWritesAFolderIsOutOfATokensReach(t *testing.T, backend store.Backend) {
