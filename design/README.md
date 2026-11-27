@@ -68,6 +68,7 @@ Every screen, with the roadmap phase that builds it. Phase 1 is split into the m
 | Apps | App · overview | [`App-Overview.dc.html`](mocks/App-Overview.dc.html) | 1 · M3 |  |
 | Apps | App · overview, can't read Docker | [`App-Overview-Docker.dc.html`](mocks/App-Overview-Docker.dc.html) | 1 · M3 | `App-Overview` with `reads="docker"` |
 | Apps | App · deployments | [`App-Deployments.dc.html`](mocks/App-Deployments.dc.html) | 1 · M3 |  |
+| Apps | Deploy from CI | [`App-CI-Deploy.dc.html`](mocks/App-CI-Deploy.dc.html) | Launch | Token and workflow |
 | Apps | App · logs | [`App-Logs.dc.html`](mocks/App-Logs.dc.html) | 1 · M3 |  |
 | Apps | App · environment | [`App-Environment.dc.html`](mocks/App-Environment.dc.html) | 1 · M3 |  |
 | Apps | App · settings | [`App-Settings.dc.html`](mocks/App-Settings.dc.html) | 2 | Build settings need Git deploys |

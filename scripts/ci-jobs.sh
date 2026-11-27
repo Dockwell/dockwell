@@ -111,6 +111,7 @@ jobs_for() {
   .github/workflows/* | .github/actions/* | Makefile | scripts/ci-jobs.sh | scripts/ci-jobs-test.sh)
     echo "$every_job"
     ;;
+  ci/*) echo "go" ;;
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
   scripts/docker-stops-evidence.sh) echo "chaos" ;;
   *_test.go) echo "$gotest" ;;

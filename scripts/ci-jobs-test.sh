@@ -78,6 +78,7 @@ picks "$go" internal/agent/collect/containers.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go
+picks "go" ci/github/action.yml ci/gitlab/dockwell-deploy.yml ci/deploy.sh
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
 picks "go chaos" scripts/chaos/recovery_test.go
 picks "chaos" scripts/docker-stops-evidence.sh

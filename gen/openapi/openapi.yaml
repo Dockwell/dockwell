@@ -14835,6 +14835,10 @@ components:
                          hook of theirs or an API token they made planned, which only its maker
                          discards in person (ADR 0071). False doesn't mean they can't discard it:
                          someone else's needs what applying it would.
+                deployOrigin:
+                    allOf:
+                        - $ref: '#/components/schemas/DeployOrigin'
+                    description: Source and immutable image of an external CI deploy, if supplied.
                 confirmation:
                     allOf:
                         - $ref: '#/components/schemas/ChangeConfirmation'
@@ -17517,6 +17521,7 @@ components:
                         - TOKEN_SCOPE_UNSPECIFIED
                         - TOKEN_SCOPE_READ_ONLY
                         - TOKEN_SCOPE_READ_WRITE
+                        - TOKEN_SCOPE_DEPLOY
                     type: string
                     description: What it may do. Required.
                     format: enum
@@ -17544,7 +17549,7 @@ components:
                         format: enum
                     description: |-
                         What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
-                         Either scope can have it.
+                         Read-only and read-write scopes can have grants. Deploy scope has none.
                 projects:
                     type: array
                     items:
@@ -17564,6 +17569,11 @@ components:
                         The role it acts as at most, below its maker's. Leave it unset for its
                          maker's role.
                     format: enum
+                deployService:
+                    type: string
+                    description: |-
+                        Required for deploy scope. A service ID; Dockwell sets its project,
+                         environment and developer cap from the service.
             description: CreateTokenRequest describes the new token.
         CreateTokenResponse:
             type: object
@@ -18210,6 +18220,42 @@ components:
                     description: When it goes for good, unless it's put back first.
                     format: date-time
             description: DeletedFile is one file or folder in Recently deleted.
+        DeployOrigin:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: HTTPS URL of the source repository.
+                commit:
+                    type: string
+                    description: Full Git commit SHA.
+                ref:
+                    type: string
+                    description: Git ref, such as refs/heads/main.
+                runUrl:
+                    type: string
+                    description: HTTPS URL of the CI run or pipeline.
+                provider:
+                    enum:
+                        - DEPLOY_PROVIDER_UNSPECIFIED
+                        - DEPLOY_PROVIDER_GITHUB_ACTIONS
+                        - DEPLOY_PROVIDER_GITLAB_CI
+                        - DEPLOY_PROVIDER_OTHER
+                    type: string
+                    description: The CI provider, used to construct the commit link.
+                    format: enum
+                image:
+                    type: string
+                    description: Original image reference from the request. Only returned by Dockwell.
+                digest:
+                    type: string
+                    description: Manifest digest resolved when the change was planned. Only returned by Dockwell.
+                commitUrl:
+                    type: string
+                    description: |-
+                        HTTPS commit link. Dockwell derives it for GitHub and GitLab. Supply it
+                         when the provider is other.
+            description: DeployOrigin identifies the external CI run that supplied an image.
         DeployServiceRequest:
             type: object
             properties:
@@ -18232,6 +18278,13 @@ components:
                     description: |-
                         The environment of a service named by name, by name or ID, when its
                          project has more than one.
+                deployOrigin:
+                    allOf:
+                        - $ref: '#/components/schemas/DeployOrigin'
+                    description: |-
+                        Correlate this image deploy with a CI run. The same service, digest and
+                         commit follow an active attempt or the current successful deployment.
+                         A retry after failure, discard, staleness or replacement plans again.
             description: DeployServiceRequest names a service and the image to run.
         DeployServiceResponse:
             type: object
@@ -18239,8 +18292,8 @@ components:
                 change:
                     allOf:
                         - $ref: '#/components/schemas/Change'
-                    description: The change, planned, with its plan.
-            description: DeployServiceResponse carries the planned deploy.
+                    description: The change and its plan, with its current state.
+            description: DeployServiceResponse carries the proposed deploy or the one a CI retry found.
         DetectBuildRequest:
             type: object
             properties:
@@ -26411,6 +26464,7 @@ components:
                         - TOKEN_SCOPE_UNSPECIFIED
                         - TOKEN_SCOPE_READ_ONLY
                         - TOKEN_SCOPE_READ_WRITE
+                        - TOKEN_SCOPE_DEPLOY
                     type: string
                     description: What the token may do.
                     format: enum
@@ -33705,6 +33759,10 @@ components:
                         The image it ran there, as its registry knows it, such as "sha256:ab12…", so
                          what a moving tag such as :latest really was stays known. Empty until it has
                          run, and for an image no registry knows.
+                deployOrigin:
+                    allOf:
+                        - $ref: '#/components/schemas/DeployOrigin'
+                    description: Source of this revision, when it was deployed from external CI.
             description: ServiceDeployment is one revision of a service placed on one server.
         ServiceHealth:
             type: object
@@ -36250,6 +36308,7 @@ components:
                         - TOKEN_SCOPE_UNSPECIFIED
                         - TOKEN_SCOPE_READ_ONLY
                         - TOKEN_SCOPE_READ_WRITE
+                        - TOKEN_SCOPE_DEPLOY
                     type: string
                     description: What it may do.
                     format: enum
@@ -36294,6 +36353,16 @@ components:
                     type: string
                     description: The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
                     format: enum
+                deployService:
+                    type: string
+                    description: The service and environment bound to a deploy token.
+                deployEnvironment:
+                    type: string
+                deployServiceName:
+                    type: string
+                    description: |-
+                        Current name of the app where the token still works. Empty if its bound
+                         service has moved, gone away, or is no longer visible to its maker.
             description: Token is an API token, without its secret.
         TokenProject:
             type: object

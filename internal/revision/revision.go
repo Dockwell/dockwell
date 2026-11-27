@@ -550,6 +550,10 @@ type Intent struct {
 	Image    string `json:",omitempty"` // the image a deploy runs
 	Port     int    `json:",omitempty"` // the server's port that publishing opens
 	Revision int    `json:",omitempty"` // the revision a rollback puts back
+	// DeployOrigin is the provenance and digest of an externally built image.
+	DeployOrigin *dockwellv1.DeployOrigin `json:"-"`
+	CI           bool                     `json:",omitempty"`
+
 	// Commit and Ref are what a deploy builds, for a service that builds from Git.
 	Commit string `json:",omitempty"`
 	Ref    string `json:",omitempty"`
@@ -901,6 +905,7 @@ func (p *Plan) Destructive() bool {
 
 // item is one edit with what it starts from.
 type item struct {
+	ciDeploy           bool // a CI deploy records a revision even when it reuses the same image
 	toolbox            *dockwellv1.HostToolboxPlan
 	dockerStorageGuard *resource.DockerStorageGuard
 	dockerMaintenance  *dockwellv1.DockerMaintenance
@@ -1073,8 +1078,8 @@ func (it item) changes() bool {
 	if it.toolbox != nil || it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) {
 		return false
 	}
-	if it.rotates {
-		return true // whatever the values are, and without comparing them
+	if it.rotates || it.ciDeploy {
+		return true
 	}
 	cur, err := encodeOrNil(it.current)
 	return err != nil || it.base == 0 || !bytes.Equal(cur, it.encoded) || (it.current == nil) != (it.spec == nil) ||
@@ -1137,6 +1142,17 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return nil, err
 		}
 	}
+	var ci *store.CIDeployOrigin
+	if intent := p.Intent; intent != nil && intent.DeployOrigin != nil {
+		o := intent.DeployOrigin
+		ci = &store.CIDeployOrigin{
+			CIDeployKey: store.CIDeployKey{Service: intent.Resource, Digest: o.GetDigest(), Commit: o.GetCommit()},
+			Provider:    int32(o.GetProvider()), Repository: o.GetRepository(), Ref: o.GetRef(),
+			RunURL: o.GetRunUrl(), CommitURL: o.GetCommitUrl(), Image: o.GetImage(),
+		}
+		intent.CI = true
+	}
+
 	edits, err := e.hostsAsIs(ctx, p.Edits)
 	if err != nil {
 		return nil, err
@@ -1179,6 +1195,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	if ci != nil {
+		for i := range items {
+			items[i].ciDeploy = items[i].id == ci.Service
+		}
+	}
+
 	// Before the check of roles, so that covers a volume this adds to back up, and
 	// before planning, which pulls what the servers don't have: a move that skips
 	// a release is refused without one. A move that raises a database's features
@@ -1432,9 +1454,29 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
 		ActsFor: actsFor(ctx, p.Actor),
 	}
+	raced := errors.New("another request planned this CI deploy")
+	var existing string
 	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if ci != nil {
+			var err error
+			existing, err = e.reusableCIDeploy(ctx, tx.Tx, ci.CIDeployKey)
+			if err != nil {
+				return err
+			}
+			if existing != "" {
+				return raced
+			}
+			if err := e.unmoved(ctx, tx.Tx, c, items); err != nil {
+				return err
+			}
+		}
 		if err := e.recordPlanned(ctx, tx, c, items); err != nil {
 			return err
+		}
+		if ci != nil {
+			if err := tx.RecordCIDeploy(ctx, *ci, c.ID); err != nil {
+				return err
+			}
 		}
 		if p.Records == nil {
 			return nil
@@ -1447,6 +1489,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		}
 		return nil
 	})
+	if errors.Is(err, raced) {
+		r, err := e.Change(ctx, existing)
+		if err != nil {
+			return nil, err
+		}
+		return r.Plan, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -4348,6 +4397,7 @@ func (e *Engine) ApplyBy(ctx context.Context, changeID string, by By) error {
 	defer e.exit()
 	r, err := e.commit(ctx, changeID, by)
 	if err != nil {
+		e.releaseStaleCIDeploy(ctx, changeID, err)
 		return err
 	}
 	// From here the change is on record, so it runs to an end even if the
@@ -4365,6 +4415,7 @@ func (e *Engine) Start(ctx context.Context, changeID string, by By) error {
 	}
 	r, err := e.commit(ctx, changeID, by)
 	if err != nil {
+		e.releaseStaleCIDeploy(ctx, changeID, err)
 		e.exit()
 		return err
 	}
@@ -6144,6 +6195,9 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 			if it.id == "" {
 				it.id = e.newID(ref.Kind)
 			}
+		}
+		if asked.plan != nil && asked.plan.Intent != nil {
+			it.ciDeploy = asked.plan.Intent.CI && it.id == asked.plan.Intent.Resource
 		}
 		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName, it.follows = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName, ci.Follows
 		it.public = ci.Public

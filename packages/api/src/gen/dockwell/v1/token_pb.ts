@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/token.proto.
  */
 export const file_dockwell_v1_token: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEi/wIKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSKwoIcHJvamVjdHMYCiADKAsyGS5kb2Nrd2VsbC52MS5Ub2tlblByb2plY3QSJAoEcm9sZRgLIAEoDjIWLmRvY2t3ZWxsLnYxLlRva2VuUm9sZSIoCgxUb2tlblByb2plY3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSKyAgoSQ3JlYXRlVG9rZW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSJgoFc2NvcGUYAiABKA4yFy5kb2Nrd2VsbC52MS5Ub2tlblNjb3BlEjEKC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEigKA3R0bBgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkgAEg0KBXByb29mGAUgASgJEicKBmdyYW50cxgGIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSHQoIcHJvamVjdHMYByADKAlCC6K7GAdwcm9qZWN0EiQKBHJvbGUYCCABKA4yFi5kb2Nrd2VsbC52MS5Ub2tlblJvbGVCDAoKZXhwaXJhdGlvbiJIChNDcmVhdGVUb2tlblJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4SDgoGc2VjcmV0GAIgASgJIhMKEUxpc3RUb2tlbnNSZXF1ZXN0IjgKEkxpc3RUb2tlbnNSZXNwb25zZRIiCgZ0b2tlbnMYASADKAsyEi5kb2Nrd2VsbC52MS5Ub2tlbiIgChJSZXZva2VUb2tlblJlcXVlc3QSCgoCaWQYASABKAkiFQoTUmV2b2tlVG9rZW5SZXNwb25zZSpgCgpUb2tlblNjb3BlEhsKF1RPS0VOX1NDT1BFX1VOU1BFQ0lGSUVEEAASGQoVVE9LRU5fU0NPUEVfUkVBRF9PTkxZEAESGgoWVE9LRU5fU0NPUEVfUkVBRF9XUklURRACKlgKCVRva2VuUm9sZRIaChZUT0tFTl9ST0xFX1VOU1BFQ0lGSUVEEAASGAoUVE9LRU5fUk9MRV9ERVZFTE9QRVIQARIVChFUT0tFTl9ST0xFX1ZJRVdFUhACMrUDCgxUb2tlblNlcnZpY2UShwEKC0NyZWF0ZVRva2VuEh8uZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXNwb25zZSI1oLsYA6q7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAg86ASoiCi92MS90b2tlbnMShAEKCkxpc3RUb2tlbnMSHi5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RUb2tlbnNSZXNwb25zZSI1kAIBoLsYAaq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAgwSCi92MS90b2tlbnMSkwEKC1Jldm9rZVRva2VuEh8uZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXNwb25zZSJBoLsYBKq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAhs6ASoiFi92MS90b2tlbnMve2lkfTpyZXZva2VCowEKD2NvbS5kb2Nrd2VsbC52MUIKVG9rZW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS90b2tlbi5wcm90bxILZG9ja3dlbGwudjEi0AMKBVRva2VuEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDAoEaGludBgDIAEoCRImCgVzY29wZRgEIAEoDjIXLmRvY2t3ZWxsLnYxLlRva2VuU2NvcGUSLwoLY3JlYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2V4cGlyZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCg5sYXN0X3VzZWRfdGltZRgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFAoMbGFzdF9hZGRyZXNzGAggASgJEicKBmdyYW50cxgJIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSKwoIcHJvamVjdHMYCiADKAsyGS5kb2Nrd2VsbC52MS5Ub2tlblByb2plY3QSJAoEcm9sZRgLIAEoDjIWLmRvY2t3ZWxsLnYxLlRva2VuUm9sZRIWCg5kZXBsb3lfc2VydmljZRgMIAEoCRIaChJkZXBsb3lfZW52aXJvbm1lbnQYDSABKAkSGwoTZGVwbG95X3NlcnZpY2VfbmFtZRgOIAEoCSIoCgxUb2tlblByb2plY3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSLKAgoSQ3JlYXRlVG9rZW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSJgoFc2NvcGUYAiABKA4yFy5kb2Nrd2VsbC52MS5Ub2tlblNjb3BlEjEKC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEigKA3R0bBgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkgAEg0KBXByb29mGAUgASgJEicKBmdyYW50cxgGIAMoDjIXLmRvY2t3ZWxsLnYxLlRva2VuR3JhbnQSHQoIcHJvamVjdHMYByADKAlCC6K7GAdwcm9qZWN0EiQKBHJvbGUYCCABKA4yFi5kb2Nrd2VsbC52MS5Ub2tlblJvbGUSFgoOZGVwbG95X3NlcnZpY2UYCSABKAlCDAoKZXhwaXJhdGlvbiJIChNDcmVhdGVUb2tlblJlc3BvbnNlEiEKBXRva2VuGAEgASgLMhIuZG9ja3dlbGwudjEuVG9rZW4SDgoGc2VjcmV0GAIgASgJIhMKEUxpc3RUb2tlbnNSZXF1ZXN0IjgKEkxpc3RUb2tlbnNSZXNwb25zZRIiCgZ0b2tlbnMYASADKAsyEi5kb2Nrd2VsbC52MS5Ub2tlbiIgChJSZXZva2VUb2tlblJlcXVlc3QSCgoCaWQYASABKAkiFQoTUmV2b2tlVG9rZW5SZXNwb25zZSp4CgpUb2tlblNjb3BlEhsKF1RPS0VOX1NDT1BFX1VOU1BFQ0lGSUVEEAASGQoVVE9LRU5fU0NPUEVfUkVBRF9PTkxZEAESGgoWVE9LRU5fU0NPUEVfUkVBRF9XUklURRACEhYKElRPS0VOX1NDT1BFX0RFUExPWRADKlgKCVRva2VuUm9sZRIaChZUT0tFTl9ST0xFX1VOU1BFQ0lGSUVEEAASGAoUVE9LRU5fUk9MRV9ERVZFTE9QRVIQARIVChFUT0tFTl9ST0xFX1ZJRVdFUhACMrUDCgxUb2tlblNlcnZpY2UShwEKC0NyZWF0ZVRva2VuEh8uZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ3JlYXRlVG9rZW5SZXNwb25zZSI1oLsYA6q7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAg86ASoiCi92MS90b2tlbnMShAEKCkxpc3RUb2tlbnMSHi5kb2Nrd2VsbC52MS5MaXN0VG9rZW5zUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkxpc3RUb2tlbnNSZXNwb25zZSI1kAIBoLsYAaq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAgwSCi92MS90b2tlbnMSkwEKC1Jldm9rZVRva2VuEh8uZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmV2b2tlVG9rZW5SZXNwb25zZSJBoLsYBKq7GAwKCmFwaS10b2tlbnPAuxgCyLsYAtC7GAKC0+STAhs6ASoiFi92MS90b2tlbnMve2lkfTpyZXZva2VCowEKD2NvbS5kb2Nrd2VsbC52MUIKVG9rZW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * Token is an API token, without its secret.
@@ -106,6 +106,26 @@ export type Token = Message<"dockwell.v1.Token"> & {
    * @generated from field: dockwell.v1.TokenRole role = 11;
    */
   role: TokenRole;
+
+  /**
+   * The service and environment bound to a deploy token.
+   *
+   * @generated from field: string deploy_service = 12;
+   */
+  deployService: string;
+
+  /**
+   * @generated from field: string deploy_environment = 13;
+   */
+  deployEnvironment: string;
+
+  /**
+   * Current name of the app where the token still works. Empty if its bound
+   * service has moved, gone away, or is no longer visible to its maker.
+   *
+   * @generated from field: string deploy_service_name = 14;
+   */
+  deployServiceName: string;
 };
 
 /**
@@ -198,7 +218,7 @@ export type CreateTokenRequest = Message<"dockwell.v1.CreateTokenRequest"> & {
 
   /**
    * What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
-   * Either scope can have it.
+   * Read-only and read-write scopes can have grants. Deploy scope has none.
    *
    * @generated from field: repeated dockwell.v1.TokenGrant grants = 6;
    */
@@ -221,6 +241,14 @@ export type CreateTokenRequest = Message<"dockwell.v1.CreateTokenRequest"> & {
    * @generated from field: dockwell.v1.TokenRole role = 8;
    */
   role: TokenRole;
+
+  /**
+   * Required for deploy scope. A service ID; Dockwell sets its project,
+   * environment and developer cap from the service.
+   *
+   * @generated from field: string deploy_service = 9;
+   */
+  deployService: string;
 };
 
 /**
@@ -356,6 +384,13 @@ export enum TokenScope {
    * @generated from enum value: TOKEN_SCOPE_READ_WRITE = 2;
    */
   READ_WRITE = 2,
+
+  /**
+   * Deploy and follow CI images for one service in its current environment.
+   *
+   * @generated from enum value: TOKEN_SCOPE_DEPLOY = 3;
+   */
+  DEPLOY = 3,
 }
 
 /**

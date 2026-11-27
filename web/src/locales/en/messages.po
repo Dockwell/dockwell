@@ -3099,6 +3099,9 @@ msgstr "Changed, and hidden"
 msgid "Commit"
 msgstr "Commit"
 
+msgid "Deploy from CI"
+msgstr "Deploy from CI"
+
 msgid "Deployed"
 msgstr "Deployed"
 
@@ -4676,6 +4679,54 @@ msgstr "{0, plural, one {# line dropped, as the build printed faster than its lo
 
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
+
+msgid "CI deploy · {name}"
+msgstr "CI deploy · {name}"
+
+msgid "CI provider"
+msgstr "CI provider"
+
+msgid "Copy token"
+msgstr "Copy token"
+
+msgid "Copy workflow"
+msgstr "Copy workflow"
+
+msgid "Create deploy token"
+msgstr "Create deploy token"
+
+msgid "Hide the token"
+msgstr "Hide the token"
+
+msgid "In 30 days"
+msgstr "In 30 days"
+
+msgid "In 90 days"
+msgstr "In 90 days"
+
+msgid "Manage API tokens"
+msgstr "Manage API tokens"
+
+msgid "Release tag"
+msgstr "Release tag"
+
+msgid "Show the whole token"
+msgstr "Show the whole token"
+
+msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
+msgstr "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
+
+msgid "Token copied"
+msgstr "Token copied"
+
+msgid "Token expires"
+msgstr "Token expires"
+
+msgid "Workflow"
+msgstr "Workflow"
+
+msgid "Workflow copied"
+msgstr "Workflow copied"
 
 msgid "A new one for {name}"
 msgstr "A new one for {name}"
@@ -11040,6 +11091,12 @@ msgstr "{name} restores its host settings in {left} s unless you keep them."
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
+
+msgid "CI run"
+msgstr "CI run"
+
+msgid "From {link} on {shortRef}"
+msgstr "From {link} on {shortRef}"
 
 msgid "Checking download access"
 msgstr "Checking download access"
@@ -24826,11 +24883,11 @@ msgstr "Active tokens"
 msgid "Acts as"
 msgstr "Acts as"
 
+msgid "App unavailable"
+msgstr "App unavailable"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "Copy this token now. It won't be shown again."
-
-msgid "Copy token"
-msgstr "Copy token"
 
 msgid "Create a token"
 msgstr "Create a token"
@@ -24843,6 +24900,9 @@ msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer
 
 msgid "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
 msgstr "Created <0>{name}</0>. Send it in the Authorization header, as <1>Bearer</1> and the token. It expires {expires}."
+
+msgid "Deploy only"
+msgstr "Deploy only"
 
 msgid "Dockwell can't list your projects"
 msgstr "Dockwell can't list your projects"
@@ -24859,17 +24919,8 @@ msgstr "Every scope"
 msgid "Filter tokens"
 msgstr "Filter tokens"
 
-msgid "Hide the token"
-msgstr "Hide the token"
-
 msgid "In 1 year"
 msgstr "In 1 year"
-
-msgid "In 30 days"
-msgstr "In 30 days"
-
-msgid "In 90 days"
-msgstr "In 90 days"
 
 msgid "In {where}, {as}"
 msgstr "In {where}, {as}"
@@ -24914,9 +24965,6 @@ msgstr "Read servers, apps, plans and activity. Every token can, and changes not
 msgid "Scopes"
 msgstr "Scopes"
 
-msgid "Show the whole token"
-msgstr "Show the whole token"
-
 msgid "Start with read access, and add only what the job needs."
 msgstr "Start with read access, and add only what the job needs."
 
@@ -24925,9 +24973,6 @@ msgstr "The new token, partly hidden:"
 
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
-
-msgid "Token copied"
-msgstr "Token copied"
 
 msgid "Token of {day}"
 msgstr "Token of {day}"

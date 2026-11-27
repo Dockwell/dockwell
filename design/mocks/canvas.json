@@ -47,6 +47,15 @@
    "x": 1520,
    "y": 1230
   },
+  "App-CI-Deploy.dc.html": {
+   "expand": "fill",
+   "h": 900,
+   "page": "apps",
+   "title": "App · deploy from CI",
+   "w": 1440,
+   "x": 3080,
+   "y": 960
+  },
   "App-Deployments.dc.html": {
    "expand": "fill",
    "h": 830,
@@ -958,6 +967,7 @@
   "App-Overview.dc.html",
   "App-Overview-Docker.dc.html",
   "App-Deployments.dc.html",
+  "App-CI-Deploy.dc.html",
   "App-Logs.dc.html",
   "App-Environment.dc.html",
   "App-Settings.dc.html",

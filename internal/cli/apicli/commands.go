@@ -4,6 +4,7 @@ package apicli
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/resource"
 	servicekind "github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -185,6 +187,12 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	case m.Effect == dockwellv1.Effect_EFFECT_DESTRUCTIVE:
 		long += "\n\nIt removes data or cuts off access, which no API token may do, so do it in the panel."
 	}
+	isDeploy := m.Procedure == dockwellv1connect.ServiceServiceDeployServiceProcedure
+	if isDeploy {
+		long += "\n\n--wait applies and follows the deploy for up to --timeout (default 30 minutes). " +
+			"Exit codes are 0 healthy, 1 failed, 4 waiting for approval at the deadline, 5 timed out, 6 rolled back, and 7 discarded. " +
+			"With --deploy-origin, interrupted proposals are retried."
+	}
 	if m.HTTP != "" {
 		long += "\n\nAPI: " + m.HTTP
 	} else {
@@ -212,6 +220,11 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	if plans {
 		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
 	}
+	if isDeploy {
+		cmd.Flags().BoolVar(&o.wait, "wait", false, "apply without asking and wait for the deployment to finish")
+		cmd.Flags().DurationVar(&o.deployTimeout, "timeout", defaultDeployTimeout, "time to wait for the deploy, including approval and rollout")
+		cmd.MarkFlagsMutuallyExclusive("wait", "plan-only")
+	}
 	var b *binding
 	if m.Call != nil {
 		if b, err = bind(cmd.Flags(), env, m.Call.NewRequest().ProtoReflect().Descriptor(), m.Fields); err != nil {
@@ -221,6 +234,9 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if m.Call == nil {
 			return fmt.Errorf("the CLI can't call %s yet, as it streams requests. Use the panel", m.Name)
+		}
+		if isDeploy && cmd.Flags().Changed("timeout") && (!o.wait || o.deployTimeout <= 0) {
+			return usage(errors.New("--timeout applies only to a deploy that waits. Pass --wait and a positive duration, such as 20m"))
 		}
 		req := m.Call.NewRequest()
 		if err := b.apply(req.ProtoReflect(), args); err != nil {

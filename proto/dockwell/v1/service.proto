@@ -383,6 +383,8 @@ message ServiceDeployment {
   // what a moving tag such as :latest really was stays known. Empty until it has
   // run, and for an image no registry knows.
   string digest = 6;
+  // Source of this revision, when it was deployed from external CI.
+  DeployOrigin deploy_origin = 7;
 }
 
 // DeploymentState is where one revision is on one server.
@@ -475,11 +477,15 @@ message DeployServiceRequest {
   // The environment of a service named by name, by name or ID, when its
   // project has more than one.
   string environment = 5;
+  // Correlate this image deploy with a CI run. The same service, digest and
+  // commit follow an active attempt or the current successful deployment.
+  // A retry after failure, discard, staleness or replacement plans again.
+  DeployOrigin deploy_origin = 6;
 }
 
-// DeployServiceResponse carries the planned deploy.
+// DeployServiceResponse carries the proposed deploy or the one a CI retry found.
 message DeployServiceResponse {
-  // The change, planned, with its plan.
+  // The change and its plan, with its current state.
   Change change = 1;
 }
 

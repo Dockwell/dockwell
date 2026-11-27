@@ -62,7 +62,7 @@ func TestFlagsFromRequestFields(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"--scope", "admin"}, `"admin" isn't one of read-only, read-write`},
+		{[]string{"--scope", "admin"}, `"admin" isn't one of read-only, read-write, deploy`},
 		{[]string{"--ttl", "soon"}, `"soon" isn't a duration such as 90d, 12h or 30m`},
 		{[]string{"--expire-time", "tomorrow"}, "isn't a time such as 2026-12-01T09:00:00Z"},
 		{[]string{"--ttl", "1h", "--expire-time", "2026-12-01T09:00:00Z"}, "--expire-time and --ttl can't go together"},

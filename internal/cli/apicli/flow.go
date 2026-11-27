@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,8 @@ type options struct {
 	json     bool
 	// yes applies without asking, and planOnly proposes without applying.
 	yes, planOnly bool
+	wait          bool
+	deployTimeout time.Duration
 }
 
 // runner runs one API command.
@@ -252,6 +255,9 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	}
 	if m.Call.Streams() {
 		return r.stream(ctx, m, req)
+	}
+	if deploy, ok := req.(*dockwellv1.DeployServiceRequest); ok && r.opts.wait {
+		return r.deployWithWait(ctx, deploy)
 	}
 	var res proto.Message
 	err := r.withChoices(ctx, req, func() error {
@@ -689,6 +695,28 @@ func (r *runner) watchTo(ctx context.Context, id string, rollback bool) (*dockwe
 		}
 		fmt.Fprintln(r.env.Out, line)
 	}
+	show := func(msg *dockwellv1.WatchChangeResponse) error {
+		if r.opts.json && !rollback {
+			if err := JSON(r.env.Out, msg, false); err != nil {
+				return err
+			}
+		}
+		switch ev := msg.GetEvent().(type) {
+		case *dockwellv1.WatchChangeResponse_Change:
+			last = ev.Change
+			if !announced && !r.opts.json && last.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLYING {
+				fmt.Fprintf(r.env.Out, "Applying %s\n", id)
+				announced = true
+			}
+			for i, s := range last.GetSteps() {
+				step(int32(i), s)
+			}
+		case *dockwellv1.WatchChangeResponse_Step:
+			step(ev.Step.GetIndex(), ev.Step.GetStep())
+		}
+		return nil
+	}
+
 	watch := func() error {
 		stream, err := r.client.Changes().WatchChange(ctx, connect.NewRequest(&dockwellv1.WatchChangeRequest{Id: id}))
 		if err != nil {
@@ -696,28 +724,42 @@ func (r *runner) watchTo(ctx context.Context, id string, rollback bool) (*dockwe
 		}
 		defer stream.Close()
 		for stream.Receive() {
-			msg := stream.Msg()
-			if r.opts.json && !rollback {
-				if err := JSON(r.env.Out, msg, false); err != nil {
-					return err
-				}
-			}
-			switch e := msg.GetEvent().(type) {
-			case *dockwellv1.WatchChangeResponse_Change:
-				last = e.Change
-				if !announced && !r.opts.json && last.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLYING {
-					fmt.Fprintf(r.env.Out, "Applying %s\n", id)
-					announced = true
-				}
-				for i, s := range last.GetSteps() {
-					step(int32(i), s)
-				}
-			case *dockwellv1.WatchChangeResponse_Step:
-				step(e.Step.GetIndex(), e.Step.GetStep())
+			if err := show(stream.Msg()); err != nil {
+				return err
 			}
 		}
 		return stream.Err()
 	}
+	if r.opts.wait {
+		reconnect := false
+		err := r.retryDeploy(ctx, func() error {
+			if reconnect {
+				if err := r.do(ctx, func() error {
+					res, err := r.client.Changes().GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: id}))
+					if err != nil {
+						return err
+					}
+					return show(&dockwellv1.WatchChangeResponse{
+						Event: &dockwellv1.WatchChangeResponse_Change{Change: res.Msg.GetChange()},
+					})
+				}); err != nil || final(last.GetState()) {
+					return err
+				}
+			}
+			reconnect = true
+			err := r.do(ctx, watch)
+			switch {
+			case final(last.GetState()):
+				return nil
+			case err == nil:
+				return io.ErrUnexpectedEOF
+			default:
+				return err
+			}
+		})
+		return last, err
+	}
+
 	var err error
 	// A watch that fell behind the change is ended by the control plane,
 	// which asks for another: the change goes on, and so does following it.

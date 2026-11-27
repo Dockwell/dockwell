@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
@@ -73,7 +74,8 @@ var (
 	// that isn't a token at all: whoever holds it can tell which.
 	ErrTokenRejected = errors.New("this API token is unknown, revoked or expired. " +
 		"Check that you copied all of it, or create a new one in Settings, under API tokens")
-	ErrTokenScope = errors.New("this API token is read-only, so it can't make changes. " +
+	ErrDeployScope = errors.New("this API token only deploys and follows CI images for its app")
+	ErrTokenScope  = errors.New("this API token is read-only, so it can't make changes. " +
 		"Create a read-write token in Settings, under API tokens")
 	// ErrTokenLogs is a token without the logs grant reading logs.
 	ErrTokenLogs = errors.New("this API token can't read logs, which often hold secrets that apps print. " +
@@ -163,7 +165,8 @@ type TokenReach struct {
 	Projects []string
 	// Role is store.RoleDeveloper or store.RoleViewer to act as that at most,
 	// or empty for its maker's.
-	Role string
+	Role                             string
+	DeployService, DeployEnvironment string
 }
 
 // maxTokenProjects bounds the projects a token names.
@@ -180,6 +183,10 @@ func (s *Service) CreateTokenWithin(ctx context.Context, client Client, p Princi
 	}
 	if reach.Role != "" && reach.Role != store.RoleDeveloper && reach.Role != store.RoleViewer {
 		return NewToken{}, fmt.Errorf("%w: a token can act as a developer or a viewer at most, or as you do", ErrInvalid)
+	}
+	if reach.DeployService != "" && (reach.DeployEnvironment == "" || scope != store.ScopeReadWrite ||
+		len(grants) != 0 || reach.Role != store.RoleDeveloper || len(reach.Projects) != 1) {
+		return NewToken{}, fmt.Errorf("%w: a deploy token must be bound to one app as a developer", ErrInvalid)
 	}
 	if len(reach.Projects) > maxTokenProjects {
 		return NewToken{}, fmt.Errorf("%w: a token can name up to %d projects. Leave them out for every project you hold", ErrInvalid, maxTokenProjects)
@@ -295,9 +302,10 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 		CreatedAt: now,
 		ExpiresAt: expires,
 
-		LocalAccount: local,
-		Projects:     reach.Projects,
-		Role:         reach.Role,
+		LocalAccount:  local,
+		Projects:      reach.Projects,
+		Role:          reach.Role,
+		DeployService: reach.DeployService, DeployEnvironment: reach.DeployEnvironment,
 	}
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		user, err := who(tx)
@@ -358,6 +366,24 @@ func (s *Service) tokenReachable(ctx context.Context, tx *store.Tx, userID strin
 		return "", err
 	}
 	highest := Highest(grants)
+	if reach.DeployService != "" {
+		app, err := tx.GetResourceByID(ctx, reach.DeployService)
+		if errors.Is(err, store.ErrNotFound) || err == nil && (app.Kind != "service" || app.Spec == nil || app.Scope != reach.DeployEnvironment) {
+			return "", fmt.Errorf("%w: choose an app you can deploy in this environment", ErrInvalid)
+		}
+		if err != nil {
+			return "", err
+		}
+		env, err := tx.GetResourceByID(ctx, reach.DeployEnvironment)
+		if err != nil {
+			return "", err
+		}
+		held := Highest(Narrow(grants, reach.Projects, ""))
+		if env.Kind != "environment" || env.Spec == nil || env.Scope != reach.Projects[0] || store.RoleRank(held) < store.RoleRank(store.RoleDeveloper) {
+			return "", fmt.Errorf("%w: choose an app you can deploy in this environment", ErrInvalid)
+		}
+		return fmt.Sprintf(", deploys %s (%s) in %s", app.Name, app.ID, env.Name), nil
+	}
 	if reach.Role != "" && store.RoleRank(reach.Role) >= store.RoleRank(highest) {
 		return "", fmt.Errorf("%w: you're %s, so a token that acts as %s at most acts as you do already. Leave its role unset%s",
 			ErrInvalid, aRole(highest), aRole(reach.Role), lowerCap(highest))
@@ -487,6 +513,8 @@ func (s *Service) AuthenticateToken(ctx context.Context, client Client, secret s
 		return Principal{}, s.refuseToken(ctx, client, p, client.anonymous(), "revoked", call, ErrTokenRejected)
 	case !liveToken(tok, now):
 		return Principal{}, s.refuseToken(ctx, client, p, client.anonymous(), "expired", call, ErrTokenRejected)
+	case tok.DeployService != "" && !ciDeployCall(call):
+		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "a deploy token, and the call is outside deployment", call, ErrDeployScope)
 	case need == AccessWrite && tok.Scope != store.ScopeReadWrite:
 		return Principal{}, s.refuseToken(ctx, client, p, p.Actor(), "read-only, and the call makes changes", call, ErrTokenScope)
 	case need == AccessLogs && !tok.HasGrant(store.GrantLogs):
@@ -496,6 +524,16 @@ func (s *Service) AuthenticateToken(ctx context.Context, client Client, secret s
 	}
 	s.touchToken(ctx, &p, client, now)
 	return p, nil
+}
+
+func ciDeployCall(call string) bool {
+	switch call {
+	case dockwellv1connect.ServiceServiceDeployServiceProcedure, dockwellv1connect.ChangeServiceApplyChangeProcedure,
+		dockwellv1connect.ChangeServiceGetChangeProcedure, dockwellv1connect.ChangeServiceWatchChangeProcedure:
+		return true
+	default:
+		return false
+	}
 }
 
 // refuseToken audits a refused call with a known token, at most once an

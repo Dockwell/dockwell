@@ -16,6 +16,7 @@ import {
   ChangeState,
   CloudProvider,
   Connection,
+  type CreateTokenRequest,
   DeploymentState,
   DomainCheckState,
   EntrySchema,
@@ -71,6 +72,7 @@ import { authError, authState, mira, stubPasskeys } from "../../test/auth";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { deployWorkflow } from "./CIDeploySheet";
 import { formRefusal, routeName } from "./domains";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1", inventory: { addresses: ["49.12.33.7"] } });
@@ -4995,6 +4997,47 @@ describe("an app's deployments, for an app that builds from Git", () => {
 });
 
 describe("an app's deployments", () => {
+  it("shows build outputs in both CI workflows and exposes the new deploy secret once", async () => {
+    const user = userEvent.setup();
+    const createToken = vi.fn((_req: CreateTokenRequest) => ({
+      token: { hint: "dwt_test…hint" },
+      secret: "fixture-deploy-secret",
+    }));
+    renderAt("/apps/svc_web/deployments", api([web], { tokens: { createToken } }));
+    await user.click(await screen.findByRole("button", { name: "Deploy from CI" }));
+    const sheet = within(await screen.findByRole("dialog", { name: "Deploy from CI" }));
+    expect(sheet.getByText(/image: .*steps.build.outputs.image/)).toBeInTheDocument();
+    await user.click(sheet.getByRole("radio", { name: "GitLab CI" }));
+    expect(sheet.getByText(/image: '\$DOCKWELL_IMAGE'/)).toBeInTheDocument();
+    await user.selectOptions(sheet.getByRole("combobox", { name: "Token expires" }), "30");
+    await user.click(sheet.getByRole("button", { name: "Create deploy token" }));
+    expect(await sheet.findByRole("button", { name: "Copy token" })).toBeInTheDocument();
+    expect(sheet.queryByText("fixture-deploy-secret")).toBeNull();
+    await user.click(sheet.getByRole("button", { name: "Show the whole token" }));
+    expect(sheet.getByText("fixture-deploy-secret")).toBeInTheDocument();
+    expect(createToken.mock.calls[0]?.[0]).toMatchObject({
+      scope: TokenScope.DEPLOY,
+      deployService: "svc_web",
+      expiration: { case: "ttl", value: { seconds: 2_592_000n } },
+    });
+    await user.click(sheet.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Deploy from CI" })).toBeNull());
+    await user.click(screen.getByRole("button", { name: "Deploy from CI" }));
+    expect(screen.queryByText("fixture-deploy-secret")).toBeNull();
+  });
+
+  it("quotes panel and app values and can pin the GitLab include independently of the CLI tag", () => {
+    const panel = 'https://panel.example.com/a"b';
+    const gitlab = deployWorkflow("gitlab", panel, "svc_web", "v0.4.0", "a".repeat(40));
+    expect(gitlab).toContain(`/${"a".repeat(40)}/ci/gitlab/dockwell-deploy.yml`);
+    expect(gitlab).toContain(`panel: ${JSON.stringify(panel)}`);
+    expect(gitlab).toContain('version: "v0.4.0"');
+    const github = deployWorkflow("github", panel, "svc_web", "v0.4.0");
+    expect(github).toContain("push:\n    branches: [main]");
+    expect(github).toContain(`panel: ${JSON.stringify(panel)}`);
+    expect(github).toContain('service: "svc_web"');
+  });
+
   it("lists revisions with what changed, who did it and from where, the live one open beside them", async () => {
     const { container } = renderAt("/apps/svc_web/deployments", api());
     const table = await screen.findByRole("table", { name: "Deployments of web" });

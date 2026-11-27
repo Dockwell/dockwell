@@ -36,12 +36,13 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Fragment, isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { Fragment, isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { DeploySource } from "../changes/DeploySource";
 import { FailureNotice } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
 import { failedStep, intentOf, wentOffline } from "../changes/plan";
@@ -53,6 +54,7 @@ import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { useApp, useRevisions } from "./AppContext";
 import {
+  appOf,
   bareImage,
   builtCommit,
   canRollBackTo,
@@ -66,6 +68,7 @@ import {
   shortImages,
 } from "./app";
 import { BuildPart, buildUnderWay, shortCommit } from "./Build";
+import { CIDeploySheet } from "./CIDeploySheet";
 import { ImageName, WholeImage } from "./ImageName";
 import { type Look, plansBuild, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { useAppWords } from "./words";
@@ -136,6 +139,9 @@ export function AppDeployments() {
   const appName = nameOf(service);
   const { revisions } = history;
   const builds = service.spec?.build !== undefined;
+  const [setupCI, setSetupCI] = useState(false);
+  const mayDeploy = useMay()(ServiceService.method.deployService, { environment: environmentOf(service) });
+  const runsImage = !!appOf(service) && !builds && !service.spec?.runtime;
   // A change that builds tells of its build once its server begins it, and the build tells of its
   // commit, its steps and how it ends as it goes: until it ends, the list reads again, so each row
   // says it, the open one's live log aside.
@@ -215,7 +221,11 @@ export function AppDeployments() {
                 {title.node}
               </span>
               <span className="deploy-what">
-                <ChangedLine rev={rev} />
+                {rev.change?.deployOrigin ? (
+                  <DeploySource origin={rev.change.deployOrigin} />
+                ) : (
+                  <ChangedLine rev={rev} />
+                )}
               </span>
             </span>
           );
@@ -304,6 +314,17 @@ export function AppDeployments() {
         <span className="app-muted">
           {plural(Number(latest), { one: "# deployment · newest first", other: "# deployments · newest first" })}
         </span>
+        {runsImage ? (
+          <Button
+            className="ci-deploy-trigger"
+            size="sm"
+            icon="commit"
+            onClick={() => setSetupCI(true)}
+            {...mayDeploy.off}
+          >
+            <Trans>Deploy from CI</Trans>
+          </Button>
+        ) : null}
       </div>
       {!revisions && phone ? (
         <Loading label={t`Loading revisions`}>
@@ -336,6 +357,7 @@ export function AppDeployments() {
                     <span className="deploy-phone-summary">{revisionTitle(rev, revisions).node}</span>
                     <span className="deploy-phone-by">{who.name(rev.change)}</span>
                   </button>
+                  {rev.change?.deployOrigin ? <DeploySource origin={rev.change.deployOrigin} /> : null}
                 </li>
               );
             })}
@@ -375,6 +397,7 @@ export function AppDeployments() {
   return (
     <div ref={layout} className="deploy-layout">
       {list}
+      {setupCI ? <CIDeploySheet service={service} onClose={() => setSetupCI(false)} /> : null}
       {selected && !phone ? (
         <RevisionPanel
           rev={selected}
@@ -738,6 +761,7 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
   const when = rev.createTime ? timestampDate(rev.createTime) : new Date(0);
   return (
     <div className="deploy-body">
+      {rev.change?.deployOrigin ? <DeploySource origin={rev.change.deployOrigin} /> : null}
       {change?.state === ChangeState.FAILED ? (
         <RollbackLine
           change={change}

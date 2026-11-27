@@ -107,6 +107,30 @@ describe("API tokens", () => {
     await expectAccessible(container);
   });
 
+  it("links deploy tokens by app name and filters to deploy scope", async () => {
+    const user = userEvent.setup();
+    const live = create(TokenSchema, {
+      ...deploy,
+      scope: TokenScope.DEPLOY,
+      deployService: "svc_web",
+      deployServiceName: "Web",
+    });
+    const gone = create(TokenSchema, {
+      ...live,
+      id: "tok_gone",
+      name: "Old deploy",
+      deployService: "svc_gone",
+      deployServiceName: "",
+    });
+    renderAt("/settings/api-tokens", api({ listTokens: () => ({ tokens: [live, gone, grafana] }) }));
+    const app = await screen.findByRole("link", { name: "Web" });
+    expect(app).toHaveAttribute("href", "/apps/svc_web/deployments");
+    expect(screen.getByText("App unavailable")).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Scope" }), "deploy");
+    await waitFor(() => expect(screen.queryByText("Grafana")).toBeNull());
+    expect(screen.getByRole("link", { name: "Web" })).toBeInTheDocument();
+  });
+
   it("says when there are no tokens yet, and starts one from there", async () => {
     const user = userEvent.setup();
     renderAt("/settings/api-tokens", api({ listTokens: () => ({ tokens: [] }) }));

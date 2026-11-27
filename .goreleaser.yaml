@@ -88,7 +88,7 @@ archives:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
-  # Both builds' archives, and the install script and Sigstore's trust root
+  # Both builds' archives, the install and CI deploy scripts, and Sigstore's trust root
   # that every release carries for mirrors
   # (docs/adr/0013-mirrors-for-releases-and-images.md).
   # Not the SBOMs: they embed a creation time and a random namespace, so they
@@ -97,6 +97,7 @@ checksum:
   ids: [dockwell, dockwell-agent]
   extra_files:
     - glob: scripts/install.sh
+    - glob: ci/deploy.sh
     - glob: scripts/sigstore_trusted_root.json
 
 sboms:

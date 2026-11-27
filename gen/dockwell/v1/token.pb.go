@@ -36,6 +36,8 @@ const (
 	// EFFECT_READ, EFFECT_PLAN and EFFECT_APPLY methods: reading, planning and
 	// applying changes that can be undone. Never EFFECT_DESTRUCTIVE.
 	TokenScope_TOKEN_SCOPE_READ_WRITE TokenScope = 2
+	// Deploy and follow CI images for one service in its current environment.
+	TokenScope_TOKEN_SCOPE_DEPLOY TokenScope = 3
 )
 
 // Enum value maps for TokenScope.
@@ -44,11 +46,13 @@ var (
 		0: "TOKEN_SCOPE_UNSPECIFIED",
 		1: "TOKEN_SCOPE_READ_ONLY",
 		2: "TOKEN_SCOPE_READ_WRITE",
+		3: "TOKEN_SCOPE_DEPLOY",
 	}
 	TokenScope_value = map[string]int32{
 		"TOKEN_SCOPE_UNSPECIFIED": 0,
 		"TOKEN_SCOPE_READ_ONLY":   1,
 		"TOKEN_SCOPE_READ_WRITE":  2,
+		"TOKEN_SCOPE_DEPLOY":      3,
 	}
 )
 
@@ -162,9 +166,15 @@ type Token struct {
 	// and later.
 	Projects []*TokenProject `protobuf:"bytes,10,rep,name=projects,proto3" json:"projects,omitempty"`
 	// The role it acts as at most, or TOKEN_ROLE_UNSPECIFIED for its maker's.
-	Role          TokenRole `protobuf:"varint,11,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Role TokenRole `protobuf:"varint,11,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
+	// The service and environment bound to a deploy token.
+	DeployService     string `protobuf:"bytes,12,opt,name=deploy_service,json=deployService,proto3" json:"deploy_service,omitempty"`
+	DeployEnvironment string `protobuf:"bytes,13,opt,name=deploy_environment,json=deployEnvironment,proto3" json:"deploy_environment,omitempty"`
+	// Current name of the app where the token still works. Empty if its bound
+	// service has moved, gone away, or is no longer visible to its maker.
+	DeployServiceName string `protobuf:"bytes,14,opt,name=deploy_service_name,json=deployServiceName,proto3" json:"deploy_service_name,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Token) Reset() {
@@ -274,6 +284,27 @@ func (x *Token) GetRole() TokenRole {
 	return TokenRole_TOKEN_ROLE_UNSPECIFIED
 }
 
+func (x *Token) GetDeployService() string {
+	if x != nil {
+		return x.DeployService
+	}
+	return ""
+}
+
+func (x *Token) GetDeployEnvironment() string {
+	if x != nil {
+		return x.DeployEnvironment
+	}
+	return ""
+}
+
+func (x *Token) GetDeployServiceName() string {
+	if x != nil {
+		return x.DeployServiceName
+	}
+	return ""
+}
+
 // TokenProject is a project a token acts in.
 type TokenProject struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -347,7 +378,7 @@ type CreateTokenRequest struct {
 	// The proof from AuthService.FinishStepUp, for creating a token.
 	Proof string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
 	// What it may do beyond its scope, such as TOKEN_GRANT_LOGS to read logs.
-	// Either scope can have it.
+	// Read-only and read-write scopes can have grants. Deploy scope has none.
 	Grants []TokenGrant `protobuf:"varint,6,rep,packed,name=grants,proto3,enum=dockwell.v1.TokenGrant" json:"grants,omitempty"`
 	// The projects it acts in, each by its ID or its name, up to 100, each one
 	// its maker holds something in. Leave it empty for every project its maker
@@ -356,7 +387,10 @@ type CreateTokenRequest struct {
 	Projects []string `protobuf:"bytes,7,rep,name=projects,proto3" json:"projects,omitempty"`
 	// The role it acts as at most, below its maker's. Leave it unset for its
 	// maker's role.
-	Role          TokenRole `protobuf:"varint,8,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
+	Role TokenRole `protobuf:"varint,8,opt,name=role,proto3,enum=dockwell.v1.TokenRole" json:"role,omitempty"`
+	// Required for deploy scope. A service ID; Dockwell sets its project,
+	// environment and developer cap from the service.
+	DeployService string `protobuf:"bytes,9,opt,name=deploy_service,json=deployService,proto3" json:"deploy_service,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -456,6 +490,13 @@ func (x *CreateTokenRequest) GetRole() TokenRole {
 		return x.Role
 	}
 	return TokenRole_TOKEN_ROLE_UNSPECIFIED
+}
+
+func (x *CreateTokenRequest) GetDeployService() string {
+	if x != nil {
+		return x.DeployService
+	}
+	return ""
 }
 
 type isCreateTokenRequest_Expiration interface {
@@ -704,7 +745,7 @@ var File_dockwell_v1_token_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe1\x03\n" +
+	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x04\n" +
 	"\x05Token\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -719,10 +760,13 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x06grants\x18\t \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\x125\n" +
 	"\bprojects\x18\n" +
 	" \x03(\v2\x19.dockwell.v1.TokenProjectR\bprojects\x12*\n" +
-	"\x04role\x18\v \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\"2\n" +
+	"\x04role\x18\v \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\x12%\n" +
+	"\x0edeploy_service\x18\f \x01(\tR\rdeployService\x12-\n" +
+	"\x12deploy_environment\x18\r \x01(\tR\x11deployEnvironment\x12.\n" +
+	"\x13deploy_service_name\x18\x0e \x01(\tR\x11deployServiceName\"2\n" +
 	"\fTokenProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\xef\x02\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\x96\x03\n" +
 	"\x12CreateTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12-\n" +
 	"\x05scope\x18\x02 \x01(\x0e2\x17.dockwell.v1.TokenScopeR\x05scope\x12=\n" +
@@ -732,7 +776,8 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x05proof\x18\x05 \x01(\tR\x05proof\x12/\n" +
 	"\x06grants\x18\x06 \x03(\x0e2\x17.dockwell.v1.TokenGrantR\x06grants\x12'\n" +
 	"\bprojects\x18\a \x03(\tB\v\xa2\xbb\x18\aprojectR\bprojects\x12*\n" +
-	"\x04role\x18\b \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04roleB\f\n" +
+	"\x04role\x18\b \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\x12%\n" +
+	"\x0edeploy_service\x18\t \x01(\tR\rdeployServiceB\f\n" +
 	"\n" +
 	"expiration\"W\n" +
 	"\x13CreateTokenResponse\x12(\n" +
@@ -743,12 +788,13 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\x06tokens\x18\x01 \x03(\v2\x12.dockwell.v1.TokenR\x06tokens\"$\n" +
 	"\x12RevokeTokenRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"\x15\n" +
-	"\x13RevokeTokenResponse*`\n" +
+	"\x13RevokeTokenResponse*x\n" +
 	"\n" +
 	"TokenScope\x12\x1b\n" +
 	"\x17TOKEN_SCOPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15TOKEN_SCOPE_READ_ONLY\x10\x01\x12\x1a\n" +
-	"\x16TOKEN_SCOPE_READ_WRITE\x10\x02*X\n" +
+	"\x16TOKEN_SCOPE_READ_WRITE\x10\x02\x12\x16\n" +
+	"\x12TOKEN_SCOPE_DEPLOY\x10\x03*X\n" +
 	"\tTokenRole\x12\x1a\n" +
 	"\x16TOKEN_ROLE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14TOKEN_ROLE_DEVELOPER\x10\x01\x12\x15\n" +

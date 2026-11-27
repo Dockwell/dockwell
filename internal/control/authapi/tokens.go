@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 	switch m.GetScope() {
 	case dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY:
 		scope = store.ScopeReadOnly
-	case dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE:
+	case dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE, dockwellv1.TokenScope_TOKEN_SCOPE_DEPLOY:
 		scope = store.ScopeReadWrite
 	case dockwellv1.TokenScope_TOKEN_SCOPE_UNSPECIFIED:
 		// CreateToken refuses an empty scope, and says which to choose.
@@ -68,7 +69,18 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		reach.Role = store.RoleViewer
 	case dockwellv1.TokenRole_TOKEN_ROLE_UNSPECIFIED:
 	}
-	if reach.Projects, err = h.projectIDs(ctx, p, m.GetProjects()); err != nil {
+	if m.GetScope() == dockwellv1.TokenScope_TOKEN_SCOPE_DEPLOY {
+		if len(m.GetProjects()) != 0 || m.GetRole() != dockwellv1.TokenRole_TOKEN_ROLE_UNSPECIFIED || len(grants) != 0 {
+			return nil, Invalid(errors.New("the app sets a deploy token's project, environment and role"))
+		}
+		reach, err = h.deployTokenReach(ctx, m.GetDeployService())
+	} else {
+		if m.GetDeployService() != "" {
+			return nil, Invalid(errors.New("choose deploy scope to bind a token to one app"))
+		}
+		reach.Projects, err = h.projectIDs(ctx, p, m.GetProjects())
+	}
+	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	client, _ := ClientFrom(ctx)
@@ -76,11 +88,28 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	out, err := h.tokenProtos(ctx, []store.APIToken{made.Token})
+	out, err := h.tokenProtos(ctx, p, []store.APIToken{made.Token})
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.CreateTokenResponse{Token: out[0], Secret: made.Secret}), nil
+}
+
+func (h *Handler) deployTokenReach(ctx context.Context, id string) (auth.TokenReach, error) {
+	var reach auth.TokenReach
+	err := h.auth.View(ctx, func(tx *store.Tx) error {
+		ps, err := place.Of(ctx, tx, id)
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, place.ErrUnknown) ||
+			err == nil && (len(ps) != 1 || ps[0].Environment == "" || ps[0].Project == "") {
+			return fmt.Errorf("%w: choose an app you can deploy in this environment", auth.ErrInvalid)
+		}
+		if err != nil {
+			return err
+		}
+		reach = auth.TokenReach{DeployService: id, DeployEnvironment: ps[0].Environment, Projects: []string{ps[0].Project}, Role: store.RoleDeveloper}
+		return nil
+	})
+	return reach, err
 }
 
 // projectIDs are the projects refs name, each by its ID or its name. One that
@@ -123,7 +152,7 @@ func (h *Handler) ListTokens(ctx context.Context, _ *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	out, err := h.tokenProtos(ctx, all)
+	out, err := h.tokenProtos(ctx, p, all)
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -144,9 +173,17 @@ func (h *Handler) RevokeToken(ctx context.Context, req *connect.Request[dockwell
 
 // tokenProtos are tokens as the API shows them, each project they act in with
 // its name as it is now, or none once it's deleted: its row stays, without a spec.
-func (h *Handler) tokenProtos(ctx context.Context, tokens []store.APIToken) ([]*dockwellv1.Token, error) {
+func (h *Handler) tokenProtos(ctx context.Context, p auth.Principal, tokens []store.APIToken) ([]*dockwellv1.Token, error) {
 	out := make([]*dockwellv1.Token, 0, len(tokens))
 	names := map[string]string{}
+	var held []store.Grant
+	if slices.ContainsFunc(tokens, func(t store.APIToken) bool { return t.DeployService != "" }) {
+		var err error
+		held, err = h.auth.Grants(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+	}
 	err := h.auth.View(ctx, func(tx *store.Tx) error {
 		for i := range tokens {
 			t := tokenProto(&tokens[i])
@@ -164,6 +201,16 @@ func (h *Handler) tokenProtos(ctx context.Context, tokens []store.APIToken) ([]*
 					names[projectID] = name
 				}
 				t.Projects = append(t.Projects, &dockwellv1.TokenProject{Id: projectID, Name: name})
+			}
+			if t.GetDeployService() != "" {
+				app, err := tx.GetResourceByID(ctx, t.GetDeployService())
+				if err != nil && !errors.Is(err, store.ErrNotFound) {
+					return err
+				}
+				if app.Spec != nil && app.Scope == t.GetDeployEnvironment() && len(tokens[i].Projects) == 1 &&
+					place.Holds(held, place.Place{Project: tokens[i].Projects[0]}) != "" {
+					t.DeployServiceName = app.Name
+				}
 			}
 			out = append(out, t)
 		}
@@ -185,6 +232,10 @@ func tokenProto(t *store.APIToken) *dockwellv1.Token {
 		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY
 	case store.ScopeReadWrite:
 		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE
+	}
+	if t.DeployService != "" {
+		out.Scope = dockwellv1.TokenScope_TOKEN_SCOPE_DEPLOY
+		out.DeployService, out.DeployEnvironment = t.DeployService, t.DeployEnvironment
 	}
 	if t.HasGrant(store.GrantLogs) {
 		out.Grants = append(out.Grants, dockwellv1.TokenGrant_TOKEN_GRANT_LOGS)

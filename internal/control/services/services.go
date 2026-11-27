@@ -61,7 +61,8 @@ type Handler struct {
 	logger  *slog.Logger
 	// Sources reads what a build's branch names, for a deploy of a service that
 	// builds from Git (ADR 0046).
-	Sources revision.Sources
+	Sources  revision.Sources
+	CIImages CIDigestReader
 	// Builds says which build made each revision's image. Nil says none did.
 	Builds BuildReader
 	// Opener issues the addresses OpenService hands out. Nil opens no app.
@@ -154,6 +155,10 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
+		ciOrigins, err := tx.CIDeployOrigins(ctx, changeIDs)
+		if err != nil {
+			return err
+		}
 		specs := make([]store.StoredSpec, len(list))
 		for i := range list {
 			specs[i] = store.StoredSpec{At: store.InRevision(list[i].ID, list[i].Kind, list[i].Revision), Spec: list[i].Spec}
@@ -212,6 +217,11 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			var err error
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
 				return err
+			}
+			if origin := ciOrigins[r.ChangeID]; origin.Service == r.ID {
+				for _, deployment := range info.Deployments {
+					deployment.DeployOrigin = changes.CIDeployOriginProto(origin)
+				}
 			}
 			c := origins[r.ChangeID]
 			info.ChangeState = changes.State(c.State)
@@ -366,6 +376,11 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			if rev.Deployments, err = names.deployments(ctx, r.Deployments); err != nil {
 				return err
 			}
+			if c := rev.Change; c != nil && r.Record != nil && r.Record.CIOrigin.Service == target.ID {
+				for _, deployment := range rev.Deployments {
+					deployment.DeployOrigin = c.DeployOrigin
+				}
+			}
 			if rev.ServersAdded, err = names.names(ctx, r.ServersAdded); err != nil {
 				return err
 			}
@@ -385,9 +400,19 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 // DeployService plans running another image.
 func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwellv1.DeployServiceRequest]) (*connect.Response[dockwellv1.DeployServiceResponse], error) {
 	m := req.Msg
-	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage()}
+	origin, err := checkedDeployOrigin(m.GetDeployOrigin(), m.GetImage())
+	if err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if p, ok := authapi.PrincipalFrom(ctx); ok && p.Token != nil && p.Token.DeployService != "" && origin == nil {
+		return nil, authapi.Invalid(errors.New("a deploy token requires the CI run's source"))
+	}
+	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage(), DeployOrigin: origin}
 	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
 		if b := svc.GetBuild(); b != nil {
+			if origin != nil {
+				return editing{}, authapi.Invalid(errors.New("this app builds from Git. Use an app that runs a prebuilt image for CI deploys"))
+			}
 			return h.deployBuild(ctx, name, svc, m, intent)
 		}
 		app := svc.GetApp()
@@ -575,6 +600,11 @@ func (h *Handler) editService(ctx context.Context, named, project, environment s
 	if err != nil {
 		return nil, err
 	}
+	if p, ok := authapi.PrincipalFrom(ctx); ok && p.Token != nil && p.Token.DeployService != "" &&
+		(r.ID != p.Token.DeployService || r.Scope != p.Token.DeployEnvironment) {
+		return nil, authapi.ReasonError(connect.CodeNotFound, errors.New("this app isn't available to this deploy token"), "not_found")
+	}
+
 	var spec *resourcev1.Service
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		m, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
@@ -587,21 +617,42 @@ func (h *Handler) editService(ctx context.Context, named, project, environment s
 	if err != nil {
 		return nil, h.internal(ctx, "reading a service", err)
 	}
+	was := spec.GetApp().GetImage()
 	did, err := change(r.Name, spec)
 	if err != nil {
 		return nil, err
 	}
 	ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
+	if origin := intent.DeployOrigin; origin != nil {
+		change, err := h.pinCIDeploy(ctx, r, ref, spec, origin)
+		if err != nil || change != nil {
+			return change, err
+		}
+		// Even when this digest is already in the spec, ask the server to
+		// check it and start the container if needed.
+		did.pull = was == spec.GetApp().GetImage()
+		did.ifNothing = nil
+		did.note = revision.Note{}
+		intent.Kind = revision.IntentDeploy
+	}
+
 	var notes []revision.Note
 	if did.note.Reason != "" {
 		did.note.Ref = ref
 		notes = []revision.Note{did.note}
 	}
 	intent.Resource = r.ID
-	return h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
+	c, err := h.changes.Propose(ctx, did.summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},
 	}}, nil, changes.Also{Base: r.Revision, IfNothing: did.ifNothing, Pull: did.pull, Run: did.run, Notes: notes, Intent: intent})
+	if err != nil && intent.DeployOrigin != nil {
+		// A concurrent caller can finish applying before this caller plans.
+		if existing, readErr := h.existingCIDeploy(ctx, r.ID, intent.DeployOrigin); readErr == nil && existing != nil {
+			return existing, nil
+		}
+	}
+	return c, err
 }
 
 // RollBackService plans going back to an earlier revision.

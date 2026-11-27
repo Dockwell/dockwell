@@ -42,6 +42,8 @@ type APIToken struct {
 	// Role is the role it acts as at most, RoleDeveloper or RoleViewer, or empty
 	// for its maker's (ADR 0071).
 	Role string
+	// DeployService and DeployEnvironment bind a deploy-only token to one app and place.
+	DeployService, DeployEnvironment string
 }
 
 // Narrowed reports a token that acts in some projects or as a lower role than its
@@ -63,7 +65,7 @@ func (t *APIToken) HasGrant(grant string) bool { return slices.Contains(t.Grants
 // MaxTokenAddresses bounds the addresses kept for each token.
 const MaxTokenAddresses = 256
 
-const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account, projects, role` //nolint:gosec // column names
+const apiTokenColumns = `id, token_hash, user_id, name, hint, scope, created_at, expires_at, last_used_at, last_ip, revoked_at, grants, local_account, projects, role, deploy_service, deploy_environment` //nolint:gosec // column names
 
 func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var t APIToken
@@ -72,7 +74,7 @@ func scanAPIToken(row interface{ Scan(...any) error }) (APIToken, error) {
 	var grants string
 	var projects sql.NullString
 	if err := row.Scan(&t.ID, &t.TokenHash, &t.UserID, &t.Name, &t.Hint, &t.Scope, &created, &expires, &used, &t.LastIP, &revoked, &grants, &t.LocalAccount,
-		&projects, &t.Role); err != nil {
+		&projects, &t.Role, &t.DeployService, &t.DeployEnvironment); err != nil {
 		return APIToken{}, err
 	}
 	if grants != "" {
@@ -95,6 +97,11 @@ func (t *Tx) CreateAPIToken(ctx context.Context, tok APIToken) error {
 	if tok.Narrowed() {
 		columns, values = columns+`, projects, role`, values+`, ?, ?`
 		args = append(args, projectsColumn(tok.Projects), tok.Role)
+	}
+	if tok.DeployService != "" {
+		columns += `, deploy_service, deploy_environment`
+		values += `, ?, ?`
+		args = append(args, tok.DeployService, tok.DeployEnvironment)
 	}
 	_, err := t.exec(ctx, `INSERT INTO api_tokens (`+columns+`) VALUES (`+values+`)`, args...)
 	if err != nil {
