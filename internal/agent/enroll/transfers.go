@@ -61,18 +61,8 @@ func newTransfers(hc *http.Client, controlURL string) *Transfers {
 	}
 }
 
-// SendFile calls SendFile without gzip, as the generated client does otherwise.
-func (t *Transfers) SendFile(ctx context.Context) *connect.ClientStreamForClient[agentv1.SendFileRequest, agentv1.SendFileResponse] {
-	client := connect.NewClient[agentv1.SendFileRequest, agentv1.SendFileResponse](
-		t.hc, t.url+agentv1connect.AgentServiceSendFileProcedure,
-		connect.WithGRPC(), noTransferGzip,
-	)
-	return client.CallClientStream(ctx)
-}
-
-// maxPart is the most a part's message may hold. The control plane sends a frame
-// of 128 KiB at a time; anything far past that is refused unread, so a part can't
-// make the agent take memory it would otherwise not.
+// maxPart bounds a part's memory and leaves room for older control planes'
+// 128 KiB frames and their message fields.
 const maxPart = 1 << 20
 
 // ReceiveParts calls ReceiveFile, as gRPC does and without gzip, and returns the

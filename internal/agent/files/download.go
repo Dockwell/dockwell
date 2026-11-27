@@ -55,7 +55,8 @@ func seekRefused(where string, err error) *agentv1.FileRefusal {
 }
 
 // Download sends what's at p: a file as it is, or a folder as a zip archive. send
-// takes each part, the first saying what it is.
+// takes each part, the first saying what it is. It consumes the request and its
+// bytes before returning, so the next part can reuse them.
 func (s *Server) Download(ctx context.Context, p string, send func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
@@ -84,6 +85,7 @@ func (s *Server) Download(ctx context.Context, p string, send func(*agentv1.Send
 // over send. Each top-level path is checked before any byte goes out; a
 // single-file selection that trips the key check is refused cleanly, while a
 // multi-item selection or folder leaves offending files out and lists them.
+// As in Download, send consumes the request before returning.
 func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
 	if err := CheckPaths(paths); err != nil {
 		return nil, err
@@ -1052,6 +1054,7 @@ func (a *archiver) writeFileEntry(
 // frames sends what's written a part at a time, each FrameBytes at most.
 type frames struct {
 	send func(*agentv1.SendFileRequest) error
+	part agentv1.SendFileRequest
 	buf  []byte
 	sent uint64
 }
@@ -1090,11 +1093,12 @@ func (f *frames) flush() error {
 	if len(f.buf) == 0 {
 		return nil
 	}
-	if err := f.send(&agentv1.SendFileRequest{Data: f.buf}); err != nil {
+	f.part.Data = f.buf
+	if err := f.send(&f.part); err != nil {
 		return err
 	}
 	f.sent += uint64(len(f.buf))
-	// A send has marshalled the part by the time it returns, so the buffer is free.
+	// A send consumes the message and its data before returning.
 	f.buf = f.buf[:0]
 	return nil
 }

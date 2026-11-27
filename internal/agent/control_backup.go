@@ -59,7 +59,7 @@ func (c *calls) keepControlBackup(ctx context.Context, ask *agentv1.KeepControlB
 	if err := controlBackupRoom(room, ask.GetSize()); err != nil {
 		return fail(err)
 	}
-	client, err := c.transferClient(false)
+	client, err := c.transferClient()
 	if err != nil {
 		return fail(err)
 	}

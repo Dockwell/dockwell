@@ -426,20 +426,15 @@ func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release f
 // TransferClient is Client for uploads and downloads, whose connection takes in
 // at most transferWindow of each stream, and transferConnWindow in all, before the
 // agent reads it. Go's own is 4 MiB a stream, and three uploads at once, each
-// waiting on a disk, took an agent past its 40 MB. A frame is 128 KiB, so this
-// keeps room for one and the next frame’s header. Its parts come without gzip, and an
-// upload's in one buffer its stream keeps (Transfers).
-func (i *Identity) TransferClient(artifact bool) (client *Transfers, release func(), err error) {
+// waiting on a disk, took an agent past its 40 MB. The window keeps room for
+// older 128 KiB frames and their headers. Parts arrive without gzip, in one
+// buffer each upload stream keeps (Transfers).
+func (i *Identity) TransferClient() (client *Transfers, release func(), err error) {
 	cfg, err := i.ClientTLS()
 	if err != nil {
 		return nil, nil, err
 	}
 	hc := transferHTTPClient(cfg)
-	if artifact {
-		h2 := hc.Transport.(*http.Transport).HTTP2 //nolint:forcetypeassert // httpClient's own
-		h2.MaxReceiveBufferPerStream = 144 << 10
-		h2.MaxReceiveBufferPerConnection = 3 * (144 << 10)
-	}
 	return newTransfers(hc, i.ControlURL), hc.CloseIdleConnections, nil
 }
 
@@ -450,12 +445,15 @@ func transferHTTPClient(cfg *tls.Config) *http.Client {
 	hc := httpClient(cfg)
 	h2 := hc.Transport.(*http.Transport).HTTP2 //nolint:forcetypeassert // httpClient's own
 	h2.MaxReceiveBufferPerStream, h2.MaxReceiveBufferPerConnection = transferWindow, transferConnWindow
+	// The HTTP/2 decoder keeps its largest frame for the connection's lifetime.
+	// A TLS record-sized frame bounds that buffer independently of flow control.
+	h2.MaxReadFrameSize = 16 << 10
 	return hc
 }
 
 const (
-	transferWindow     = 256 << 10
-	transferConnWindow = 4 * transferWindow
+	transferWindow     = 144 << 10
+	transferConnWindow = 3 * transferWindow
 )
 
 // ForwardClient is Client for connections to apps opened through the panel,
