@@ -558,3 +558,76 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+.sftp-fields {
+  border: 0;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 0;
+}
+
+.sftp-address {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) 5rem;
+}
+
+.sftp-proof,
+.sftp-checks {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  min-width: 0;
+}
+
+.sftp-proof code,
+.sftp-location {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.sftp-checks {
+  margin: 0;
+  width: 100%;
+}
+
+.sftp-checks > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  width: 100%;
+}
+
+.sftp-checks dd {
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.sftp-public-key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sftp-public-key code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sftp-public-key button {
+  flex: none;
+}
+
+.sftp-destination-actions {
+  display: flex;
+  align-items: center;
+}
+
+.backup-storage-type {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}

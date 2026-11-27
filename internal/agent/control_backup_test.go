@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,7 +72,7 @@ func TestControlBackupRoomRemovesPartialCopiesInItsGeneration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	c := &calls{cfg: Config{Dir: root}}
+	c := &calls{cfg: Config{Dir: root, keepingControlBackup: new(sync.Mutex)}}
 	got := c.keepControlBackup(t.Context(), &agentv1.KeepControlBackupCall{Install: install, Generation: 1})
 	if got.GetKeepControlBackup() == nil {
 		t.Fatalf("room check failed: %v", got.GetError())

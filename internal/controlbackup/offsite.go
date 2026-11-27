@@ -24,6 +24,8 @@ import (
 
 const storageTimeout = 30 * time.Minute
 
+var errSFTPDestination = errors.New("control plane backups require S3-compatible storage for recovery and retention. Choose an S3-compatible destination")
+
 type destination struct {
 	pin    string
 	prefix string
@@ -36,6 +38,9 @@ func (m *Manager) destination(ctx context.Context, tx *store.Tx, name string) (d
 		return destination{}, err
 	}
 	defer clear(spec)
+	if spec["transport"] == "sftp" {
+		return destination{}, errSFTPDestination
+	}
 	hosted := spec["virtual_host"] == "true"
 	endpoint, err := backuppolicy.CanonicalEndpoint(spec["endpoint"])
 	if err != nil {

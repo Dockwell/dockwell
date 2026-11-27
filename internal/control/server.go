@@ -976,7 +976,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 				Install: cfg.Identity.InstallID(), ControlID: cfg.Fleet.ControlServer().GetId(),
 				Address: cfg.ControlBackupAddress,
 				Build:   cfg.Build, Logger: cfg.Logger, Agents: cfg.Agents,
-				Destination: (*backupsOut).ControlDestination, LocalS3: cfg.ControlBackupLocalS3,
+				Destination: (*backupsOut).ResolveDestination, LocalS3: cfg.ControlBackupLocalS3,
 			})
 			if err := manager.Init(context.Background()); err != nil {
 				return nil, fmt.Errorf("prepare control plane backups: %w", err)

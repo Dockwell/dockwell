@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -76,6 +77,7 @@ type Told struct {
 	Method string `json:"method,omitempty"`
 	Size   int64  `json:"size,omitempty"`
 	Error  string `json:"error,omitempty"`
+	Reason string `json:"reason,omitempty"`
 	// Destination is where it went or didn't, by name.
 	Destination string `json:"destination,omitempty"`
 	// Drill is how a restore drill of it went, for ActionDrilled: passed, failed or
@@ -393,7 +395,7 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 	if t.destination != "" {
 		destination, err := h.destination(ctx, t.destination)
 		if err == nil {
-			err = checkVirtualHostAgent(s, server.Name, destination)
+			err = checkBackupTransportAgent(s, server.Name, destination)
 		}
 		clear(destination)
 		if err != nil {
@@ -460,24 +462,27 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup, ref resource.Ref, surface string) {
 	record := context.WithoutCancel(ctx)
 	told := Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
-	destination, err := h.destination(ctx, b.Destination)
+	destination, err := h.copyDestination(ctx, b.Destination, path.Join(ref.Scope, ref.Name))
 	var got *agentv1.SendBackupResult
 	if err == nil {
 		defer clear(destination)
-		if err = checkVirtualHostAgent(s, s.Name(), destination); err == nil {
+		if err = checkBackupTransportAgent(s, s.Name(), destination); err == nil {
 			got, err = s.SendBackup(ctx, &agentv1.SendBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}, destination)
 		}
 	}
 	var action string // what to put on the timeline, if anything
 	if err != nil {
 		action = ActionCopyFailed
-		told.Error, _ = resource.Explain(err)
+		explainCopyFailure(&told, s.Name(), err)
 		if errors.Is(err, context.Canceled) {
 			told.Error = copyCutShort(b.Destination)
+		} else if destination["transport"] == "sftp" && told.Reason != resource.ReasonHostKeyChanged {
+			told.Error += ". The backup stayed on its server. Take another backup to send a new copy"
 		}
 		b.CopyError = told.Error
 	} else {
 		b.CopyKey, b.CopyBytes, b.SealedWith = got.GetKey(), got.GetStoredBytes(), h.sealedWith(destination["passphrase"])
+		b.CopySealVersion = got.GetSealVersion()
 	}
 	save := func(tx *store.Tx) error { return tx.SetBackupCopy(record, b) }
 	if action != "" {
@@ -487,6 +492,14 @@ func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup,
 	}
 	if err != nil {
 		h.logger.ErrorContext(record, "can't record what became of a backup's copy", slog.String("backup", b.ID), slog.String("error", err.Error()))
+	}
+}
+
+func explainCopyFailure(told *Told, server string, err error) {
+	told.Error, _ = resource.Explain(err)
+	told.Reason = resource.ReasonOf(err)
+	if told.Reason == resource.ReasonHostKeyChanged {
+		told.Error += fmt.Sprintf(". Test %s from %s before accepting a new fingerprint", told.Destination, server)
 	}
 }
 
@@ -792,7 +805,7 @@ func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Ba
 	var destination map[string]string
 	if b.CopyKey != "" && !serverOnly {
 		var err error
-		destination, err = h.destination(ctx, b.Destination)
+		destination, err = h.copyDestination(ctx, b.Destination, path.Dir(b.CopyKey))
 		var cerr *connect.Error
 		switch {
 		case errors.As(err, &cerr) && cerr.Code() == connect.CodeNotFound:
@@ -801,7 +814,7 @@ func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Ba
 			return "", err
 		default:
 			defer clear(destination)
-			if err := checkVirtualHostAgent(s, s.Name(), destination); err != nil {
+			if err := checkBackupTransportAgent(s, s.Name(), destination); err != nil {
 				return "", err
 			}
 			call.Key = b.CopyKey

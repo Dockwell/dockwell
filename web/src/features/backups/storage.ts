@@ -9,8 +9,8 @@ import { useConnections } from "../connections/useConnections";
 import { useDestinations } from "./DestinationsPanel";
 
 /**
- * One piece of object storage, combined from S3 connections and backup destinations
- * so Backups, Integrations and Connections count each bucket once (ADR 0099, #831).
+ * A backup destination or S3 connection. Views that show object storage count
+ * each paired connection and destination once (ADR 0099, #831).
  */
 export interface StorageItem {
   /** Stable key across pickers and lists: `conn:<name>` or `dest:<name>`. */
@@ -25,7 +25,7 @@ export interface StorageItem {
   bucket: string;
   /** The S3 connection, where backed by or offered as one. */
   connection?: ConnectionInfo;
-  /** The backup destination paired with this connection, or a standalone legacy one. */
+  /** The backup destination, which may have its own credentials. */
   destination?: BackupDestinationInfo;
   /** True for a legacy inline destination that names no connection. */
   standalone: boolean;
@@ -49,7 +49,7 @@ export function destinationsOn(
 /**
  * Combines S3 connections and backup destinations into one deduplicated list:
  * S3 connections first (paired with any destination that names them), then any
- * standalone legacy destination that names no visible connection.
+ * destination that names no visible connection.
  */
 export function combineStorage(
   connections: readonly ConnectionInfo[],
@@ -100,10 +100,10 @@ export function combineStorage(
       key: `dest:${d.name}`,
       name: d.name,
       label: d.name,
-      host: hostOf(d.endpoint),
+      host: d.sftp?.host ?? hostOf(d.endpoint),
       bucket: d.bucket,
       destination: d,
-      standalone: d.connection === "",
+      standalone: d.connection === "" && !d.sftp,
     });
   }
   return items;

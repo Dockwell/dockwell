@@ -468,9 +468,11 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 }
 
 // sealedMessages are the messages whose sensitive fields sign in to something:
-// an alert channel's token, a registry login's password and its ECR key.
+// an alert channel's token, a registry login's password or ECR key, or an SFTP
+// destination's key or password.
 var sealedMessages = []protoreflect.FullName{
 	(&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName(),
+	(&resourcev1.BackupDestinationSftp{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLogin{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLoginEcr{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.DnsProvider{}).ProtoReflect().Descriptor().FullName(),

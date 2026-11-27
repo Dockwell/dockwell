@@ -372,3 +372,13 @@ func TestOffsiteUnsupportedConditionalRefreshKeepsTrustedMarker(t *testing.T) {
 		t.Fatal("the store attempted to overwrite the marker without a precondition")
 	}
 }
+
+func TestSFTPIsRefusedForControlBackups(t *testing.T) {
+	manager := &Manager{cfg: Config{Destination: func(context.Context, *store.Tx, string) (string, map[string]string, error) {
+		return "bds_example", map[string]string{"transport": "sftp"}, nil
+	}}}
+	_, err := manager.destination(t.Context(), nil, "offsite")
+	if !errors.Is(err, errSFTPDestination) {
+		t.Fatalf("the control plane's SFTP destination = %v", err)
+	}
+}

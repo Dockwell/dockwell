@@ -40,7 +40,7 @@ func TestBundleAuthenticatesEveryChunkAndTheHeader(t *testing.T) {
 	r := NewRecovery(phrase, now)
 	var installKey [32]byte
 	_, _ = rand.Read(installKey[:])
-	payload := make([]byte, chunks.ChunkSize*2-keySize)
+	payload := make([]byte, chunks.KeyedChunkSize*2-keySize)
 	_, _ = rand.Read(payload)
 	var sealed bytes.Buffer
 	if err := SealBundle(&sealed, bytes.NewReader(payload), int64(len(payload)), installKey[:], h, r); err != nil {
@@ -72,13 +72,13 @@ func TestBundleAuthenticatesEveryChunkAndTheHeader(t *testing.T) {
 		"header":                     func(b []byte) []byte { b[bytes.Index(b[:headerEnd], []byte("devel"))] = 'D'; return b },
 		"chunk":                      func(b []byte) []byte { b[headerEnd+128] ^= 0x80; return b },
 		"truncation":                 func(b []byte) []byte { return b[:len(b)-1] },
-		"cut at chunk boundary":      func(b []byte) []byte { return b[:headerEnd+chunks.SealedChunk] },
+		"cut at chunk boundary":      func(b []byte) []byte { return b[:headerEnd+chunks.KeyedSealedChunk] },
 		"header from another bundle": func(b []byte) []byte { return slices.Concat(otherHeader, b[headerEnd:]) },
 		"append":                     func(b []byte) []byte { return append(b, 0) },
 		"reordering": func(b []byte) []byte {
-			one := slices.Clone(b[headerEnd : headerEnd+chunks.SealedChunk])
-			copy(b[headerEnd:], b[headerEnd+chunks.SealedChunk:headerEnd+2*chunks.SealedChunk])
-			copy(b[headerEnd+chunks.SealedChunk:], one)
+			one := slices.Clone(b[headerEnd : headerEnd+chunks.KeyedSealedChunk])
+			copy(b[headerEnd:], b[headerEnd+chunks.KeyedSealedChunk:headerEnd+2*chunks.KeyedSealedChunk])
+			copy(b[headerEnd+chunks.KeyedSealedChunk:], one)
 			return b
 		},
 	}

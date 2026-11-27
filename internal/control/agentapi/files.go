@@ -93,6 +93,12 @@ func (s *Session) Links() bool { return s.links }
 // another project asks (ADR 0084, #572).
 func (s *Session) VolumeMoves() bool { return s.volumeMoves }
 
+// SFTPBackups reports whether this agent can use a pinned SFTP backup destination.
+func (s *Session) SFTPBackups() bool { return s.sftpBackups }
+
+// BackupSealVersion is the latest sealed archive format the agent claims to read.
+func (s *Session) BackupSealVersion() uint32 { return s.backupSealVersion }
+
 // OneDatabaseBackups says the agent backs up one database alone, and says so in what
 // it reports (ADR 0084).
 func (s *Session) OneDatabaseBackups() bool { return s.oneDatabaseBackups }

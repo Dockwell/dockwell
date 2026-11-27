@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,10 +51,13 @@ var (
 
 // testedDestination is what the activity log keeps of a test: where, never what signs in.
 type testedDestination struct {
-	Endpoint string `json:"endpoint"`
-	Bucket   string `json:"bucket,omitempty"`
-	Wrote    bool   `json:"wrote"`
-	Problem  string `json:"problem,omitempty"`
+	Endpoint           string `json:"endpoint"`
+	Bucket             string `json:"bucket,omitempty"`
+	Wrote              bool   `json:"wrote"`
+	Problem            string `json:"problem,omitempty"`
+	Server             string `json:"server,omitempty"`
+	HostKeyFingerprint string `json:"host_key_fingerprint,omitempty"`
+	HostKeyAlgorithm   string `json:"host_key_algorithm,omitempty"`
 }
 
 // TestBackupDestination signs in to storage with what a form holds, lists the
@@ -66,6 +71,16 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	d, _ := proto.Clone(req.Msg.GetDestination()).(*resourcev1.BackupDestination)
 	if d == nil {
 		d = &resourcev1.BackupDestination{}
+	}
+	if d.GetSftp() != nil {
+		out, err := h.testSFTPDestination(ctx, d, req.Msg.GetServer(), req.Msg.GetExistingDestination())
+		if err != nil {
+			return nil, err
+		}
+		if err := h.recordDestinationTest(ctx, p.Actor(), client.Surface(p), backuppolicy.SFTPConfig(d.GetSftp()).Address(), "", out); err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(out), nil
 	}
 	var (
 		endpoint, region, bucketName, accessKey, secretKey string
@@ -110,17 +125,15 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 		endpoint, region, bucketName = d.GetEndpoint(), d.GetRegion(), d.GetBucket()
 		accessKey, secretKey = d.GetAccessKey(), d.GetSecretKey()
 	}
-	// The record of the test is written whatever the storage did, past its time too.
-	record := context.WithoutCancel(ctx)
-	ctx, cancel := context.WithTimeout(ctx, TestWait)
+	test, cancel := context.WithTimeout(ctx, TestWait)
 	defer cancel()
-	words := func(err error) string { return wordsOf(ctx, err) }
+	words := func(err error) string { return wordsOf(test, err) }
 	bucket := &s3.Bucket{
 		Endpoint: endpoint, Region: region, Name: bucketName,
 		AccessKey: accessKey, SecretKey: secretKey, VirtualHost: virtualHost, Client: httpClient,
 	}
 	out := &dockwellv1.TestBackupDestinationResponse{}
-	names, err := bucket.ListBuckets(ctx)
+	names, err := bucket.ListBuckets(test)
 	switch {
 	case err == nil:
 		out.SignedIn, out.Listed, out.Buckets = true, true, names
@@ -142,7 +155,7 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	}
 	if !listing && out.Problem == dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_UNSPECIFIED {
 		key := testKey(d.GetPrefix())
-		if err := bucket.Put(ctx, key, []byte("Dockwell checks it can write here, and deletes this at once.\n")); err != nil {
+		if err := bucket.Put(test, key, []byte("Dockwell checks it can write here, and deletes this at once.\n")); err != nil {
 			out.Problem, out.Said = problemOf(err), words(err)
 			var storage *s3.Error
 			if errors.As(err, &storage) {
@@ -150,22 +163,91 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 			}
 		} else {
 			out.SignedIn, out.Wrote = true, true
-			if err := bucket.Delete(ctx, key); err != nil {
+			if err := bucket.Delete(test, key); err != nil {
 				// Written and left there: a backup's pruning, which deletes, would fail too.
 				out.Problem, out.Said, out.TestFile = dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_CANT_DELETE, words(err), key
 			}
 		}
 	}
-	detail, _ := json.Marshal(testedDestination{Endpoint: hostOf(endpoint), Bucket: bucketName, Wrote: out.GetWrote(), Problem: problemWord(out.GetProblem())})
-	if err := h.db.Update(record, func(tx *store.Tx) error {
-		return tx.RecordEvent(record, store.Event{
-			ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: ActionTestDestination,
-			Subject: hostOf(endpoint), Detail: string(detail), Surface: client.Surface(p),
-		})
-	}); err != nil {
+	if err := h.recordDestinationTest(ctx, p.Actor(), client.Surface(p), hostOf(endpoint), bucketName, out); err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(out), nil
+}
+
+func (h *Handler) testSFTPDestination(ctx context.Context, d *resourcev1.BackupDestination, server, existing string) (*dockwellv1.TestBackupDestinationResponse, error) {
+	if server == "" {
+		return nil, authapi.Invalid(errors.New("choose which server should test the SFTP destination"))
+	}
+	if existing != "" {
+		saved, err := h.destination(ctx, existing)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		defer clear(saved)
+		if saved["transport"] != "sftp" {
+			return nil, authapi.Invalid(errors.New("the saved destination must use SFTP to reuse its sign-in"))
+		}
+		port, _ := strconv.ParseUint(saved["port"], 10, 32)
+		backuppolicy.KeepSFTPCredentials(&resourcev1.BackupDestinationSftp{
+			Host: saved["host"], Port: uint32(port), User: saved["user"], HostKeyFingerprint: saved["host_key_fingerprint"],
+			HostKeyAlgorithm: saved["host_key_algorithm"], PrivateKey: saved["private_key"],
+			KeyPassphrase: saved["key_passphrase"], Password: saved["password"],
+		}, d.GetSftp())
+	}
+	if err := backuppolicy.ValidateSFTP(d, false); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	var target store.Server
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		servers, err := tx.ListServers(ctx)
+		if err != nil {
+			return err
+		}
+		i := slices.IndexFunc(servers, func(s store.Server) bool { return s.ID == server || s.Name == server })
+		if i < 0 {
+			return authapi.ReasonError(connect.CodeNotFound, errors.New("there is no such server. Choose a server to run the test"), "not_found")
+		}
+		target = servers[i]
+		return nil
+	}); err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	session, err := h.session(target)
+	if err != nil {
+		return nil, err
+	}
+	if !session.TestsSFTPDestinations() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the agent on %s can't test SFTP. Update the agent and try again", target.Name), "agent_too_old")
+	}
+	values := backuppolicy.SFTPValues(d.GetSftp())
+	defer clear(values)
+	out, err := session.TestSFTPDestination(ctx, values, TestWait)
+	if err != nil {
+		return nil, h.agentError(target, err)
+	}
+	out.Sftp.ServerId, out.Sftp.ServerName = target.ID, target.Name
+	return out, nil
+}
+
+func (h *Handler) recordDestinationTest(ctx context.Context, actor, surface, endpoint, bucket string, out *dockwellv1.TestBackupDestinationResponse) error {
+	// The test is recorded even when the caller went away or the test ran out of time.
+	record := context.WithoutCancel(ctx)
+	told := testedDestination{Endpoint: endpoint, Bucket: bucket, Wrote: out.GetWrote(), Problem: problemWord(out.GetProblem())}
+	sftp := out.GetSftp()
+	told.Server = sftp.GetServerName()
+	problem := out.GetProblem()
+	if problem == dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_HOST_KEY_UNVERIFIED ||
+		problem == dockwellv1.BackupDestinationProblem_BACKUP_DESTINATION_PROBLEM_HOST_KEY_CHANGED {
+		told.HostKeyFingerprint, told.HostKeyAlgorithm = sftp.GetHostKeyFingerprint(), sftp.GetHostKeyAlgorithm()
+	}
+	detail, _ := json.Marshal(told)
+	return h.db.Update(record, func(tx *store.Tx) error {
+		return tx.RecordEvent(record, store.Event{
+			ID: id.New(id.Event), At: h.now(), Actor: actor, Action: ActionTestDestination,
+			Subject: endpoint, Target: sftp.GetServerId(), Detail: string(detail), Surface: surface,
+		})
+	})
 }
 
 // testKey is a name no backup takes, under the destination's prefix.

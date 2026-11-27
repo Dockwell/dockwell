@@ -120,7 +120,7 @@ export function ConnectionsPage({
   const destinations = useDestinations().data?.destinations ?? [];
   const channels = useChannels(mayListChannels).data?.channels ?? [];
   const connections = query.data?.connections ?? [];
-  const standaloneDests = destinations.filter((d) => d.connection === "");
+  const standaloneDests = destinations.filter((d) => d.connection === "" && !d.sftp);
   const totalRows = connections.length + standaloneDests.length;
   const [editing, setEditing] = useState<ConnectionInfo>();
   const [adding, setAdding] = useState<ProviderId | MailProviderId | "">();

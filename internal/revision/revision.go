@@ -39,6 +39,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -2165,6 +2166,11 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				if rt, ok := it.spec.(*resourcev1.Route); ok {
 					if err := e.fillSignIn(ctx, tx, items, ed.Ref, rt); err != nil {
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
+					}
+				}
+				if d, ok := it.spec.(*resourcev1.BackupDestination); ok && !ed.Observed && !ed.Reverses && !ed.Restores {
+					if saved, ok := it.current.(*resourcev1.BackupDestination); ok {
+						backuppolicy.KeepSFTPCredentials(saved.GetSftp(), d.GetSftp())
 					}
 				}
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {

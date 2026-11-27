@@ -96,7 +96,7 @@ type BackupServiceClient interface {
 	// and how its last run went. A policy is a resource: create, change and delete
 	// one as a change, of kind "backup.policy".
 	ListBackupPolicies(context.Context, *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error)
-	// ListBackupDestinations returns the S3-compatible storage backups can go to, and
+	// ListBackupDestinations returns the off-site storage backups can go to, and
 	// never what signs in to it. A destination is a resource: create and delete one as
 	// a change, of kind "backup.destination".
 	ListBackupDestinations(context.Context, *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error)
@@ -106,7 +106,9 @@ type BackupServiceClient interface {
 	// under the destination's prefix and deletes. It reaches the storage from the
 	// control server, which may reach what some servers can't, or not what they can:
 	// the internet and private networks, never the control server's own loopback, and
-	// it follows no redirect. It keeps nothing, and it's on the activity log without
+	// it follows no redirect. For SFTP it first reports an unpinned host key without
+	// signing in. After verification it checks the folder, write, read, delete and
+	// free space if available. It keeps nothing, and it's on the activity log without
 	// what signs in.
 	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// UseDestinationAsConnection plans moving an inline backup destination's endpoint,
@@ -331,7 +333,7 @@ type BackupServiceHandler interface {
 	// and how its last run went. A policy is a resource: create, change and delete
 	// one as a change, of kind "backup.policy".
 	ListBackupPolicies(context.Context, *connect.Request[v1.ListBackupPoliciesRequest]) (*connect.Response[v1.ListBackupPoliciesResponse], error)
-	// ListBackupDestinations returns the S3-compatible storage backups can go to, and
+	// ListBackupDestinations returns the off-site storage backups can go to, and
 	// never what signs in to it. A destination is a resource: create and delete one as
 	// a change, of kind "backup.destination".
 	ListBackupDestinations(context.Context, *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error)
@@ -341,7 +343,9 @@ type BackupServiceHandler interface {
 	// under the destination's prefix and deletes. It reaches the storage from the
 	// control server, which may reach what some servers can't, or not what they can:
 	// the internet and private networks, never the control server's own loopback, and
-	// it follows no redirect. It keeps nothing, and it's on the activity log without
+	// it follows no redirect. For SFTP it first reports an unpinned host key without
+	// signing in. After verification it checks the folder, write, read, delete and
+	// free space if available. It keeps nothing, and it's on the activity log without
 	// what signs in.
 	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// UseDestinationAsConnection plans moving an inline backup destination's endpoint,

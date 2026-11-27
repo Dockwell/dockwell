@@ -447,7 +447,7 @@ paths:
             tags:
                 - BackupService
             description: |-
-                ListBackupDestinations returns the S3-compatible storage backups can go to, and
+                ListBackupDestinations returns the off-site storage backups can go to, and
                  never what signs in to it. A destination is a resource: create and delete one as
                  a change, of kind "backup.destination".
             operationId: BackupService_ListBackupDestinations
@@ -512,7 +512,9 @@ paths:
                  under the destination's prefix and deletes. It reaches the storage from the
                  control server, which may reach what some servers can't, or not what they can:
                  the internet and private networks, never the control server's own loopback, and
-                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 it follows no redirect. For SFTP it first reports an unpinned host key without
+                 signing in. After verification it checks the folder, write, read, delete and
+                 free space if available. It keeps nothing, and it's on the activity log without
                  what signs in.
             operationId: BackupService_TestBackupDestination
             requestBody:
@@ -13209,10 +13211,13 @@ components:
                          and keys (ADR 0099). A connection a destination uses serves no app and isn't
                          shared, and its keys stay on the connection so rotating them moves the
                          destination with them. The destination keeps its own prefix and passphrase.
+                sftp:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestinationSftp'
+                    description: An SSH file transfer destination, in place of the S3 fields and prefix.
             description: |-
-                BackupDestination is S3-compatible storage that backups go to as well as the
-                 server's disk, so they outlive it: Amazon S3, Cloudflare R2, Backblaze B2, MinIO
-                 and the like. It lives in the organization, and any environment's backups can use
+                BackupDestination is off-site storage that backups go to as well as the
+                 server's disk, so they outlive it. It lives in the organization, and any environment's backups can use
                  it. A backup is encrypted on its server before it leaves, so the storage never
                  reads what it holds. Dockwell keeps this encrypted, and sends it only to the server
                  that's sending a backup, for that one call. See
@@ -13261,7 +13266,90 @@ components:
                         The S3 connection this destination reads its endpoint, bucket and keys from,
                          by name (ADR 0099). Empty for a destination that holds its own keys inline.
                          Below an admin, set only when the connection reaches one of the caller's projects.
-            description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+                sftp:
+                    $ref: '#/components/schemas/BackupDestinationSftpInfo'
+            description: BackupDestinationInfo is off-site storage, with nothing that signs in to it.
+        BackupDestinationSftp:
+            type: object
+            properties:
+                host:
+                    type: string
+                port:
+                    type: integer
+                    description: Zero uses port 22.
+                    format: uint32
+                user:
+                    type: string
+                path:
+                    type: string
+                    description: An absolute path on the SFTP server, such as "/backups".
+                hostKeyFingerprint:
+                    type: string
+                    description: The SHA256 fingerprint of the server's SSH host key, verified by the caller.
+                privateKey:
+                    type: string
+                password:
+                    type: string
+                keyPassphrase:
+                    type: string
+                    description: Use only for an encrypted private key.
+                hostKeyAlgorithm:
+                    type: string
+                    description: The key type whose fingerprint was verified, for example ssh-ed25519.
+                publicKey:
+                    type: string
+                    description: An OpenSSH authorized_keys entry derived from private_key.
+            description: |-
+                BackupDestinationSftp is a folder on an SSH server. Dockwell verifies its
+                 host key before signing in. Use one of a private key or a password.
+        BackupDestinationSftpChecks:
+            type: object
+            properties:
+                reached:
+                    type: boolean
+                hostKeyFingerprint:
+                    type: string
+                    description: The fingerprint presented by the server, including when missing or changed.
+                hostKeyVerified:
+                    type: boolean
+                folderReady:
+                    type: boolean
+                readBack:
+                    type: boolean
+                deleted:
+                    type: boolean
+                freeBytes:
+                    type: string
+                    description: Unset when the server does not report available space.
+                hostKeyAlgorithm:
+                    type: string
+                serverId:
+                    type: string
+                serverName:
+                    type: string
+            description: |-
+                BackupDestinationSftpChecks reports the checks that passed. A problem names
+                 the first failure; remaining checks may not have run.
+        BackupDestinationSftpInfo:
+            type: object
+            properties:
+                host:
+                    type: string
+                port:
+                    type: integer
+                    format: uint32
+                user:
+                    type: string
+                path:
+                    type: string
+                hostKeyFingerprint:
+                    type: string
+                hostKeyAlgorithm:
+                    type: string
+                publicKey:
+                    type: string
+                    description: The public key to install on the SFTP server.
+            description: BackupDestinationSftpInfo describes a destination without its credentials.
         BackupDrill:
             type: object
             properties:
@@ -21984,6 +22072,9 @@ components:
                         How a restore drill of it went, for backup.drill (ADR 0068). error says what
                          failed, or why it wasn't checked.
                     format: enum
+                reason:
+                    type: string
+                    description: A machine-readable failure reason, when known.
                 serverId:
                     type: string
                     description: |-
@@ -37202,7 +37293,15 @@ components:
                 destination:
                     allOf:
                         - $ref: '#/components/schemas/BackupDestination'
-                    description: The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+                    description: |-
+                        The S3-compatible or SFTP settings to test. For SFTP, leave the host key
+                         fingerprint empty on the first probe, then verify it before testing sign-in.
+                server:
+                    type: string
+                    description: The Dockwell server whose agent tests an SFTP destination.
+                existingDestination:
+                    type: string
+                    description: The saved destination by name, when testing an edit with saved credentials.
             description: |-
                 TestBackupDestinationRequest is what a destination form holds. The passphrase is
                  left out: nothing is sealed in a test.
@@ -37235,6 +37334,10 @@ components:
                         - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
                         - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
                         - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
+                        - BACKUP_DESTINATION_PROBLEM_HOST_KEY_UNVERIFIED
+                        - BACKUP_DESTINATION_PROBLEM_HOST_KEY_CHANGED
+                        - BACKUP_DESTINATION_PROBLEM_CANT_OPEN_FOLDER
+                        - BACKUP_DESTINATION_PROBLEM_CANT_READ
                     type: string
                     description: What went wrong, when something did.
                     format: enum
@@ -37249,6 +37352,10 @@ components:
                 testFile:
                     type: string
                     description: The test file that was written and couldn't be deleted, with CANT_DELETE.
+                sftp:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestinationSftpChecks'
+                    description: SSH and folder checks when testing an SFTP destination.
             description: TestBackupDestinationResponse says what the storage answered.
         TestGitDeployKeyRequest:
             type: object

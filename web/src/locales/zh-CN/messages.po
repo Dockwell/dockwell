@@ -8847,6 +8847,9 @@ msgstr "控制平面"
 msgid "Control plane backup"
 msgstr "控制平面备份"
 
+msgid "Control plane backup recovery and retention require S3-compatible storage."
+msgstr "控制平面备份的恢复和保留需要兼容 S3 的存储。"
+
 msgid "Control plane recovery sheet"
 msgstr "控制平面恢复清单"
 
@@ -9060,14 +9063,23 @@ msgstr "启用存储桶版本控制或对象锁，并使用没有删除权限的
 msgid "Use your own"
 msgstr "使用自定义口令"
 
+msgid "Add backup storage"
+msgstr "添加备份存储"
+
 msgid "Add storage"
 msgstr "添加存储"
 
 msgid "Connection · pick in a schedule or Back up now"
 msgstr "连接 · 可在计划或立即备份中选择"
 
+msgid "Copy public key"
+msgstr "复制公钥"
+
 msgid "Destinations"
 msgstr "目的地"
+
+msgid "Edit this SFTP destination"
+msgstr "编辑此 SFTP 目的地"
 
 msgid "Encrypted on each server before upload"
 msgstr "上传前在各服务器上加密"
@@ -9094,12 +9106,24 @@ msgstr "没有匹配的目的地"
 msgid "Only on each server's disk, unencrypted"
 msgstr "仅在各服务器的磁盘上，未加密"
 
+msgid "Public key copied"
+msgstr "已复制公钥"
+
 msgid "Remove this destination"
 msgstr "移除此目的地"
+
+msgid "S3-compatible"
+msgstr "兼容 S3"
 
 #. placeholder {0}: d.name
 msgid "Stop sending backups to {0}"
 msgstr "停止将备份发送到 {0}"
+
+msgid "Store backups in a folder on an SSH server."
+msgstr "将备份存放在 SSH 服务器的文件夹中。"
+
+msgid "Store backups in an object storage bucket."
+msgstr "将备份存放在对象存储桶中。"
 
 #. placeholder {0}: d.backups
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
@@ -9298,6 +9322,160 @@ msgstr "加载期间，使用它的应用会停止，此后产生的内容会丢
 msgid "{project} keeps running. Check the data, then switch apps over."
 msgstr "{project} 会继续运行。检查数据后，再把应用切换过去。"
 
+msgid "Add SFTP destination"
+msgstr "添加 SFTP 目的地"
+
+msgid "Add backup destination {destinationName}"
+msgstr "添加备份目的地 {destinationName}"
+
+msgid "Choose a connected server"
+msgstr "选择已连接的服务器"
+
+msgid "Choose new sign-in details after changing the SSH account."
+msgstr "更改 SSH 账号后，请填写新的登录信息。"
+
+msgid "Choose your own SSH private key to continue."
+msgstr "请选择自己的 SSH 私钥以继续。"
+
+msgid "Command copied"
+msgstr "命令已复制"
+
+msgid "Compare this fingerprint with the one from your SFTP server."
+msgstr "请将此指纹与 SFTP 服务器提供的指纹核对。"
+
+msgid "Copy fingerprint command"
+msgstr "复制指纹查询命令"
+
+msgid "Copy key install command"
+msgstr "复制公钥安装命令"
+
+msgid "Couldn't generate an SSH key"
+msgstr "无法生成 SSH 密钥"
+
+msgid "Couldn't test the destination"
+msgstr "无法测试备份目的地"
+
+msgid "Delete test file"
+msgstr "删除测试文件"
+
+msgid "Destination test failed"
+msgstr "备份目的地测试失败"
+
+msgid "Destination test passed"
+msgstr "备份目的地测试通过"
+
+msgid "Dockwell couldn't delete the test file. Check delete permission before sending backups."
+msgstr "Dockwell 无法删除测试文件。请在上传备份前检查删除权限。"
+
+msgid "Dockwell couldn't open or create the folder. Check the path and the user's permissions."
+msgstr "Dockwell 无法打开或创建文件夹。请检查路径和用户权限。"
+
+msgid "Dockwell couldn't read back the test file. Check the connection and read permission, then test again."
+msgstr "Dockwell 无法读回测试文件。请检查连接和读取权限，然后重试。"
+
+msgid "Dockwell couldn't write the test file. Check the connection and write permission, then test again."
+msgstr "Dockwell 无法写入测试文件。请检查连接和写入权限，然后重试。"
+
+msgid "Dockwell stopped before signing in. Verify the new fingerprint with the server owner."
+msgstr "Dockwell 已在登录前停止连接。请向服务器所有者核实新指纹。"
+
+msgid "Edit SFTP destination"
+msgstr "编辑 SFTP 目的地"
+
+msgid "Enter the password again to test the new fingerprint."
+msgstr "请重新输入密码以测试新指纹。"
+
+msgid "For an encrypted private key."
+msgstr "用于加密的私钥。"
+
+msgid "Free space"
+msgstr "可用空间"
+
+msgid "Generated SSH key"
+msgstr "自动生成的 SSH 密钥"
+
+msgid "Generating SSH key"
+msgstr "正在生成 SSH 密钥"
+
+msgid "Keep saved sign-in"
+msgstr "保留已保存的登录信息"
+
+msgid "Not run"
+msgstr "未执行"
+
+msgid "Open folder"
+msgstr "打开文件夹"
+
+msgid "Passed"
+msgstr "已通过"
+
+msgid "Private key passphrase"
+msgstr "私钥口令"
+
+msgid "Public key"
+msgstr "公钥"
+
+msgid "Reach server"
+msgstr "连接服务器"
+
+msgid "Read test file"
+msgstr "读取测试文件"
+
+msgid "Remote folder"
+msgstr "远程文件夹"
+
+msgid "SSH couldn't connect. Check the host, port and network, then try again."
+msgstr "SSH 连接失败。请检查主机、端口和网络，然后重试。"
+
+msgid "SSH private key"
+msgstr "SSH 私钥"
+
+msgid "Test destination"
+msgstr "测试备份目的地"
+
+msgid "Test from server"
+msgstr "发起测试的服务器"
+
+#. placeholder {0}: sftp.serverName
+msgid "Tested from {0}"
+msgstr "测试来自 {0}"
+
+msgid "Tested from {server}"
+msgstr "测试来自 {server}"
+
+msgid "The server didn't open SFTP. Enable it for this user, then test again."
+msgstr "服务器未开启 SFTP 会话。请为此用户启用 SFTP，然后重试。"
+
+msgid "The server refused the sign-in. Check the user and SSH key or password, then test again."
+msgstr "服务器拒绝登录。请检查用户名以及 SSH 密钥或密码，然后重试。"
+
+msgid "The server's host key changed"
+msgstr "服务器主机密钥已更改"
+
+msgid "Trust fingerprint and test"
+msgstr "信任指纹并测试"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Update backup destination {destinationName}"
+msgstr "更新备份目的地 {destinationName}"
+
+msgid "Use a password when the server only supports password sign-in."
+msgstr "仅在服务器只支持密码登录时使用密码。"
+
+msgid "Verify host key"
+msgstr "验证主机密钥"
+
+msgid "Verify the server's fingerprint"
+msgstr "验证服务器指纹"
+
+msgid "Write test file"
+msgstr "写入测试文件"
+
+msgid "Your SSH private key"
+msgstr "自己的 SSH 私钥"
+
 msgid "An admin sets up backup storage"
 msgstr "由管理员设置备份存储"
 
@@ -9324,6 +9502,10 @@ msgstr "加密存放在 {prefix}/ 下"
 
 msgid "Paste a key made for backups"
 msgstr "粘贴专用于备份的密钥"
+
+#. placeholder {0}: item.destination.sftp.path
+msgid "SFTP · {0}"
+msgstr "SFTP · {0}"
 
 msgid "Sealed with a passphrase"
 msgstr "使用密码短语加密"
@@ -11887,9 +12069,6 @@ msgstr "不会停机"
 
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
-
-msgid "Not run"
-msgstr "未运行"
 
 msgid "Offline"
 msgstr "离线"
@@ -16285,9 +16464,6 @@ msgstr "下一页"
 msgid "No Compose files or folders on this page"
 msgstr "此页没有 Compose 文件或文件夹"
 
-msgid "Open folder"
-msgstr "打开文件夹"
-
 msgid "Parent folder"
 msgstr "上级文件夹"
 
@@ -16437,9 +16613,6 @@ msgstr "这些工作负载部署在多台服务器上"
 
 msgid "This stack is gone"
 msgstr "此应用栈已不存在"
-
-msgid "Unavailable"
-msgstr "不可用"
 
 msgid "Volumes and their data stay."
 msgstr "保留存储卷及其数据。"
@@ -20741,9 +20914,6 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 #. placeholder {0}: Number(gap.lines)
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
-
-msgid "Command copied"
-msgstr "命令已复制"
 
 msgid "Copy the command that restarts Docker"
 msgstr "复制重启 Docker 的命令"

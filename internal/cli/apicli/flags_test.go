@@ -266,6 +266,34 @@ func TestInlineJSONRefusesARegistryLoginsKey(t *testing.T) {
 	}
 }
 
+func TestSFTPDestinationCredentialsComeFromAFile(t *testing.T) {
+	const credential = "example-sftp-credential"
+	for _, field := range []string{"privateKey", "password", "keyPassphrase"} {
+		t.Run(field, func(t *testing.T) {
+			source := `{"sftp":{"host":"example.com","user":"backups","path":"/backups","` + field + `":"` + credential + `"}}`
+			file := filepath.Join(t.TempDir(), "destination.json")
+			if err := os.WriteFile(file, []byte(source), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			fields := []Field{{Path: "destination", Help: "The destination."}}
+			env := &Env{Getenv: func(string) string { return "" }}
+			var req dockwellv1.TestBackupDestinationRequest
+			if err := parse(t, env, &req, fields, "--destination", source); err == nil ||
+				!strings.Contains(err.Error(), "pass --destination @file") || strings.Contains(err.Error(), credential) {
+				t.Errorf("inline SFTP %s = %v, want a redacted file input error", field, err)
+			}
+			req.Reset()
+			if err := parse(t, env, &req, fields, "--destination", "@"+file); err != nil {
+				t.Fatal(err)
+			}
+			sftp := req.GetDestination().GetSftp()
+			if sftp.GetHost() != "example.com" || !strings.Contains(sftp.GetPrivateKey()+sftp.GetPassword()+sftp.GetKeyPassphrase(), credential) {
+				t.Fatalf("the file did not set the SFTP host and %s", field)
+			}
+		})
+	}
+}
+
 // A CIFS mount's password goes in a volume's o option, so it reaches the CLI as a
 // secret's value does: never from a flag's text, where shell history and the
 // process list keep it. An option that gives one comes from the environment, and

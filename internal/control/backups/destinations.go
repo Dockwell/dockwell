@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/backup/s3"
+	"github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/place"
@@ -53,7 +55,11 @@ func virtualHostTooOld(server string) error {
 	return errors.New(msg)
 }
 
-func checkVirtualHostAgent(s *agentapi.Session, serverName string, destination map[string]string) error {
+func checkBackupTransportAgent(s *agentapi.Session, serverName string, destination map[string]string) error {
+	if destination["transport"] == "sftp" && !s.SFTPBackups() {
+		msg := fmt.Errorf("the agent on %s can't use SFTP, so the backup can't be copied. Update the agent and try again", cmp.Or(serverName, s.Name()))
+		return authapi.ReasonError(connect.CodeFailedPrecondition, msg, "agent_too_old")
+	}
 	if destination["virtual_host"] == "true" && beforeVirtualHostBackups(s.Version()) {
 		return authapi.ReasonError(connect.CodeFailedPrecondition, virtualHostTooOld(cmp.Or(serverName, s.Name())), "agent_too_old")
 	}
@@ -107,21 +113,35 @@ func (h *Handler) resolveConnection(ctx context.Context, tx *store.Tx, name stri
 // destination reads one destination, as a call carries it, resolving a referenced
 // S3 connection's sealed keys fresh. An empty name is none.
 func (h *Handler) destination(ctx context.Context, name string) (map[string]string, error) {
+	return h.copyDestination(ctx, name, "")
+}
+
+func (h *Handler) copyDestination(ctx context.Context, name, folder string) (map[string]string, error) {
 	if name == "" {
 		return nil, nil
 	}
 	var values map[string]string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
-		_, values, err = h.ControlDestination(ctx, tx, name)
+		_, values, err = h.ResolveDestination(ctx, tx, name)
+		if err != nil || folder == "" || values["transport"] != "sftp" {
+			return err
+		}
+		snapshot := h.now()
+		failed, err := tx.FailedBackupCopyIDs(ctx, name, folder)
+		if err == nil && len(failed) != 0 {
+			// A new folder field keeps agents that understand the old keep list from sweeping.
+			values["sweep_failed_folder"] = folder
+			values["sweep_before"] = strconv.FormatInt(snapshot.Add(-24*time.Hour).Unix(), 10)
+			values["sweep_failed_ids"] = strings.Join(failed, "\n")
+		}
 		return err
 	})
 	return values, err
 }
 
-// ControlDestination reads the identity and current credentials of the selected
-// destination so control plane backups can pin where they go.
-func (h *Handler) ControlDestination(ctx context.Context, tx *store.Tx, name string) (string, map[string]string, error) {
+// ResolveDestination reads the identity and current credentials of a destination.
+func (h *Handler) ResolveDestination(ctx context.Context, tx *store.Tx, name string) (string, map[string]string, error) {
 	org, err := tx.Organization(ctx)
 	if err != nil {
 		return "", nil, err
@@ -138,6 +158,11 @@ func (h *Handler) ControlDestination(ctx context.Context, tx *store.Tx, name str
 		return "", nil, fmt.Errorf("can't read the backup destination %s: %w", name, err)
 	}
 	d := spec.(*resourcev1.BackupDestination)
+	if sftp := d.GetSftp(); sftp != nil {
+		values := backuppolicy.SFTPValues(sftp)
+		values["passphrase"] = d.GetPassphrase()
+		return r.ID, values, nil
+	}
 	if d.GetConnection() != "" {
 		_, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
 		if err != nil {
@@ -197,6 +222,17 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 			d := found[name]
 			info := &dockwellv1.BackupDestinationInfo{Id: ids[name], Name: name, Endpoint: d.GetEndpoint(), Bucket: d.GetBucket(), Prefix: d.GetPrefix()}
 			changedAt := since[name]
+			if sftp := d.GetSftp(); sftp != nil {
+				info.Sftp = &dockwellv1.BackupDestinationSftpInfo{
+					Host: sftp.GetHost(), Port: sftp.GetPort(), User: sftp.GetUser(),
+					Path: sftp.GetPath(), HostKeyFingerprint: sftp.GetHostKeyFingerprint(),
+					HostKeyAlgorithm: sftp.GetHostKeyAlgorithm(), PublicKey: sftp.GetPublicKey(),
+				}
+				if info.Sftp.PublicKey == "" && sftp.GetPrivateKey() != "" {
+					// Earlier SFTP revisions stored only the private half.
+					info.Sftp.PublicKey, _ = backuppolicy.SFTPConfig(sftp).PublicKey()
+				}
+			}
 			if d.GetConnection() != "" {
 				cr, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
 				if err != nil {
@@ -245,6 +281,9 @@ var (
 // and region can be represented on a connection, returning a conversion-specific
 // error naming the field and fix when not (#831, M4).
 func convertDestinationS3(destName string, d *resourcev1.BackupDestination) (*resourcev1.ConnectionS3, error) {
+	if d.GetSftp() != nil {
+		return nil, authapi.Invalid(errors.New("SFTP destinations are managed in Backup settings. Choose an S3-compatible destination to use it as a connection"))
+	}
 	ep, err := backuppolicy.CanonicalEndpoint(d.GetEndpoint())
 	if err != nil {
 		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its endpoint %w. Edit the destination's endpoint, or create a new S3 connection by hand", destName, err))
@@ -536,24 +575,42 @@ func (h *Handler) FetchBackup(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, err
 	}
-	destination, err := h.destination(ctx, b.Destination)
+	destination, err := h.copyDestination(ctx, b.Destination, path.Dir(b.CopyKey))
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	if err := checkVirtualHostAgent(s, server.Name, destination); err != nil {
+	version := b.CopySealVersion
+	if version == 0 && destination["transport"] == "sftp" {
+		// Preview SFTP builds wrote v3 without reporting it. Their copies need
+		// a current reader too. Legacy unmarked S3 archives can still use v2 readers.
+		version = 3
+	}
+	if version > max(s.BackupSealVersion(), seal.LegacyArchiveVersion) {
+		clear(destination)
+		msg := fmt.Errorf("this backup uses sealed format v%d, which server %s can't read. The fetch didn't start. Update Dockwell on that server and fetch it again", version, server.Name)
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, msg, "agent_too_old")
+	}
+	if err := checkBackupTransportAgent(s, server.Name, destination); err != nil {
 		clear(destination)
 		return nil, err
 	}
-	surface := client.Surface(p)
-	actor := p.Actor()
-	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.SetBackupFetchError(ctx, b.ID, "") }); err != nil {
-		return nil, h.fail(ctx, err)
-	}
-	// From here, not from the server's first word, so a page can tell it's under way.
+	// Reserve this fetch before clearing its last error so two requests can't
+	// race to move the backup or record contradictory results.
 	h.mu.Lock()
+	if h.progress[b.ID] != "" {
+		h.mu.Unlock()
+		clear(destination)
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this backup is busy. Wait for it to finish, then try again"), "running")
+	}
 	h.progress[b.ID] = "Fetching " + b.Volume
 	h.mu.Unlock()
-	h.wg.Go(func() { h.fetch(s, b, server.ID, destination, actor, surface) })
+	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.SetBackupFetchError(ctx, b.ID, "") }); err != nil {
+		h.clearProgress(b.ID)
+		clear(destination)
+		return nil, h.fail(ctx, err)
+	}
+	b.FetchError = ""
+	h.wg.Go(func() { h.fetch(s, b, server.ID, destination, p.Actor(), client.Surface(p)) })
 	out, err := h.proto(ctx, b)
 	if err != nil {
 		return nil, h.fail(ctx, err)
@@ -569,22 +626,19 @@ func (h *Handler) fetch(s *agentapi.Session, b store.Backup, server string, dest
 		h.progress[b.ID] = message
 		h.mu.Unlock()
 	})
-	defer func() {
-		h.mu.Lock()
-		delete(h.progress, b.ID)
-		h.mu.Unlock()
-	}()
+	defer h.clearProgress(b.ID)
 	ref := backupRef(b)
 	_, err := s.FetchBackup(ctx, &agentv1.FetchBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Key: b.CopyKey, Sha256: b.SHA256, HostPath: b.WebsitePath}, destination)
 	record := context.WithoutCancel(ctx)
 	action, told := ActionFetched, Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
 	if err != nil {
 		action = ActionFetchFailed
-		told.Error, _ = resource.Explain(err)
-		if b.SealedWith != "" && b.SealedWith != h.sealedWith(destination["passphrase"]) {
+		explainCopyFailure(&told, s.Name(), err)
+		if told.Reason != resource.ReasonHostKeyChanged && b.SealedWith != "" && b.SealedWith != h.sealedWith(destination["passphrase"]) {
 			told.Error += ". This copy was sealed with the passphrase " + b.Destination + " had before, so today's can't open it. Add " + b.Destination + " again with that passphrase, or open the file with dockwell open-backup"
 		}
 	}
+	b.ServerID = server
 	if werr := h.say(record, &b, action, told, actor, surface, func(tx *store.Tx) error {
 		if err != nil {
 			return tx.SetBackupFetchError(record, b.ID, told.Error)
@@ -593,4 +647,10 @@ func (h *Handler) fetch(s *agentapi.Session, b store.Backup, server string, dest
 	}); werr != nil {
 		h.logger.ErrorContext(record, "can't record that a backup was fetched", "backup", b.ID, "error", werr.Error())
 	}
+}
+
+func (h *Handler) clearProgress(id string) {
+	h.mu.Lock()
+	delete(h.progress, id)
+	h.mu.Unlock()
 }

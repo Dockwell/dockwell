@@ -103,7 +103,7 @@ export function IntegrationsPage({ search, onSearch }: ListRouteProps) {
   const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const mayUseAsConnection = may(BackupService.method.useDestinationAsConnection);
   const read = storage.ready;
-  const list = storage.items;
+  const list = storage.items.filter((item) => !item.destination?.sftp);
   const place = useListPlace(search, onSearch, []);
   const storagePages = useListSection(
     list,

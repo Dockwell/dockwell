@@ -55,6 +55,7 @@ var agentPackages = []string{
 	"internal/resource/host",    // a server's host, which installs its updates in a unit of its own (ADR 0064)
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)
 	"internal/backup/s3",        // sending them to S3-compatible storage, with no SDK
+	"internal/backup/sftpstore", // sending them to an SSH host with a pinned key
 	"internal/backup/keep",      // retaining sealed control plane copies
 	"internal/backup/seal",      // sealing them before they leave
 	"internal/build",            // building services' images from Git on this server (ADR 0046)
@@ -106,10 +107,12 @@ var agentPackages = []string{
 var agentModules = []string{
 	"connectrpc.com/connect",                    // the agent's stream to the control plane
 	"github.com/docker/go-units",                // Docker's own parser for log sizes
+	"github.com/kr/fs",                          // imported by the SFTP module
 	"github.com/moby/patternmatcher",            // Docker's .dockerignore rules for folder build contexts
+	"github.com/pkg/sftp",                       // sealed SFTP backups (ADR 0112). The pageout comparison peaked at 36.0 MB (ADR 0109).
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
-	"golang.org/x/crypto",                       // OpenSSH and ACME. Standalone idle RSS was 34.3 MB vs 34.7 MB on main in ADR 0109.
+	"golang.org/x/crypto",                       // pinned SSH sessions, OpenSSH key decoding and fingerprints, and forced HTTP-01 renewal
 	"golang.org/x/sys",                          // system calls, for x/term
 	"golang.org/x/term",                         // whether a person is at a terminal
 	"google.golang.org/genproto/googleapis/api", // google.api annotations, which the schema's files import

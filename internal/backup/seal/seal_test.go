@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -27,7 +28,7 @@ func file(t *testing.T, data []byte) []byte {
 	out := bytes.Clone(s.Header())
 	n := uint64(0)
 	for {
-		size := min(len(data), ChunkSize)
+		size := min(len(data), archiveChunkSize)
 		last := size == len(data)
 		out = append(out, s.Seal(n, last, data[:size])...)
 		if last {
@@ -39,7 +40,7 @@ func file(t *testing.T, data []byte) []byte {
 }
 
 func TestASealedFileOpens(t *testing.T) {
-	for _, size := range []int{0, 1, ChunkSize - 1, ChunkSize, ChunkSize + 1, 3*ChunkSize + 17} {
+	for _, size := range []int{0, 1, archiveChunkSize - 1, archiveChunkSize, archiveChunkSize + 1, 3*archiveChunkSize + 17} {
 		data := make([]byte, size)
 		if _, err := rand.Read(data); err != nil {
 			t.Fatal(err)
@@ -72,13 +73,13 @@ func TestWhatsInASealedFileDoesntShow(t *testing.T) {
 // Anything but the file as it was sealed fails: the wrong passphrase, a changed byte,
 // a file cut at a chunk's edge, and chunks swapped.
 func TestABadSealedFileFails(t *testing.T) {
-	data := make([]byte, 3*ChunkSize)
+	data := make([]byte, 3*archiveChunkSize)
 	sealed := file(t, data)
 	changed := bytes.Clone(sealed)
 	changed[len(changed)/2] ^= 1
-	head := fixedSize + len(bound)
+	head := fixedSize + 4 + len(bound)
 	swapped := bytes.Clone(sealed)
-	first, second := swapped[head:head+SealedChunk], swapped[head+SealedChunk:head+2*SealedChunk]
+	first, second := swapped[head:head+(archiveChunkSize+TagSize)], swapped[head+(archiveChunkSize+TagSize):head+2*(archiveChunkSize+TagSize)]
 	held := bytes.Clone(first)
 	copy(first, second)
 	copy(second, held)
@@ -88,7 +89,7 @@ func TestABadSealedFileFails(t *testing.T) {
 	}{
 		"wrong passphrase": {sealed, "another"},
 		"changed":          {changed, "a passphrase"},
-		"cut at a chunk":   {sealed[:head+2*SealedChunk], "a passphrase"},
+		"cut at a chunk":   {sealed[:head+2*(archiveChunkSize+TagSize)], "a passphrase"},
 		"cut in a chunk":   {sealed[:len(sealed)-100], "a passphrase"},
 		"swapped":          {swapped, "a passphrase"},
 		"not one":          {bytes.Repeat([]byte("x"), head+10), "a passphrase"},
@@ -110,7 +111,7 @@ func TestAFileOpensOnlyAsWhatItIs(t *testing.T) {
 		t.Errorf("under another's name: %q, %v, wrote %d bytes", got, err, out.Len())
 	}
 	other := bytes.Clone(sealed)
-	copy(other[fixedSize:], "env_1/data/bkp_2")
+	copy(other[fixedSize+4:], "env_1/data/bkp_2")
 	if _, err := Open(&out, bytes.NewReader(other), "a passphrase", "env_1/data/bkp_2"); err == nil {
 		t.Error("a header changed to say it's another backup opened")
 	}
@@ -142,7 +143,7 @@ func TestAFileIsSealedAtItsWork(t *testing.T) {
 }
 
 func TestSomethingSmallSealsWhole(t *testing.T) {
-	for _, size := range []int{0, 300, ChunkSize, ChunkSize + 1} {
+	for _, size := range []int{0, 300, archiveChunkSize, archiveChunkSize + 1} {
 		data := bytes.Repeat([]byte("x"), size)
 		sealed, err := Small(data, "a passphrase", bound, cheap)
 		if err != nil {
@@ -151,6 +152,72 @@ func TestSomethingSmallSealsWhole(t *testing.T) {
 		var out bytes.Buffer
 		if _, err := Open(&out, bytes.NewReader(sealed), "a passphrase", bound); err != nil || !bytes.Equal(out.Bytes(), data) {
 			t.Errorf("size %d: %d bytes, %v", size, out.Len(), err)
+		}
+	}
+}
+
+func TestLegacyArchiveWithOneMiBChunksOpens(t *testing.T) {
+	s, err := newSealer("a passphrase", bound, cheap, legacyMagic, legacyChunkSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := bytes.Repeat([]byte("legacy data"), legacyChunkSize/5)
+	var sealed, out bytes.Buffer
+	if err := s.Write(&sealed, bytes.NewReader(raw), int64(len(raw))); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Open(&out, &sealed, "a passphrase", bound); err != nil || got != bound || !bytes.Equal(out.Bytes(), raw) {
+		t.Fatalf("legacy archive binding %q, %d bytes: %v", got, out.Len(), err)
+	}
+}
+
+func TestArchiveAuthenticatesBoundedChunkSize(t *testing.T) {
+	sealed := file(t, make([]byte, 2*archiveChunkSize))
+	for _, size := range []uint32{0, 2 * archiveChunkSize, legacyChunkSize + 1} {
+		changed := bytes.Clone(sealed)
+		binary.BigEndian.PutUint32(changed[fixedSize:], size)
+		var out bytes.Buffer
+		if _, err := Open(&out, bytes.NewReader(changed), "a passphrase", bound); err == nil || out.Len() != 0 {
+			t.Errorf("changed chunk size %d accepted: %v", size, err)
+		}
+	}
+}
+
+func TestArchiveVersionCannotBeRelabelled(t *testing.T) {
+	body := []byte("a backup")
+	v2, err := newSealer("a passphrase", bound, cheap, legacyMagic, legacyChunkSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy bytes.Buffer
+	if err := v2.Write(&legacy, bytes.NewReader(body), int64(len(body))); err != nil {
+		t.Fatal(err)
+	}
+	v3 := file(t, body)
+	copy(v3, legacyMagic)
+	copy(legacy.Bytes(), magic)
+	for name, raw := range map[string][]byte{"v3 marked v2": v3, "v2 marked v3": legacy.Bytes()} {
+		t.Run(name, func(t *testing.T) {
+			var out bytes.Buffer
+			if _, err := Open(&out, bytes.NewReader(raw), "a passphrase", ""); err == nil || out.Len() != 0 {
+				t.Fatalf("relabelled archive wrote %d plaintext bytes: %v", out.Len(), err)
+			}
+		})
+	}
+}
+
+func TestNewerArchiveNamesTheRequiredFormat(t *testing.T) {
+	for _, label := range []string{"dockwell-backup-4", "dockwell-backup-12", "dockwell-backup-x"} {
+		raw := label + "\n" + strings.Repeat("x", fixedSize)
+		var out bytes.Buffer
+		_, err := Open(&out, strings.NewReader(raw), "a passphrase", "")
+		var newer *NewerArchiveError
+		wantNewer := !strings.HasSuffix(label, "-x")
+		if err == nil || out.Len() != 0 || errors.As(err, &newer) != wantNewer {
+			t.Fatalf("opening %s wrote %d plaintext bytes: %v", label, out.Len(), err)
+		}
+		if wantNewer && !strings.Contains(err.Error(), "Upgrade to a Dockwell version that supports it") {
+			t.Fatalf("opening %s: %v", label, err)
 		}
 	}
 }

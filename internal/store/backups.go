@@ -44,10 +44,11 @@ type Backup struct {
 	PolicyID string
 	// Destination is where it goes as well, by name. CopyKey is its name there once
 	// it's stored, CopyBytes what it takes there, and CopyError why it isn't.
-	Destination string
-	CopyKey     string
-	CopyBytes   int64
-	CopyError   string
+	Destination     string
+	CopyKey         string
+	CopyBytes       int64
+	CopyError       string
+	CopySealVersion uint32 // Zero for copies recorded before the agent reported the format.
 	// OffServer says retention or a person removed it from its server. A server that's
 	// gone or away is read from the fleet instead, so its backups come back with it.
 	OffServer bool
@@ -61,13 +62,13 @@ type Backup struct {
 	WebsitePath string
 }
 
-const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server, sealed_with, fetch_error, one_database, for_link, website_id, website_path`
+const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server, sealed_with, fetch_error, one_database, for_link, website_id, website_path, copy_seal_version`
 
 func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer, &b.SealedWith, &b.FetchError, &b.OneDatabase, &b.ForLink, &b.WebsiteID, &b.WebsitePath)
+	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer, &b.SealedWith, &b.FetchError, &b.OneDatabase, &b.ForLink, &b.WebsiteID, &b.WebsitePath, &b.CopySealVersion)
 	if err != nil {
 		return Backup{}, err
 	}
@@ -88,8 +89,8 @@ func (t *Tx) CreateBackup(ctx context.Context, b Backup) error {
 // FinishBackup records how a backup ended.
 func (t *Tx) FinishBackup(ctx context.Context, b Backup) error {
 	_, err := t.exec(ctx, `UPDATE backups SET state = ?, method = ?, database_name = ?, size_bytes = ?, sha256 = ?, files_changed = ?, error = ?, finished_at = ?,
-		copy_key = ?, copy_bytes = ?, copy_error = ? WHERE id = ?`,
-		b.State, b.Method, b.Database, b.SizeBytes, b.SHA256, b.FilesChanged, b.Error, nullMillis(b.FinishedAt), b.CopyKey, b.CopyBytes, b.CopyError, b.ID)
+		copy_key = ?, copy_bytes = ?, copy_error = ?, copy_seal_version = ? WHERE id = ?`,
+		b.State, b.Method, b.Database, b.SizeBytes, b.SHA256, b.FilesChanged, b.Error, nullMillis(b.FinishedAt), b.CopyKey, b.CopyBytes, b.CopyError, b.CopySealVersion, b.ID)
 	if err != nil {
 		return fmt.Errorf("can't record how backup %s ended: %w", b.ID, err)
 	}
@@ -154,8 +155,8 @@ func (t *Tx) RefileBackups(ctx context.Context, r Refile) (int64, error) {
 
 // SetBackupCopy records what became of a backup's copy on its destination.
 func (t *Tx) SetBackupCopy(ctx context.Context, b Backup) error {
-	if _, err := t.exec(ctx, `UPDATE backups SET copy_key = ?, copy_bytes = ?, copy_error = ?, sealed_with = ? WHERE id = ?`,
-		b.CopyKey, b.CopyBytes, b.CopyError, b.SealedWith, b.ID); err != nil {
+	if _, err := t.exec(ctx, `UPDATE backups SET copy_key = ?, copy_bytes = ?, copy_error = ?, sealed_with = ?, copy_seal_version = ? WHERE id = ?`,
+		b.CopyKey, b.CopyBytes, b.CopyError, b.SealedWith, b.CopySealVersion, b.ID); err != nil {
 		return fmt.Errorf("can't record where backup %s went: %w", b.ID, err)
 	}
 	return nil
@@ -215,6 +216,33 @@ type BackupFilter struct {
 	AfterAt *time.Time
 	AfterID string
 	Limit   int
+}
+
+// FailedBackupCopyIDs reads IDs the store knows were sent unsuccessfully.
+// Unknown IDs may be good copies newer than a restored control-plane snapshot.
+func (t *Tx) FailedBackupCopyIDs(ctx context.Context, destination, folder string) (ids []string, err error) {
+	env, volume, ok := strings.Cut(folder, "/")
+	if !ok || env == "" || volume == "" || strings.Contains(volume, "/") {
+		return nil, nil
+	}
+	rows, err := t.query(ctx, `SELECT id FROM backups
+ WHERE destination = ? AND environment_id = ? AND volume = ? AND copy_key = '' AND copy_error <> ''
+ LIMIT 2049`, destination, env, volume)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+		if len(ids) > 2048 {
+			return nil, nil
+		}
+	}
+	return ids, rows.Err()
 }
 
 // ListBackups returns backups, newest first.

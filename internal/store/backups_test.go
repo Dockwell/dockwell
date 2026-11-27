@@ -131,3 +131,44 @@ func TestBackupsFollowWhatMoved(t *testing.T) {
 		})
 	})
 }
+
+func TestSFTPSweepUsesOnlyFailedSendsForThisDestinationAndFolder(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		ctx := t.Context()
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			for _, b := range []store.Backup{
+				{ID: "bkp_row", EnvironmentID: "env_moved", Volume: "data", CopyKey: "env_old/data/bkp_known.tar.gz.sealed", CopySealVersion: 3, CopyError: "earlier failure"},
+				{ID: "bkp_pending", EnvironmentID: "env_old", Volume: "data"},
+				{ID: "bkp_failed", EnvironmentID: "env_old", Volume: "data", CopyError: "the reply never arrived"},
+				{ID: "bkp_folder", EnvironmentID: "env_old", Volume: "data-extra", CopyError: "the reply never arrived"},
+				{ID: "bkp_destination", EnvironmentID: "env_old", Volume: "data", Destination: "another", CopyError: "the reply never arrived"},
+			} {
+				b.Destination = cmp.Or(b.Destination, "offsite")
+				b.StartedAt, b.State = time.Now(), store.BackupDone
+				if err := tx.CreateBackup(ctx, b); err != nil {
+					return err
+				}
+				if err := tx.SetBackupCopy(ctx, b); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			seen, err := tx.FailedBackupCopyIDs(ctx, "offsite", "env_old/data")
+			if err != nil || !slices.Equal(seen, []string{"bkp_failed"}) {
+				t.Fatalf("failed copy IDs: %v, err=%v", seen, err)
+			}
+			got, err := tx.GetBackup(ctx, "bkp_row")
+			if err != nil || got.CopySealVersion != 3 {
+				t.Fatalf("stored copy format: v%d, err=%v", got.CopySealVersion, err)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+}

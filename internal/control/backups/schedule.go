@@ -206,7 +206,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 	if b.Destination != "" {
 		destination, err := h.destination(ctx, b.Destination)
 		if err == nil {
-			err = checkVirtualHostAgent(s, run.server.Name, destination)
+			err = checkBackupTransportAgent(s, run.server.Name, destination)
 		}
 		clear(destination)
 		var gone *connect.Error
@@ -215,7 +215,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 			b.CopyError = fmt.Sprintf("the destination %s is gone, so this stayed on its server. Point %s at another destination", b.Destination, run.policy.name)
 			err = nil
 		} else if errors.As(err, &gone) && gone.Code() == connect.CodeFailedPrecondition {
-			// An older agent can't send virtual-host copies; keep the local backup on the server.
+			// Keep the local backup when the agent can't use the destination's transport.
 			b.CopyError = gone.Message()
 			err = nil
 		}

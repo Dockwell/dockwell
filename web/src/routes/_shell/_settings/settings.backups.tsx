@@ -5,6 +5,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMay } from "../../../features/auth/may";
 import { ControlBackupPanel } from "../../../features/backups/ControlBackup";
+import { DestinationsPanel, useDestinations } from "../../../features/backups/DestinationsPanel";
 import { Page } from "../../../features/shell/Page";
 import { RoleRefused } from "../../../features/shell/ReadFailed";
 import { RouterButtonLink } from "../../../lib/links";
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/_shell/_settings/settings/backups")({ com
 function SettingsBackups() {
   const { t } = useLingui();
   const may = useMay()(ControlBackupService.method.getControlBackup);
+  const destinations = useDestinations();
   return (
     <Page
       title={t`Backups`}
@@ -26,6 +28,11 @@ function SettingsBackups() {
       }
     >
       {may.allowed ? <ControlBackupPanel /> : may.why === "pending" ? null : <RoleRefused />}
+      <DestinationsPanel
+        destinations={destinations.data?.destinations ?? []}
+        pending={destinations.isPending}
+        offerSFTP
+      />
     </Page>
   );
 }

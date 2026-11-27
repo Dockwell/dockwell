@@ -102,6 +102,8 @@ type testServer struct {
 	stopped atomic.Bool
 	// hello changes what its agent says of itself, to stand in for another version.
 	hello func(*agentv1.Hello)
+	// standalone enables the standalone transfer admission rules.
+	standalone bool
 	// probe answers what a website's server is asked of what it sends to, as a
 	// test asks nothing beyond this machine. Nil answers everything.
 	probe func(context.Context, *agentv1.ProbeCall) *agentv1.ProbeResult
@@ -237,6 +239,9 @@ func (s *testServer) run(t *testing.T) {
 		Logger:    logger, Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, ArtifactClock: s.artifactClock, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
 		System: s.system, Certificates: s.certs, Tunnels: s.tunnels,
+	}
+	if s.standalone {
+		cfg.Build.Edition = buildinfo.Agent
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything

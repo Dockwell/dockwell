@@ -80,12 +80,15 @@ func (e *Engine) volumeDir(name string) string {
 	return dir
 }
 
-// mountsOf says where each volume a container mounts is on this machine.
+// mountsOf says where each volume or folder a container mounts is on this machine.
 func (e *Engine) mountsOf(c *container) map[string]string {
 	out := map[string]string{}
 	for _, m := range c.HostConfig.Mounts {
-		if m.Type == "volume" {
+		switch m.Type {
+		case "volume":
 			out[m.Target] = e.volumeDir(m.Source)
+		case "bind":
+			out[m.Target] = m.Source
 		}
 	}
 	for _, m := range c.Mounts {

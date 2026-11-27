@@ -225,7 +225,7 @@ func DrillPeriod(p *resourcev1.BackupPolicy) time.Duration {
 // DestinationKind is the backup destination kind.
 const DestinationKind resource.Kind = "backup.destination"
 
-// Destination is the kind of S3-compatible storage backups go to. It lives in the
+// Destination is the kind of off-site storage backups go to. It lives in the
 // organization, on the control plane alone, as what signs in to it goes to a server
 // only for the call that needs it.
 type Destination struct{}
@@ -276,7 +276,7 @@ func (Destination) Keep(current, desired proto.Message) (resource.Kept, error) {
 func (Destination) CheckNew(spec proto.Message) error {
 	d := spec.(*resourcev1.BackupDestination) //nolint:forcetypeassert // Validate saw it
 	if len(d.GetPassphrase()) < minPassphrase {
-		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the bucket. Let the panel make one, or use a long one of your own", minPassphrase)
+		return fmt.Errorf("a destination's passphrase needs at least %d characters, as it's all that keeps a backup from whoever holds the storage. Let the panel make one, or use a long one of your own", minPassphrase)
 	}
 	return nil
 }
@@ -302,6 +302,9 @@ func (Destination) ReferenceKinds() []resource.Kind { return []resource.Kind{"co
 // Validate refuses what can't work, in words that hold nothing of what signs in.
 func (Destination) Validate(spec proto.Message) error {
 	d := spec.(*resourcev1.BackupDestination)
+	if d.GetSftp() != nil {
+		return ValidateSFTP(d, true)
+	}
 	if d.GetConnection() != "" {
 		if err := resource.CheckLabel("connection", d.GetConnection(), "outline-uploads"); err != nil {
 			return err

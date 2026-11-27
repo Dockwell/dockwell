@@ -3,7 +3,7 @@
 // Package seal encrypts a backup on its server before it leaves, so what's in a
 // bucket means nothing without its passphrase, which a storage provider never has.
 //
-// A sealed file is a header, then chunks of up to ChunkSize bytes, each sealed with
+// A sealed file is a header, then chunks of up to the size named by its format, each sealed with
 // AES-256-GCM under a key derived from the passphrase and the file's own salt, with
 // PBKDF2-SHA-256 as a passphrase can be weak. Each chunk's nonce is its number, and
 // says whether it's the last, so a chunk can't be moved, dropped or added, and a file
@@ -19,6 +19,8 @@
 package seal
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/pbkdf2"
@@ -29,10 +31,27 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
+	"strings"
 )
 
+// ArchiveVersion is the format used for new passphrase-sealed backups.
+const ArchiveVersion = 3
+
+// LegacyArchiveVersion is the one-MiB archive format used by older readers.
+const LegacyArchiveVersion = 2
+
 // magic starts a sealed file, with its format's version.
-const magic = "dockwell-backup-2\n"
+const (
+	legacyMagic     = "dockwell-backup-2\n"
+	magic           = "dockwell-backup-3\n"
+	legacyChunkSize = 1 << 20
+	// KeyedChunkSize is the fixed chunk size for callers that supply their own header.
+	KeyedChunkSize = legacyChunkSize
+	// KeyedSealedChunk is a full keyed chunk including its tag.
+	KeyedSealedChunk = KeyedChunkSize + TagSize
+	archiveChunkSize = 64 << 10
+)
 
 // Iterations is the work factor of a file sealed now. It costs a guess at a passphrase
 // about what opening a file does, which is what a chosen phrase needs. Each file says
@@ -42,24 +61,19 @@ const Iterations = 600_000
 // maxIterations bounds what a header can ask of whoever opens it.
 const maxIterations = 100_000_000
 
-// ChunkSize is how much of a file each chunk holds.
-const ChunkSize = 1 << 20
-
 const (
 	saltSize  = 32
 	nonceSize = 12
-	tagSize   = 16
-	// fixedSize is the part of a header every file has: the magic, the iterations, the
-	// salt, and how long the binding is.
+	// TagSize is the overhead of sealing one chunk.
+	TagSize   = 16
 	fixedSize = len(magic) + 4 + saltSize + 2
-	// SealedChunk is how long a whole chunk is, sealed.
-	SealedChunk = ChunkSize + tagSize
 )
 
 // Sealer seals one file, chunk by chunk, in any order.
 type Sealer struct {
-	aead   cipher.AEAD
-	header []byte
+	aead      cipher.AEAD
+	header    []byte
+	chunkSize int
 }
 
 func keyed(passphrase string, salt []byte, iterations int) (cipher.AEAD, error) {
@@ -83,6 +97,10 @@ func gcm(key []byte) (cipher.AEAD, error) {
 // key takes, and zero means Iterations: only a test gives any other, as a key takes
 // over a second under the race detector.
 func New(passphrase, binding string, iterations int) (*Sealer, error) {
+	return newSealer(passphrase, binding, iterations, magic, archiveChunkSize)
+}
+
+func newSealer(passphrase, binding string, iterations int, version string, chunkSize int) (*Sealer, error) {
 	if passphrase == "" {
 		return nil, errors.New("a sealed backup needs a passphrase")
 	}
@@ -100,13 +118,16 @@ func New(passphrase, binding string, iterations int) (*Sealer, error) {
 	if err != nil {
 		return nil, err
 	}
-	header := make([]byte, 0, fixedSize+len(binding))
-	header = append(header, magic...)
+	header := make([]byte, 0, fixedSize+4+len(binding))
+	header = append(header, version...)
 	header = binary.BigEndian.AppendUint32(header, uint32(iterations))
 	header = append(header, salt...)
 	header = binary.BigEndian.AppendUint16(header, uint16(len(binding))) //nolint:gosec // checked above
+	if version == magic {
+		header = binary.BigEndian.AppendUint32(header, uint32(chunkSize)) //nolint:gosec // fixed archive chunk size
+	}
 	header = append(header, binding...)
-	return &Sealer{aead: aead, header: header}, nil
+	return &Sealer{aead: aead, header: header, chunkSize: chunkSize}, nil
 }
 
 // WithKey reuses the backup chunk format with a separately derived key and header.
@@ -115,7 +136,7 @@ func WithKey(key, header []byte) (*Sealer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sealer{aead: aead, header: header}, nil
+	return &Sealer{aead: aead, header: header, chunkSize: KeyedChunkSize}, nil
 }
 
 // Write streams exactly size bytes with the header and an authenticated last chunk.
@@ -123,9 +144,9 @@ func (s *Sealer) Write(w io.Writer, r io.Reader, size int64) error {
 	if _, err := w.Write(s.header); err != nil {
 		return err
 	}
-	buf := make([]byte, min(size, ChunkSize), min(size, ChunkSize)+tagSize)
+	buf := make([]byte, min(size, int64(s.chunkSize)), min(size, int64(s.chunkSize))+TagSize)
 	for n := uint64(0); ; n++ {
-		part := buf[:min(size, ChunkSize)]
+		part := buf[:min(size, int64(s.chunkSize))]
 		if _, err := io.ReadFull(r, part); err != nil {
 			return err
 		}
@@ -142,6 +163,9 @@ func (s *Sealer) Write(w io.Writer, r io.Reader, size int64) error {
 // Header is what a sealed file starts with.
 func (s *Sealer) Header() []byte { return s.header }
 
+// ChunkSize returns the plaintext bytes in a full chunk.
+func (s *Sealer) ChunkSize() int64 { return int64(s.chunkSize) }
+
 // nonce is a chunk's: its number, and whether it's the last.
 func nonce(n uint64, last bool) []byte {
 	out := make([]byte, nonceSize)
@@ -157,13 +181,18 @@ func (s *Sealer) Seal(n uint64, last bool, chunk []byte) []byte {
 	return s.aead.Seal(nil, nonce(n, last), chunk, s.header)
 }
 
+// SealInPlace replaces a chunk with its sealed bytes when it has room for the tag.
+func (s *Sealer) SealInPlace(n uint64, last bool, chunk []byte) []byte {
+	return s.aead.Seal(chunk[:0], nonce(n, last), chunk, s.header)
+}
+
 // Size is how long the sealed file of size bytes is.
 func (s *Sealer) Size(size int64) int64 {
-	chunks := size / ChunkSize
-	if size%ChunkSize != 0 || size == 0 {
+	chunks := size / s.ChunkSize()
+	if size%s.ChunkSize() != 0 || size == 0 {
 		chunks++
 	}
-	return int64(len(s.header)) + size + chunks*tagSize
+	return int64(len(s.header)) + size + chunks*TagSize
 }
 
 // Small seals something small whole, as New does.
@@ -173,14 +202,23 @@ func Small(plain []byte, passphrase, binding string, iterations int) ([]byte, er
 		return nil, err
 	}
 	out := slices.Clone(s.Header())
-	for n, at := uint64(0), 0; ; n, at = n+1, at+ChunkSize {
-		end := min(at+ChunkSize, len(plain))
+	for n, at := uint64(0), 0; ; n, at = n+1, at+s.chunkSize {
+		end := min(at+s.chunkSize, len(plain))
 		last := end == len(plain)
 		out = append(out, s.Seal(n, last, plain[at:end])...)
 		if last {
 			return out, nil
 		}
 	}
+}
+
+// NewerArchiveError reports the format claimed by an unrecognized archive header.
+type NewerArchiveError struct {
+	Version uint64
+}
+
+func (e *NewerArchiveError) Error() string {
+	return fmt.Sprintf("this backup uses sealed format v%d. Upgrade to a Dockwell version that supports it, then open the backup again", e.Version)
 }
 
 // Open reads a sealed file r, and writes what it holds to w. Nothing it wrote is to
@@ -192,7 +230,16 @@ func Open(w io.Writer, r io.Reader, passphrase, want string) (string, error) {
 	if _, err := io.ReadFull(r, head); err != nil {
 		return "", fmt.Errorf("the file is too short to be a sealed backup: %w", err)
 	}
-	if string(head[:len(magic)]) != magic {
+	version := string(head[:len(magic)])
+	if version != legacyMagic && version != magic {
+		line, _, hasLine := strings.Cut(string(head), "\n")
+		number, hasPrefix := strings.CutPrefix(line, "dockwell-backup-")
+		if hasLine && hasPrefix {
+			n, err := strconv.ParseUint(number, 10, 64)
+			if err == nil && n > ArchiveVersion {
+				return "", &NewerArchiveError{Version: n}
+			}
+		}
 		return "", errors.New("the file isn't a sealed backup of this version")
 	}
 	iterations := binary.BigEndian.Uint32(head[len(magic):])
@@ -200,7 +247,20 @@ func Open(w io.Writer, r io.Reader, passphrase, want string) (string, error) {
 		return "", errors.New("the file can't be opened: it asks for more work than any sealed backup does")
 	}
 	salt := head[len(magic)+4 : len(magic)+4+saltSize]
-	bound := make([]byte, binary.BigEndian.Uint16(head[fixedSize-2:]))
+	chunkSize := legacyChunkSize
+	if version == magic {
+		var size [4]byte
+		if _, err := io.ReadFull(r, size[:]); err != nil {
+			return "", fmt.Errorf("the file is too short to be a sealed backup: %w", err)
+		}
+		decoded := binary.BigEndian.Uint32(size[:])
+		if decoded < archiveChunkSize || decoded > legacyChunkSize {
+			return "", errors.New("the sealed backup has an unsupported chunk size")
+		}
+		chunkSize = int(decoded)
+		head = append(head, size[:]...)
+	}
+	bound := make([]byte, binary.BigEndian.Uint16(head[fixedSize-2:fixedSize]))
 	if _, err := io.ReadFull(r, bound); err != nil {
 		return "", fmt.Errorf("the file is too short to be a sealed backup: %w", err)
 	}
@@ -212,7 +272,7 @@ func Open(w io.Writer, r io.Reader, passphrase, want string) (string, error) {
 	if err != nil {
 		return binding, err
 	}
-	s := &Sealer{aead: aead, header: slices.Concat(head, bound)}
+	s := &Sealer{aead: aead, header: slices.Concat(head, bound), chunkSize: chunkSize}
 	return binding, s.Read(w, r)
 }
 
@@ -223,19 +283,24 @@ func (s *Sealer) Read(w io.Writer, r io.Reader) error {
 
 // ReadWithFallback can try a legacy key if the first chunk fails authentication.
 func (s *Sealer) ReadWithFallback(w io.Writer, r io.Reader, fallback func() (*Sealer, error)) error {
-	// A chunk is the last one when nothing follows it, so one more is read ahead.
-	this := make([]byte, SealedChunk)
-	next := make([]byte, SealedChunk)
-	n, err := io.ReadFull(r, this)
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return err
+	// A chunk is last if nothing follows it. Look ahead by one byte so
+	// opening a large backup needs only one chunk buffer.
+	chunkSize := s.chunkSize + TagSize
+	if small, ok := r.(*bytes.Reader); ok {
+		chunkSize = min(chunkSize, small.Len())
 	}
+	body := bufio.NewReader(r)
+	this := make([]byte, chunkSize)
 	for chunk := uint64(0); ; chunk++ {
-		m, err := io.ReadFull(r, next)
+		n, err := io.ReadFull(body, this)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 			return err
 		}
-		last := m == 0
+		_, err = body.Peek(1)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		last := errors.Is(err, io.EOF)
 		dest := this[:0]
 		if chunk == 0 && fallback != nil {
 			dest = nil // A failed Open may overwrite its destination.
@@ -257,6 +322,5 @@ func (s *Sealer) ReadWithFallback(w io.Writer, r io.Reader, fallback func() (*Se
 		if last {
 			return nil
 		}
-		this, next, n = next, this, m
 	}
 }

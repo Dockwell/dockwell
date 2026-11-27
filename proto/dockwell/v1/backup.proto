@@ -95,7 +95,7 @@ service BackupService {
     option (google.api.http) = {get: "/v1/backup-policies"};
   }
 
-  // ListBackupDestinations returns the S3-compatible storage backups can go to, and
+  // ListBackupDestinations returns the off-site storage backups can go to, and
   // never what signs in to it. A destination is a resource: create and delete one as
   // a change, of kind "backup.destination".
   rpc ListBackupDestinations(ListBackupDestinationsRequest) returns (ListBackupDestinationsResponse) {
@@ -117,7 +117,9 @@ service BackupService {
   // under the destination's prefix and deletes. It reaches the storage from the
   // control server, which may reach what some servers can't, or not what they can:
   // the internet and private networks, never the control server's own loopback, and
-  // it follows no redirect. It keeps nothing, and it's on the activity log without
+  // it follows no redirect. For SFTP it first reports an unpinned host key without
+  // signing in. After verification it checks the folder, write, read, delete and
+  // free space if available. It keeps nothing, and it's on the activity log without
   // what signs in.
   rpc TestBackupDestination(TestBackupDestinationRequest) returns (TestBackupDestinationResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
@@ -352,7 +354,7 @@ enum BackupCopy {
   BACKUP_COPY_FAILED = 3 [(dockwell.v1.word) = "Failed"];
 }
 
-// BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
+// BackupDestinationInfo is off-site storage, with nothing that signs in to it.
 message BackupDestinationInfo {
   // The destination's ID.
   string id = 1;
@@ -379,6 +381,19 @@ message BackupDestinationInfo {
   // by name (ADR 0099). Empty for a destination that holds its own keys inline.
   // Below an admin, set only when the connection reaches one of the caller's projects.
   string connection = 11;
+  BackupDestinationSftpInfo sftp = 12;
+}
+
+// BackupDestinationSftpInfo describes a destination without its credentials.
+message BackupDestinationSftpInfo {
+  string host = 1;
+  uint32 port = 2;
+  string user = 3;
+  string path = 4;
+  string host_key_fingerprint = 5;
+  string host_key_algorithm = 6;
+  // The public key to install on the SFTP server.
+  string public_key = 7;
 }
 
 // UseDestinationAsConnectionRequest asks to move an inline destination onto an
@@ -581,8 +596,13 @@ message RestoreBackupResponse {
 // TestBackupDestinationRequest is what a destination form holds. The passphrase is
 // left out: nothing is sealed in a test.
 message TestBackupDestinationRequest {
-  // The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+  // The S3-compatible or SFTP settings to test. For SFTP, leave the host key
+  // fingerprint empty on the first probe, then verify it before testing sign-in.
   dockwell.resource.v1alpha1.BackupDestination destination = 1;
+  // The Dockwell server whose agent tests an SFTP destination.
+  string server = 2;
+  // The saved destination by name, when testing an edit with saved credentials.
+  string existing_destination = 3;
 }
 
 // TestBackupDestinationResponse says what the storage answered.
@@ -605,6 +625,25 @@ message TestBackupDestinationResponse {
   string region = 7;
   // The test file that was written and couldn't be deleted, with CANT_DELETE.
   string test_file = 8;
+  // SSH and folder checks when testing an SFTP destination.
+  BackupDestinationSftpChecks sftp = 9;
+}
+
+// BackupDestinationSftpChecks reports the checks that passed. A problem names
+// the first failure; remaining checks may not have run.
+message BackupDestinationSftpChecks {
+  bool reached = 1;
+  // The fingerprint presented by the server, including when missing or changed.
+  string host_key_fingerprint = 2;
+  bool host_key_verified = 3;
+  bool folder_ready = 4;
+  bool read_back = 5;
+  bool deleted = 6;
+  // Unset when the server does not report available space.
+  optional int64 free_bytes = 7;
+  string host_key_algorithm = 8;
+  string server_id = 9;
+  string server_name = 10;
 }
 
 // BackupDestinationProblem is why a test didn't get as far as writing.
@@ -624,4 +663,8 @@ enum BackupDestinationProblem {
   BACKUP_DESTINATION_PROBLEM_CANT_DELETE = 6 [(dockwell.v1.word) = "Can't delete"];
   // The storage answered with an error of its own.
   BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR = 7 [(dockwell.v1.word) = "Storage error"];
+  BACKUP_DESTINATION_PROBLEM_HOST_KEY_UNVERIFIED = 8 [(dockwell.v1.word) = "Verify host key"];
+  BACKUP_DESTINATION_PROBLEM_HOST_KEY_CHANGED = 9 [(dockwell.v1.word) = "Host key changed"];
+  BACKUP_DESTINATION_PROBLEM_CANT_OPEN_FOLDER = 10 [(dockwell.v1.word) = "Can't open folder"];
+  BACKUP_DESTINATION_PROBLEM_CANT_READ = 11 [(dockwell.v1.word) = "Can't read"];
 }

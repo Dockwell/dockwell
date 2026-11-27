@@ -1543,9 +1543,8 @@ message BackupPolicy {
   bool website_folder = 81;
 }
 
-// BackupDestination is S3-compatible storage that backups go to as well as the
-// server's disk, so they outlive it: Amazon S3, Cloudflare R2, Backblaze B2, MinIO
-// and the like. It lives in the organization, and any environment's backups can use
+// BackupDestination is off-site storage that backups go to as well as the
+// server's disk, so they outlive it. It lives in the organization, and any environment's backups can use
 // it. A backup is encrypted on its server before it leaves, so the storage never
 // reads what it holds. Dockwell keeps this encrypted, and sends it only to the server
 // that's sending a backup, for that one call. See
@@ -1574,6 +1573,29 @@ message BackupDestination {
   // shared, and its keys stay on the connection so rotating them moves the
   // destination with them. The destination keeps its own prefix and passphrase.
   string connection = 8;
+  // An SSH file transfer destination, in place of the S3 fields and prefix.
+  BackupDestinationSftp sftp = 9;
+}
+
+// BackupDestinationSftp is a folder on an SSH server. Dockwell verifies its
+// host key before signing in. Use one of a private key or a password.
+message BackupDestinationSftp {
+  string host = 1;
+  // Zero uses port 22.
+  uint32 port = 2;
+  string user = 3;
+  // An absolute path on the SFTP server, such as "/backups".
+  string path = 4;
+  // The SHA256 fingerprint of the server's SSH host key, verified by the caller.
+  string host_key_fingerprint = 5;
+  string private_key = 6 [(sensitive) = true];
+  string password = 7 [(sensitive) = true];
+  // Use only for an encrypted private key.
+  string key_passphrase = 8 [(sensitive) = true];
+  // The key type whose fingerprint was verified, for example ssh-ed25519.
+  string host_key_algorithm = 9;
+  // An OpenSSH authorized_keys entry derived from private_key.
+  string public_key = 10;
 }
 
 // Network is a Docker network in an environment, which its services join

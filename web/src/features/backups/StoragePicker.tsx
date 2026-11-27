@@ -11,8 +11,8 @@ import { pickerStatus, type StorageItem } from "./storage";
 import "./Backups.css";
 
 /**
- * Picks where backups send a copy: S3 connections first, then standalone legacy
- * destinations, then local-only. Connections serving an app or whose keys an app
+ * Picks where backups send a copy: S3 connections first, then destinations with
+ * their own credentials, then local-only. Connections serving an app or whose keys an app
  * received stay visible and disabled with why, with the action that makes one
  * backups can use (ADR 0099, #831).
  */
@@ -41,7 +41,7 @@ export function StoragePicker({
   const groupId = useId();
   const listFormat = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" });
 
-  // S3 connections first (usable before disabled), then standalone legacy destinations.
+  // S3 connections first (usable before disabled), then destinations with their own credentials.
   const connItems = items.filter((i) => i.connection !== undefined);
   const standaloneItems = items.filter((i) => i.connection === undefined);
   const usableConns = connItems.filter((i) => {
@@ -73,7 +73,9 @@ export function StoragePicker({
 
           if (status.state === "ready") {
             const prefix = item.destination?.prefix.trim().replace(/^\/+|\/+$/g, "");
-            if (conn) {
+            if (item.destination?.sftp) {
+              detail = t`SFTP · ${item.destination.sftp.path}`;
+            } else if (conn) {
               detail = prefix ? t`Encrypted under ${prefix}/` : t`Encrypted before upload`;
             } else if (item.bucket) {
               detail = prefix ? t`Bucket ${item.bucket} · encrypted under ${prefix}/` : t`Bucket ${item.bucket}`;
