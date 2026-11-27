@@ -10,3 +10,17 @@ CREATE TABLE ci_deploy_keys (
   change_id TEXT NOT NULL UNIQUE REFERENCES changes(id) ON DELETE CASCADE,
   PRIMARY KEY (service_id, digest, commit_sha)
 );
+
+-- The key moves between attempts. Each change keeps its own immutable origin.
+CREATE TABLE ci_deploy_origins (
+  change_id TEXT PRIMARY KEY REFERENCES changes(id) ON DELETE CASCADE,
+  service_id TEXT NOT NULL,
+  provider INTEGER NOT NULL,
+  repository TEXT NOT NULL,
+  commit_sha TEXT NOT NULL,
+  ref TEXT NOT NULL,
+  run_url TEXT NOT NULL,
+  commit_url TEXT NOT NULL,
+  image TEXT NOT NULL,
+  digest TEXT NOT NULL
+);

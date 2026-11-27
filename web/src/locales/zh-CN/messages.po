@@ -4698,14 +4698,29 @@ msgstr "创建部署令牌"
 msgid "Hide the token"
 msgstr "隐藏令牌"
 
+msgid "In 30 days"
+msgstr "30 天后"
+
+msgid "In 90 days"
+msgstr "90 天后"
+
+msgid "Manage API tokens"
+msgstr "管理 API 令牌"
+
 msgid "Release tag"
 msgstr "发行版本标签"
 
 msgid "Show the whole token"
 msgstr "显示完整令牌"
 
+msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
+msgstr "构建任务通过 dotenv 制品导出 DOCKWELL_IMAGE。"
+
 msgid "Token copied"
 msgstr "令牌已复制"
+
+msgid "Token expires"
+msgstr "令牌有效期"
 
 msgid "Workflow"
 msgstr "工作流"
@@ -24868,6 +24883,9 @@ msgstr "有效的令牌"
 msgid "Acts as"
 msgstr "身份"
 
+msgid "App unavailable"
+msgstr "应用不可用"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "请立即复制这个令牌。它不会再次显示。"
 
@@ -24903,12 +24921,6 @@ msgstr "筛选令牌"
 
 msgid "In 1 year"
 msgstr "1 年后"
-
-msgid "In 30 days"
-msgstr "30 天后"
-
-msgid "In 90 days"
-msgstr "90 天后"
 
 msgid "In {where}, {as}"
 msgstr "在{where}中，{as}"

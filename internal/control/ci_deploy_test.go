@@ -151,3 +151,93 @@ func TestCIDeployKeySurvivesAnApplyingControlPlaneRestart(t *testing.T) {
 		}
 	})
 }
+
+// Two different pushes can plan from one revision. Retrying the older push
+// after the newer one deploys is a new plan to put the older image back.
+func TestCIDeployRetriesOnlyReusableAttempts(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		b := newBench(t, backend)
+		b.done(t, b.file(t, &v1.ImportComposeRequest{Compose: shopFile}))
+		app := onlyService(t, b.s).GetId()
+		image := func(tag, hex string) string {
+			digest := "sha256:" + strings.Repeat(hex, 64)
+			ref := "example.com/acme/shop:" + tag + "@" + digest
+			b.e.Registry[ref] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}, Digest: digest}
+			return ref
+		}
+		oldImage, newImage, failingImage := image("old", "1"), image("new", "2"), image("retry", "3")
+		plan := func(ref, commit string) *v1.Change {
+			t.Helper()
+			res, err := b.s.DeployService(t.Context(), connect.NewRequest(&v1.DeployServiceRequest{
+				Id: app, Image: ref, DeployOrigin: &v1.DeployOrigin{
+					Repository: "https://github.com/acme/shop", Commit: strings.Repeat(commit, 40), Ref: "refs/heads/main",
+					RunUrl: "https://github.com/acme/shop/actions/runs/42", Provider: v1.DeployProvider_DEPLOY_PROVIDER_GITHUB_ACTIONS,
+				},
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return res.Msg.GetChange()
+		}
+		different := func(old, fresh *v1.Change) {
+			t.Helper()
+			if old.GetId() == fresh.GetId() || fresh.GetState() != v1.ChangeState_CHANGE_STATE_PLANNED {
+				t.Fatalf("retry returned %s in %s, want a fresh plan after %s", fresh.GetId(), fresh.GetState(), old.GetId())
+			}
+		}
+
+		older := plan(oldImage, "a")
+		if got := plan(oldImage, "a"); got.GetId() != older.GetId() {
+			t.Fatalf("applicable plan was replaced: %s, want %s", got.GetId(), older.GetId())
+		}
+		unapplied := plan(oldImage, "e")
+		newer := b.done(t, plan(newImage, "b"))
+		different(unapplied, plan(oldImage, "e"))
+		if _, err := b.c.ApplyChange(t.Context(), connect.NewRequest(&v1.ApplyChangeRequest{
+			Id: older.GetId(), Fingerprint: older.GetPlan().GetFingerprint(),
+		})); reasonOf(err) != "plan_stale" {
+			t.Fatalf("applying the older push's stale plan: %v", err)
+		}
+		retry := plan(oldImage, "a")
+		different(older, retry)
+		back := b.done(t, retry)
+		if got := plan(oldImage, "a"); got.GetId() != back.GetId() || got.GetState() != v1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("the current rollout wasn't reused: %v", got)
+		}
+		if got := onlyService(t, b.s); got.GetSpec().GetApp().GetImage() != oldImage ||
+			got.GetDeployments()[0].GetDeployOrigin().GetCommit() != strings.Repeat("a", 40) {
+			t.Fatalf("the old artifact didn't redeploy with its origin: %v", got)
+		}
+
+		superseded := plan(newImage, "b")
+		different(newer, superseded)
+		if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&v1.DiscardChangeRequest{Id: superseded.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+		replacement := plan(newImage, "b")
+		different(superseded, replacement)
+		b.done(t, replacement)
+
+		b.e.SetExits(failingImage, true)
+		failed := applied(t, b.c, plan(failingImage, "c"))
+		b.f.engine.Wait()
+		if failed.GetState() != v1.ChangeState_CHANGE_STATE_FAILED {
+			t.Fatalf("fixture didn't fail the rollout: %v", failed)
+		}
+		b.e.SetExits(failingImage, false)
+		recovered := plan(failingImage, "c")
+		different(failed, recovered)
+		b.done(t, recovered)
+		failedRead, err := b.c.GetChange(t.Context(), connect.NewRequest(&v1.GetChangeRequest{Id: failed.GetId()}))
+		if err != nil || failedRead.Msg.GetChange().GetDeployOrigin().GetImage() != failingImage {
+			t.Fatalf("the failed attempt lost its origin: %v, %v", failedRead, err)
+		}
+
+		// A new commit can publish the same bytes. It gets its own current
+		// revision and its retries reuse that revision.
+		identical := b.done(t, plan(failingImage, "d"))
+		if got := plan(failingImage, "d"); got.GetId() != identical.GetId() {
+			t.Fatalf("identical artifact didn't record a reusable revision: %v", got)
+		}
+	})
+}

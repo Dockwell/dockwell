@@ -170,6 +170,9 @@ type Token struct {
 	// The service and environment bound to a deploy token.
 	DeployService     string `protobuf:"bytes,12,opt,name=deploy_service,json=deployService,proto3" json:"deploy_service,omitempty"`
 	DeployEnvironment string `protobuf:"bytes,13,opt,name=deploy_environment,json=deployEnvironment,proto3" json:"deploy_environment,omitempty"`
+	// Current name of the app where the token still works. Empty if its bound
+	// service has moved, gone away, or is no longer visible to its maker.
+	DeployServiceName string `protobuf:"bytes,14,opt,name=deploy_service_name,json=deployServiceName,proto3" json:"deploy_service_name,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -291,6 +294,13 @@ func (x *Token) GetDeployService() string {
 func (x *Token) GetDeployEnvironment() string {
 	if x != nil {
 		return x.DeployEnvironment
+	}
+	return ""
+}
+
+func (x *Token) GetDeployServiceName() string {
+	if x != nil {
+		return x.DeployServiceName
 	}
 	return ""
 }
@@ -735,7 +745,7 @@ var File_dockwell_v1_token_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb7\x04\n" +
+	"\x17dockwell/v1/token.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x04\n" +
 	"\x05Token\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -752,7 +762,8 @@ const file_dockwell_v1_token_proto_rawDesc = "" +
 	" \x03(\v2\x19.dockwell.v1.TokenProjectR\bprojects\x12*\n" +
 	"\x04role\x18\v \x01(\x0e2\x16.dockwell.v1.TokenRoleR\x04role\x12%\n" +
 	"\x0edeploy_service\x18\f \x01(\tR\rdeployService\x12-\n" +
-	"\x12deploy_environment\x18\r \x01(\tR\x11deployEnvironment\"2\n" +
+	"\x12deploy_environment\x18\r \x01(\tR\x11deployEnvironment\x12.\n" +
+	"\x13deploy_service_name\x18\x0e \x01(\tR\x11deployServiceName\"2\n" +
 	"\fTokenProject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\x96\x03\n" +

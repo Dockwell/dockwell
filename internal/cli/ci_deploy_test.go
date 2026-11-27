@@ -32,14 +32,21 @@ import (
 
 type ciServices struct {
 	dockwellv1connect.UnimplementedServiceServiceHandler
-	check func(*connect.Request[v1.DeployServiceRequest])
-	state v1.ChangeState
+	check       func(*connect.Request[v1.DeployServiceRequest])
+	state       v1.ChangeState
+	waits       string
+	unavailable atomic.Bool
 }
 
 func (s *ciServices) DeployService(_ context.Context, req *connect.Request[v1.DeployServiceRequest]) (*connect.Response[v1.DeployServiceResponse], error) {
-	s.check(req)
+	if s.check != nil {
+		s.check(req)
+	}
+	if s.unavailable.Swap(false) {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("control server restarting"))
+	}
 	return connect.NewResponse(&v1.DeployServiceResponse{Change: &v1.Change{
-		Id: stubChange, State: s.state, Plan: &v1.Plan{Fingerprint: "reviewed"},
+		Id: stubChange, State: s.state, Waits: s.waits, Plan: &v1.Plan{Fingerprint: "reviewed"},
 	}}), nil
 }
 
@@ -79,7 +86,9 @@ func TestCIDeployWaitExitCodes(t *testing.T) {
 		{"healthy", v1.ChangeState_CHANGE_STATE_PLANNED, v1.ChangeState_CHANGE_STATE_APPLIED, 0, exitOK, 1},
 		{"in-progress retry", v1.ChangeState_CHANGE_STATE_APPLYING, v1.ChangeState_CHANGE_STATE_APPLIED, 0, exitOK, 0},
 		{"failed", v1.ChangeState_CHANGE_STATE_PLANNED, v1.ChangeState_CHANGE_STATE_FAILED, 0, exitError, 1},
-		{"rolled back", v1.ChangeState_CHANGE_STATE_FAILED, v1.ChangeState_CHANGE_STATE_FAILED, v1.RollbackState_ROLLBACK_STATE_APPLIED, exitError, 0},
+		{"rolled back", v1.ChangeState_CHANGE_STATE_FAILED, v1.ChangeState_CHANGE_STATE_FAILED, v1.RollbackState_ROLLBACK_STATE_APPLIED, 6, 0},
+		{"discarded", v1.ChangeState_CHANGE_STATE_DISCARDED, v1.ChangeState_CHANGE_STATE_DISCARDED, 0, 7, 0},
+		{"returned failed", v1.ChangeState_CHANGE_STATE_FAILED, v1.ChangeState_CHANGE_STATE_FAILED, 0, 1, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &ciChanges{stubChanges: &stubChanges{watch: func(_ int, send func(*v1.Change) error) error {
@@ -99,6 +108,67 @@ func TestCIDeployWaitExitCodes(t *testing.T) {
 				"--wait", "--image=example.com/acme/web:1", "--", "svc_web")
 			if r.code != tc.want || int(c.applied.Load()) != tc.applications || !strings.Contains(r.err, "/changes/"+stubChange) {
 				t.Fatalf("exit = %d, apply attempts = %d; stdout %q, stderr %q", r.code, c.applied.Load(), r.out, r.err)
+			}
+		})
+	}
+}
+
+func TestCIDeployReconnectsToTheRecordedChange(t *testing.T) {
+	var proposals, reads atomic.Int32
+	s := &ciServices{state: v1.ChangeState_CHANGE_STATE_APPLYING, check: func(req *connect.Request[v1.DeployServiceRequest]) {
+		proposals.Add(1)
+		if req.Msg.GetDeployOrigin().GetCommit() != "same-commit" {
+			t.Errorf("retry changed the proposal: %v", req.Msg)
+		}
+	}}
+	s.unavailable.Store(true)
+	c := &ciChanges{stubChanges: &stubChanges{
+		watch: func(n int, send func(*v1.Change) error) error {
+			if n == 1 {
+				if err := send(&v1.Change{Id: stubChange, State: v1.ChangeState_CHANGE_STATE_APPLYING}); err != nil {
+					return err
+				}
+				return connect.NewError(connect.CodeUnavailable, errors.New("stream dropped"))
+			}
+			return send(&v1.Change{Id: stubChange, State: v1.ChangeState_CHANGE_STATE_APPLIED})
+		},
+		get: func(id string) *v1.Change {
+			reads.Add(1)
+			return &v1.Change{Id: id, State: v1.ChangeState_CHANGE_STATE_APPLYING}
+		},
+	}}
+	url := serveCIDeploy(t, s, c)
+	r := run(t, map[string]string{apicli.EnvURL: url, apicli.EnvToken: wellFormedToken()}, "services", "deploy",
+		"--wait", "--timeout=5s", "--image=example.com/acme/web:1", `--deploy-origin={"commit":"same-commit"}`, "svc_web")
+	c.mu.Lock()
+	watches := c.watches
+	c.mu.Unlock()
+	if r.code != exitOK || proposals.Load() != 2 || reads.Load() != 1 || watches != 2 {
+		t.Fatalf("exit %d, proposals %d, gets %d, watches %d: %s", r.code, proposals.Load(), reads.Load(), watches, r.err)
+	}
+}
+
+func TestCIDeployWaitDeadline(t *testing.T) {
+	for _, tc := range []struct {
+		name, waits string
+		state       v1.ChangeState
+		code        int
+	}{
+		{"approval", "Waiting for an admin", v1.ChangeState_CHANGE_STATE_PLANNED, 4},
+		{"rollout", "", v1.ChangeState_CHANGE_STATE_APPLYING, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &ciChanges{stubChanges: &stubChanges{watch: func(_ int, send func(*v1.Change) error) error {
+				// A proxy can end a quiet stream cleanly, with no terminal state.
+				return send(&v1.Change{Id: stubChange, State: tc.state, Waits: tc.waits})
+			}, get: func(id string) *v1.Change {
+				return &v1.Change{Id: id, State: tc.state, Waits: tc.waits}
+			}}}
+			url := serveCIDeploy(t, &ciServices{state: tc.state, waits: tc.waits}, c)
+			r := run(t, map[string]string{apicli.EnvURL: url, apicli.EnvToken: wellFormedToken()}, "services", "deploy",
+				"--wait", "--timeout=500ms", "--image=example.com/acme/web:1", "svc_web")
+			if r.code != tc.code || c.applied.Load() != 0 || !strings.Contains(r.err, "/changes/"+stubChange) {
+				t.Fatalf("exit %d, apply attempts %d: %s", r.code, c.applied.Load(), r.err)
 			}
 		})
 	}
@@ -154,7 +224,12 @@ func TestCIWrappersAgainstTheDeployAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write("checksums.txt", fmt.Sprintf("%x  %s\n", sha256.Sum256(raw), archive))
+	deploy, err := os.ReadFile(filepath.Join(repo, "ci", "deploy.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("deploy.sh", string(deploy))
+	write("checksums.txt", fmt.Sprintf("%x  %s\n%x  deploy.sh\n", sha256.Sum256(raw), archive, sha256.Sum256(deploy)))
 	write("checksums.txt.sigstore.json", "{}")
 	write("cosign", `#!/usr/bin/env bash
 set -eu
@@ -183,10 +258,12 @@ url=$1
 case "$url" in
   https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-*) src="$CI_FIXTURES/cosign" ;;
   https://github.com/Dockwell/dockwell/releases/download/v9.9.9/*) src="$CI_FIXTURES/${url##*/}" ;;
-  https://raw.githubusercontent.com/Dockwell/dockwell/v9.9.9/ci/deploy.sh) src="$CI_DEPLOY_SCRIPT" ;;
   *) printf 'Unexpected URL %s\n' "$url" >&2; exit 1 ;;
 esac
 cp -- "$src" "$out"
+if [[ ${CI_TAMPER:-} == "${src##*/}" ]]; then
+  printf 'tampered' >> "$out"
+fi
 `)
 	for _, tc := range []struct {
 		name, script, project, runURL string
@@ -210,9 +287,8 @@ cp -- "$src" "$out"
 			}}, &ciChanges{stubChanges: &stubChanges{watch: func(_ int, send func(*v1.Change) error) error {
 				return send(&v1.Change{Id: stubChange, State: v1.ChangeState_CHANGE_STATE_APPLIED})
 			}}})
-			cmd := exec.CommandContext(t.Context(), "bash", "-e", "-c", tc.script)
-			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "CI_FIXTURES="+dir,
-				"CI_REAL_SHA256SUM="+sha256bin, "CI_DEPLOY_SCRIPT="+filepath.Join(repo, "ci", "deploy.sh"),
+			env := append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "CI_FIXTURES="+dir,
+				"CI_REAL_SHA256SUM="+sha256bin,
 				"GITHUB_ACTION_PATH="+filepath.Join(repo, "ci", "github"),
 				"DOCKWELL_URL="+url, "DOCKWELL_TOKEN="+wantToken, "DOCKWELL_IMAGE=example.com/acme/web:1",
 				"DOCKWELL_CI_IMAGE=example.com/acme/web:1", "DOCKWELL_SERVICE=svc_web", "DOCKWELL_VERSION=v9.9.9", "DOCKWELL_CI_PROVIDER="+tc.name,
@@ -220,9 +296,27 @@ cp -- "$src" "$out"
 				"GITHUB_SERVER_URL=https://github.com", "GITHUB_REPOSITORY=acme/web", "GITHUB_SHA="+commit,
 				"GITHUB_REF=main", "GITHUB_RUN_ID=42", "CI_PROJECT_URL="+tc.project,
 				"CI_COMMIT_SHA="+commit, "CI_COMMIT_REF_NAME=main", "CI_PIPELINE_URL="+tc.runURL)
-			out, err := cmd.CombinedOutput()
+			if tc.name == "github-actions" {
+				env = append(env, "DOCKWELL_VERSION=", "DOCKWELL_ACTION_REF=v9.9.9")
+			}
+			runScript := func(tamper string) ([]byte, error) {
+				cmd := exec.CommandContext(t.Context(), "bash", "-e", "-c", tc.script)
+				cmd.Env = env
+				cmd.Env = append(cmd.Env, "CI_TAMPER="+tamper)
+				return cmd.CombinedOutput()
+			}
+			out, err := runScript("")
 			if err != nil || calls.Load() != 1 || !bytes.Contains(out, []byte("/changes/"+stubChange)) {
 				t.Fatalf("CI script = %v, %d API calls\n%s", err, calls.Load(), out)
+			}
+			for _, asset := range []string{archive, "deploy.sh"} {
+				if asset == "deploy.sh" && tc.name != "gitlab-ci" {
+					continue
+				}
+				out, err := runScript(asset)
+				if err == nil || calls.Load() != 1 || !bytes.Contains(out, []byte("checksum")) {
+					t.Fatalf("tampered %s = %v, %d API calls\n%s", asset, err, calls.Load(), out)
+				}
 			}
 		})
 	}

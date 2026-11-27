@@ -155,7 +155,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		if err != nil {
 			return err
 		}
-		ciPlans, err := tx.CIDeployPlans(ctx, changeIDs)
+		ciOrigins, err := tx.CIDeployOrigins(ctx, changeIDs)
 		if err != nil {
 			return err
 		}
@@ -218,15 +218,9 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
 				return err
 			}
-			if raw := ciPlans[r.ChangeID]; raw != nil {
-				plan, err := revision.DecodePlan(raw)
-				if err != nil {
-					return err
-				}
-				if i := plan.Intent; i != nil && i.Resource == r.ID {
-					for _, deployment := range info.Deployments {
-						deployment.DeployOrigin = i.DeployOrigin
-					}
+			if origin := ciOrigins[r.ChangeID]; origin.Service == r.ID {
+				for _, deployment := range info.Deployments {
+					deployment.DeployOrigin = changes.CIDeployOriginProto(origin)
 				}
 			}
 			c := origins[r.ChangeID]
@@ -382,8 +376,7 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 			if rev.Deployments, err = names.deployments(ctx, r.Deployments); err != nil {
 				return err
 			}
-			if c := rev.Change; c != nil && records[i].Record != nil && records[i].Record.Brief.Intent != nil &&
-				records[i].Record.Brief.Intent.Resource == target.ID {
+			if c := rev.Change; c != nil && r.Record != nil && r.Record.CIOrigin.Service == target.ID {
 				for _, deployment := range rev.Deployments {
 					deployment.DeployOrigin = c.DeployOrigin
 				}

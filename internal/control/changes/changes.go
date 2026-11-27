@@ -1176,8 +1176,7 @@ func (h *Handler) checkDeployToken(ctx context.Context, p auth.Principal, r *rev
 	if p.Token == nil || p.Token.DeployService == "" {
 		return nil
 	}
-	intent := r.Brief.Intent
-	if intent != nil && intent.DeployOrigin != nil && intent.Resource == p.Token.DeployService {
+	if r.CIOrigin.Service == p.Token.DeployService {
 		var matches bool
 		err := h.db.View(ctx, func(tx *store.Tx) error {
 			svc, err := tx.GetResourceByID(ctx, p.Token.DeployService)
@@ -1681,9 +1680,7 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 		Rollback: revision.IsRollback(r.Change), AppliedBy: actor(r.AppliedBy), AppliedVia: Surfaces[r.AppliedVia],
 		Error: r.Error, RolledBackBy: r.RolledBackBy, UndoneBy: r.UndoneBy, RollbackStatus: rollbackProto(r.Rollback), Because: r.Brief.Because, Restart: r.Brief.Restart,
 	}
-	if i := r.Brief.Intent; i != nil {
-		c.DeployOrigin = i.DeployOrigin
-	}
+	c.DeployOrigin = CIDeployOriginProto(r.CIOrigin)
 	if !r.AppliedAt.IsZero() {
 		c.ApplyTime = timestamppb.New(r.AppliedAt)
 	}
@@ -1695,6 +1692,17 @@ func Proto(r *revision.Record, actor func(string) *dockwellv1.Actor) *dockwellv1
 	}
 	c.Confirmation = confirmationOf(c.Steps)
 	return c
+}
+
+// CIDeployOriginProto represents the origin of a CI change or deployment.
+func CIDeployOriginProto(o store.CIDeployOrigin) *dockwellv1.DeployOrigin {
+	if o.Service == "" {
+		return nil
+	}
+	return &dockwellv1.DeployOrigin{
+		Provider: dockwellv1.DeployProvider(o.Provider), Repository: o.Repository, Commit: o.Commit,
+		Ref: o.Ref, RunUrl: o.RunURL, CommitUrl: o.CommitURL, Image: o.Image, Digest: o.Digest,
+	}
 }
 
 // confirmationOf is what a change waits for: the confirmation one of its

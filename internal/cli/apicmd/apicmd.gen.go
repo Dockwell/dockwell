@@ -4071,7 +4071,7 @@ func Methods() []*apicli.Method {
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it deploys."},
 				{Path: "project", Help: "The project of a service named by name, by name or ID, when more than one has a service of that name."},
 				{Path: "environment", Help: "The environment of a service named by name, by name or ID, when its project has more than one."},
-				{Path: "deploy_origin", Help: "Correlate this image deploy with a CI run. The same service, digest and commit return the original change, including after a control server restart."},
+				{Path: "deploy_origin", Help: "Correlate this image deploy with a CI run. The same service, digest and commit follow an active attempt or the current successful deployment. A retry after failure, discard, staleness or replacement plans again."},
 			},
 			Call: apicli.Unary[v1.DeployServiceRequest, v1.DeployServiceResponse](dockwellv1connect.ServiceServiceDeployServiceProcedure),
 		},

@@ -22,6 +22,7 @@ And once per release:
 - `checksums.txt`: SHA-256 of every archive of both builds, `install.sh` and `sigstore_trusted_root.json`.
 - `checksums.txt.sigstore.json`: a keyless cosign signature of `checksums.txt`, made with the release workflow's GitHub identity and recorded in Sigstore's public transparency log.
 - `install.sh`: the install script at that release's tag.
+- `deploy.sh`: the CI deploy script. The GitLab template verifies its signed checksum before executing it.
 - `sigstore_trusted_root.json`: the copy of Sigstore's trust root that this `install.sh` pins, for installs through a [mirror](install.md#install-through-a-mirror) that check signatures without reaching Sigstore ([ADR 0013](adr/0013-mirrors-for-releases-and-images.md)).
 - A GitHub build-provenance attestation for every archive, SBOM and the checksums, which says the workflow and commit that built them.
 

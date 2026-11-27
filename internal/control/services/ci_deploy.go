@@ -134,16 +134,12 @@ func (h *Handler) pinCIDeploy(ctx context.Context, r store.Resource, ref resourc
 }
 
 func (h *Handler) existingCIDeploy(ctx context.Context, service string, origin *v1.DeployOrigin) (*v1.Change, error) {
-	var id string
-	err := h.db.View(ctx, func(tx *store.Tx) (err error) {
-		id, err = tx.CIDeployChange(ctx, store.CIDeployKey{Service: service, Digest: origin.GetDigest(), Commit: origin.GetCommit()})
-		return err
-	})
+	id, err := h.engine.ReusableCIDeploy(ctx, store.CIDeployKey{Service: service, Digest: origin.GetDigest(), Commit: origin.GetCommit()})
 	switch {
-	case errors.Is(err, store.ErrNotFound):
-		return nil, nil
 	case err != nil:
 		return nil, h.internal(ctx, "reading a CI deploy", err)
+	case id == "":
+		return nil, nil
 	default:
 		return h.changes.ExistingCIDeploy(ctx, id)
 	}

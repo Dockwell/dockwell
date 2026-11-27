@@ -116,6 +116,9 @@ message Token {
   // The service and environment bound to a deploy token.
   string deploy_service = 12;
   string deploy_environment = 13;
+  // Current name of the app where the token still works. Empty if its bound
+  // service has moved, gone away, or is no longer visible to its maker.
+  string deploy_service_name = 14;
 }
 
 // TokenProject is a project a token acts in.

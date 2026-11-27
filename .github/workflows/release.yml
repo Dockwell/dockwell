@@ -77,10 +77,10 @@ jobs:
           tar -xzf dist/dockwell-agent_*_linux_amd64.tar.gz -C dist/agent dockwell
           scripts/smoke-agent.sh dist/dockwell dist/agent/dockwell
       # Mirrors serve these with the archives (docs/adr/0013-mirrors-for-releases-and-images.md).
-      - name: Add the install script and the Sigstore trust root it pins
+      - name: Add the install and CI deploy scripts and the Sigstore trust root
         run: |
           scripts/check-trust-root.sh pin
-          cp scripts/install.sh scripts/sigstore_trusted_root.json dist/
+          cp scripts/install.sh scripts/sigstore_trusted_root.json ci/deploy.sh dist/
           (cd dist && sha256sum --check --strict checksums.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -90,6 +90,7 @@ jobs:
             dist/*.spdx.json
             dist/checksums.txt
             dist/install.sh
+            dist/deploy.sh
             dist/sigstore_trusted_root.json
           if-no-files-found: error
           retention-days: ${{ github.ref_type == 'tag' && 90 || 14 }}
@@ -167,6 +168,7 @@ jobs:
             dist/*.spdx.json
             dist/checksums.txt
             dist/install.sh
+            dist/deploy.sh
             dist/sigstore_trusted_root.json
       - name: Publish the release
         env:

@@ -1257,7 +1257,8 @@ type DeployServiceRequest struct {
 	// project has more than one.
 	Environment string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
 	// Correlate this image deploy with a CI run. The same service, digest and
-	// commit return the original change, including after a control server restart.
+	// commit follow an active attempt or the current successful deployment.
+	// A retry after failure, discard, staleness or replacement plans again.
 	DeployOrigin  *DeployOrigin `protobuf:"bytes,6,opt,name=deploy_origin,json=deployOrigin,proto3" json:"deploy_origin,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

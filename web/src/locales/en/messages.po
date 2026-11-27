@@ -4698,14 +4698,29 @@ msgstr "Create deploy token"
 msgid "Hide the token"
 msgstr "Hide the token"
 
+msgid "In 30 days"
+msgstr "In 30 days"
+
+msgid "In 90 days"
+msgstr "In 90 days"
+
+msgid "Manage API tokens"
+msgstr "Manage API tokens"
+
 msgid "Release tag"
 msgstr "Release tag"
 
 msgid "Show the whole token"
 msgstr "Show the whole token"
 
+msgid "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
+msgstr "The build job exports DOCKWELL_IMAGE as a dotenv artifact."
+
 msgid "Token copied"
 msgstr "Token copied"
+
+msgid "Token expires"
+msgstr "Token expires"
 
 msgid "Workflow"
 msgstr "Workflow"
@@ -24868,6 +24883,9 @@ msgstr "Active tokens"
 msgid "Acts as"
 msgstr "Acts as"
 
+msgid "App unavailable"
+msgstr "App unavailable"
+
 msgid "Copy this token now. It won't be shown again."
 msgstr "Copy this token now. It won't be shown again."
 
@@ -24903,12 +24921,6 @@ msgstr "Filter tokens"
 
 msgid "In 1 year"
 msgstr "In 1 year"
-
-msgid "In 30 days"
-msgstr "In 30 days"
-
-msgid "In 90 days"
-msgstr "In 90 days"
 
 msgid "In {where}, {as}"
 msgstr "In {where}, {as}"

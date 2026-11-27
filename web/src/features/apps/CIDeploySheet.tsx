@@ -1,56 +1,71 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { durationFromMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type ServiceInfo, StepUpAction, SystemService, TokenScope, TokenService } from "@dockwell/api";
-import { Button, Callout, CopyButton, SegmentedControl, Sheet, TextField } from "@dockwell/ui";
+import { Button, Callout, CopyButton, SegmentedControl, SelectField, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
-import { imageOf, nameOf } from "./app";
+import { nameOf } from "./app";
 
 type Provider = "github" | "gitlab";
 const releaseTag = /^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/;
 const pseudoVersion = /\d{14}-[0-9a-f]{12}$/;
 const secretName = "DOCKWELL_DEPLOY_TOKEN";
 
-export function deployWorkflow(provider: Provider, panel: string, service: string, image: string, tag: string) {
+export function deployWorkflow(provider: Provider, panel: string, service: string, tag: string, templateRef = tag) {
   if (provider === "gitlab") {
     return `include:
-  - remote: https://raw.githubusercontent.com/Dockwell/dockwell/${tag}/ci/gitlab/dockwell-deploy.yml
+  - remote: https://raw.githubusercontent.com/Dockwell/dockwell/${templateRef}/ci/gitlab/dockwell-deploy.yml
     inputs:
       panel: ${JSON.stringify(panel)}
       token: '$${secretName}'
       service: ${JSON.stringify(service)}
-      image: ${JSON.stringify(image)}
+      image: '$DOCKWELL_IMAGE'
       version: ${JSON.stringify(tag)}
+      build-job: build
 `;
   }
-  return `name: Deploy to Dockwell
+  return `name: Build and deploy to Dockwell
 
 on:
-  workflow_dispatch:
-    inputs:
-      image:
-        description: Published image reference or digest
-        required: true
-        default: ${JSON.stringify(image)}
+  push:
+    branches: [main]
 
-permissions: {}
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and push
+        id: build
+        env:
+          GHCR_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/\${GITHUB_REPOSITORY,,}"
+          printf '%s\\n' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker buildx build --push -t "$image:$GITHUB_SHA" --metadata-file "$RUNNER_TEMP/image.json" .
+          digest=$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/image.json")
+          printf 'image=%s@%s\\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
       - uses: Dockwell/dockwell/ci/github@${tag}
         with:
           panel: ${JSON.stringify(panel)}
           token: \${{ secrets.${secretName} }}
           service: ${JSON.stringify(service)}
-          image: \${{ inputs.image }}
+          image: \${{ steps.build.outputs.image }}
 `;
 }
 
@@ -65,10 +80,12 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
   const [release, setRelease] = useState<string>();
   const [made, setMade] = useState<{ secret: string; hint: string }>();
   const [shown, setShown] = useState(false);
+  const [expires, setExpires] = useState("never");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
   const tag = release ?? bundledTag;
-  const workflow = deployWorkflow(provider, window.location.origin, service.id, imageOf(service), tag || "vX.Y.Z");
+  const templateRef = tag === bundledTag && /^[0-9a-f]{40}$/.test(build?.commit ?? "") ? build?.commit : undefined;
+  const workflow = deployWorkflow(provider, window.location.origin, service.id, tag || "vX.Y.Z", templateRef);
 
   async function createToken() {
     setBusy(true);
@@ -82,6 +99,9 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
           scope: TokenScope.DEPLOY,
           deployService: service.id,
           proof,
+          ...(expires === "never"
+            ? {}
+            : { expiration: { case: "ttl", value: durationFromMs(Number(expires) * 86_400_000) } }),
         }),
       );
       setMade({ secret: result.secret, hint: result.token?.hint ?? "dwt_••••••••" });
@@ -125,6 +145,21 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
             { value: "gitlab", label: "GitLab CI" },
           ]}
         />
+        <Link className="cp-link" to="/settings/api-tokens">
+          <Trans>Manage API tokens</Trans>
+        </Link>
+        {made ? null : (
+          <SelectField
+            label={t`Token expires`}
+            value={expires}
+            onChange={(event) => setExpires(event.target.value)}
+            options={[
+              { value: "never", label: t`Never` },
+              { value: "30", label: t`In 30 days` },
+              { value: "90", label: t`In 90 days` },
+            ]}
+          />
+        )}
         {problem ? <Callout tone="critical" title={problem} /> : null}
         {made ? (
           <div className="ci-deploy-field">
@@ -165,6 +200,11 @@ export function CIDeploySheet({ service, onClose }: { service: ServiceInfo; onCl
               disabled={!releaseTag.test(tag)}
             />
           </div>
+          {provider === "gitlab" ? (
+            <span className="app-muted">
+              <Trans>The build job exports DOCKWELL_IMAGE as a dotenv artifact.</Trans>
+            </span>
+          ) : null}
           <pre>
             <code>{workflow}</code>
           </pre>

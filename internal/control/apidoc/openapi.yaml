@@ -18283,7 +18283,8 @@ components:
                         - $ref: '#/components/schemas/DeployOrigin'
                     description: |-
                         Correlate this image deploy with a CI run. The same service, digest and
-                         commit return the original change, including after a control server restart.
+                         commit follow an active attempt or the current successful deployment.
+                         A retry after failure, discard, staleness or replacement plans again.
             description: DeployServiceRequest names a service and the image to run.
         DeployServiceResponse:
             type: object
@@ -36357,6 +36358,11 @@ components:
                     description: The service and environment bound to a deploy token.
                 deployEnvironment:
                     type: string
+                deployServiceName:
+                    type: string
+                    description: |-
+                        Current name of the app where the token still works. Empty if its bound
+                         service has moved, gone away, or is no longer visible to its maker.
             description: Token is an API token, without its secret.
         TokenProject:
             type: object

@@ -862,6 +862,7 @@ func decodeProgress(b []byte) (Progress, error) {
 
 // Record is a change with its plan and progress, as the API shows it.
 type Record struct {
+	CIOrigin store.CIDeployOrigin
 	store.Change
 	// Plan is the plan in full. Changes leaves it out: a list has Brief.
 	Plan *Plan
@@ -1181,6 +1182,13 @@ func (e *Engine) complete(ctx context.Context, tx *store.Tx, records []*Record) 
 		} else if r.Progress, err = decodeProgress(r.Change.Progress); err != nil {
 			return err
 		}
+	}
+	origins, err := tx.CIDeployOrigins(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for id := range origins {
+		byID[id].CIOrigin = origins[id]
 	}
 	reverting, err := tx.Reverting(ctx, ids)
 	if err != nil {

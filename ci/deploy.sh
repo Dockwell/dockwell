@@ -55,7 +55,7 @@ esac
 cosign_version=v3.1.3
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT
-fetch() { curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 -o "$2" "$1"; }
+fetch() { curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 300 --retry 3 --retry-max-time 360 -o "$2" "$1"; }
 repo=https://github.com/Dockwell/dockwell
 release="$repo/releases/download/$DOCKWELL_VERSION"
 archive="dockwell_${DOCKWELL_VERSION#v}_linux_$arch.tar.gz"

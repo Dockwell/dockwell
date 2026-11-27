@@ -252,7 +252,9 @@ export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearc
                   onSearch({
                     ...search,
                     scope:
-                      event.target.value === "read" || event.target.value === "write" ? event.target.value : undefined,
+                      event.target.value === "read" || event.target.value === "write" || event.target.value === "deploy"
+                        ? event.target.value
+                        : undefined,
                     page: undefined,
                   })
                 }
@@ -309,7 +311,20 @@ function Scopes({ token }: { token: Token }) {
   return (
     <span className="tokens-tags">
       {token.scope === TokenScope.DEPLOY ? (
-        <Tag label={t`Deploy`} value={token.deployService} />
+        <Tag label={t`Deploy`}>
+          {token.deployServiceName ? (
+            <Link
+              className="cp-link"
+              to="/apps/$serviceId/deployments"
+              params={{ serviceId: token.deployService }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {token.deployServiceName}
+            </Link>
+          ) : (
+            t`App unavailable`
+          )}
+        </Tag>
       ) : (
         <Tag label="read" value="*" />
       )}

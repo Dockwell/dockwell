@@ -26,6 +26,7 @@ runs:
         DOCKWELL_TOKEN: ${{ inputs.token }}
         DOCKWELL_SERVICE: ${{ inputs.service }}
         DOCKWELL_IMAGE: ${{ inputs.image }}
-        DOCKWELL_VERSION: ${{ inputs.version || github.action_ref }}
+        DOCKWELL_VERSION: ${{ inputs.version }}
+        DOCKWELL_ACTION_REF: ${{ github.action_ref }}
         DOCKWELL_CI_PROVIDER: github-actions
-      run: bash "$GITHUB_ACTION_PATH/../deploy.sh"
+      run: DOCKWELL_VERSION="${DOCKWELL_VERSION:-$DOCKWELL_ACTION_REF}" bash "$GITHUB_ACTION_PATH/../deploy.sh"

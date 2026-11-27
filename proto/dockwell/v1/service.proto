@@ -478,7 +478,8 @@ message DeployServiceRequest {
   // project has more than one.
   string environment = 5;
   // Correlate this image deploy with a CI run. The same service, digest and
-  // commit return the original change, including after a control server restart.
+  // commit follow an active attempt or the current successful deployment.
+  // A retry after failure, discard, staleness or replacement plans again.
   DeployOrigin deploy_origin = 6;
 }
 

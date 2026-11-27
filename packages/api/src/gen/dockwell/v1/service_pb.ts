@@ -761,7 +761,8 @@ export type DeployServiceRequest = Message<"dockwell.v1.DeployServiceRequest"> &
 
   /**
    * Correlate this image deploy with a CI run. The same service, digest and
-   * commit return the original change, including after a control server restart.
+   * commit follow an active attempt or the current successful deployment.
+   * A retry after failure, discard, staleness or replacement plans again.
    *
    * @generated from field: dockwell.v1.DeployOrigin deploy_origin = 6;
    */
