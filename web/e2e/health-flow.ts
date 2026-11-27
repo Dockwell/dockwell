@@ -260,7 +260,7 @@ services:
     .getByText(/exit code 137/)
     .waitFor();
   // What follows is the restart policy's: plain has none, so nothing starts it again.
-  await page.locator(".dw-callout").getByText("Nothing starts it again on its own. Restart it, or deploy.").waitFor();
+  await page.locator(".dw-callout").getByText("Nothing starts it again on its own. Start it, or deploy.").waitFor();
 
   step("health: it reads in Chinese too");
   const zh = await browser.newContext({
