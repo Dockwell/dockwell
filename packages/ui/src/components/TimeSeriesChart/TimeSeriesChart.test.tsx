@@ -85,7 +85,7 @@ describe("TimeSeriesChart", () => {
     expect(screen.getAllByText("The agent was offline")).toHaveLength(2);
   });
 
-  it("renders emptyMessage when no bucket is covered", () => {
+  it("renders emptyMessage once without duplicating it in the readout", () => {
     render(
       <TimeSeriesChart
         title="CPU"
@@ -100,6 +100,25 @@ describe("TimeSeriesChart", () => {
         onActiveIndexChange={() => {}}
       />,
     );
-    expect(screen.getAllByText("No data before Dockwell joined").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("No data before Dockwell joined")).toHaveLength(1);
+  });
+
+  it("omits duplicate middle Y-axis ticks on near-zero series", () => {
+    render(
+      <TimeSeriesChart
+        title="Disk I/O"
+        timestamps={times}
+        gaps={[null, null, null, null]}
+        series={[{ id: "read", label: "Read", values: [0, 0, 0, 0], formatValue: (v) => `${Math.round(v)} B/s` }]}
+        min={0}
+        formatAxis={(v) => `${Math.round(v)} B/s`}
+        formatTick={(ms) => String(ms)}
+        formatHoverTime={(ms) => String(ms)}
+        activeIndex={null}
+        onActiveIndexChange={() => {}}
+      />,
+    );
+    const axisLabels = [...document.querySelectorAll(".dw-ts-yaxis span")].map((el) => el.textContent);
+    expect(axisLabels).toEqual(["1 B/s", "0 B/s"]);
   });
 });

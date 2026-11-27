@@ -341,4 +341,20 @@ describe("a server on a phone", () => {
     const runs = screen.getByRole("region", { name: "Runs here" });
     expect(await within(runs).findByRole("link", { name: /No apps here yet/ })).toHaveAttribute("href", "/apps/new");
   });
+
+  it("caps Runs here at 5 apps on a phone with a Show all toggle", async () => {
+    const user = userEvent.setup();
+    const apps = Array.from({ length: 7 }, (_, i) => anApp(`app-${i + 1}`, "nginx"));
+    await renderPhone(hz1, { services: { listServices: () => ({ services: apps }) } });
+    const runs = screen.getByRole("region", { name: "Runs here" });
+    await waitFor(() => expect(within(runs).getAllByRole("link")).toHaveLength(5));
+    const more = within(runs).getByRole("button", { name: "Show all 7" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await user.click(more);
+    expect(within(runs).getAllByRole("link")).toHaveLength(7);
+    const fewer = within(runs).getByRole("button", { name: "Show fewer" });
+    expect(fewer).toHaveAttribute("aria-expanded", "true");
+    await user.click(fewer);
+    expect(within(runs).getAllByRole("link")).toHaveLength(5);
+  });
 });

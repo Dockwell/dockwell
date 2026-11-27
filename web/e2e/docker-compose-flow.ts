@@ -158,7 +158,7 @@ export const flow: Flow = {
     await menu.getByRole("menuitem", { name: "Open", exact: true }).click();
     await atWidth(page, { width: 1440, height: 900 });
     const webRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "web", exact: true }) });
-    await webRow.locator(".dw-status.dw-tone-healthy").waitFor();
+    await webRow.locator(".dw-status.dw-tone-running").waitFor();
     if (
       !(await webRow.getByRole("link", { name: /web-1$/ }).getAttribute("href"))?.match(
         /\/containers\/[a-f0-9]{64}(?:\?|$)/,

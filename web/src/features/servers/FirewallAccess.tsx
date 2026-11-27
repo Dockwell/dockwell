@@ -34,14 +34,15 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
-import { reasonOf, sentence } from "../../lib/errors";
+import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { type Offer, useMay } from "../auth/may";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
+import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { CopyButton } from "./CopyButton";
 import { SshActions } from "./SshTools";
 import { useControlPlaneNow } from "./useFleet";
@@ -114,11 +115,20 @@ export function SshPanel({
   server,
   connected,
   listening,
+  suppressedError,
+  suppressedOutdated = false,
+  retryNonce = 0,
 }: {
   server: Server;
   connected: boolean;
   /** What listens on the server, from the firewall's read, for how far SSH reaches. */
   listening: readonly HostListener[] | undefined;
+  /** Error text already shown by the page's firewall read, suppressed here to avoid repeating it. */
+  suppressedError?: string | undefined;
+  /** True when the page already shows an outdated-agent banner. */
+  suppressedOutdated?: boolean;
+  /** Increments when the page's Try again button is clicked. */
+  retryNonce?: number;
 }) {
   const { t } = useLingui();
   const read = useQuery(
@@ -126,21 +136,25 @@ export function SshPanel({
     { serverId: server.id },
     { enabled: connected, refetchInterval: SSH_EVERY_MS, retry: false },
   );
+  const refetch = read.refetch;
+  useEffect(() => {
+    if (retryNonce > 0) void refetch();
+  }, [retryNonce, refetch]);
   const ssh = read.data?.ssh;
   const name = server.name;
+  if (read.error) {
+    if (suppressedOutdated && isAgentOutdated(read.error)) return null;
+    if (suppressedError && sentence(read.error) === suppressedError) return null;
+  }
   let body: ReactNode;
   if (read.error) {
-    body =
-      reasonOf(read.error) === "agent_outdated" ? (
-        <p className="firewall-note">
-          <Trans>
-            The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name}{" "}
-            again to update it.
-          </Trans>
-        </p>
-      ) : (
-        <p className="firewall-note">{sentence(read.error)}</p>
-      );
+    body = isAgentOutdated(read.error) ? (
+      <AgentOutdated server={server}>
+        <Trans>The agent on {name} is older than the control plane, so it can't read SSH.</Trans>
+      </AgentOutdated>
+    ) : (
+      <p className="firewall-note">{sentence(read.error)}</p>
+    );
   } else if (!ssh) {
     body = (
       <Loading label={t`Reading how SSH lets people in on ${name}`}>
@@ -418,7 +432,19 @@ function useJailWords(): (jail: Fail2banJail) => string {
 /**
  * Fail2ban on a server: its jails, protection and current bans.
  */
-export function Fail2banPanel({ server, connected }: { server: Server; connected: boolean }) {
+export function Fail2banPanel({
+  server,
+  connected,
+  suppressedError,
+  suppressedOutdated = false,
+  retryNonce = 0,
+}: {
+  server: Server;
+  connected: boolean;
+  suppressedError?: string | undefined;
+  suppressedOutdated?: boolean;
+  retryNonce?: number;
+}) {
   const { t } = useLingui();
   // A jail is the whole server's, so planning one is an admin's (ADR 0049).
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
@@ -427,6 +453,10 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
     { serverId: server.id },
     { enabled: connected, refetchInterval: FAIL2BAN_EVERY_MS, retry: false },
   );
+  const refetch = read.refetch;
+  useEffect(() => {
+    if (retryNonce > 0) void refetch();
+  }, [retryNonce, refetch]);
   const f2b = read.data?.fail2ban;
   // SSH's ports, for the jail that closes them; the SSH card reads the same.
   const ssh = useQuery(
@@ -459,19 +489,19 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
         return undefined;
     }
   })();
+  if (read.error) {
+    if (suppressedOutdated && isAgentOutdated(read.error)) return null;
+    if (suppressedError && sentence(read.error) === suppressedError) return null;
+  }
   let body: ReactNode;
   if (read.error) {
-    body =
-      reasonOf(read.error) === "agent_outdated" ? (
-        <p className="firewall-note">
-          <Trans>
-            The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on{" "}
-            {name} again to update it.
-          </Trans>
-        </p>
-      ) : (
-        <p className="firewall-note">{sentence(read.error)}</p>
-      );
+    body = isAgentOutdated(read.error) ? (
+      <AgentOutdated server={server}>
+        <Trans>The agent on {name} is older than the control plane, so it can't read fail2ban.</Trans>
+      </AgentOutdated>
+    ) : (
+      <p className="firewall-note">{sentence(read.error)}</p>
+    );
   } else if (!f2b) {
     body = (
       <Loading label={t`Reading fail2ban on ${name}`}>
@@ -966,8 +996,10 @@ function Jails({
           <ul className="firewall-bans">
             {(allBans ? bans : bans.slice(0, BANS_SHOWN)).map(({ jail, ban }) => (
               <li key={`${jail}-${ban.address}`} className="firewall-ban">
-                <code>{ban.address}</code>
-                <span>{ban.since ? t`${jail} · ${time.ago(timestampDate(ban.since), now)}` : jail}</span>
+                <div className="firewall-ban-info">
+                  <code>{ban.address}</code>
+                  <span>{ban.since ? t`${jail} · ${time.ago(timestampDate(ban.since), now)}` : jail}</span>
+                </div>
                 {managesBans ? (
                   <Button variant="ghost" size="sm" onClick={() => onUnban(jail, ban.address)} {...mayBan.off}>
                     <Trans>Unban</Trans>

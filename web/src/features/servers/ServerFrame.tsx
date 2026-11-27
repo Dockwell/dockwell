@@ -14,10 +14,22 @@ import {
   TerminalService,
   UpdateService,
 } from "@dockwell/api";
-import { type IconName, TabNav, Tag } from "@dockwell/ui";
+import { cx, Icon, type IconName, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Fragment, type ReactNode, useMemo } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  Fragment,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
@@ -47,6 +59,8 @@ interface ServerFrameProps {
   phoneHead?: PhoneHead | undefined;
   /** Leaves the tabs out on a phone, for a screen that takes all of it. */
   noTabs?: boolean;
+  /** Lets the body span past the wide column, as System log does, while the head and tabs stay in place. */
+  fullBody?: boolean;
   /** The tab's own screen, for the server. */
   children: (server: Server) => ReactNode;
 }
@@ -64,7 +78,7 @@ function ServerFramePage(props: Omit<PageProps, "width">) {
  * One server's own page, which exists from the first server on, whichever tab
  * is open: its name, what it is, and its tabs, each a route of its own.
  */
-export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerFrameProps) {
+export function ServerFrame({ id, phoneHead, noTabs = false, fullBody = false, children }: ServerFrameProps) {
   const { t } = useLingui();
   const state = useFleet();
   const status = usePageReconnecting(state.status);
@@ -98,7 +112,14 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
     );
   }
   return (
-    <ServerPage server={server} fleet={state.servers.length > 1} status={status} phoneHead={phoneHead} noTabs={noTabs}>
+    <ServerPage
+      server={server}
+      fleet={state.servers.length > 1}
+      status={status}
+      phoneHead={phoneHead}
+      noTabs={noTabs}
+      fullBody={fullBody}
+    >
       {children(server)}
     </ServerPage>
   );
@@ -110,12 +131,14 @@ interface ServerPageProps {
   status: ReactNode;
   phoneHead: PhoneHead | undefined;
   noTabs: boolean;
+  fullBody: boolean;
   children: ReactNode;
 }
 
-function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: ServerPageProps) {
+function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, children }: ServerPageProps) {
   const { t } = useLingui();
   const may = useMay();
+  const narrow = useMediaQuery("(max-width: 960px)");
   const unread = useFleetUnread();
   const { up, phoneSub } = useServerWords(server);
   const inv = server.inventory;
@@ -210,6 +233,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
       phoneSub={unread ? t`Unknown` : phoneSub}
       back={fleet ? "/servers" : undefined}
       status={status}
+      fullBody={fullBody}
       className="server-page"
       {...phoneHead}
     >
@@ -234,32 +258,38 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
               <Trans>Terminal</Trans>
             </RouterTabLink>
           ) : null}
-          {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
-          {may(FirewallService.method.getServerFirewall).allowed ? (
-            <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
-              <Trans>Firewall</Trans>
-            </RouterTabLink>
-          ) : null}
-          {may(ProcessService.method.watchProcesses).allowed ? (
-            <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
-              <Trans>Processes</Trans>
-            </RouterTabLink>
-          ) : null}
-          {may(ServerService.method.getHostToolbox).allowed ? (
-            <RouterTabLink to="/servers/$serverId/toolbox" params={{ serverId: server.id }}>
-              <Trans>Toolbox</Trans>
-            </RouterTabLink>
-          ) : null}
-          {may(ServerService.method.watchSystemServices).allowed ? (
-            <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
-              <Trans>System services</Trans>
-            </RouterTabLink>
-          ) : null}
-          {may(ServerService.method.watchSystemServices).allowed ? (
-            <RouterTabLink to="/servers/$serverId/log" params={{ serverId: server.id }}>
-              <Trans>System log</Trans>
-            </RouterTabLink>
-          ) : null}
+          {narrow ? (
+            <SystemTabsMenu server={server} />
+          ) : (
+            <>
+              {may(UpdateService.method.getServerUpdates).allowed ? <UpdatesTab server={server} /> : null}
+              {may(FirewallService.method.getServerFirewall).allowed ? (
+                <RouterTabLink to="/servers/$serverId/firewall" params={{ serverId: server.id }}>
+                  <Trans>Firewall</Trans>
+                </RouterTabLink>
+              ) : null}
+              {may(ProcessService.method.watchProcesses).allowed ? (
+                <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
+                  <Trans>Processes</Trans>
+                </RouterTabLink>
+              ) : null}
+              {may(ServerService.method.getHostToolbox).allowed ? (
+                <RouterTabLink to="/servers/$serverId/toolbox" params={{ serverId: server.id }}>
+                  <Trans>Toolbox</Trans>
+                </RouterTabLink>
+              ) : null}
+              {may(ServerService.method.watchSystemServices).allowed ? (
+                <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
+                  <Trans>System services</Trans>
+                </RouterTabLink>
+              ) : null}
+              {may(ServerService.method.watchSystemServices).allowed ? (
+                <RouterTabLink to="/servers/$serverId/log" params={{ serverId: server.id }}>
+                  <Trans>System log</Trans>
+                </RouterTabLink>
+              ) : null}
+            </>
+          )}
           {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}
         </TabNav>
       )}
@@ -321,5 +351,174 @@ function UpdatesTab({ server }: { server: Server }) {
     >
       <Trans>Updates</Trans>
     </RouterTabLink>
+  );
+}
+
+type SystemTabTarget =
+  | "/servers/$serverId/updates"
+  | "/servers/$serverId/firewall"
+  | "/servers/$serverId/processes"
+  | "/servers/$serverId/toolbox"
+  | "/servers/$serverId/services"
+  | "/servers/$serverId/log";
+
+/**
+ * On narrow screens, groups the six secondary host tabs behind one System tab menu so the
+ * tab strip fits without scrolling past half the server's tools.
+ */
+function SystemTabsMenu({ server }: { server: Server }) {
+  const { t } = useLingui();
+  const may = useMay();
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mayUpdates = may(UpdateService.method.getServerUpdates).allowed;
+  const updates = useServerUpdates(server.id);
+  const s = mayUpdates ? summarize(updates.data?.updates) : undefined;
+  const security = s?.security.length ?? 0;
+  const updateCount = security > 0 ? security : (s?.total ?? 0) > 0 ? s?.total : undefined;
+  const items: {
+    id: string;
+    label: string;
+    to: SystemTabTarget;
+    suffix: string;
+    count?: number | undefined;
+    tone?: "warning" | undefined;
+  }[] = [
+    ...(mayUpdates
+      ? [
+          {
+            id: "updates",
+            label: t`Updates`,
+            to: "/servers/$serverId/updates" as const,
+            suffix: "/updates",
+            count: updateCount,
+            tone: security > 0 ? ("warning" as const) : undefined,
+          },
+        ]
+      : []),
+    ...(may(FirewallService.method.getServerFirewall).allowed
+      ? [{ id: "firewall", label: t`Firewall`, to: "/servers/$serverId/firewall" as const, suffix: "/firewall" }]
+      : []),
+    ...(may(ProcessService.method.watchProcesses).allowed
+      ? [{ id: "processes", label: t`Processes`, to: "/servers/$serverId/processes" as const, suffix: "/processes" }]
+      : []),
+    ...(may(ServerService.method.getHostToolbox).allowed
+      ? [{ id: "toolbox", label: t`Toolbox`, to: "/servers/$serverId/toolbox" as const, suffix: "/toolbox" }]
+      : []),
+    ...(may(ServerService.method.watchSystemServices).allowed
+      ? [
+          {
+            id: "services",
+            label: t`System services`,
+            to: "/servers/$serverId/services" as const,
+            suffix: "/services",
+          },
+          { id: "log", label: t`System log`, to: "/servers/$serverId/log" as const, suffix: "/log" },
+        ]
+      : []),
+  ];
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<CSSProperties>();
+  const root = useRef<HTMLSpanElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useLayoutEffect(() => {
+    if (!open) {
+      setAt(undefined);
+      return;
+    }
+    const button = root.current?.querySelector("button")?.getBoundingClientRect();
+    const box = menu.current?.getBoundingClientRect();
+    if (!button || !box) return;
+    const gutter = 16;
+    const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
+    setAt({ top: button.bottom + 4, right });
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    root.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+    const away = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("pointerdown", away);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+  if (items.length === 0) return null;
+  const active = items.find((item) => pathname.endsWith(item.suffix));
+  const closeMenu = () => {
+    setOpen(false);
+    root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  };
+  const onKeys = (e: KeyboardEvent<HTMLDivElement>) => {
+    const entries = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const index = entries.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      entries[(index + step + entries.length) % entries.length]?.focus();
+    }
+  };
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+  };
+  return (
+    <span className="server-tabs-menu" ref={root}>
+      <button
+        type="button"
+        className="dw-tab server-tabs-trigger"
+        aria-current={active ? "page" : undefined}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{active ? active.label : t`System`}</span>
+        {updateCount !== undefined ? (
+          <span className={cx("dw-tab-count", security > 0 && "dw-tone-warning")}>{updateCount}</span>
+        ) : null}
+        <Icon name="chevron-down" size={14} />
+      </button>
+      {open ? (
+        <div
+          id={id}
+          ref={menu}
+          className={cx("action-menu", at && "is-placed")}
+          style={at}
+          role="menu"
+          aria-label={t`System tabs`}
+          onKeyDown={onKeys}
+          onBlur={onBlur}
+        >
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              className={cx("action-menu-item", active?.id === item.id && "is-current")}
+              onClick={() => {
+                setOpen(false);
+                void navigate({ to: item.to, params: { serverId: server.id } });
+              }}
+            >
+              <span className="action-menu-words">
+                <span>{item.label}</span>
+              </span>
+              {item.count !== undefined ? (
+                <span className={cx("dw-tab-count", item.tone && `dw-tone-${item.tone}`)}>{item.count}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
   );
 }

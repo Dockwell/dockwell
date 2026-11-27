@@ -145,7 +145,7 @@ func (s *Service) WatchSystemLog(ctx context.Context, req *connect.Request[dockw
 		return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
 			"%s's agent is older than the control plane, and can't follow its system log. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
 	default:
-		return authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s stopped following its system log: %w", srv.GetName(), agentWords(err)), authapi.ReasonUnavailable)
+		return authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s stopped following its system log: %w", srv.GetName(), agentWords(err, srv.GetName())), authapi.ReasonUnavailable)
 	}
 }
 

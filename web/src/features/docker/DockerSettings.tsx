@@ -37,6 +37,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
+import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { DockerTakeOn } from "./DockerTakeOn";
@@ -131,7 +132,7 @@ export function DockerSettings({ serverId }: { serverId: string }) {
           <div className="docker-settings-column">
             <Panel
               title={t`Engine`}
-              actions={data.engineVersion ? <StatusBadge status="healthy" label={t`Running`} labelIsState /> : null}
+              actions={data.engineVersion ? <StatusBadge status="running" label={t`Running`} labelIsState /> : null}
             >
               <dl className="docker-fact-grid">
                 <Fact label={t`Engine version`} value={data.engineVersion || t`Unknown`} mono />
@@ -187,7 +188,7 @@ function SettingsEditor({
   mismatch?: number;
   summaryPending: boolean;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const readonly = Boolean(data.editabilityReason);
   const editableLogging = !readonly && (data.logging?.driver === "json-file" || data.logging?.driver === "local");
   const transport = useTransport();
@@ -373,7 +374,7 @@ function SettingsEditor({
             <Tag>{data.logging?.driver || t`Unknown driver`}</Tag>
             {limit && count ? (
               <span>
-                {Number(limit) / mebibyte} MiB × {count}
+                {formatBytes(limit, i18n.locale)} × {count}
               </span>
             ) : null}
             {data.provenance.some((item) => item.field === "logging" && item.availability === "Configured") ? (
@@ -428,7 +429,7 @@ function SettingsEditor({
                   <TextField
                     label={t`Maximum size per file`}
                     value={fields.size}
-                    suffix="MiB"
+                    suffix="MB"
                     inputMode="numeric"
                     onChange={(event) => set("size", event.target.value, "logging")}
                   />
@@ -530,7 +531,7 @@ function SettingsEditor({
           ) : null}
           {!validLogging ? (
             <Callout tone="critical">
-              <Trans>Enter a size from 1 to 1,024 MiB and 1 to 100 files.</Trans>
+              <Trans>Enter a size from 1 to 1,024 MB and 1 to 100 files.</Trans>
             </Callout>
           ) : null}
           {!validPools ? (

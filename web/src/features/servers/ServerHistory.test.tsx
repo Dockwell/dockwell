@@ -109,6 +109,35 @@ describe("ServerHistory", () => {
     await user.click(screen.getByRole("radio", { name: "7 d" }));
     await vi.waitFor(() => expect(seenRequests.some((r) => r.range === HistoryRange.HISTORY_RANGE_7D)).toBe(true));
   });
+
+  it("collapses an all-offline range into one compact panel instead of five empty charts", async () => {
+    const t0 = Date.UTC(2026, 11, 20, 12, 0, 0);
+    const server = create(ServerSchema, {
+      id: "srv_off",
+      name: "db-3",
+      connection: Connection.UNREACHABLE,
+    });
+    renderWithApi(<ServerHistory server={server} />, {
+      servers: {
+        getServerHistory: () =>
+          create(GetServerHistoryResponseSchema, {
+            since: timestampFromMs(t0),
+            until: timestampFromMs(t0 + 120_000),
+            points: [
+              create(ServerHistoryPointSchema, { time: timestampFromMs(t0), state: HistoryPointState.OFFLINE }),
+              create(ServerHistoryPointSchema, {
+                time: timestampFromMs(t0 + 60_000),
+                state: HistoryPointState.OFFLINE,
+              }),
+            ],
+          }),
+      },
+    });
+    expect(await screen.findByText("The agent was offline")).toBeVisible();
+    expect(screen.getAllByText("The agent was offline")).toHaveLength(1);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    expect(screen.getByRole("radiogroup", { name: "Time range" })).toBeVisible();
+  });
 });
 
 describe("ContainerHistory", () => {

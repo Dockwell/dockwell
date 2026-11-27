@@ -45,6 +45,8 @@ export interface SheetProps {
   width?: number | string;
   /** Render the panel in place, without scrim, portal or fixed positioning. */
   inline?: boolean;
+  /** Size to content and center vertically, for short single-field editors rather than full-height drawers. */
+  compact?: boolean;
   /** Receives focus on open, such as a form's first field. Defaults to the sheet itself. */
   initialFocusRef?: RefObject<HTMLElement | null> | undefined;
   className?: string;
@@ -159,6 +161,7 @@ function SheetShell({
   over,
   width,
   inline = false,
+  compact = false,
   className,
   initialFocusRef,
   modal,
@@ -218,7 +221,7 @@ function SheetShell({
     <section
       ref={setPanel}
       tabIndex={-1}
-      className={cx("dw-sheet", inline && "is-inline", className)}
+      className={cx("dw-sheet", inline && "is-inline", compact && "is-compact", className)}
       role="dialog"
       aria-modal={modal || undefined}
       aria-labelledby={labels?.title}

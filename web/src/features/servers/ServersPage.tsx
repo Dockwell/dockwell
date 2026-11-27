@@ -515,6 +515,7 @@ function ServersTable({
   return (
     <section className="servers-table" aria-label={t`Server list`}>
       <Table<Server>
+        className="servers-list-table"
         density="compact"
         caption={
           place.sort
@@ -565,7 +566,7 @@ function ServersTable({
             {
               key: "name",
               header: t`Server`,
-              width: 200,
+              width: 140,
               render: (s) => (
                 <span className="dw-cell">
                   <span className="dw-cell-title servers-table-name" id={`servers-name-${s.id}`}>
@@ -578,7 +579,7 @@ function ServersTable({
             {
               key: "status",
               header: t`Status`,
-              width: 160,
+              width: 224,
               render: (s) => {
                 // Why it isn't well, as the old list said it, then what it is.
                 const meta = [byId.get(s.id)?.note ?? "", s.controlServer ? t`Control server` : ""]
@@ -590,14 +591,14 @@ function ServersTable({
             {
               key: "cpu",
               header: t`CPU`,
-              width: 72,
+              width: 58,
               align: "right",
               render: (s) => percent(byId.get(s.id)?.cpu),
             },
             {
               key: "memory",
               header: t`Memory`,
-              width: 84,
+              width: 72,
               align: "right",
               render: (s) => percent(byId.get(s.id)?.mem),
             },
@@ -619,7 +620,7 @@ function ServersTable({
             {
               key: "actions",
               header: <span className="dw-sr">{t`Actions`}</span>,
-              width: 48,
+              width: 44,
               render: (server) => <ActionMenu label={t`Actions for ${server.name}`} actions={actionsFor(server)} />,
             },
           ] satisfies TableColumn<Server>[],

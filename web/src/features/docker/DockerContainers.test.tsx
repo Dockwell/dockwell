@@ -229,3 +229,71 @@ it("restricts Kill signals on a Compose project row when a member container is p
     .map((o) => o.textContent);
   expect(options).toEqual(["SIGTERM, then SIGKILL", "SIGKILL"]);
 });
+
+it("unifies Stop/Pause across mixed managed and external containers, hides Rename on multi-select, and skips system containers cleanly", async () => {
+  const app = anApp("shop", "nginx", {}, { deployments: [{ serverId: SERVER, state: DeploymentState.LIVE }] });
+  const servers = feed<WatchServersResponse>();
+  servers.push(changed(aServer({ id: SERVER, name: "first" })), snapshotComplete);
+  const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: webPlanned() }));
+  const plan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: servers.stream },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({
+        objects: [
+          {
+            key: { serverId: SERVER, engineId: "shop-1", kind: DockerObjectKind.CONTAINER },
+            name: "shop-1",
+            state: ContainerState.RUNNING,
+            ownership: DockerOwnership.MANAGED,
+            managedResource: app.resource,
+            managedResourceId: app.id,
+            managedRevision: app.revision,
+            detail: { case: "container", value: { image: "nginx" } },
+          },
+          {
+            key: { serverId: SERVER, engineId: "redis-1", kind: DockerObjectKind.CONTAINER },
+            name: "redis-1",
+            state: ContainerState.RUNNING,
+            ownership: DockerOwnership.EXTERNAL,
+            detail: { case: "container", value: { image: "redis:7" } },
+          },
+          {
+            key: { serverId: SERVER, engineId: "dockwell-proxy", kind: DockerObjectKind.CONTAINER },
+            name: "dockwell-proxy",
+            state: ContainerState.RUNNING,
+            ownership: DockerOwnership.SYSTEM,
+            detail: { case: "container", value: { image: "caddy:2" } },
+          },
+        ],
+      }),
+      planDockerMaintenance: plan,
+    },
+    changes: { proposeChange: propose },
+  });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
+  await user.click(screen.getByRole("checkbox", { name: "Select redis-1" }));
+  const bar = screen.getByRole("toolbar");
+  expect(within(bar).getAllByRole("button", { name: /^Stop / })).toHaveLength(1);
+  expect(within(bar).getByRole("button", { name: "Stop 2" })).toBeVisible();
+  expect(within(bar).getAllByRole("button", { name: /^Pause / })).toHaveLength(1);
+  expect(within(bar).getByRole("button", { name: "Pause 2" })).toBeVisible();
+  expect(within(bar).queryByRole("button", { name: /Rename/ })).toBeNull();
+
+  // Unverified Running badges use the running tone, never green healthy.
+  const badges = document.querySelectorAll(".dw-badge.dw-tone-healthy");
+  expect([...badges].some((el) => el.textContent === "Running")).toBe(false);
+
+  // Adding a system container produces a clean skip note.
+  await user.click(screen.getByRole("checkbox", { name: "Select dockwell-proxy" }));
+  expect(within(bar).getByText(/System container/)).toBeVisible();
+
+  // Clicking Stop 2 proposes the managed plan first rather than acting behind a plan.
+  await user.click(within(bar).getByRole("button", { name: "Stop 2" }));
+  await waitFor(() => expect(propose).toHaveBeenCalledOnce());
+  expect(plan).not.toHaveBeenCalled();
+});

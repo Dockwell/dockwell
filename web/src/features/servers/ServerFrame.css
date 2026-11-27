@@ -11,3 +11,16 @@
 .server-page > .dw-tabs {
   margin-top: calc(-1 * var(--space-2) - 4px);
 }
+
+.server-tabs-menu {
+  display: inline-flex;
+  flex: none;
+}
+
+.server-tabs-trigger {
+  gap: 4px;
+}
+
+.server-tabs-menu .action-menu-item.is-current {
+  font-weight: 600;
+}

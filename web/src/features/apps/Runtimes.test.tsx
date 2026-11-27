@@ -345,19 +345,21 @@ describe("New app, from a folder", () => {
     await waitFor(() => expect(sheet).toHaveTextContent("/srv/root is root's, and an app never runs as root"), {
       timeout: 3_000,
     });
+    expect(within(sheet).getByRole("button", { name: "Change owner to 1000:1000" })).toBeInTheDocument();
     await chooseFolder(user, sheet, "/srv/empty");
     await waitFor(() => expect(sheet).toHaveTextContent("No Node.js app in /srv/empty yetIt has no package.json."), {
       timeout: 3_000,
     });
-    // Its own, closed to itself: the mode is what to change.
+    // Its own, closed to itself: the mode is what to change, via an inline button.
     await chooseFolder(user, sheet, "/srv/locked");
     await waitFor(
       () =>
         expect(sheet).toHaveTextContent(
-          "The app can't write to /srv/lockedIts mode is dr-xr-xr-x. Run chmod u+w /srv/locked on the server.",
+          "The app can't write to /srv/lockedIts mode is dr-xr-xr-x, so 1000:1000 can't write to it.",
         ),
       { timeout: 3_000 },
     );
+    expect(within(sheet).getByRole("button", { name: "Make writable" })).toBeInTheDocument();
     await chooseFolder(user, sheet, "/srv/new");
     await waitFor(() => expect(sheet).toHaveTextContent("New Dockwell makes it, owned by 1000:1000"), {
       timeout: 3_000,

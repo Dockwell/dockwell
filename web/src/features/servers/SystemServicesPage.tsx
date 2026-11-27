@@ -32,7 +32,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -48,6 +47,7 @@ import {
   useRowMenu,
 } from "../shell/ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
+import { ReadFailed } from "../shell/ReadFailed";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import { SystemLog } from "./SystemLog";
@@ -100,7 +100,7 @@ function SystemServices({ server, search, onSearch }: { server: Server } & ListR
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const connected = server.connection === Connection.CONNECTED;
-  const { list, error } = useSystemServices(server.id, connected);
+  const { list, error, retry } = useSystemServices(server.id, connected);
   const [view, setView] = useState<SystemView>("all");
   const place = useListPlace(search, onSearch, SORT_KEYS);
   const filter = place.query;
@@ -141,8 +141,7 @@ function SystemServices({ server, search, onSearch }: { server: Server } & ListR
       server={server}
     >{t`It's older than the control plane, so it can't list system services.`}</AgentOutdated>
   ) : (
-    // What the server said, which says why and what to do, as an alert does rather than a line of small print.
-    <Callout tone="warning">{sentence(error)}</Callout>
+    <ReadFailed error={error} title={t`Dockwell can't list ${server.name}'s system services`} onRetry={retry} />
   );
   // What shows when no row does: nothing typed in Failed is a server with nothing failed.
   const none =

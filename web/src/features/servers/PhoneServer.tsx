@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ActorKind, Connection, DeploymentState, EventKind, type Server, ServerStrain } from "@dockwell/api";
 import {
+  Button,
   Icon,
   Loading,
   Metric,
@@ -15,7 +16,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { formatClock, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
@@ -35,6 +36,9 @@ import "./PhoneServer.css";
 
 /** How many recent events the page shows. */
 const RECENT = 3;
+
+/** How many apps show in Runs here on a phone before a Show all toggle. */
+const RUNS_LIMIT = 5;
 
 /**
  * A server on a phone, as M-Server.dc.html has it: how it is, in a word and a
@@ -228,6 +232,7 @@ function CopyCell({ label, address, none }: { label: string; address: string | u
 /** The apps on the server, each with how many copies run here, its revision and how it is. */
 function PhoneRunsHere({ server }: { server: Server }) {
   const { t } = useLingui();
+  const [showAll, setShowAll] = useState(false);
   // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
   const services = useApps();
   const health = useHealth();
@@ -245,6 +250,7 @@ function PhoneRunsHere({ server }: { server: Server }) {
       state === DeploymentState.PENDING ? "deploying" : failed ? "down" : (on?.status ?? read.status);
     return { service, replicas: on?.containers ?? 0, status, failed };
   });
+  const visible = showAll ? rows : rows.slice(0, RUNS_LIMIT);
   const replicas = rows.reduce((n, r) => n + r.replicas, 0);
   return (
     <section className="phone-section" aria-labelledby="phone-runs">
@@ -274,7 +280,7 @@ function PhoneRunsHere({ server }: { server: Server }) {
         </div>
       ) : (
         <ul className="dw-panel phone-list">
-          {rows.map(({ service, replicas: count, status, failed }) => (
+          {visible.map(({ service, replicas: count, status, failed }) => (
             <li key={service.id}>
               <Link to="/apps/$serviceId" params={{ serviceId: service.id }} className="phone-row">
                 <Icon name="service" size={16} />
@@ -286,6 +292,19 @@ function PhoneRunsHere({ server }: { server: Server }) {
               </Link>
             </li>
           ))}
+          {rows.length > RUNS_LIMIT ? (
+            <li className="phone-list-more">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={showAll ? "chevron-up" : "chevron-down"}
+                aria-expanded={showAll}
+                onClick={() => setShowAll((open) => !open)}
+              >
+                {showAll ? t`Show fewer` : t`Show all ${rows.length}`}
+              </Button>
+            </li>
+          ) : null}
         </ul>
       )}
     </section>

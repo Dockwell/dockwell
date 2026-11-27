@@ -374,15 +374,32 @@ describe("SSH on a server's Firewall tab", () => {
     const old = authError(Code.FailedPrecondition, "agent_outdated", "too old");
     await renderAccess({ ssh: old, fail2ban: old });
     expect(
-      await screen.findByText(
-        "The agent on hz-1 is older than the control plane, so it can't read SSH. Run the install script on hz-1 again to update it.",
-      ),
+      await screen.findByText("The agent on hz-1 is older than the control plane, so it can't read SSH."),
     ).toBeVisible();
     expect(
-      await screen.findByText(
-        "The agent on hz-1 is older than the control plane, so it can't read fail2ban. Run the install script on hz-1 again to update it.",
-      ),
+      await screen.findByText("The agent on hz-1 is older than the control plane, so it can't read fail2ban."),
     ).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "Update its agent" })).toHaveLength(2);
+  });
+
+  it("prefills administrator account and client address in SSH settings so Review plan enables after one change", async () => {
+    const user = userEvent.setup();
+    await renderAccess({
+      ssh: {
+        ...ubuntu,
+        adminAccounts: ["deploy", "ops"],
+        yourAddress: "203.0.113.44",
+      },
+    });
+    const card = await screen.findByRole("region", { name: "SSH" });
+    await user.click(await within(card).findByRole("button", { name: "Edit settings" }));
+    const sheet = await screen.findByRole("dialog", { name: "SSH settings on hz-1" });
+    expect(within(sheet).getByRole("combobox", { name: "Administrator to test with" })).toHaveValue("deploy");
+    expect(within(sheet).getByRole("combobox", { name: "SSH test client address" })).toHaveValue("203.0.113.44");
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    await user.click(within(sheet).getByRole("switch", { name: "Password login" }));
+    expect(review).toBeEnabled();
   });
 });
 

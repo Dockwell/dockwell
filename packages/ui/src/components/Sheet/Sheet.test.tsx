@@ -200,6 +200,16 @@ describe("Sheet", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("applies compact dialog styling when compact is set", () => {
+    render(
+      <Sheet open compact title="Swap size" onClose={() => {}}>
+        <TextField label="Size (MB)" />
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Swap size" });
+    expect(dialog).toHaveClass("is-compact");
+  });
+
   it("renders in place when inline, without trapping focus", async () => {
     const { container } = render(
       <Sheet inline title="New app" subtitle="In storefront / production" width={480} footer={<Button>Create</Button>}>

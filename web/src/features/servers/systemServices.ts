@@ -35,6 +35,8 @@ export interface SystemServicesState {
   list: SystemServiceList | undefined;
   /** Why the watch failed last, until it hears again. */
   error: ConnectError | undefined;
+  /** Restarts the watch immediately after a failure. */
+  retry: () => void;
 }
 
 /**
@@ -44,7 +46,16 @@ export interface SystemServicesState {
  */
 export function useSystemServices(serverId: string, enabled = true): SystemServicesState {
   const transport = useTransport();
-  const [state, setState] = useState<SystemServicesState>({ list: undefined, error: undefined });
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<{ list: SystemServiceList | undefined; error: ConnectError | undefined }>({
+    list: undefined,
+    error: undefined,
+  });
+  const retry = useCallback(() => {
+    setState((s) => ({ ...s, error: undefined }));
+    setAttempt((n) => n + 1);
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt intentionally restarts the watch on manual retry
   useEffect(() => {
     if (!enabled) return;
     const abort = new AbortController();
@@ -68,8 +79,8 @@ export function useSystemServices(serverId: string, enabled = true): SystemServi
       },
     );
     return () => abort.abort();
-  }, [transport, serverId, enabled]);
-  return state;
+  }, [transport, serverId, enabled, attempt]);
+  return { ...state, retry };
 }
 
 /** Which of a server's system services show. */

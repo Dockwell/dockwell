@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { FileService, type WebsiteRuntime } from "@dockwell/api";
 import {
   Advanced,
@@ -15,9 +16,11 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, type Ref, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
+import { confirmed, permissionBits } from "../files/everyday";
 import { useFolderLookup } from "../files/lookup";
 import { nameOf } from "../files/paths";
 import { canWrite } from "../websites/WebsiteFields";
@@ -474,12 +477,35 @@ function useFolderState({
   onDetected: (found: Detected | undefined) => void;
 }): { note?: ReactNode; problem?: ReactNode } {
   const { t } = useLingui();
+  const transport = useTransport();
+  const fileClient = useMemo(() => createClient(FileService, transport), [transport]);
+  const mayChangeAccess = useMay()(FileService.method.changeFileAccess);
+  const [fixing, setFixing] = useState(false);
+  const [fixError, setFixError] = useState<string>();
   const path = useSettled(folder.trim().replace(/\/+$/, ""), READ_AFTER_MS);
   // The folder by its own path, so one under a folder of any size is found (#588).
   const lookup = useFolderLookup(server, path);
   const asked = lookup.asked;
   const listing = lookup.listing;
   const dir = listing?.directory;
+  const fixAccess = async (change: { uid?: number; gid?: number; mode?: number; recursive?: boolean }) => {
+    if (fixing) return;
+    setFixing(true);
+    setFixError(undefined);
+    try {
+      const result = await confirmed(transport, (proof, confirmationTarget) =>
+        fileClient.changeFileAccess({ serverId: server, path, proof, confirmationTarget, change }),
+      );
+      if (result.stopped) setFixError(result.stopped);
+      else lookup.refresh();
+    } catch (error) {
+      setFixError(sentence(error));
+    } finally {
+      setFixing(false);
+    }
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear stale fix error when target folder or user changes
+  useEffect(() => setFixError(undefined), [server, path, user]);
   const owner = dir && dir.uid !== 0 && dir.gid !== 0 ? `${dir.uid}:${dir.gid}` : "";
   // Said once as it's found, so what someone types after stays theirs.
   const told = useRef("");
@@ -561,17 +587,40 @@ function useFolderState({
     };
   }
   const { entries } = listing;
+  const files = (
+    <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path }}>
+      <Trans>Open in Files</Trans>
+    </Link>
+  );
+  const parsedIds = /^(\d+):(\d+)$/.exec(user.trim());
+  const runUid = parsedIds ? Number(parsedIds[1]) : undefined;
+  const runGid = parsedIds ? Number(parsedIds[2]) : undefined;
   if (dir && (dir.uid === 0 || dir.gid === 0)) {
     return {
       problem: (
-        <Callout tone="warning" className="app-folder-note" title={t`${path} is root's, and an app never runs as root`}>
+        <Callout
+          tone="warning"
+          className="app-folder-note"
+          title={t`${path} is root's, and an app never runs as root`}
+          actions={
+            runUid !== undefined && runGid !== undefined && runUid > 0 && runGid > 0 ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={fixing}
+                onClick={() => void fixAccess({ uid: runUid, gid: runGid, recursive: true })}
+                {...mayChangeAccess.off}
+              >
+                <Trans>Change owner to {user}</Trans>
+              </Button>
+            ) : undefined
+          }
+        >
           <Trans>
-            Run{" "}
-            <code>
-              sudo chown -R {user} {path}
-            </code>{" "}
-            on the server.
-          </Trans>
+            Change its owner to <code>{user}</code> so the app can read and write here.
+          </Trans>{" "}
+          {files}
+          {fixError ? <p>{fixError}</p> : null}
         </Callout>
       ),
     };
@@ -582,10 +631,27 @@ function useFolderState({
     if (theirs === user) {
       return {
         problem: (
-          <Callout tone="warning" className="app-folder-note" title={t`The app can't write to ${path}`}>
+          <Callout
+            tone="warning"
+            className="app-folder-note"
+            title={t`The app can't write to ${path}`}
+            actions={
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={fixing}
+                onClick={() => void fixAccess({ mode: permissionBits(dir.mode) | 0o200 })}
+                {...mayChangeAccess.off}
+              >
+                <Trans>Make writable</Trans>
+              </Button>
+            }
+          >
             <Trans>
-              Its mode is <code>{dir.mode}</code>. Run <code>chmod u+w {path}</code> on the server.
-            </Trans>
+              Its mode is <code>{dir.mode}</code>, so <code>{user}</code> can't write to it.
+            </Trans>{" "}
+            {files}
+            {fixError ? <p>{fixError}</p> : null}
           </Callout>
         ),
       };
@@ -611,11 +677,6 @@ function useFolderState({
   }
   const markers = MARKERS[language] ?? [];
   const found = markers.find((m) => entries.some((e) => e.name === m));
-  const files = (
-    <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path }}>
-      <Trans>Open in Files</Trans>
-    </Link>
-  );
   if (!found && markers.length > 0) {
     const first = markers[0];
     return {

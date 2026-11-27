@@ -279,6 +279,14 @@ export function TimeSeriesChart({
     return summary ? `${summary} ${keyboardHint}` : keyboardHint;
   }, [hasData, emptyMessage, gapLabel, series, keyboardHint]);
 
+  const yTicks = useMemo(() => {
+    const top = formatAxis(hi);
+    const mid = formatAxis(lo + (hi - lo) / 2);
+    const bot = formatAxis(lo);
+    if (mid === top || mid === bot) return [top, bot];
+    return [top, mid, bot];
+  }, [formatAxis, hi, lo]);
+
   return (
     <div className={cx("dw-panel dw-ts", className)}>
       <div className="dw-ts-head">
@@ -325,17 +333,22 @@ export function TimeSeriesChart({
                 );
               })}
             </span>
+          ) : emptyMessage ? (
+            <span className="dw-ts-gap-word" aria-hidden="true">
+              –
+            </span>
           ) : (
-            <span className="dw-ts-gap-word">{emptyMessage ?? gapLabel("before-join")}</span>
+            <span className="dw-ts-gap-word">{gapLabel("before-join")}</span>
           )}
         </div>
       </div>
 
       <div className="dw-ts-body">
         <div className="dw-ts-yaxis" aria-hidden="true">
-          <span>{formatAxis(hi)}</span>
-          <span>{formatAxis(lo + (hi - lo) / 2)}</span>
-          <span>{formatAxis(lo)}</span>
+          {yTicks.map((label, idx) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed 2-3 tick slots from top to bottom
+            <span key={idx}>{label}</span>
+          ))}
         </div>
         <div className="dw-ts-plot">
           {!hasData && emptyMessage ? (
@@ -492,15 +505,14 @@ export function TimeSeriesChart({
             </div>
           ) : null}
         </div>
+        {xTicks.length > 0 ? (
+          <div className="dw-ts-xaxis" aria-hidden="true">
+            {xTicks.map((tick) => (
+              <span key={tick.i}>{tick.label}</span>
+            ))}
+          </div>
+        ) : null}
       </div>
-
-      {xTicks.length > 0 ? (
-        <div className="dw-ts-xaxis" aria-hidden="true">
-          {xTicks.map((tick) => (
-            <span key={tick.i}>{tick.label}</span>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

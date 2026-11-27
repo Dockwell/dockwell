@@ -11,6 +11,7 @@ import {
   DeploymentState,
   DesiredRunState,
   type DockerContainer,
+  DockerContainerAction,
   DockerHealth,
   type DockerObject,
   DockerObjectKind,
@@ -71,7 +72,7 @@ import {
   useRowMenu,
   useRowSelection,
 } from "../shell/ListTools";
-import { useDockerLifecycle } from "./DockerLifecycle";
+import { acceptsLifecycle, useDockerLifecycle } from "./DockerLifecycle";
 import { DockerRunSheet } from "./DockerRunSheet";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, sameServerIds, useDockerWatch } from "./live";
@@ -100,7 +101,7 @@ export function ContainerStatus({
       case DockerHealth.STARTING:
         return <StatusBadge status="deploying" label={t`Starting`} title={t`Starting`} labelIsState />;
       default:
-        return <StatusBadge status="healthy" label={t`Running`} title={t`Running`} labelIsState />;
+        return <StatusBadge status="running" label={t`Running`} title={t`Running`} labelIsState />;
     }
   }
   const label = stateWord(state);
@@ -703,13 +704,14 @@ export function DockerContainers({
     return <ValuePreview values={values} />;
   };
   const columns: TableColumn<Row>[] = [
-    { key: "name", header: t`Name`, render: name },
-    { key: "state", header: t`State`, render: (row) => <ContainerStatus row={row.object} /> },
+    { key: "name", header: t`Name`, width: fleet ? "21%" : "24%", render: name },
+    { key: "state", header: t`State`, width: 104, render: (row) => <ContainerStatus row={row.object} /> },
     ...(fleet
       ? [
           {
             key: "serverName",
             header: t`Server`,
+            width: 112,
             render: (row: Row) => (
               <Link
                 className="dw-link docker-cell-text"
@@ -726,18 +728,19 @@ export function DockerContainers({
     {
       key: "image",
       header: t`Image`,
-      width: "23%",
+      width: fleet ? "19%" : "21%",
       render: (row) => <ImageReference image={row.container?.image} />,
       skeleton: "mono",
     },
     {
       key: "ports",
       header: t`Published ports`,
+      width: 112,
       render: (row) => <PublishedPorts ports={row.container?.ports ?? []} address={address(row)} />,
     },
-    { key: "addresses", header: t`Addresses`, render: addresses, skeleton: "mono" },
-    { key: "usage", header: t`Usage`, render: measured, skeleton: "short" },
-    { key: "uptime", header: t`Uptime`, render: uptime, skeleton: "short" },
+    { key: "addresses", header: t`Addresses`, width: 116, render: addresses, skeleton: "mono" },
+    { key: "usage", header: t`Usage`, width: 128, render: measured, skeleton: "short" },
+    { key: "uptime", header: t`Uptime`, width: 108, render: uptime, skeleton: "short" },
     {
       key: "actions",
       header: (
@@ -746,7 +749,7 @@ export function DockerContainers({
         </span>
       ),
       align: "right",
-      width: 128,
+      width: 112,
       render: dots,
     },
   ];
@@ -780,10 +783,21 @@ export function DockerContainers({
   const byId = new Map(candidates.map((target) => [target.row.id, target]));
   const batchAction = useBatchAction<Row>();
   const skippedServices = new Map<string, string>();
+  const finishBatch = () => {
+    selection.clear();
+    refresh();
+  };
+  const sharedActionOf = {
+    start: DockerContainerAction.START,
+    stop: DockerContainerAction.STOP,
+    pause: DockerContainerAction.PAUSE,
+    unpause: DockerContainerAction.UNPAUSE,
+  } as const;
   const runBatch = (mode: "start" | "stop" | "pause" | "unpause") => {
     const start = mode === "start";
     const pause = mode === "pause";
     const togglePause = pause || mode === "unpause";
+    const lifecycleAction = sharedActionOf[mode];
     const matches = (row: Row, starts: boolean) =>
       togglePause ? row.object.state === (pause ? ContainerState.RUNNING : ContainerState.PAUSED) : starts === start;
     const label = start ? t`Start` : pause ? t`Pause` : togglePause ? t`Unpause` : t`Stop`;
@@ -797,6 +811,11 @@ export function DockerContainers({
     return batchAction(
       selected,
       (row) => {
+        if (row.object.ownership === DockerOwnership.SYSTEM) return { reason: t`System container` };
+        if (row.object.ownership === DockerOwnership.EXTERNAL) {
+          if (!acceptsLifecycle(row.object, lifecycleAction)) return { reason: wrongState };
+          return lifecycle.permission.allowed ? undefined : { permission: lifecycle.permission };
+        }
         const target = byId.get(row.id);
         if (!target) return { reason: t`Dockwell doesn't manage this container` };
         if (!matches(row, target.start)) return { reason: wrongState };
@@ -837,40 +856,82 @@ export function DockerContainers({
         label: (count) => (count ? t`${label} ${count}` : label),
         icon: pause ? "pause" : start || togglePause ? "play" : "stop",
         onSelect: (rows) => {
-          const unique = new Map(
-            rows.flatMap((row) => {
-              const target = byId.get(row.id);
-              return target ? [[row.object.managedResourceId, target] as const] : [];
-            }),
-          );
-          const n = unique.size;
-          const summary = start
-            ? plural(n, { one: "Start # workload", other: "Start # workloads" })
-            : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
-          const state = togglePause ? (pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING) : start;
-          const pauseSummary = pause
-            ? plural(n, { one: "Pause # workload", other: "Pause # workloads" })
-            : plural(n, { one: "Unpause # workload", other: "Unpause # workloads" });
-          changeRunMany([...unique.values()], state, togglePause ? pauseSummary : summary, () => {
-            selection.clear();
-            refresh();
-          });
+          const managedRows = rows.filter((row) => row.object.ownership !== DockerOwnership.EXTERNAL);
+          const externalRows = rows.filter((row) => row.object.ownership === DockerOwnership.EXTERNAL);
+          const runExternal = () =>
+            lifecycle.select({
+              action: lifecycleAction,
+              label,
+              rows: externalRows.map((row) => row.object),
+              onApplied: finishBatch,
+            });
+          if (managedRows.length > 0) {
+            const unique = new Map(
+              managedRows.flatMap((row) => {
+                const target = byId.get(row.id);
+                return target ? [[row.object.managedResourceId, target] as const] : [];
+              }),
+            );
+            const n = unique.size;
+            const summary = start
+              ? plural(n, { one: "Start # workload", other: "Start # workloads" })
+              : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
+            const state = togglePause ? (pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING) : start;
+            const pauseSummary = pause
+              ? plural(n, { one: "Pause # workload", other: "Pause # workloads" })
+              : plural(n, { one: "Unpause # workload", other: "Unpause # workloads" });
+            changeRunMany(
+              [...unique.values()],
+              state,
+              togglePause ? pauseSummary : summary,
+              externalRows.length > 0 ? runExternal : finishBatch,
+            );
+            return;
+          }
+          if (externalRows.length > 0) runExternal();
         },
       },
     );
   };
-  const managedBatches = [runBatch("start"), runBatch("stop"), runBatch("pause"), runBatch("unpause")];
-  const externalBatch = lifecycle.batch(
-    selected.map((row) => row.object),
-    () => {
-      selection.clear();
-      refresh();
-    },
+  const sharedBatches = [runBatch("start"), runBatch("stop"), runBatch("pause"), runBatch("unpause")];
+  const externalSelected = selected.filter((row) => row.object.ownership === DockerOwnership.EXTERNAL);
+  const externalOnlyVerbs = lifecycle.verbs.filter(
+    (verb) =>
+      verb.action === DockerContainerAction.RESTART ||
+      verb.action === DockerContainerAction.KILL ||
+      verb.action === DockerContainerAction.REMOVE ||
+      (verb.action === DockerContainerAction.RENAME && selected.length === 1),
   );
+  // External-only verbs act on external containers without repeating contradictory skip notes for managed rows.
+  const externalOnlyBatches =
+    externalSelected.length > 0
+      ? externalOnlyVerbs.map((verb) =>
+          batchAction(
+            externalSelected,
+            (row) => {
+              if (!acceptsLifecycle(row.object, verb.action)) return { reason: verb.unavailable };
+              return lifecycle.permission.allowed ? undefined : { permission: lifecycle.permission };
+            },
+            {
+              id: `external-${verb.action}`,
+              label: (count) => (count ? t`${verb.label} ${count}` : verb.label),
+              icon: verb.icon,
+              ...("danger" in verb ? { danger: true } : {}),
+              onSelect: (targets) =>
+                lifecycle.select({
+                  action: verb.action,
+                  label: verb.label,
+                  rows: targets.map((row) => row.object),
+                  onApplied: finishBatch,
+                }),
+            },
+          ),
+        )
+      : [];
   const openSkipped = (() => {
     if (skippedServices.size === 0) return { actions: [], notes: [] };
     const entries = [...skippedServices.entries()];
-    const multiServerNotes = managedBatches.flatMap((item) => item.notes);
+    const multiServerNotes = sharedBatches.flatMap((item) => item.notes);
     if (entries.length === 1 && entries[0]) {
       const [serviceId, serviceName] = entries[0];
       return {
@@ -897,7 +958,7 @@ export function DockerContainers({
       notes: multiServerNotes,
     };
   })();
-  const batch = combineBatchActions(...managedBatches, externalBatch, openSkipped);
+  const batch = combineBatchActions(...sharedBatches, ...externalOnlyBatches, openSkipped);
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;

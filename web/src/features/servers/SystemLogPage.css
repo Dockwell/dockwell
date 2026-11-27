@@ -26,8 +26,17 @@
 .syslog-pane {
   display: flex;
   flex-direction: column;
-  height: max(420px, calc(100dvh - 300px));
+  height: max(460px, calc(100dvh - 280px));
   min-width: 0;
+}
+
+.syslog-phone-bar {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.syslog-phone-bar .dw-btn {
+  flex: 1 1 0;
 }
 
 .syslog-top {

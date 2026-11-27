@@ -217,6 +217,7 @@ describe("SystemServicesPage", () => {
     });
     const alert = await screen.findByText(/hz-1 can't list its system services now/);
     expect(alert.closest(".dw-callout")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
     expect(screen.queryByRole("searchbox", { name: "Filter system services" })).toBeNull();
     expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
   });

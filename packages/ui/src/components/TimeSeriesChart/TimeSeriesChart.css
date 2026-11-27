@@ -98,8 +98,9 @@
 
 .dw-ts-body {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: var(--space-2);
+  grid-template-columns: minmax(48px, max-content) minmax(0, 1fr);
+  column-gap: var(--space-2);
+  row-gap: var(--space-1);
   align-items: stretch;
 }
 
@@ -114,6 +115,10 @@
   line-height: 14px;
   text-align: right;
   user-select: none;
+}
+
+.dw-ts-yaxis span {
+  white-space: nowrap;
 }
 
 .dw-ts-plot {
@@ -245,7 +250,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
   color: var(--ink-muted);
@@ -255,9 +259,9 @@
 }
 
 .dw-ts-xaxis {
+  grid-column: 2;
   display: flex;
   justify-content: space-between;
-  padding-left: 60px;
   color: var(--ink-muted);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -271,10 +275,6 @@
   }
 
   .dw-ts-body {
-    grid-template-columns: 44px minmax(0, 1fr);
-  }
-
-  .dw-ts-xaxis {
-    padding-left: 52px;
+    grid-template-columns: minmax(40px, max-content) minmax(0, 1fr);
   }
 }

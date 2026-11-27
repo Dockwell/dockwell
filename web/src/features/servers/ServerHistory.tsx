@@ -4,9 +4,10 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { HistoryPointState, HistoryRange, type Server, type ServerHistoryPoint, ServerService } from "@dockwell/api";
 import {
-  Callout,
   Loading,
+  Panel,
   SegmentedControl,
+  SelectField,
   SkeletonCard,
   TimeSeriesChart,
   type TimeSeriesGapKind,
@@ -14,9 +15,9 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBitRate, formatBytes, formatClock, formatDateTime, formatDay, formatFixed } from "../../lib/format";
 import { useMay } from "../auth/may";
+import { ReadFailed } from "../shell/ReadFailed";
 import { HIGH_USE } from "./server";
 import "./ServerHistory.css";
 
@@ -200,9 +201,12 @@ export function ServerHistory({ server }: { server: Server }) {
       </div>
 
       {query.error ? (
-        <Callout tone="warning" title={t`History couldn't be loaded`}>
-          {sentence(query.error)}
-        </Callout>
+        <ReadFailed
+          error={query.error}
+          title={t`History couldn't be loaded`}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
       ) : query.isPending ? (
         <Loading label={t`Loading server history`}>
           <div className="srv-hist-grid">
@@ -213,6 +217,10 @@ export function ServerHistory({ server }: { server: Server }) {
             <SkeletonCard title={t`Network`} />
           </div>
         </Loading>
+      ) : emptyMsg ? (
+        <Panel className="srv-hist-empty">
+          <p className="srv-hist-empty-text">{emptyMsg}</p>
+        </Panel>
       ) : (
         <div className="srv-hist-grid">
           <TimeSeriesChart
@@ -303,19 +311,15 @@ export function ServerHistory({ server }: { server: Server }) {
             controls={
               <div className="srv-hist-chart-controls">
                 {disks.length > 1 ? (
-                  <select
-                    className="srv-hist-select"
+                  <SelectField
+                    size="sm"
+                    mono
+                    className="srv-hist-select-field"
                     aria-label={t`Disk`}
                     value={disk}
                     onChange={(e) => setDisk(e.target.value)}
-                  >
-                    <option value="">{t`All disks`}</option>
-                    {disks.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
+                    options={[{ value: "", label: t`All disks` }, ...disks.map((d) => ({ value: d, label: d }))]}
+                  />
                 ) : disks.length === 1 ? (
                   <code className="srv-hist-tag">{disks[0]}</code>
                 ) : null}
@@ -381,19 +385,18 @@ export function ServerHistory({ server }: { server: Server }) {
             title={t`Network`}
             controls={
               interfaces.length > 1 ? (
-                <select
-                  className="srv-hist-select"
+                <SelectField
+                  size="sm"
+                  mono
+                  className="srv-hist-select-field"
                   aria-label={t`Network interface`}
                   value={iface}
                   onChange={(e) => setIface(e.target.value)}
-                >
-                  <option value="">{t`All interfaces`}</option>
-                  {interfaces.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: t`All interfaces` },
+                    ...interfaces.map((name) => ({ value: name, label: name })),
+                  ]}
+                />
               ) : interfaces.length === 1 ? (
                 <code className="srv-hist-tag">{interfaces[0]}</code>
               ) : null

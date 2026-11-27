@@ -5230,6 +5230,12 @@ msgstr "What to export"
 msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 msgstr "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 
+msgid "Change its owner to <0>{user}</0> so the app can read and write here."
+msgstr "Change its owner to <0>{user}</0> so the app can read and write here."
+
+msgid "Change owner to {user}"
+msgstr "Change owner to {user}"
+
 msgid "Choose the folder that holds the app."
 msgstr "Choose the folder that holds the app."
 
@@ -5250,11 +5256,14 @@ msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
 msgstr "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
 
 #. placeholder {0}: dir.mode
-msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
-msgstr "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgid "Its mode is <0>{0}</0>, so <1>{user}</1> can't write to it."
+msgstr "Its mode is <0>{0}</0>, so <1>{user}</1> can't write to it."
 
 msgid "Language"
 msgstr "Language"
+
+msgid "Make writable"
+msgstr "Make writable"
 
 msgid "Name the app, or give its folder on the server, such as /srv/shop."
 msgstr "Name the app, or give its folder on the server, such as /srv/shop."
@@ -5265,9 +5274,6 @@ msgstr "New"
 
 msgid "No {languageWord} app in {path} yet"
 msgstr "No {languageWord} app in {path} yet"
-
-msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
-msgstr "Run <0>sudo chown -R {user} {path}</0> on the server."
 
 msgid "Run as {theirs}"
 msgstr "Run as {theirs}"
@@ -16933,6 +16939,9 @@ msgstr "Start {name} on all {workloadServers} servers"
 msgid "Stop {name} on all {workloadServers} servers"
 msgstr "Stop {name} on all {workloadServers} servers"
 
+msgid "System container"
+msgstr "System container"
+
 msgid "Take on a container"
 msgstr "Take on a container"
 
@@ -16951,6 +16960,10 @@ msgstr "Usage"
 
 msgid "memory"
 msgstr "memory"
+
+#. placeholder {0}: verb.label
+msgid "{0} {count}"
+msgstr "{0} {count}"
 
 msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
 msgstr "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
@@ -17225,10 +17238,6 @@ msgstr "Signal"
 
 msgid "Stop the container first"
 msgstr "Stop the container first"
-
-#. placeholder {0}: verb.label
-msgid "{0} {count}"
-msgstr "{0} {count}"
 
 msgid "Address pools"
 msgstr "Address pools"
@@ -17592,8 +17601,8 @@ msgstr "Docker settings unavailable"
 msgid "Engine version"
 msgstr "Engine version"
 
-msgid "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
-msgstr "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
+msgid "Enter a size from 1 to 1,024 MB and 1 to 100 files."
+msgstr "Enter a size from 1 to 1,024 MB and 1 to 100 files."
 
 msgid "Enter an HTTPS URL without credentials, a query or a fragment."
 msgstr "Enter an HTTPS URL without credentials, a query or a fragment."
@@ -21419,11 +21428,11 @@ msgstr "Take out"
 msgid "Take {address} out"
 msgstr "Take {address} out"
 
-msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
-msgstr "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgid "The agent on {name} is older than the control plane, so it can't read SSH."
+msgstr "The agent on {name} is older than the control plane, so it can't read SSH."
 
-msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
-msgstr "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban."
+msgstr "The agent on {name} is older than the control plane, so it can't read fail2ban."
 
 msgid "The sshd jail on {name}"
 msgstr "The sshd jail on {name}"
@@ -21719,9 +21728,8 @@ msgid "Stop guarding Docker ports on {name}"
 msgstr "Stop guarding Docker ports on {name}"
 
 #. placeholder {0}: server.name
-#. placeholder {1}: server.name
-msgid "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
-msgstr "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
+msgid "The agent on {0} is older than the control plane, so it can't read the firewall."
+msgstr "The agent on {0} is older than the control plane, so it can't read the firewall."
 
 msgid "The kernel's other rules"
 msgstr "The kernel's other rules"
@@ -22071,6 +22079,10 @@ msgstr "Reporting"
 
 msgid "Runs here"
 msgstr "Runs here"
+
+#. placeholder {0}: rows.length
+msgid "Show all {0}"
+msgstr "Show all {0}"
 
 msgid "Up {uptime}"
 msgstr "Up {uptime}"
@@ -22441,6 +22453,9 @@ msgstr "System log"
 
 msgid "System services"
 msgstr "System services"
+
+msgid "System tabs"
+msgstr "System tabs"
 
 msgid "Toolbox"
 msgstr "Toolbox"
@@ -22899,6 +22914,12 @@ msgctxt "a time range of seven days"
 msgid "7 d"
 msgstr "7 d"
 
+msgid "Copy visible lines"
+msgstr "Copy visible lines"
+
+msgid "Download log"
+msgstr "Download log"
+
 msgid "Every other"
 msgstr "Every other"
 
@@ -22964,6 +22985,10 @@ msgstr "At boot"
 
 msgid "Disabling…"
 msgstr "Disabling…"
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't list {0}'s system services"
+msgstr "Dockwell can't list {0}'s system services"
 
 msgid "Dockwell needs it"
 msgstr "Dockwell needs it"
@@ -23197,6 +23222,9 @@ msgstr "Checking the server"
 msgid "Choose a variable or secret"
 msgstr "Choose a variable or secret"
 
+msgid "Common swap sizes"
+msgstr "Common swap sizes"
+
 msgid "Creating background services requires systemd."
 msgstr "Creating background services requires systemd."
 
@@ -23214,6 +23242,10 @@ msgstr "Direct environment value"
 
 msgid "Docker cleanup"
 msgstr "Docker cleanup"
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s host settings"
+msgstr "Dockwell can't read {0}'s host settings"
 
 msgid "Dockwell hosts entries"
 msgstr "Dockwell hosts entries"
@@ -23245,8 +23277,8 @@ msgstr "Identity and time"
 msgid "Keep journals by"
 msgstr "Keep journals by"
 
-msgid "Keep up to (MiB)"
-msgstr "Keep up to (MiB)"
+msgid "Keep up to (MB)"
+msgstr "Keep up to (MB)"
 
 msgid "Link DNS servers"
 msgstr "Link DNS servers"
@@ -23316,8 +23348,8 @@ msgstr "Scanning host files"
 msgid "Service settings"
 msgstr "Service settings"
 
-msgid "Size (MiB)"
-msgstr "Size (MiB)"
+msgid "Size (MB)"
+msgstr "Size (MB)"
 
 msgid "Swap size"
 msgstr "Swap size"
@@ -23353,14 +23385,11 @@ msgstr "Working folder"
 msgid "{0} (secret)"
 msgstr "{0} (secret)"
 
-#. placeholder {0}: String(status.swapFreeMib)
-msgid "{0} MiB available for a new swap file."
-msgstr "{0} MiB available for a new swap file."
+msgid "{availableSwap} available for a new swap file."
+msgstr "{availableSwap} available for a new swap file."
 
-#. placeholder {0}: String(item.usedMib)
-#. placeholder {1}: String(item.sizeMib)
-msgid "{0} of {1} MiB used"
-msgstr "{0} of {1} MiB used"
+msgid "{used} of {size} used"
+msgstr "{used} of {size} used"
 
 msgid "1 join command waiting · expires in {first}"
 msgstr "1 join command waiting · expires in {first}"

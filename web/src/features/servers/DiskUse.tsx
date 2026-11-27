@@ -54,6 +54,8 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
   const busy = asking && (use.isPending || (docker !== undefined && !docker.time));
   const others = disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
   const breakdown = docker?.dockerBreakdown.length ? docker : undefined;
+  const showDockerDisk = Boolean(dockerDisk && (!breakdown || !dockerWorkspace));
+  const hasSecondaryDisks = showDockerDisk || others.length > 0;
   if (!allowed || (!busy && !dockerDisk && !breakdown && disks.length === 0 && !use.error)) return null;
   return (
     <Panel
@@ -75,13 +77,24 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
       }
       className="disk-use"
     >
-      <div className="disk-use-body" aria-busy={busy}>
+      <div
+        className={breakdown && hasSecondaryDisks && !dockerWorkspace ? "disk-use-body has-columns" : "disk-use-body"}
+        aria-busy={busy}
+      >
         {busy && disks.length === 0 ? <DiskSkeleton /> : null}
-        {breakdown ? <DockerDiskTable used={breakdown} serverId={server.id} serverName={server.name} /> : null}
-        {dockerDisk && (!breakdown || !dockerWorkspace) ? <DockerDisk use={dockerDisk} server={server} /> : null}
-        {others.map((disk) => (
-          <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
-        ))}
+        {breakdown ? (
+          <div className="disk-use-section">
+            <DockerDiskTable used={breakdown} serverId={server.id} serverName={server.name} />
+          </div>
+        ) : null}
+        {hasSecondaryDisks ? (
+          <div className="disk-use-disks">
+            {showDockerDisk && dockerDisk ? <DockerDisk use={dockerDisk} server={server} /> : null}
+            {others.map((disk) => (
+              <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
+            ))}
+          </div>
+        ) : null}
         {/* What arrived shows; only Docker's share of its disk is still on its way, and is marked as such. */}
         {busy && disks.length > 0 ? <DiskSkeleton bar={false} /> : null}
         {use.error && asking && !dockerDisk ? <p className="disk-use-note">{sentence(use.error)}</p> : null}

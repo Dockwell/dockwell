@@ -27,6 +27,15 @@
   min-width: 0;
 }
 
+.servers-list-table .dw-table {
+  table-layout: fixed;
+}
+
+.servers-list-table .dw-table td:nth-child(3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .servers-table-name {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -104,10 +113,16 @@
 .servers-inspector-facts {
   display: grid;
   grid-template-columns: max-content 1fr;
+  align-items: baseline;
   gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: 13px;
   line-height: 20px;
+}
+
+.servers-inspector-facts .server-labels > .dw-btn:first-child {
+  margin-inline-start: -11px;
+  margin-block: -4px;
 }
 
 .servers-inspector-facts > div {

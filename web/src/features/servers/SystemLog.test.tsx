@@ -91,6 +91,9 @@ describe("SystemLogPage", () => {
     );
     expect(await screen.findByText("nginx: reloaded")).toBeVisible();
     expect(await screen.findByText(/12 lines dropped here/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Wrap long lines" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Copy visible lines" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Download log" })).toBeEnabled();
   });
 
   it("narrows to a unit picked from the server's own, failed ones first, and to a level", async () => {

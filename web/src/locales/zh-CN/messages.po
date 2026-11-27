@@ -5230,6 +5230,12 @@ msgstr "要导出的内容"
 msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
 msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
 
+msgid "Change its owner to <0>{user}</0> so the app can read and write here."
+msgstr "将其所有者改为 <0>{user}</0>，以便应用在此读写。"
+
+msgid "Change owner to {user}"
+msgstr "将所有者改为 {user}"
+
 msgid "Choose the folder that holds the app."
 msgstr "请选择存放应用的文件夹。"
 
@@ -5250,11 +5256,14 @@ msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
 msgstr "它属于 <0>{theirs}</0>，而应用以 <1>{user}</1> 运行。"
 
 #. placeholder {0}: dir.mode
-msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
-msgstr "它的权限是 <0>{0}</0>。请在服务器上运行 <1>chmod u+w {path}</1>。"
+msgid "Its mode is <0>{0}</0>, so <1>{user}</1> can't write to it."
+msgstr "其权限为 <0>{0}</0>，因此 <1>{user}</1> 无法写入。"
 
 msgid "Language"
 msgstr "语言"
+
+msgid "Make writable"
+msgstr "设为可写"
 
 msgid "Name the app, or give its folder on the server, such as /srv/shop."
 msgstr "请为应用命名，或填写它在服务器上的文件夹，例如 /srv/shop。"
@@ -5265,9 +5274,6 @@ msgstr "新建"
 
 msgid "No {languageWord} app in {path} yet"
 msgstr "{path} 中还没有 {languageWord} 应用"
-
-msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
-msgstr "请在服务器上运行 <0>sudo chown -R {user} {path}</0>。"
 
 msgid "Run as {theirs}"
 msgstr "以 {theirs} 运行"
@@ -16933,6 +16939,9 @@ msgstr "在全部 {workloadServers} 台服务器上启动 {name}"
 msgid "Stop {name} on all {workloadServers} servers"
 msgstr "在全部 {workloadServers} 台服务器上停止 {name}"
 
+msgid "System container"
+msgstr "系统容器"
+
 msgid "Take on a container"
 msgstr "接管容器"
 
@@ -16951,6 +16960,10 @@ msgstr "用量"
 
 msgid "memory"
 msgstr "内存"
+
+#. placeholder {0}: verb.label
+msgid "{0} {count}"
+msgstr "{0} {count} 个"
 
 msgid "{extra, plural, one {Runs on # more server} other {Runs on # more servers}}"
 msgstr "{extra, plural, other {还在另外 # 台服务器上运行}}"
@@ -17225,10 +17238,6 @@ msgstr "信号"
 
 msgid "Stop the container first"
 msgstr "请先停止容器"
-
-#. placeholder {0}: verb.label
-msgid "{0} {count}"
-msgstr "{0} {count} 个"
 
 msgid "Address pools"
 msgstr "地址池"
@@ -17592,8 +17601,8 @@ msgstr "Docker 设置不可用"
 msgid "Engine version"
 msgstr "引擎版本"
 
-msgid "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
-msgstr "请输入 1 至 1,024 MiB 的大小和 1 至 100 个文件。"
+msgid "Enter a size from 1 to 1,024 MB and 1 to 100 files."
+msgstr "请输入 1 到 1,024 MB 的大小以及 1 到 100 个文件。"
 
 msgid "Enter an HTTPS URL without credentials, a query or a fragment."
 msgstr "请输入不含凭据、查询参数或片段的 HTTPS URL。"
@@ -21419,11 +21428,11 @@ msgstr "去掉"
 msgid "Take {address} out"
 msgstr "去掉 {address}"
 
-msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
-msgstr "{name} 上的代理比控制平面旧，因此无法读取 SSH。请在 {name} 上再次运行安装脚本来更新它。"
+msgid "The agent on {name} is older than the control plane, so it can't read SSH."
+msgstr "{name} 上的代理版本低于控制平面，因此无法读取 SSH。"
 
-msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
-msgstr "{name} 上的代理比控制平面旧，因此无法读取 fail2ban。请在 {name} 上再次运行安装脚本来更新它。"
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban."
+msgstr "{name} 上的代理版本低于控制平面，因此无法读取 fail2ban。"
 
 msgid "The sshd jail on {name}"
 msgstr "{name} 上的 sshd jail"
@@ -21719,9 +21728,8 @@ msgid "Stop guarding Docker ports on {name}"
 msgstr "停止保护 {name} 上的 Docker 端口"
 
 #. placeholder {0}: server.name
-#. placeholder {1}: server.name
-msgid "The agent on {0} is older than the control plane, so it can't read the firewall. Run the install script on {1} again to update it."
-msgstr "{0} 上的代理比控制平面旧，因此无法读取防火墙。请在 {1} 上再次运行安装脚本来更新它。"
+msgid "The agent on {0} is older than the control plane, so it can't read the firewall."
+msgstr "{0} 上的代理版本低于控制平面，因此无法读取防火墙。"
 
 msgid "The kernel's other rules"
 msgstr "内核中的其他规则"
@@ -22071,6 +22079,10 @@ msgstr "正在上报"
 
 msgid "Runs here"
 msgstr "在此运行"
+
+#. placeholder {0}: rows.length
+msgid "Show all {0}"
+msgstr "显示全部 {0} 项"
 
 msgid "Up {uptime}"
 msgstr "已运行 {uptime}"
@@ -22441,6 +22453,9 @@ msgstr "系统日志"
 
 msgid "System services"
 msgstr "系统服务"
+
+msgid "System tabs"
+msgstr "系统标签页"
 
 msgid "Toolbox"
 msgstr "工具箱"
@@ -22899,6 +22914,12 @@ msgctxt "a time range of seven days"
 msgid "7 d"
 msgstr "7 天"
 
+msgid "Copy visible lines"
+msgstr "复制可见行"
+
+msgid "Download log"
+msgstr "下载日志"
+
 msgid "Every other"
 msgstr "其他"
 
@@ -22964,6 +22985,10 @@ msgstr "开机启动"
 
 msgid "Disabling…"
 msgstr "取消开机启动中…"
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't list {0}'s system services"
+msgstr "Dockwell 无法列出 {0} 的系统服务"
 
 msgid "Dockwell needs it"
 msgstr "Dockwell 依赖它"
@@ -23197,6 +23222,9 @@ msgstr "正在检查服务器"
 msgid "Choose a variable or secret"
 msgstr "选择变量或密钥"
 
+msgid "Common swap sizes"
+msgstr "常用交换空间大小"
+
 msgid "Creating background services requires systemd."
 msgstr "创建后台服务需要 systemd。"
 
@@ -23214,6 +23242,10 @@ msgstr "直接输入的环境变量值"
 
 msgid "Docker cleanup"
 msgstr "Docker 清理"
+
+#. placeholder {0}: server.name
+msgid "Dockwell can't read {0}'s host settings"
+msgstr "Dockwell 无法读取 {0} 的主机设置"
 
 msgid "Dockwell hosts entries"
 msgstr "Dockwell 管理的 hosts 条目"
@@ -23245,8 +23277,8 @@ msgstr "主机名和时间"
 msgid "Keep journals by"
 msgstr "日志保留方式"
 
-msgid "Keep up to (MiB)"
-msgstr "最多保留（MiB）"
+msgid "Keep up to (MB)"
+msgstr "最多保留（MB）"
 
 msgid "Link DNS servers"
 msgstr "网络接口的 DNS 服务器"
@@ -23316,8 +23348,8 @@ msgstr "正在扫描主机文件"
 msgid "Service settings"
 msgstr "服务设置"
 
-msgid "Size (MiB)"
-msgstr "大小（MiB）"
+msgid "Size (MB)"
+msgstr "大小（MB）"
 
 msgid "Swap size"
 msgstr "交换空间大小"
@@ -23353,14 +23385,11 @@ msgstr "工作目录"
 msgid "{0} (secret)"
 msgstr "{0}（密钥）"
 
-#. placeholder {0}: String(status.swapFreeMib)
-msgid "{0} MiB available for a new swap file."
-msgstr "有 {0} MiB 可用于创建交换文件。"
+msgid "{availableSwap} available for a new swap file."
+msgstr "可用于新交换文件的空间为 {availableSwap}。"
 
-#. placeholder {0}: String(item.usedMib)
-#. placeholder {1}: String(item.sizeMib)
-msgid "{0} of {1} MiB used"
-msgstr "已用 {0} MiB，共 {1} MiB"
+msgid "{used} of {size} used"
+msgstr "已用 {used} / {size}"
 
 msgid "1 join command waiting · expires in {first}"
 msgstr "1 条加入命令等待中 · {first}后过期"
