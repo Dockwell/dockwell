@@ -741,9 +741,13 @@ type BuildUpdate struct {
 	Image string `protobuf:"bytes,16,opt,name=image,proto3" json:"image,omitempty"`
 	// What the build found as it read the commit: its Dockerfile, or what
 	// Railpack makes of it. Sent once, before it builds.
-	Detection     *v1.BuildDetection `protobuf:"bytes,17,opt,name=detection,proto3" json:"detection,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Detection *v1.BuildDetection `protobuf:"bytes,17,opt,name=detection,proto3" json:"detection,omitempty"`
+	// Why the build failed, as a code such as build_memory.
+	ErrorReason string `protobuf:"bytes,18,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
+	// The available memory in MiB while waiting for admission or at refusal.
+	MemoryAvailableMib *int64 `protobuf:"varint,19,opt,name=memory_available_mib,json=memoryAvailableMib,proto3,oneof" json:"memory_available_mib,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BuildUpdate) Reset() {
@@ -893,6 +897,20 @@ func (x *BuildUpdate) GetDetection() *v1.BuildDetection {
 		return x.Detection
 	}
 	return nil
+}
+
+func (x *BuildUpdate) GetErrorReason() string {
+	if x != nil {
+		return x.ErrorReason
+	}
+	return ""
+}
+
+func (x *BuildUpdate) GetMemoryAvailableMib() int64 {
+	if x != nil && x.MemoryAvailableMib != nil {
+		return *x.MemoryAvailableMib
+	}
+	return 0
 }
 
 // TaskRunsReady says a task's run started or ended, so the control plane reads
@@ -22173,7 +22191,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\amessage\"T\n" +
 	"\x0fArchiveJobEnded\x12)\n" +
 	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x12\x16\n" +
-	"\x06record\x18\x02 \x01(\tR\x06record\"\x87\x05\n" +
+	"\x06record\x18\x02 \x01(\tR\x06record\"\xfa\x05\n" +
 	"\vBuildUpdate\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12-\n" +
@@ -22194,7 +22212,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"start_time\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
 	"\bend_time\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x14\n" +
 	"\x05image\x18\x10 \x01(\tR\x05image\x129\n" +
-	"\tdetection\x18\x11 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"\x0f\n" +
+	"\tdetection\x18\x11 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\x12!\n" +
+	"\ferror_reason\x18\x12 \x01(\tR\verrorReason\x125\n" +
+	"\x14memory_available_mib\x18\x13 \x01(\x03H\x00R\x12memoryAvailableMib\x88\x01\x01B\x17\n" +
+	"\x15_memory_available_mib\"\x0f\n" +
 	"\rTaskRunsReady\"\x97\x01\n" +
 	"\rTerminalEnded\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
@@ -24621,6 +24642,7 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*ConnectRequest_DockerInventoryChanged)(nil),
 		(*ConnectRequest_ArchiveJobEnded)(nil),
 	}
+	file_dockwell_agent_v1_agent_proto_msgTypes[2].OneofWrappers = []any{}
 	file_dockwell_agent_v1_agent_proto_msgTypes[22].OneofWrappers = []any{
 		(*ConnectResponse_Welcome)(nil),
 		(*ConnectResponse_Call)(nil),

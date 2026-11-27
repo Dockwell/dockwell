@@ -3,7 +3,14 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type Build, type BuildLine, BuildService, BuildState, ImageBuild_Builder } from "@dockwell/api";
+import {
+  type Build,
+  type BuildLine,
+  BuildService,
+  BuildState,
+  ImageBuild_Builder,
+  type ServiceInfo,
+} from "@dockwell/api";
 import { Button, Callout, type Status, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +20,7 @@ import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { BuildLog } from "./BuildLog";
+import { BuildMemoryNotice } from "./BuildMemoryNotice";
 import { useDetectionWords } from "./detection";
 import "./Apps.css";
 
@@ -43,6 +51,9 @@ export function useBuildLook() {
   const { t } = useLingui();
   return useCallback(
     (build: Build): { status: Status; word: string } => {
+      if (buildUnderWay(build) && build.memoryAvailableMib !== undefined) {
+        return { status: "unknown", word: t`Waiting for memory to build` };
+      }
       switch (build.state) {
         case BuildState.QUEUED:
           return { status: "unknown", word: t`Queued` };
@@ -131,7 +142,15 @@ function buildTook(build: Build, now: number): number | undefined {
  * cache, where it ran and what it made, then its log, live while it runs
  * (App-Deployments). A build under way can be cancelled from here.
  */
-export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: () => void }) {
+export function BuildPart({
+  build: given,
+  service,
+  onEnded,
+}: {
+  build: Build;
+  service: ServiceInfo;
+  onEnded?: () => void;
+}) {
   const { t } = useLingui();
   const time = useTimeWords();
   const look = useBuildLook();
@@ -198,6 +217,9 @@ export function BuildPart({ build: given, onEnded }: { build: Build; onEnded?: (
         <Callout tone="critical" title={t`Couldn't cancel the build`}>
           {refusal}
         </Callout>
+      ) : null}
+      {build.errorReason === "build_memory" ? (
+        <BuildMemoryNotice available={build.memoryAvailableMib} serverId={build.serverId} service={service} />
       ) : null}
       {build.state === BuildState.CANCELLED && build.cancelledBy ? (
         <p className="app-note">

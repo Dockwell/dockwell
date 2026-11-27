@@ -67,6 +67,7 @@ type Healthcheck struct {
 
 // HostConfig is how a container runs on the server.
 type HostConfig struct {
+	CgroupParent  string                   `json:"CgroupParent,omitempty"`
 	Binds         []string                 `json:"Binds,omitempty"`
 	Mounts        []Mount                  `json:"Mounts,omitempty"`
 	PortBindings  map[string][]PortBinding `json:"PortBindings,omitempty"`

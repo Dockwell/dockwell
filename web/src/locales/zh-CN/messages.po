@@ -4723,6 +4723,9 @@ msgstr "已失联"
 msgid "Step {step}, <0>{0}</0>"
 msgstr "第 {step} 步，<0>{0}</0>"
 
+msgid "Waiting for memory to build"
+msgstr "正在等待可用内存以开始构建"
+
 #. placeholder {0}: build.serverName
 msgid "{0} went away during the build, so how it ended isn't known."
 msgstr "{0} 在构建期间离线，因此无法得知构建结果。"
@@ -4745,6 +4748,18 @@ msgstr "{0, plural, other {构建输出太快，日志来不及接收，丢弃�
 
 msgid "{count} lines left out"
 msgstr "省略了 {count} 行"
+
+msgid "See what uses memory"
+msgstr "查看内存占用"
+
+msgid "The build didn't start."
+msgstr "构建未启动。"
+
+msgid "This server had less than the 256 MiB a build needs."
+msgstr "这台服务器的可用内存不足构建所需的 256 MiB。"
+
+msgid "This server has {free} MiB free and a build needs 256 MiB."
+msgstr "这台服务器有 {free} MiB 可用内存，构建需要 256 MiB。"
 
 msgid "CI deploy · {name}"
 msgstr "CI 部署 · {name}"

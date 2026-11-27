@@ -210,6 +210,10 @@ message BuildUpdate {
   // What the build found as it read the commit: its Dockerfile, or what
   // Railpack makes of it. Sent once, before it builds.
   dockwell.v1.BuildDetection detection = 17;
+  // Why the build failed, as a code such as build_memory.
+  string error_reason = 18;
+  // The available memory in MiB while waiting for admission or at refusal.
+  optional int64 memory_available_mib = 19;
 }
 
 // TaskRunsReady says a task's run started or ended, so the control plane reads

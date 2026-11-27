@@ -453,7 +453,7 @@ func detectArgs(req service.BuildRequest) []string {
 
 // detect runs a detect container once, and says whether it needs Railpack first.
 func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, []byte, bool, error) {
-	memory, cpus, err := b.limits(ctx)
+	limits, err := b.limits(ctx, false)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -480,7 +480,7 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 		HostConfig: docker.HostConfig{
 			// On the build network, as what it reads comes from the same repository.
 			NetworkMode: Network,
-			Memory:      min(memory, detectMemory), MemorySwap: min(memory, detectMemory), NanoCPUs: cpus * 1e9,
+			Memory:      min(limits.memory, detectMemory), MemorySwap: min(limits.memory, detectMemory), NanoCPUs: limits.cpus * 1e9,
 			CPUShares: cpuShares, OomScoreAdj: 1000, PidsLimit: detectPids,
 			LogConfig: &docker.LogConfig{Type: "none"},
 			Mounts:    mounts,

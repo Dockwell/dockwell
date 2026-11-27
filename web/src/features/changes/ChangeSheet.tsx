@@ -73,6 +73,7 @@ import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
 import { appOf, unreached } from "../apps/app";
+import { BuildMemoryNotice } from "../apps/BuildMemoryNotice";
 import { DomainFacts, DomainNote, useSilent } from "../apps/DomainNote";
 import {
   type EnvironmentReach,
@@ -1423,6 +1424,25 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   return t`Applied`;
 }
 
+function ChangeBuildMemoryNotice({
+  resourceId,
+  serverId,
+  onLeave,
+}: {
+  resourceId: string;
+  serverId: string;
+  onLeave: () => void;
+}) {
+  const services = useServices().data;
+  return (
+    <BuildMemoryNotice
+      serverId={serverId}
+      service={services?.find((service) => service.id === resourceId)}
+      onLeave={onLeave}
+    />
+  );
+}
+
 function PlanBody({
   phase,
   phone,
@@ -1717,11 +1737,15 @@ function PlanBody({
           ) : null}
           {wentOffline(change) || (dockerImageAction(plan)?.push && pushResultUnknown(change)) ? null : (
             <>
-              <FailureNotice
-                message={change.error || t`A step failed, so the change stopped there.`}
-                detail={failed?.detail}
-                fix={opening.fix?.(failed?.reason ?? "")}
-              />
+              {failed?.reason === "build_memory" ? (
+                <ChangeBuildMemoryNotice resourceId={failed.resourceId} serverId={failed.serverId} onLeave={onLeave} />
+              ) : (
+                <FailureNotice
+                  message={change.error || t`A step failed, so the change stopped there.`}
+                  detail={failed?.detail}
+                  fix={opening.fix?.(failed?.reason ?? "")}
+                />
+              )}
               <FailedDeployLogs change={change} />
             </>
           )}

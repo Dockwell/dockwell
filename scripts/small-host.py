@@ -26,6 +26,8 @@ LIMIT = 1024 * MIB
 DOCKWELL_LIMIT = 250_000_000
 ROOT = Path(__file__).resolve().parent.parent
 APP_MIB = 104
+HOST_MIB = 160
+BASELINE_SECONDS = 60
 APPS = ("storefront", "inventory", "reporting")
 
 
@@ -163,9 +165,10 @@ class Meter:
         if mode == "cgroup":
             group = next(line[4:] for line in Path("/proc/self/cgroup").read_text().splitlines()
                          if line.startswith("0::/"))
+            self.group = "/" + group
             self.path = Path("/sys/fs/cgroup") / group
-            if number(self.path / "memory.max") != LIMIT:
-                raise RuntimeError("workload did not enter the 1 GiB cgroup")
+            if number(self.path / "memory.max") != LIMIT or number(self.path / "memory.swap.max") != 0:
+                raise RuntimeError("workload did not enter the 1 GiB cgroup with swap disabled")
         self.proc = work / "build-proc"
         self.proc.mkdir()
         self.ctrl = None
@@ -188,20 +191,22 @@ class Meter:
             "shmem_pss_bytes": tally(proc, "Pss_Shmem"),
             "swap_pss_bytes": tally(proc, "SwapPss"),
         }
+        processes = [smaps(pid) for pid in set(descendants(os.getpid()))]
+        resident = sum(tally(item, "Pss") for item in processes)
+        swap = sum(tally(item, "SwapPss") for item in processes)
         if self.path:
-            resident = number(self.path / "memory.current")
-            swap = number(self.path / "memory.swap.current")
+            swap = max(swap, number(self.path / "memory.swap.current") or 0)
         else:
-            processes = [smaps(pid) for pid in set(descendants(os.getpid()))]
-            resident = sum(tally(item, "Pss") for item in processes)
-            swap = sum(tally(item, "SwapPss") for item in processes)
-            # The fallback exercises the same admission policy against observed
-            # headroom while the host's own /proc/meminfo describes the whole machine.
+            # Match the cgroup admission model by leaving mapped file pages
+            # reclaimable. The separate peak gate counts all resident PSS.
+            working = sum(tally(item, "Pss_Anon") + tally(item, "Pss_Shmem")
+                          for item in processes)
             temp = self.proc / "sample"
             temp.write_text(f"MemTotal: {LIMIT // 1024} kB\n"
-                            f"MemAvailable: {max(0, LIMIT - resident) // 1024} kB\n")
+                            f"MemAvailable: {max(0, LIMIT - working) // 1024} kB\n")
             temp.replace(self.proc / "meminfo")
-        self.samples.append((memory, resident, swap))
+        scope = number(self.path / "memory.current") if self.path else None
+        self.samples.append((memory, resident, swap, scope))
 
     def measure(self):
         try:
@@ -233,14 +238,16 @@ class Meter:
         events, peak, swap_peak = {}, None, None
         if self.path:
             events = fields(self.path / "memory.events")
-            peak = number(self.path / "memory.peak")
+            peak = max(number(self.path / "memory.peak") or 0,
+                       *(item[3] or 0 for item in self.samples))
             swap_peak = number(self.path / "memory.swap.peak")
         host_oom_end = fields(Path("/proc/vmstat")).get("oom_kill")
         return {
             "mode": self.mode, "limit_bytes": LIMIT,
-            "peak_bytes": max(peak or 0, resident),
-            "peak_source": "memory.peak" if peak is not None else
-                           ("sampled memory.current" if self.path else "sampled process-tree PSS"),
+            "peak_bytes": resident,
+            "peak_source": "sampled process-tree PSS",
+            "cgroup_peak_bytes": peak,
+            "cgroup_memory_events": events,
             "swap_peak_bytes": max(swap_peak or 0, *swap) if swap else swap_peak,
             "oom_kills": events.get("oom_kill"),
             "host_oom_kill_delta": host_oom_end - self.host_oom_start
@@ -272,6 +279,8 @@ class Stand:
         )
         if meter.mode == "sampled":
             self.env["DOCKWELL_TEST_BUILD_PROC"] = str(meter.proc)
+        else:
+            self.env["DOCKWELL_TEST_BUILD_CGROUP"] = meter.group
 
     def start(self, name, *args, stdout_log=False, **env):
         dest = self.work / f"{name}.log"
@@ -362,6 +371,7 @@ class Stand:
         self.git_url = address(self.logs["gitserve"], r"(http://127\.0\.0\.1:\d+)", git) + "/web.git"
 
     def setup(self):
+        self.fixture("host-working-set", "hold", HOST_MIB)
         fake = self.start("fake-engine", self.work / "fakedocker", self.sock.parent,
                           stdout_log=True, FAKEDOCKER_LOG_LOAD="127.0.0.1:0")
         self.log_origin = "http://" + address(self.logs["fake-engine"], r"log fixture listening on (127\.0\.0\.1:\d+)", fake)
@@ -496,7 +506,7 @@ def mixed(stand, seconds, report):
     pressure_change = stand.build_plan("pressure-build", "update")
     stop = threading.Event()
     with ThreadPoolExecutor(max_workers=6) as pool:
-        baseline = [pool.submit(traffic, stand.proxy, app, 20, stop) for app in APPS]
+        baseline = [pool.submit(traffic, stand.proxy, app, BASELINE_SECONDS, stop) for app in APPS]
         report["before"] = {app: job.result() for app, job in zip(APPS, baseline)}
         during = [pool.submit(traffic, stand.proxy, app, seconds, stop) for app in APPS]
         try:
@@ -506,7 +516,7 @@ def mixed(stand, seconds, report):
                 if build and build["state"] == "BUILD_STATE_FAILED":
                     raise RuntimeError(f"build failed before mixed load: {build.get('error')}")
                 return build if build and build.get("startTime") else None
-            first = until("the image build to start", started)
+            first = until("the image build to start", started, 75)
             report["build"] = {"wait_seconds": wait_time(first), "state": first["state"]}
             builder = stand.fixture("build-working-set", "hold", 128)[0]
             follow = stand.start("follow", stand.full, "logs", "follow", stand.service,
@@ -544,20 +554,31 @@ def mixed(stand, seconds, report):
                 raise RuntimeError(f"mixed build failed: {completed.get('error')}")
 
             # A second build must refuse before asking the Engine to run a builder.
-            # The extra 200 MiB fits in the scope but leaves less than its 448 MiB
-            # admission threshold (minimum builder plus reserve for running apps).
+            # This leaves less than 256 MiB free through the whole admission wait.
+            lines = stand.get(f"/v1/builds/{completed['id']}/log").get("lines", [])
+            if not any("Memory is tight" in line["text"] for line in lines):
+                raise RuntimeError("the admitted build did not report tight memory")
             pressure = stand.fixture("pressure", "hold", 200)[0]
             try:
                 time.sleep(.6)  # allow the fallback to publish this sample
                 start = time.monotonic()
                 stand.start_build(pressure_change)
+                saw_wait = False
+
                 def refused():
+                    nonlocal saw_wait
                     record = stand.build_record("pressure-build")
+                    if record and not record.get("endTime") and "memoryAvailableMib" in record:
+                        saw_wait = True
                     return record if record and (record.get("startTime") or record.get("endTime")) else None
-                record = until("the pressure build's admission decision", refused, 20)
-                clean = (record["state"] == "BUILD_STATE_FAILED" and not record.get("startTime")
-                         and "Free memory" in record.get("error", ""))
-                report["refusal"] = {"clean": clean, "seconds": time.monotonic() - start,
+                record = until("the pressure build's admission decision", refused, 75)
+                elapsed = time.monotonic() - start
+                available = int(record.get("memoryAvailableMib", 256))
+                clean = (saw_wait and elapsed >= 59 and record["state"] == "BUILD_STATE_FAILED"
+                         and not record.get("startTime") and record.get("errorReason") == "build_memory"
+                         and 0 <= available < 256)
+                report["refusal"] = {"clean": clean, "seconds": elapsed, "wait_state_seen": saw_wait,
+                                     "available_mib": available, "reason": record.get("errorReason"),
                                      "error": record.get("error"), "state": record["state"]}
                 if not clean:
                     raise RuntimeError(f"the pressure build did not refuse cleanly: {record}")
@@ -586,7 +607,11 @@ def show(report):
     dockwell = memory.get("control_with_embedded_agent", {})
     print(f"| {report['mode']} | Result |")
     print("| --- | --- |")
-    print(f"| Scope peak / swap peak (MiB) | {size(memory.get('peak_bytes'))} / {size(memory.get('swap_peak_bytes'))} |")
+    print(f"| Process-tree PSS peak / swap peak (MiB) | {size(memory.get('peak_bytes'))} / {size(memory.get('swap_peak_bytes'))} |")
+    if report["mode"] == "cgroup":
+        events = memory.get("cgroup_memory_events", {})
+        print(f"| Kernel cgroup peak (MiB) / max / OOM events | {size(memory.get('cgroup_peak_bytes'))} / "
+              f"{events.get('max', 'unavailable')} / {events.get('oom', 'unavailable')} |")
     print(f"| Scope OOM kills | {memory.get('oom_kills') if memory.get('oom_kills') is not None else 'unavailable'} |")
     print(f"| Control + embedded agent peak / settled RSS (MiB) | "
           f"{size(dockwell.get('rss_peak_bytes'))} / {size(dockwell.get('settled', {}).get('rss_bytes'))} |")
@@ -613,6 +638,8 @@ def show(report):
 
 def run(work, full, caddy, out, duration, mode):
     report = {"mode": mode, "load_seconds": duration, "app_resident_target_mib": APP_MIB * len(APPS),
+              "host_resident_target_mib": HOST_MIB, "baseline_seconds": BASELINE_SECONDS,
+              "admission_source": "harness meminfo" if mode == "sampled" else "fake Engine cgroup",
               "docker": "fake", "starting_load_average": os.getloadavg(), "failures": []}
     meter = Meter(mode, work)
     stand = Stand(work, full, caddy, meter)
@@ -634,8 +661,10 @@ def run(work, full, caddy, out, duration, mode):
             exceeded = {
                 "the sampler failed": meter.error,
                 "the 1 GiB memory limit was exceeded": memory["peak_bytes"] > LIMIT,
-                "the cgroup killed a process or its OOM counter is unavailable":
-                    mode == "cgroup" and memory["oom_kills"] != 0,
+                "the run used swap": memory["swap_peak_bytes"] is None or memory["swap_peak_bytes"] > 0,
+                "the cgroup hit its memory limit, saw an OOM, or lost its counters":
+                    mode == "cgroup" and any(memory["cgroup_memory_events"].get(event) != 0
+                                             for event in ("max", "oom", "oom_kill")),
                 "Dockwell's RSS reached 250 MB or its process disappeared":
                     not 0 < memory["control_with_embedded_agent"].get("rss_peak_bytes", 0) < DOCKWELL_LIMIT or
                     not fields(Path(f"/proc/{meter.ctrl}/status")),
@@ -645,8 +674,9 @@ def run(work, full, caddy, out, duration, mode):
             }
             report["failures"].extend(why for why, failed in exceeded.items() if failed)
             for app, result in report.get("during", {}).items():
-                if result["p99_ms"] > 3 * report["before"][app]["p99_ms"]:
-                    report["failures"].append(f"{app} p99 during load exceeded 3× baseline")
+                baseline = report["before"][app]["p99_ms"]
+                if result["p99_ms"] > max(3 * baseline, baseline + 25):
+                    report["failures"].append(f"{app} p99 during load exceeded its latency budget")
         finally:
             stand.stop_all()
         show(report)

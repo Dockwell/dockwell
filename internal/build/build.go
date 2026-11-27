@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -62,13 +61,6 @@ const CacheVolume = "dockwell-build-cache"
 
 // What a build may use (ADR 0046).
 const (
-	// keepForRunning is the memory a build leaves for what runs.
-	keepForRunning = 256 << 20
-	minMemory      = 512 << 20
-	smallMemory    = 256 << 20
-	smallReserve   = 192 << 20
-	smallHost      = 1 << 30
-	maxMemory      = 8 << 30
 	// cpuShares is a quarter of an ordinary container's weight.
 	cpuShares = 256
 	pidsLimit = 4096
@@ -414,6 +406,11 @@ func (b *Builder) stopped(ctx context.Context, r *run, req service.BuildRequest)
 // fails with, if it does.
 func (b *Builder) ended(ctx context.Context, req service.BuildRequest, f facts, err error) error {
 	u := resource.BuildUpdate{State: resource.BuildDone, End: b.now(), Steps: f.steps, Cached: f.cached, Image: req.Image}
+	var low memoryLow
+	if errors.As(err, &low) {
+		availableMiB := low.available / buildMiB
+		u.MemoryAvailableMiB = &availableMiB
+	}
 	// What a step printed reaches the error only masked, as it goes to the build's
 	// record and the change's.
 	err = hideIn(err, hiddenForms(req))
@@ -423,6 +420,7 @@ func (b *Builder) ended(ctx context.Context, req service.BuildRequest, f facts, 
 			u.State = resource.BuildCancelled
 		}
 		u.Error, _ = resource.Explain(err)
+		u.ErrorReason = resource.ReasonOf(err)
 		u.Step, u.StepName, u.FailedLine = f.step, f.stepName, f.failedLine
 	}
 	// The step's own context may be over by now, and this is what says so.
@@ -591,9 +589,15 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if err := b.ensureImage(ctx); err != nil {
 		return facts{}, err
 	}
-	memory, cpus, err := b.limits(ctx)
+	limits, err := b.limits(ctx, true)
 	if err != nil {
 		return facts{}, err
+	}
+	if limits.tight {
+		rep.mu.Lock()
+		rep.add(0, fmt.Sprintf("Memory is tight with %d MiB free. The build may use up to %d MiB and is first to stop if memory runs out.",
+			limits.available/buildMiB, limits.memory/buildMiB))
+		rep.mu.Unlock()
 	}
 	keep, err := b.cacheShare(ctx, volume, b.cacheBound(ctx))
 	if err != nil {
@@ -695,7 +699,7 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 			// BuildKit's sandbox for each RUN step, runc, makes namespaces and
 			// cgroups. What a Dockerfile runs stays in it (ADR 0046).
 			Privileged: true,
-			Memory:     memory, MemorySwap: memory, NanoCPUs: cpus * 1e9,
+			Memory:     limits.memory, MemorySwap: limits.memory, NanoCPUs: limits.cpus * 1e9,
 			CPUShares: cpuShares, OomScoreAdj: 1000, PidsLimit: pidsLimit,
 			// What it prints is the image, and Docker would keep a copy of it.
 			LogConfig: &docker.LogConfig{Type: "none"},
@@ -740,7 +744,7 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	}
 	stopFollowing()
 	f := rep.facts()
-	f.memory = memory
+	f.memory = limits.memory
 	b.endedCache(volume, f.pruned)
 	b.usedCache(context.WithoutCancel(ctx), volume)
 
@@ -753,10 +757,12 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 		return f, loadErr
 	case ctx.Err() != nil && (req.Standalone == nil || code != 0 || runErr != nil || loadErr != nil):
 		return f, ctx.Err()
+	case oom:
+		return f, failure(req, f, code, true)
 	case runErr != nil:
 		return f, containerRunError("the build container", runErr)
-	case code != 0 || oom:
-		return f, failure(req, f, code, oom)
+	case code != 0:
+		return f, failure(req, f, code, false)
 	case loadErr != nil:
 		return f, resource.PlainlyBecause(resource.ReasonBuild, "Docker couldn't take the image the build made: "+loadErr.Error(), loadErr)
 	}
@@ -801,8 +807,10 @@ func failure(req service.BuildRequest, f facts, code int, oom bool) error {
 	err := fmt.Errorf("the build of %s at %s exited with %d", req.URL, req.Commit, code)
 	plain := func(s string) error { return resource.PlainlyBecause(resource.ReasonBuild, s, err) }
 	switch {
-	case oom || code == 137 || strings.Contains(f.stepError, "exit code: 137"):
-		return plain(fmt.Sprintf("The build ran out of the %s it may use on this server. Free some memory on the server, or build the image in CI and deploy that", human.Size(f.memory)))
+	case oom:
+		return plain(fmt.Sprintf("The kernel stopped the build when memory ran out. The build could use up to %d MiB and deployed nothing. Build in CI and deploy the image, or stop an app first", f.memory/buildMiB))
+	case code == 137 || strings.Contains(f.stepError, "exit code: 137"):
+		return plain("The build was killed before it could deploy. Build in CI and deploy the image, or check the server's available memory before retrying")
 	case f.failed == "fetch":
 		why := lastWords(f.tail)
 		if why == "" {
@@ -867,41 +875,6 @@ func (b *Builder) ensureImage(ctx context.Context) error {
 		return resource.PlainlyBecause(resource.ReasonBuild, "This server can't get BuildKit's image, "+Repository+":"+Tag+", which builds the image: "+err.Error()+". Check the server reaches Docker Hub, or its mirror", err)
 	}
 	return nil
-}
-
-// limits are the memory and CPUs a build may use: what the server has available,
-// less what runs keeps, within bounds, and every CPU but one, as Docker counts them,
-// as Docker refuses more than it has.
-func (b *Builder) limits(ctx context.Context) (memory, cpus int64, err error) {
-	read := b.Memory
-	if read == nil {
-		read = hostMemory
-	}
-	available, total, err := read()
-	if err != nil {
-		return 0, 0, fmt.Errorf("can't read how much memory this server has free: %w", err)
-	}
-	least, reserve := int64(minMemory), int64(keepForRunning)
-	if total <= smallHost {
-		least, reserve = smallMemory, smallReserve
-	}
-	if available < reserve+least {
-		return 0, 0, resource.PlainlyBecause(resource.ReasonBuild,
-			fmt.Sprintf("This server has %s of memory available and a build needs %s after leaving %s for running apps. Free memory, or build the image in CI and deploy that",
-				human.Size(available), human.Size(least), human.Size(reserve)),
-			errors.New("insufficient memory to admit a build"))
-	}
-	memory = min(available-reserve, maxMemory)
-	n := runtime.NumCPU()
-	switch {
-	case b.CPUs != nil:
-		n = b.CPUs()
-	default:
-		if info, err := b.Client.Info(ctx); err == nil && info.NCPU > 0 {
-			n = info.NCPU
-		}
-	}
-	return memory, int64(max(n-1, 1)), nil
 }
 
 // cacheBound is the most BuildKit's cache keeps: a tenth of the disk Docker keeps

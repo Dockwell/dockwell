@@ -19,6 +19,7 @@ func (c *calls) buildUpdates(change string, ref resource.Ref) func(resource.Buil
 			ChangeId: change, Resource: resourcepb.Ref(ref), State: buildState(u.State), Dropped: u.Dropped,
 			CommitSubject: u.Subject, CommitAuthor: u.Author, Steps: int32(u.Steps), CachedSteps: int32(u.Cached), //nolint:gosec // a build's steps are few
 			Step: int32(u.Step), StepName: u.StepName, Error: u.Error, FailedLine: u.FailedLine, Image: u.Image, //nolint:gosec // as above
+			ErrorReason: u.ErrorReason, MemoryAvailableMib: u.MemoryAvailableMiB,
 		}
 		if !u.Start.IsZero() {
 			msg.StartTime = timestamppb.New(u.Start)

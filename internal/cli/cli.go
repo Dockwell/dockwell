@@ -65,6 +65,10 @@ const (
 	// tools, such as nft, laid out as the paths they stand in for. Without it, a
 	// test runs none of them.
 	envTestTools = "DOCKWELL_TEST_TOOLS"
+	// envTestBuildProc and envTestBuildCgroup let the small-host fixture supply
+	// measured meminfo or name the scope enclosing its fake Engine.
+	envTestBuildProc   = "DOCKWELL_TEST_BUILD_PROC"
+	envTestBuildCgroup = "DOCKWELL_TEST_BUILD_CGROUP"
 	// envTestBuildSecrets names, in a test, a folder a build keeps its secrets and
 	// registry logins in, as if it were in memory, for a machine whose /run a test
 	// can't write (ADR 0086).

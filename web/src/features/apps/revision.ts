@@ -48,6 +48,9 @@ export function useRevisionLook() {
       // A build that someone cancelled, or that waits or runs, says so rather than "failed" or "deploying" (ADR 0046).
       if (rev.build?.state === BuildState.CANCELLED) return { status: "stopped", word: t`Cancelled` };
       if (change?.state === ChangeState.APPLYING) {
+        if (rev.build?.memoryAvailableMib !== undefined && rev.build.state === BuildState.QUEUED) {
+          return { status: "unknown", word: t`Waiting for memory to build` };
+        }
         if (rev.build?.state === BuildState.BUILDING) return { status: "deploying", word: t`Building` };
         if (rev.build?.state === BuildState.QUEUED || (!rev.build && plansBuild(change)))
           return { status: "unknown", word: t`Queued` };

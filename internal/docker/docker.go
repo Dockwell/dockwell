@@ -223,6 +223,9 @@ type Info struct {
 	// runc, and CgroupVersion is the server's cgroup version, 1 or 2.
 	DefaultRuntime string
 	CgroupVersion  string
+	CgroupDriver   string
+	// CgroupParent is the default container parent, if reported by the engine.
+	CgroupParent string
 	// NCPU is how many CPUs the server has.
 	NCPU int
 	// LoggingDriver is what keeps a container's log unless it asks for

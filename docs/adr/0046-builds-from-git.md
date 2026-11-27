@@ -172,12 +172,12 @@ What this costs: pulling BuildKit's image once, 111 MB for amd64; starting `buil
 ### What a build may use
 
 A build gets a container's limits, which the kernel holds it to, so a build can't take a small server down:
-- **Memory:** the available host memory as the build starts, bounded by any visible cgroup v2 memory limit and its headroom, including reclaimable inactive file cache. A build leaves 256 MiB for running apps and needs at least 512 MiB for itself. On a host or cgroup of at most 1 GiB, it leaves 192 MiB and needs at least 256 MiB. If there is less available, the build is refused before it starts. A build gets at most 8 GiB and no swap.
-- **First to go:** its `oom_score_adj` is 1000, so if the server runs short anyway, the kernel kills the build before anything else.
+- **Memory:** the available host memory as the build starts, bounded by Docker's container cgroup and its ancestors where known. A build may use the available memory less an app reserve, with a 512 MiB minimum and an 8 GiB maximum, and no swap. The reserve is one eighth of total memory, bounded from 128 MiB to 256 MiB. With less than 256 MiB available, the build waits up to a minute and then refuses with an action to deploy from CI.
+- **First to go:** its `oom_score_adj` is 1000, and BuildKit and its workers inherit that priority. When memory runs out, Linux favors stopping the builder over a running app or Dockwell.
 - **CPU:** every CPU but one, and at least one, at a quarter of the weight of an ordinary container (`cpu-shares` 256), so on a busy server what runs comes first and the build takes what's left.
 - **Processes:** 4,096 at most.
 
-A build that runs out of memory fails with words that say so: "The build ran out of the 512 MB it may use on this server". A setting for a server's build limits, or an app's, comes when someone needs one.
+When Docker reports the kernel killed a builder for memory, the build explains the stop, its cap and how to deploy the image from CI. A setting for a server's build limits, or an app's, comes when someone needs one.
 
 **One build at a time on a server.** BuildKit's cache can't be shared by two daemons, and a small server can't take two builds at once. A second build waits for the first, and its step says so, as `queued`. A newer push replacing an older one that waits is the fourth slice's deploy queue.
 

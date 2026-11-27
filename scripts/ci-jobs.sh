@@ -109,35 +109,23 @@ biome_checks() {
 jobs_for() {
   case $1 in
   .github/workflows/* | .github/actions/* | Makefile | scripts/ci-jobs.sh | scripts/ci-jobs-test.sh)
-    echo "$every_job"
+    echo "${every_job/ small-host/}"
     ;;
   ci/*) echo "go" ;;
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
   scripts/docker-stops-evidence.sh) echo "chaos" ;;
   *_test.go) echo "$gotest" ;;
-  internal/docker/lifecycle-signals.json) echo "$go $web small-host" ;;
+  internal/docker/lifecycle-signals.json) echo "$go $web" ;;
   # The fake Docker Engine is the tests', which reach no Swarm.
-  internal/docker/dockertest/*) echo "$go small-host" ;;
+  internal/docker/dockertest/*) echo "$go" ;;
   scripts/swarm-e2e.sh) echo "$swarm" ;;
   internal/agent/panels/*.go | internal/control/importapi/*.go | internal/control/composeapi/*.go | internal/docker/*.go | \
     internal/resource/container/*.go | internal/resource/panel.go | internal/resource/resourcepb/*.go | internal/resource/host/*.go | \
     internal/revision/units.go)
-    echo "$swarm small-host"
+    echo "$swarm"
     ;;
-  scripts/small-host.*) echo "small-host" ;;
-  scripts/load-files.sh | scripts/logfixture/* | scripts/fakedocker/* | scripts/gitserve/* | \
-    scripts/claim/* | scripts/ingress-tools.sh | internal/store/migrations/* | proto/dockwell/agent/* | \
-    proto/dockwell/v1/backup.proto | proto/dockwell/v1/build.proto | proto/dockwell/v1/file.proto | proto/dockwell/v1/log.proto)
-    echo "$go small-host"
-    ;;
+  scripts/small-host.*) ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.
-  internal/agent/*.go | internal/build/*.go | internal/control/agentapi/*.go | internal/control/authapi/*.go | internal/control/backups/*.go | \
-    internal/control/builds/*.go | internal/control/files/*.go | internal/control/logs/*.go | internal/control/services/*.go | \
-    internal/control/servers/*.go | internal/control/volumes/*.go | \
-    internal/control/server.go | internal/control/rest*.go | internal/cli/run*.go | internal/backup/*.go | \
-    internal/auth/*.go | internal/store/*.go | internal/revision/revision.go | cmd/dockwell/main.go)
-    echo "$go small-host"
-    ;;
   *.go) echo "$go" ;;
   # The release archives carry both, and the snapshot builds them.
   LICENSE | README.md) echo "snapshot" ;;
@@ -147,7 +135,7 @@ jobs_for() {
   internal/catalog/snapshot/entries/* | internal/catalog/snapshot/checks/* | internal/catalog/snapshot/commit) echo "$catalog" ;;
   # The Go tests source it, the load tests and the budgets read its memory
   # limit, and Service end to end on Docker uninstalls with it.
-  scripts/install.sh) echo "go containers-load transfers-load docker-e2e small-host $install $budgets" ;;
+  scripts/install.sh) echo "go containers-load transfers-load docker-e2e $install $budgets" ;;
   # A Go test runs it, and so do the install legs, under mawk, gawk and busybox.
   scripts/connected.awk) echo "$go $install" ;;
   scripts/install-test/* | scripts/sigstore_trusted_root.json) echo "$install" ;;
@@ -156,7 +144,7 @@ jobs_for() {
   scripts/check-spdx.sh | scripts/check-trust-root.sh | scripts/check-cloudflare-ranges.sh | scripts/latest-release.sh | scripts/require-green.sh | scripts/adrs.sh) ;;
   .goreleaser.yaml) echo "$install $budgets" ;;
   # The toolchain, the modules and the tools, GoReleaser among them, build the release.
-  go.mod | go.sum | tools/*) echo "$go $install small-host" ;;
+  go.mod | go.sum | tools/*) echo "$go $install" ;;
   cmd/* | internal/* | gen/* | proto/* | buf.yaml | buf.gen.yaml | buf.lock | .golangci.yml | scripts/*) echo "$go" ;;
   # The panel's stylesheet bundles the fonts.
   design/system/fonts/*) echo "$web" ;;
@@ -164,10 +152,27 @@ jobs_for() {
   web/* | packages/* | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | biome.json | tsconfig.base.json | .nvmrc)
     echo "$web"
     ;;
-  */*) echo "$every_job" ;;
+  */*) echo "${every_job/ small-host/}" ;;
   # CONTRIBUTING.md and the rest at the top.
   *.md) ;;
-  *) echo "$every_job" ;;
+  *) echo "${every_job/ small-host/}" ;;
+  esac
+}
+
+# The mixed-load run is scoped to memory-critical paths and its own inputs.
+# List the relevant agent files explicitly where the package also has other jobs.
+small_host_for() {
+  case $1 in
+    *_test.go) ;;
+    scripts/small-host.* | scripts/load-files.sh | scripts/logfixture/* | \
+      scripts/gitserve/* | scripts/claim/* | scripts/ingress-tools.sh | scripts/install.sh | \
+      scripts/ci-jobs.sh | scripts/ci-jobs-test.sh | Makefile | \
+      internal/build/*.go | internal/control/builds/builds.go | \
+      internal/agent/pageout/*.go | internal/agent/logs/*.go | \
+      internal/agent/files/transfer.go | internal/agent/enroll/transfers.go | \
+      internal/agent/builds.go | internal/control/agentapi/transfer.go | \
+      internal/docker/dockertest/build.go | internal/docker/dockertest/logs.go | \
+      internal/backup/disk.go | proto/dockwell/v1/build.proto) echo small-host ;;
   esac
 }
 
@@ -190,7 +195,7 @@ reasons() {
   else
     # The last path counts even without a NUL after it.
     while IFS= read -r -d '' path || [[ -n $path ]]; do
-      for job in $(jobs_for "$path") $(biome_checks "$path" && echo panel); do
+      for job in $(jobs_for "$path") $(small_host_for "$path") $(biome_checks "$path" && echo panel); do
         [[ -n ${why[$job]:-} ]] || why[$job]="\`$path\` needs it"
       done
     done

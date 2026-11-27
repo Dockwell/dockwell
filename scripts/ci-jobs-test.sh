@@ -23,8 +23,28 @@ trap 'rm -rf "$scratch"' EXIT
 all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel small-host swarm-docker snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
 go="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
+other_jobs=${all/ small-host/}
 web="schema panel e2e docker-panel"
 install="snapshot install systemd every-leg"
+
+# Print which of the default branch's 60 most recent first-parent commits
+# would have selected the mixed-load job if reviewed as pull requests.
+if [[ ${1:-} == --small-host-history ]]; then
+  base=${2:-origin/main}
+  count=0
+  total=0
+  while IFS= read -r sha; do
+    total=$((total + 1))
+    selected=$(git -C "$root" diff --name-only --no-renames -z "$sha^" "$sha" |
+      "$jobs" pick | sed -n 's/^jobs=//p')
+    if jq -e 'index("small-host") != null' <<<"$selected" >/dev/null; then
+      git -C "$root" show -s --format='%h %s' "$sha"
+      count=$((count + 1))
+    fi
+  done < <(git -C "$root" rev-list --first-parent -60 "$base")
+  printf 'Small host would run on %s of %s commits.\n' "$count" "$total"
+  exit 0
+fi
 
 # sorted prints its words sorted, once each.
 sorted() { tr ' ' '\n' <<<"$1" | sed '/^$/d' | sort -u | paste -sd ' ' -; }
@@ -57,34 +77,38 @@ picks "schema panel" design/system/tokens.json
 # The release archives carry LICENSE and README.md.
 picks "snapshot" LICENSE
 picks "snapshot" README.md
-picks "$go small-host" internal/control/server.go
+picks "$go" internal/control/server.go
 picks "$go" internal/cli/apicmd/apicmd.gen.go
 picks "$go" internal/cli/api.go
 picks "$go" internal/cli/join.go
-picks "$go small-host" cmd/dockwell/main.go
+picks "$go" cmd/dockwell/main.go
 picks "$go" proto/dockwell/v1/servers.proto gen/openapi/openapi.yaml
 picks "$go" scripts/docker-e2e.sh
 # What reaches a Swarm runs Swarm import on Docker too; other Go code doesn't.
 picks "$go swarm-docker" scripts/swarm-e2e.sh
-picks "$go small-host swarm-docker" internal/control/importapi/panels.go
-picks "$go small-host swarm-docker" internal/agent/panels/stop.go internal/control/server.go
-picks "$go small-host swarm-docker" internal/resource/panel.go
-picks "$go small-host swarm-docker" internal/resource/resourcepb/resourcepb.go
-picks "$go small-host swarm-docker" internal/resource/host/host.go
-picks "$go small-host swarm-docker" internal/revision/units.go
-picks "$go small-host" internal/revision/revision.go internal/resource/resource.go
+picks "$go swarm-docker" internal/control/importapi/panels.go
+picks "$go swarm-docker" internal/agent/panels/stop.go internal/control/server.go
+picks "$go swarm-docker" internal/resource/panel.go
+picks "$go swarm-docker" internal/resource/resourcepb/resourcepb.go
+picks "$go swarm-docker" internal/resource/host/host.go
+picks "$go swarm-docker" internal/revision/units.go
+picks "$go" internal/revision/revision.go internal/resource/resource.go
 # What the agent reads of each container is measured by Hundreds of containers, among the Go jobs (#797).
-picks "$go small-host" internal/agent/collect/containers.go
+picks "$go" internal/agent/collect/containers.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
 picks "$go small-host" scripts/load-files.sh scripts/logfixture/server.go
 picks "$go small-host" internal/build/build.go
-picks "$go small-host" internal/control/services/services.go
-picks "$go small-host" internal/store/store.go
-picks "$go small-host" proto/dockwell/v1/file.proto
+picks "$go small-host" internal/control/builds/builds.go proto/dockwell/v1/build.proto
+picks "$go small-host" internal/agent/enroll/transfers.go internal/agent/files/transfer.go
+picks "$go" internal/agent/files/download.go
+picks "$go small-host" internal/agent/logs/reader.go internal/agent/pageout/pageout_linux.go
+picks "$go" internal/control/services/services.go
+picks "$go" internal/store/store.go internal/store/history.go internal/agent/collect/disk.go
+picks "$go" proto/dockwell/v1/file.proto
 picks "small-host" scripts/small-host.py
 picks "small-host" scripts/small-host.sh
-picks "$go small-host" scripts/fakedocker/main.go
+picks "$go" scripts/fakedocker/main.go
 picks "go" ci/github/action.yml ci/gitlab/dockwell-deploy.yml ci/deploy.sh
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
 picks "go chaos" scripts/chaos/recovery_test.go
@@ -99,12 +123,12 @@ picks "$go" scripts/store-e2e.sh
 picks "$go" docs/example/main.go
 picks "go docker-go caddy-go" internal/agent/files/stuck_test.go
 picks "go docker-go caddy-go" internal/cli/api_test.go cmd/dockwell/build_test.go
-picks "$go small-host" internal/agent/files/stuck_test.go internal/docker/dockertest/fake.go
+picks "$go" internal/agent/files/stuck_test.go internal/docker/dockertest/fake.go
 picks "go docker-go caddy-go $web" internal/control/changes_test.go web/src/main.tsx
-picks "$go small-host every-leg" go.mod go.sum
-picks "$go small-host every-leg" tools/go.mod
+picks "$go every-leg" go.mod go.sum
+picks "$go every-leg" tools/go.mod
 picks "$web" web/src/features/apps/AppsPage.tsx
-picks "$go $web small-host" internal/docker/lifecycle-signals.json
+picks "$go $web" internal/docker/lifecycle-signals.json
 picks "$web" web/src/locales/zh-CN/messages.po packages/ui/src/Button.tsx
 picks "$web" pnpm-lock.yaml package.json
 # The panel's stylesheet bundles the fonts.
@@ -125,14 +149,14 @@ picks "$install" scripts/sigstore_trusted_root.json
 picks "snapshot budgets" scripts/budgets.sh
 picks "$go" scripts/slow-packages.sh
 picks "snapshot budgets $install" .goreleaser.yaml
-picks "$all" .github/workflows/ci.yml
-picks "$all" .github/workflows/chaos.yml
-picks "$all" .github/actions/docker-hub-mirror/mirror.sh
+picks "$other_jobs" .github/workflows/ci.yml
+picks "$other_jobs" .github/workflows/chaos.yml
+picks "$other_jobs" .github/actions/docker-hub-mirror/mirror.sh
 picks "$all" Makefile
 picks "$all" scripts/ci-jobs.sh
-picks "$all" .gitignore
-picks "$all" newdir/file.txt
-picks "$all" docs/install.md .gitattributes
+picks "$other_jobs" .gitignore
+picks "$other_jobs" newdir/file.txt
+picks "$other_jobs" docs/install.md .gitattributes
 picks "$go" "internal/control/a file with spaces.go"
 
 # A path that's only in the old name of a rename still counts, as git diff
