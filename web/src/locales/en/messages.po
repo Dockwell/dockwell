@@ -4962,14 +4962,14 @@ msgstr "Accept new host key"
 msgid "Active public key"
 msgstr "Active public key"
 
-msgid "Add this new key alongside the current one with read-only access, then test it. Dockwell switches only after the test passes."
-msgstr "Add this new key alongside the current one with read-only access, then test it. Dockwell switches only after the test passes."
+msgid "Add this key alongside the current one (read-only), then test."
+msgstr "Add this key alongside the current one (read-only), then test."
 
-msgid "Add this public key to your Git host with read-only access, then test it."
-msgstr "Add this public key to your Git host with read-only access, then test it."
+msgid "Add this public key to your Git host (read-only), then test."
+msgstr "Add this public key to your Git host (read-only), then test."
 
-msgid "Add this public key to {hostName} with read-only access, then test it."
-msgstr "Add this public key to {hostName} with read-only access, then test it."
+msgid "Add this public key to {hostName} (read-only), then test."
+msgstr "Add this public key to {hostName} (read-only), then test."
 
 msgid "Cancel rotation"
 msgstr "Cancel rotation"
@@ -5000,6 +5000,12 @@ msgstr "Copy new key"
 msgid "Couldn't create the deploy key"
 msgstr "Couldn't create the deploy key"
 
+msgid "Create a read-only deploy key for this project."
+msgstr "Create a read-only deploy key for this project."
+
+msgid "Create a read-only deploy key to fetch this repository."
+msgstr "Create a read-only deploy key to fetch this repository."
+
 msgid "Delete key"
 msgstr "Delete key"
 
@@ -5027,11 +5033,8 @@ msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}<
 msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
 msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
 
-msgid "Generate a replacement key without interrupting builds. The current key stays active until the new key passes a test."
-msgstr "Generate a replacement key without interrupting builds. The current key stays active until the new key passes a test."
-
-msgid "Generate an Ed25519 deploy key for this project to fetch over SSH."
-msgstr "Generate an Ed25519 deploy key for this project to fetch over SSH."
+msgid "Generate a replacement key without interrupting builds."
+msgstr "Generate a replacement key without interrupting builds."
 
 msgid "Host key changed"
 msgstr "Host key changed"
@@ -5103,9 +5106,6 @@ msgstr "Test new key"
 #. placeholder {0}: key.host
 msgid "The SSH host key for {0} changed"
 msgstr "The SSH host key for {0} changed"
-
-msgid "This repository needs access. Generate an Ed25519 deploy key for this project."
-msgstr "This repository needs access. Generate an Ed25519 deploy key for this project."
 
 msgid "Use a deploy key"
 msgstr "Use a deploy key"
@@ -25609,6 +25609,12 @@ msgstr "{soon, plural, one {# expires within two weeks} other {# expire within t
 msgid "A passkey may have been copied"
 msgstr "A passkey may have been copied"
 
+msgid "Accepted a changed SSH host key"
+msgstr "Accepted a changed SSH host key"
+
+msgid "Accepted a changed SSH host key for {name}"
+msgstr "Accepted a changed SSH host key for {name}"
+
 msgid "Applied a change"
 msgstr "Applied a change"
 
@@ -25620,6 +25626,12 @@ msgstr "Asked to cancel a build"
 
 msgid "Asked to cancel a build on {name}"
 msgstr "Asked to cancel a build on {name}"
+
+msgid "Cancelled a deploy key rotation"
+msgstr "Cancelled a deploy key rotation"
+
+msgid "Cancelled rotation of deploy key {name}"
+msgstr "Cancelled rotation of deploy key {name}"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "Changed how often their passkey is asked for"
@@ -25645,6 +25657,18 @@ msgstr "Couldn't confirm with a passkey"
 msgid "Couldn't sign in"
 msgstr "Couldn't sign in"
 
+msgid "Created a deploy key"
+msgstr "Created a deploy key"
+
+msgid "Created deploy key {name}"
+msgstr "Created deploy key {name}"
+
+msgid "Deleted a deploy key"
+msgstr "Deleted a deploy key"
+
+msgid "Deleted deploy key {name}"
+msgstr "Deleted deploy key {name}"
+
 msgid "Discarded a change"
 msgstr "Discarded a change"
 
@@ -25656,6 +25680,12 @@ msgstr "Ended the snooze of the updates of {app}"
 
 msgid "Made {name} the owner"
 msgstr "Made {name} the owner"
+
+msgid "Pinned an SSH host key"
+msgstr "Pinned an SSH host key"
+
+msgid "Pinned the SSH host key for {name}"
+msgstr "Pinned the SSH host key for {name}"
 
 msgid "Planned a change"
 msgstr "Planned a change"
@@ -25686,6 +25716,12 @@ msgstr "Refused to renew a server's certificate"
 
 msgid "Refused to renew the certificate of {name}"
 msgstr "Refused to renew the certificate of {name}"
+
+msgid "Rotated a deploy key"
+msgstr "Rotated a deploy key"
+
+msgid "Rotated deploy key {name}"
+msgstr "Rotated deploy key {name}"
 
 msgid "Saving {path}"
 msgstr "Saving {path}"
@@ -25725,6 +25761,12 @@ msgstr "Started opening a terminal"
 
 msgid "Started opening a terminal on {name}"
 msgstr "Started opening a terminal on {name}"
+
+msgid "Started rotating a deploy key"
+msgstr "Started rotating a deploy key"
+
+msgid "Started rotating deploy key {name}"
+msgstr "Started rotating deploy key {name}"
 
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "Stopped sign-in with codes after too many wrong ones"

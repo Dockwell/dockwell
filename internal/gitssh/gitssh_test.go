@@ -66,23 +66,49 @@ func TestParseAndDeployKeysPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseSSH scp: %v", err)
 	}
-	if ep.CanonicalURL != "ssh://git@github.com/acme/web.git" || ep.Port != 22 || ep.User != "git" {
-		t.Fatalf("unexpected endpoint: %+v", ep)
+	if ep.CanonicalURL != "git@github.com:acme/web.git" || ep.RepoPath != "acme/web.git" || ep.Port != 22 || ep.User != "git" {
+		t.Fatalf("unexpected relative SCP endpoint: %+v", ep)
 	}
 
-	ep2, err := gitssh.ParseSSH("ssh://deploy@git.example.com:2222/team/app.git")
+	epAbsSCP, err := gitssh.ParseSSH("git@git.example.com:/srv/git/app.git")
+	if err != nil {
+		t.Fatalf("ParseSSH abs scp: %v", err)
+	}
+	if epAbsSCP.CanonicalURL != "ssh://git@git.example.com/srv/git/app.git" || epAbsSCP.RepoPath != "/srv/git/app.git" {
+		t.Fatalf("unexpected absolute SCP endpoint: %+v", epAbsSCP)
+	}
+
+	ep2, err := gitssh.ParseSSH("ssh://deploy@git.example.com:2222/srv/git/app.git")
 	if err != nil {
 		t.Fatalf("ParseSSH ssh://: %v", err)
 	}
-	if ep2.Port != 2222 || ep2.User != "deploy" || ep2.CanonicalURL != "ssh://deploy@git.example.com:2222/team/app.git" {
-		t.Fatalf("unexpected endpoint: %+v", ep2)
+	if ep2.Port != 2222 || ep2.User != "deploy" || ep2.RepoPath != "/srv/git/app.git" || ep2.CanonicalURL != "ssh://deploy@git.example.com:2222/srv/git/app.git" {
+		t.Fatalf("unexpected absolute ssh:// endpoint: %+v", ep2)
 	}
 
-	if _, err := gitssh.ParseSSH("ssh://git:secret@example.com/acme/web.git"); err == nil {
-		t.Fatal("expected password in SSH URL to be refused")
+	epRelSSH, err := gitssh.ParseSSH("ssh://deploy@git.example.com:2222/~/team/app.git")
+	if err != nil {
+		t.Fatalf("ParseSSH ssh:// relative: %v", err)
 	}
-	if _, err := gitssh.ParseSSH("git@example.com:../etc/passwd"); err == nil {
-		t.Fatal("expected path traversal to be refused")
+	if epRelSSH.RepoPath != "team/app.git" || epRelSSH.CanonicalURL != "ssh://deploy@git.example.com:2222/~/team/app.git" {
+		t.Fatalf("unexpected relative ssh:// endpoint: %+v", epRelSSH)
+	}
+
+	if !gitssh.SameRepo("git@github.com:acme/web.git", "ssh://git@github.com/acme/web") {
+		t.Fatal("expected SameRepo to ignore leading / and .git")
+	}
+
+	for _, bad := range []string{
+		"ssh://git:secret@example.com/acme/web.git",
+		"git@example.com:../etc/passwd",
+		"git@example.com:-x/repo.git",
+		"git@example.com:/-x/repo.git",
+		"ssh://git@example.com/--upload-pack=x",
+		"ssh://git@example.com/~/-x/repo.git",
+	} {
+		if _, err := gitssh.ParseSSH(bad); err == nil {
+			t.Fatalf("expected %q to be refused", bad)
+		}
 	}
 
 	conv, err := gitssh.ParseOrConvertSSH("https://gitlab.com/acme/web")
@@ -93,10 +119,10 @@ func TestParseAndDeployKeysPage(t *testing.T) {
 	cases := []struct {
 		repo, wantURL, wantHost string
 	}{
-		{"git@github.com:acme/web.git", "https://github.com/acme/web/settings/keys/new", "GitHub"},
+		{"git@github.com:acme/web.git", "https://github.com/acme/web/settings/keys", "GitHub"},
 		{"ssh://git@gitlab.com/acme/sub/web.git", "https://gitlab.com/acme/sub/web/-/settings/repository#js-deploy-keys-settings", "GitLab"},
 		{"git@gitlab.example.com:team/app.git", "https://gitlab.example.com/team/app/-/settings/repository#js-deploy-keys-settings", "GitLab"},
-		{"git@bitbucket.org:acme/web.git", "https://bitbucket.org/acme/web/admin/access-keys/", "Bitbucket"},
+		{"git@bitbucket.org:acme/web.git", "https://bitbucket.org/acme/web/admin/access-keys", "Bitbucket"},
 		{"git@codeberg.org:acme/web.git", "https://codeberg.org/acme/web/settings/keys", "Codeberg"},
 		{"git@gitea.example.com:acme/web.git", "https://gitea.example.com/acme/web/settings/keys", "Gitea"},
 		{"git@forgejo.example.com:acme/web.git", "https://forgejo.example.com/acme/web/settings/keys", "Forgejo"},
@@ -307,5 +333,93 @@ func TestSSHGitFetchPinMismatchWrongKeyRotateBoundsAndNetguard(t *testing.T) {
 	}
 	if algoChanged.Algorithm != ecdsaAlgo || algoChanged.Fingerprint != ecdsaFP {
 		t.Fatalf("unexpected algorithm-changed key: %+v (want %s %s)", algoChanged, ecdsaAlgo, ecdsaFP)
+	}
+}
+
+func TestAbsoluteGitShellPathListFloodAndPackTempDir(t *testing.T) {
+	repoDir, _, secondCommit := initTestRepo(t)
+
+	// 1. Strict git-shell-like server requiring exact absolute path "/srv/git/app.git".
+	absSrv, err := gitsshtest.NewServer("127.0.0.1:0", "/srv/git/app.git", repoDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer absSrv.Close()
+
+	key, err := gitssh.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := absSrv.SetAuthorizedKeys(key.PublicKey); err != nil {
+		t.Fatal(err)
+	}
+	algo, fp := absSrv.HostKey()
+
+	absEP, err := gitssh.ParseSSH(absSrv.URL())
+	if err != nil {
+		t.Fatalf("ParseSSH(%q): %v", absSrv.URL(), err)
+	}
+	if absEP.RepoPath != "/srv/git/app.git" {
+		t.Fatalf("RepoPath = %q, want /srv/git/app.git", absEP.RepoPath)
+	}
+	packDir := t.TempDir()
+	cfg := gitssh.Config{
+		Endpoint:         absEP,
+		HostKeyAlgorithm: algo,
+		HostKeyPin:       fp,
+		PrivateKeyPEM:    key.PrivateKeyPEM,
+		Local:            true,
+		PackTempDir:      packDir,
+	}
+	head, branches, _, err := gitssh.Branches(t.Context(), cfg, nil)
+	if err != nil || head != "main" || !slices.Contains(branches, "main") {
+		t.Fatalf("Branches against absolute /srv/git/app.git: head=%q branches=%v err=%v", head, branches, err)
+	}
+
+	// Verify temporary pack is created inside cfg.PackTempDir.
+	f, size, err := gitssh.FetchPack(t.Context(), cfg, nil, "refs/heads/main", secondCommit, gitssh.DefaultPackLimits())
+	if err != nil {
+		t.Fatalf("FetchPack against absolute /srv/git/app.git: %v", err)
+	}
+	if size <= 0 || filepath.Dir(f.Name()) != packDir {
+		t.Fatalf("pack file = %q (size %d), want inside %q", f.Name(), size, packDir)
+	}
+	_ = f.Close()
+	_ = os.Remove(f.Name())
+
+	// 2. Oversized ref advertisement (> 2 MiB) is cut off with ErrTooLarge.
+	absSrv.SetListFloodBytes(4 << 20)
+	if _, _, err := gitssh.List(t.Context(), cfg, nil); !errors.Is(err, gitssh.ErrTooLarge) {
+		t.Fatalf("expected ErrTooLarge on 4 MiB ref flood, got %v", err)
+	}
+	absSrv.SetListFloodBytes(0)
+
+	// 3. Strict relative path server requiring exact "acme/web.git" (no leading "/").
+	relSrv, err := gitsshtest.NewServer("127.0.0.1:0", "acme/web.git", repoDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer relSrv.Close()
+	relSrv.SetStrictPath(true)
+	if err := relSrv.SetAuthorizedKeys(key.PublicKey); err != nil {
+		t.Fatal(err)
+	}
+	relAlgo, relFP := relSrv.HostKey()
+	relEP, err := gitssh.ParseSSH("ssh://git@" + relSrv.Addr + "/~/acme/web.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if relEP.RepoPath != "acme/web.git" {
+		t.Fatalf("relative RepoPath = %q, want acme/web.git", relEP.RepoPath)
+	}
+	relCfg := gitssh.Config{
+		Endpoint:         relEP,
+		HostKeyAlgorithm: relAlgo,
+		HostKeyPin:       relFP,
+		PrivateKeyPEM:    key.PrivateKeyPEM,
+		Local:            true,
+	}
+	if _, _, _, err := gitssh.Branches(t.Context(), relCfg, nil); err != nil {
+		t.Fatalf("Branches against strict relative acme/web.git: %v", err)
 	}
 }

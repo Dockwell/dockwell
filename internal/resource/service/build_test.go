@@ -43,8 +43,15 @@ func TestABuildsSettingsAreCheckedAndWrittenOneWay(t *testing.T) {
 	if err := d.Validate(sshSvc); err != nil {
 		t.Fatalf("SSH build rejected: %v", err)
 	}
-	if got := sshSvc.GetBuild().GetGit().GetUrl(); got != "ssh://git@gitlab.com/acme/web.git" {
-		t.Errorf("normalized SSH URL = %q, want ssh://git@gitlab.com/acme/web.git", got)
+	if got := sshSvc.GetBuild().GetGit().GetUrl(); got != "git@gitlab.com:acme/web.git" {
+		t.Errorf("normalized relative SSH URL = %q, want git@gitlab.com:acme/web.git", got)
+	}
+	absSSHSvc := built("ssh://git@GitLab.com/srv/git/app.git", func(b *resourcev1.ImageBuild) { b.GitLogin = "ssh:acme-web" })
+	if err := d.Validate(absSSHSvc); err != nil {
+		t.Fatalf("absolute SSH build rejected: %v", err)
+	}
+	if got := absSSHSvc.GetBuild().GetGit().GetUrl(); got != "ssh://git@gitlab.com/srv/git/app.git" {
+		t.Errorf("normalized absolute SSH URL = %q, want ssh://git@gitlab.com/srv/git/app.git", got)
 	}
 	for _, c := range []struct {
 		name string
@@ -53,6 +60,8 @@ func TestABuildsSettingsAreCheckedAndWrittenOneWay(t *testing.T) {
 	}{
 		{"credentials in the URL", built("https://x:ghp_token@github.com/acme/web", nil), "can't hold a user, a password or a token"},
 		{"password in SSH URL", built("ssh://git:secret@github.com/acme/web.git", nil), "can't hold a password or a token"},
+		{"leading hyphen in SSH repo path", built("git@example.com:-upload-pack/web.git", nil), "isn't a valid repository path"},
+		{"leading hyphen in ssh:// path", built("ssh://git@example.com/--upload-pack=x", nil), "isn't a valid repository path"},
 		{"cleartext git scheme", built("git://github.com/acme/web.git", nil), "fetches a repository over HTTPS, SSH with a deploy key"},
 		{"no repository", built("https://github.com/", nil), "names a host and no repository"},
 		{"a branch in the URL", built("https://github.com/acme/web#dev", nil), "set the branch in its own field"},

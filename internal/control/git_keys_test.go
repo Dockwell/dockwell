@@ -8,7 +8,9 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -17,7 +19,11 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/gitssh"
 	"github.com/dockwell/dockwell/internal/gitssh/gitsshtest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -116,6 +122,26 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		if !test2.Msg.GetKey().GetHostKeyPinned() || test2.Msg.GetKey().GetHostKeyFingerprint() != wantFP {
 			t.Fatalf("host key was not pinned after acceptance: %+v", test2.Msg.GetKey())
 		}
+		// Pinning alone (before auth succeeds) must not mark the key verified (L1).
+		if test2.Msg.GetKey().GetVerified() {
+			t.Fatalf("key should not be verified after AUTH_FAILED pin-only test")
+		}
+		// Pinning a host key must not report private_key as modified (L4), and
+		// ChangeService.UndoChange must refuse undoing it (H1).
+		pinChange, err := g.c.GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: test2.Msg.GetChangeId()}))
+		if err != nil {
+			t.Fatalf("GetChange(pin): %v", err)
+		}
+		for _, rp := range pinChange.Msg.GetChange().GetPlan().GetResources() {
+			for _, fc := range rp.GetChanges() {
+				if fc.GetPath() == "private_key" || fc.GetPath() == "pending_private_key" {
+					t.Fatalf("host-key pin change reported %s as modified: %+v", fc.GetPath(), fc)
+				}
+			}
+		}
+		if _, err := g.c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: test2.Msg.GetChangeId()})); err == nil {
+			t.Fatalf("UndoChange on host-key pin succeeded; want refusal")
+		}
 
 		// 4. Add the public key to the SSH server and test again: succeeds with branches.
 		if err := srv.SetAuthorizedKeys(key.GetPublicKey()); err != nil {
@@ -128,8 +154,77 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		if test3.Msg.GetStatus() != dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_OK {
 			t.Fatalf("status = %v (%s), want OK", test3.Msg.GetStatus(), test3.Msg.GetMessage())
 		}
+		if !test3.Msg.GetKey().GetVerified() || test3.Msg.GetKey().GetVerifyTime() == nil {
+			t.Fatalf("key should be verified after OK test: %+v", test3.Msg.GetKey())
+		}
 		if test3.Msg.GetDefaultBranch() != "main" || !slices.Contains(test3.Msg.GetBranches(), "main") || !slices.Contains(test3.Msg.GetBranches(), "release") {
 			t.Fatalf("branches = %v (default %q), want main and release", test3.Msg.GetBranches(), test3.Msg.GetDefaultBranch())
+		}
+
+		// 4b. Direct ChangeService.ProposeChange on git.deploy_key is always refused (H1),
+		// for create, re-pin, rotate, and delete, for both developers and owners.
+		rogueKP, err := gitssh.GenerateKey()
+		if err != nil {
+			t.Fatalf("GenerateKey: %v", err)
+		}
+		for _, tc := range []struct {
+			name string
+			edit *dockwellv1.Edit
+		}{
+			{
+				name: "create",
+				edit: &dockwellv1.Edit{
+					Resource: &dockwellv1.ResourceRef{Kind: "git.deploy_key", Scope: defaultProjectID, Name: "rogue-key"},
+					Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitDeployKey{GitDeployKey: &resourcev1.GitDeployKey{
+						Repository:     sshURL,
+						KeyType:        rogueKP.KeyType,
+						PublicKey:      rogueKP.PublicKey,
+						KeyFingerprint: rogueKP.Fingerprint,
+						PrivateKey:     rogueKP.PrivateKeyPEM,
+					}}},
+				},
+			},
+			{
+				name: "re-pin",
+				edit: &dockwellv1.Edit{
+					Resource:     &dockwellv1.ResourceRef{Kind: "git.deploy_key", Scope: defaultProjectID, Name: key.GetName()},
+					BaseRevision: test3.Msg.GetKey().GetRevision(),
+					Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitDeployKey{GitDeployKey: &resourcev1.GitDeployKey{
+						Repository:         sshURL,
+						HostKeyAlgorithm:   "ssh-ed25519",
+						HostKeyFingerprint: rogueKP.Fingerprint,
+					}}},
+				},
+			},
+			{
+				name: "rotate",
+				edit: &dockwellv1.Edit{
+					Resource:     &dockwellv1.ResourceRef{Kind: "git.deploy_key", Scope: defaultProjectID, Name: key.GetName()},
+					BaseRevision: test3.Msg.GetKey().GetRevision(),
+					Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitDeployKey{GitDeployKey: &resourcev1.GitDeployKey{
+						Repository:     sshURL,
+						KeyType:        rogueKP.KeyType,
+						PublicKey:      rogueKP.PublicKey,
+						KeyFingerprint: rogueKP.Fingerprint,
+						PrivateKey:     rogueKP.PrivateKeyPEM,
+					}}},
+				},
+			},
+			{
+				name: "delete",
+				edit: &dockwellv1.Edit{
+					Resource:     &dockwellv1.ResourceRef{Kind: "git.deploy_key", Scope: defaultProjectID, Name: key.GetName()},
+					BaseRevision: test3.Msg.GetKey().GetRevision(),
+					Delete:       true,
+				},
+			},
+		} {
+			if _, err := g.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+				Summary: "Bypass git-keys (" + tc.name + ")",
+				Edits:   []*dockwellv1.Edit{tc.edit},
+			})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+				t.Fatalf("ProposeChange(%s) on git.deploy_key = %v, want InvalidArgument", tc.name, err)
+			}
 		}
 
 		// 5. ListRepositoryBranches and DetectBuild work over SSH with the deploy key.
@@ -282,10 +377,37 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 			t.Fatalf("deploy after rotation built %s, want %s", got, commit3)
 		}
 
-		// 10. Host key change stops fetches and requires admin + step-up to accept.
+		// 10. Host key change observed during a background fetch (no user principal)
+		// persists host_key_changed = true on the deploy key (L3), stops fetches,
+		// and requires admin + step-up to accept.
 		newAlgo, newFP, err := srv.RotateHostKeyECDSA()
 		if err != nil {
 			t.Fatalf("RotateHostKeyECDSA: %v", err)
+		}
+		if _, err := g.f.engine.Propose(ctx, revision.Proposal{
+			Summary: "Background SSH resolve check",
+			Actor:   revision.SystemActor,
+			Via:     revision.ViaAutomatic,
+			Edits: []revision.Edit{{
+				Ref: resource.Ref{Kind: service.Kind, Scope: web.GetResource().GetScope(), Name: "sshweb"},
+				Spec: &resourcev1.Service{
+					Runs: &resourcev1.Service_App{App: &resourcev1.Container{Ports: []*resourcev1.PortMapping{{HostPort: 8085, ContainerPort: 8080}}}},
+					Build: &resourcev1.ImageBuild{
+						Source:   &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: sshURL, Ref: "main"}},
+						GitLogin: key.GetGitLogin(),
+					},
+				},
+			}},
+		}); err == nil {
+			t.Fatalf("background engine.Propose succeeded after host key change; want refusal")
+		}
+		listedChanged, err := keys.ListGitDeployKeys(ctx, connect.NewRequest(&dockwellv1.ListGitDeployKeysRequest{Project: defaultProjectID}))
+		if err != nil || len(listedChanged.Msg.GetKeys()) != 1 {
+			t.Fatalf("ListGitDeployKeys after background host key change: %v, %v", listedChanged, err)
+		}
+		obsKey := listedChanged.Msg.GetKeys()[0]
+		if !obsKey.GetHostKeyChanged() || obsKey.GetObservedHostKeyAlgorithm() != newAlgo || obsKey.GetObservedHostKeyFingerprint() != newFP {
+			t.Fatalf("background fetch did not record observed host key change: %+v (want %s %s)", obsKey, newAlgo, newFP)
 		}
 		hkFail, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: key.GetId()}))
 		if err != nil || hkFail.Msg.GetStatus() != dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_CHANGED {
@@ -307,9 +429,22 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		})); reasonOf(err) != authapi.ReasonNeedsStepUp {
 			t.Fatalf("accept changed host key without step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
 		}
-		// A project developer cannot accept a changed host key.
+		// A project developer cannot accept a changed host key and cannot bypass via ProposeChange.
 		hold := aMember(t, g.f)
 		hold(in(defaultProjectID, store.RoleDeveloper))
+		if _, err := g.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Developer bypass host key pin",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "git.deploy_key", Scope: defaultProjectID, Name: key.GetName()},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitDeployKey{GitDeployKey: &resourcev1.GitDeployKey{
+					Repository:         sshURL,
+					HostKeyAlgorithm:   newAlgo,
+					HostKeyFingerprint: newFP,
+				}}},
+			}},
+		})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("developer ProposeChange on git.deploy_key = %v, want InvalidArgument", err)
+		}
 		if _, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
 			Id:                 key.GetId(),
 			AcceptHostKey:      true,
@@ -394,4 +529,73 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestSSHDeployKeyConcurrencyCap verifies that concurrent SSH tests on a key
+// hit the shared SSH concurrency gate and return ResourceExhausted with
+// reason "too_many_readings" (H2).
+func TestSSHDeployKeyConcurrencyCap(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	ctx := t.Context()
+	g.repo.Commit("main", "Initial commit", map[string]string{"Dockerfile": webDockerfile})
+
+	srv, err := gitsshtest.NewServer("127.0.0.1:0", "/srv/git/app.git", g.repo.BareDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = srv.Close() })
+
+	keys := gitKeysClient(g.b)
+	defaultProjectID := envProject(t, g.f, listedEnv(t, g.b))
+	created, err := keys.CreateGitDeployKey(ctx, connect.NewRequest(&dockwellv1.CreateGitDeployKeyRequest{
+		Project:    defaultProjectID,
+		Repository: srv.URL(),
+		Proof:      stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY, defaultProjectID),
+	}))
+	if err != nil {
+		t.Fatalf("CreateGitDeployKey: %v", err)
+	}
+	key := created.Msg.GetKey()
+	if err := srv.SetAuthorizedKeys(key.GetPublicKey()); err != nil {
+		t.Fatal(err)
+	}
+	algo, fp := srv.HostKey()
+	if _, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
+		Id:                 key.GetId(),
+		AcceptHostKey:      true,
+		HostKeyAlgorithm:   algo,
+		HostKeyFingerprint: fp,
+	})); err != nil {
+		t.Fatalf("initial TestGitDeployKey: %v", err)
+	}
+
+	srv.SetDelay(250 * time.Millisecond)
+	defer srv.SetDelay(0)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: key.GetId()}))
+		}()
+	}
+	wg.Wait()
+
+	var okCount, busyCount int
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			okCount++
+		case connect.CodeOf(err) == connect.CodeResourceExhausted && reasonOf(err) == "too_many_readings":
+			busyCount++
+		default:
+			t.Fatalf("unexpected error from concurrent TestGitDeployKey: %v (code %v, reason %q)", err, connect.CodeOf(err), reasonOf(err))
+		}
+	}
+	if okCount != 1 || busyCount != 1 {
+		t.Fatalf("concurrent TestGitDeployKey: ok=%d busy=%d, want ok=1 busy=1", okCount, busyCount)
+	}
 }

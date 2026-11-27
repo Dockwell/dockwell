@@ -2930,4 +2930,6 @@ message GitDeployKey {
   // Observed host key details when a fetch detected a host key change.
   string observed_host_key_algorithm = 18;
   string observed_host_key_fingerprint = 19;
+  // Unix seconds when a connection test last succeeded, or 0 if never verified.
+  int64 verified_at = 20;
 }

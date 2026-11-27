@@ -87,6 +87,7 @@ describe("SSH deploy keys in New app -> From Git", () => {
               hostKeyAlgorithm: req.hostKeyAlgorithm,
               hostKeyFingerprint: req.hostKeyFingerprint,
               hostKeyPinned: true,
+              verified: true,
             });
             return {
               status: GitDeployKeyTestStatus.OK,
@@ -152,6 +153,30 @@ describe("SSH deploy keys in New app -> From Git", () => {
 
     const offer = await within(sheet).findByTestId("deploy-key-offer");
     expect(within(offer).getByRole("button", { name: "Use a deploy key" })).toBeVisible();
+  });
+
+  it("does not show Ready when host key is pinned but sign-in test has not passed yet", async () => {
+    const user = userEvent.setup();
+    const pinnedOnlyKey = makeKey({
+      hostKeyAlgorithm: "ssh-ed25519",
+      hostKeyFingerprint: "SHA256:HostKeyFP00000000000000000000000000000000000",
+      hostKeyPinned: true,
+      verified: false,
+    });
+    renderAt(
+      "/apps/new?source=git",
+      baseApi({
+        gitKeys: {
+          listGitDeployKeys: () => ({ keys: [pinnedOnlyKey] }),
+        },
+      }),
+    );
+
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "git@github.com:acme/web.git");
+
+    expect(await within(sheet).findByTestId("deploy-key-setup")).toBeVisible();
+    expect(within(sheet).queryByTestId("deploy-key-ready")).not.toBeInTheDocument();
   });
 });
 
@@ -264,7 +289,13 @@ describe("SSH deploy keys on App Source panel", () => {
       "/apps/svc_web",
       baseApi({
         auth: {
-          getAuthState: () => authState({ grants: [{ projectId: "prj_1", role: Role.DEVELOPER }] }),
+          getAuthState: () =>
+            authState({
+              grants: [
+                { projectId: "prj_1", role: Role.DEVELOPER },
+                { projectId: "prj_other", role: Role.ADMIN },
+              ],
+            }),
         },
         services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({}) },
         gitKeys: { listGitDeployKeys: () => ({ keys: [changedKey] }) },

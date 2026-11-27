@@ -53,6 +53,7 @@ export function gitHost(url: string): GitHost | undefined {
   }
   const host = parsed.hostname.toLowerCase();
   const path = parsed.pathname
+    .replace(/^\/~\//, "")
     .replace(/^\/+/, "")
     .replace(/\/+$/, "")
     .replace(/\.git$/, "");

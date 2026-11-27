@@ -36,22 +36,24 @@ type Server struct {
 
 	ln net.Listener
 
-	mu           sync.Mutex
-	hostSigner   ssh.Signer
-	authorized   map[string]bool
-	denyRepo     bool
-	v1Only       bool
-	delay        time.Duration
-	extraBytes   int
-	closed       bool
-	seenChannels []string
-	seenReqs     []string
-	wg           sync.WaitGroup
+	mu             sync.Mutex
+	hostSigner     ssh.Signer
+	authorized     map[string]bool
+	denyRepo       bool
+	v1Only         bool
+	strictPath     bool
+	delay          time.Duration
+	extraBytes     int
+	listFloodBytes int
+	closed         bool
+	seenChannels   []string
+	seenReqs       []string
+	wg             sync.WaitGroup
 }
 
 // NewServer starts an in-process SSH Git server listening on listenAddr (for
 // example "127.0.0.1:0") serving repoDir under repoName (for example
-// "acme/web.git").
+// "acme/web.git" or an absolute git-shell path like "/srv/git/app.git").
 func NewServer(listenAddr, repoName, repoDir string) (*Server, error) {
 	signer, err := newEd25519Signer()
 	if err != nil {
@@ -64,11 +66,12 @@ func NewServer(listenAddr, repoName, repoDir string) (*Server, error) {
 	}
 	s := &Server{
 		Addr:       ln.Addr().String(),
-		RepoName:   strings.TrimPrefix(repoName, "/"),
+		RepoName:   repoName,
 		RepoDir:    repoDir,
 		ln:         ln,
 		hostSigner: signer,
 		authorized: map[string]bool{},
+		strictPath: strings.HasPrefix(repoName, "/"),
 	}
 	s.wg.Add(1)
 	go s.serve()
@@ -161,6 +164,23 @@ func (s *Server) SetExtraBytes(n int) {
 	s.mu.Unlock()
 }
 
+// SetStrictPath requires the client's git-upload-pack argument to match
+// RepoName verbatim (including or excluding a leading "/"), simulating
+// sshd + git-shell servers.
+func (s *Server) SetStrictPath(strict bool) {
+	s.mu.Lock()
+	s.strictPath = strict
+	s.mu.Unlock()
+}
+
+// SetListFloodBytes floods v1 ref advertisement pkt-lines up to n bytes to test
+// ref-listing size bounds.
+func (s *Server) SetListFloodBytes(n int) {
+	s.mu.Lock()
+	s.listFloodBytes = n
+	s.mu.Unlock()
+}
+
 // SeenChannels returns every SSH channel type requested by clients.
 func (s *Server) SeenChannels() []string {
 	s.mu.Lock()
@@ -181,6 +201,9 @@ func (s *Server) SeenRequests() []string {
 
 // URL returns the canonical ssh:// URL for this test server's repository.
 func (s *Server) URL() string {
+	if strings.HasPrefix(s.RepoName, "/") {
+		return "ssh://git@" + s.Addr + s.RepoName
+	}
 	return "ssh://git@" + s.Addr + "/" + s.RepoName
 }
 
@@ -295,6 +318,8 @@ func (s *Server) runExec(ch ssh.Channel, command, gitProtocol string) int {
 	deny := s.denyRepo
 	delay := s.delay
 	extra := s.extraBytes
+	strict := s.strictPath
+	flood := s.listFloodBytes
 	s.mu.Unlock()
 
 	if delay > 0 {
@@ -306,12 +331,29 @@ func (s *Server) runExec(ch ssh.Channel, command, gitProtocol string) int {
 		return 1
 	}
 	repo := strings.Trim(strings.TrimSpace(rest), "'\"")
-	repo = strings.TrimPrefix(repo, "/")
-	want := strings.TrimSuffix(s.RepoName, ".git")
-	got := strings.TrimSuffix(repo, ".git")
-	if deny || got != want {
-		_, _ = io.WriteString(ch.Stderr(), "ERROR: Repository not found.\n")
-		return 128
+	if strict {
+		if deny || repo != s.RepoName {
+			_, _ = io.WriteString(ch.Stderr(), "ERROR: Repository not found.\n")
+			return 128
+		}
+	} else {
+		want := strings.TrimSuffix(strings.TrimPrefix(s.RepoName, "/"), ".git")
+		got := strings.TrimSuffix(strings.TrimPrefix(repo, "/"), ".git")
+		if deny || got != want {
+			_, _ = io.WriteString(ch.Stderr(), "ERROR: Repository not found.\n")
+			return 128
+		}
+	}
+	if flood > 0 {
+		line := "0123456789abcdef0123456789abcdef01234567 refs/heads/branch-" + strings.Repeat("a", 80) + "\n"
+		pkt := fmt.Sprintf("%04x%s", len(line)+4, line)
+		for sent := 0; sent < flood; sent += len(pkt) {
+			if _, err := io.WriteString(ch, pkt); err != nil {
+				return 1
+			}
+		}
+		_, _ = io.WriteString(ch, "0000")
+		return 0
 	}
 	if extra > 0 {
 		// Emit valid v2 greeting, read ls-refs or fetch, and flood packfile bytes.

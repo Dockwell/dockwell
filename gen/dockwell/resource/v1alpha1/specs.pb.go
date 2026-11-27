@@ -13045,8 +13045,10 @@ type GitDeployKey struct {
 	// Observed host key details when a fetch detected a host key change.
 	ObservedHostKeyAlgorithm   string `protobuf:"bytes,18,opt,name=observed_host_key_algorithm,json=observedHostKeyAlgorithm,proto3" json:"observed_host_key_algorithm,omitempty"`
 	ObservedHostKeyFingerprint string `protobuf:"bytes,19,opt,name=observed_host_key_fingerprint,json=observedHostKeyFingerprint,proto3" json:"observed_host_key_fingerprint,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	// Unix seconds when a connection test last succeeded, or 0 if never verified.
+	VerifiedAt    int64 `protobuf:"varint,20,opt,name=verified_at,json=verifiedAt,proto3" json:"verified_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GitDeployKey) Reset() {
@@ -13210,6 +13212,13 @@ func (x *GitDeployKey) GetObservedHostKeyFingerprint() string {
 		return x.ObservedHostKeyFingerprint
 	}
 	return ""
+}
+
+func (x *GitDeployKey) GetVerifiedAt() int64 {
+	if x != nil {
+		return x.VerifiedAt
+	}
+	return 0
 }
 
 var file_dockwell_resource_v1alpha1_specs_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -14259,7 +14268,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\rprefix_length\x18\x02 \x01(\rR\fprefixLength\"\xa1\x01\n" +
 	"\x10ContainerLogging\x12D\n" +
 	"\x04mode\x18\x01 \x01(\x0e20.dockwell.resource.v1alpha1.ContainerLoggingModeR\x04mode\x12G\n" +
-	"\x06limits\x18\x02 \x01(\v2/.dockwell.resource.v1alpha1.DockerDaemonLoggingR\x06limits\"\x90\x06\n" +
+	"\x06limits\x18\x02 \x01(\v2/.dockwell.resource.v1alpha1.DockerDaemonLoggingR\x06limits\"\xb1\x06\n" +
 	"\fGitDeployKey\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +
@@ -14286,7 +14295,9 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x17pending_key_fingerprint\x18\x10 \x01(\tR\x15pendingKeyFingerprint\x12,\n" +
 	"\x12pending_created_at\x18\x11 \x01(\x03R\x10pendingCreatedAt\x12=\n" +
 	"\x1bobserved_host_key_algorithm\x18\x12 \x01(\tR\x18observedHostKeyAlgorithm\x12A\n" +
-	"\x1dobserved_host_key_fingerprint\x18\x13 \x01(\tR\x1aobservedHostKeyFingerprint*\x90\x01\n" +
+	"\x1dobserved_host_key_fingerprint\x18\x13 \x01(\tR\x1aobservedHostKeyFingerprint\x12\x1f\n" +
+	"\vverified_at\x18\x14 \x01(\x03R\n" +
+	"verifiedAt*\x90\x01\n" +
 	"\x0fDesiredRunState\x12!\n" +
 	"\x1dDESIRED_RUN_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19DESIRED_RUN_STATE_RUNNING\x10\x01\x12\x1d\n" +

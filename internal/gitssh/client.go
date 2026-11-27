@@ -24,9 +24,13 @@ import (
 )
 
 const (
-	// maxListBytes caps ref listing responses (matches gitref.maxAnswer).
-	maxListBytes = 32 << 20
-	// maxRefs caps the number of branches/tags parsed (matches gitfetch.List).
+	// maxListBytes caps ref listing wire bytes well under 32 MiB so concurrent
+	// SSH listings cannot spike control-plane memory (ADR 0113).
+	maxListBytes = 2 << 20
+	// maxListPktBytes caps a single pkt-line during ref listing so a hostile
+	// server cannot force a large per-line allocation.
+	maxListPktBytes = 4 << 10
+	// maxRefs caps the number of branches/tags kept (matches gitfetch.List).
 	maxRefs = 10_000
 	// DefaultMaxPack is the default pack size cap (matches gitfetch.Default.Pack).
 	DefaultMaxPack = 64 << 20
@@ -210,7 +214,7 @@ func FetchPack(ctx context.Context, cfg Config, dial netguard.DialFunc, ref, com
 		}
 	}
 
-	f, err := os.CreateTemp("", "dockwell-ssh-pack-*")
+	f, err := os.CreateTemp(cfg.PackTempDir, "dockwell-ssh-pack-*")
 	if err != nil {
 		return nil, 0, fmt.Errorf("keeping what %s sends: %w", cfg.Endpoint.Host, err)
 	}
@@ -314,7 +318,7 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 	var read int
 	first := true
 	for {
-		line, kind, err := readPkt(r)
+		line, kind, err := readPktBounded(r, maxListPktBytes)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				if first {
@@ -398,7 +402,7 @@ func sendLsRefsV2(w io.Writer, r *bufio.Reader) (Refs, error) {
 	refs := Refs{Commits: map[string]string{}}
 	var read int
 	for {
-		line, kind, err := readPkt(r)
+		line, kind, err := readPktBounded(r, maxListPktBytes)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return refs, nil
@@ -607,6 +611,9 @@ func addRef(refs *Refs, text string) {
 	if !ok || !commitID.MatchString(commit) || name == "capabilities^{}" {
 		return
 	}
+	if name != "HEAD" && !strings.HasPrefix(name, "refs/heads/") && !strings.HasPrefix(name, "refs/tags/") {
+		return
+	}
 	if tag, peeled := strings.CutSuffix(name, "^{}"); peeled {
 		refs.Commits[tag] = commit
 		return
@@ -626,6 +633,10 @@ const (
 )
 
 func readPkt(r *bufio.Reader) ([]byte, pktKind, error) {
+	return readPktBounded(r, 65536)
+}
+
+func readPktBounded(r *bufio.Reader, maxLen int) ([]byte, pktKind, error) {
 	var head [4]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {
 		return nil, 0, err
@@ -643,6 +654,9 @@ func readPkt(r *bufio.Reader) ([]byte, pktKind, error) {
 		return nil, pktEnd, nil
 	case 3:
 		return nil, 0, errors.New("a pkt-line is too short to hold anything")
+	}
+	if int(n-4) > maxLen {
+		return nil, 0, ErrTooLarge
 	}
 	line := make([]byte, n-4)
 	if _, err := io.ReadFull(r, line); err != nil {

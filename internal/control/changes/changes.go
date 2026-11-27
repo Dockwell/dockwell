@@ -43,6 +43,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/gitdeploykey"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -166,6 +167,7 @@ func DockwellAt(ctx context.Context) (time.Time, bool) {
 // commit, and say in the plan what it holds and leaves out (ADR 0055).
 var ownMethods = map[string]string{
 	string(catalogsource.Kind): "a catalog source changes through dockwell catalog set-source and dockwell catalog remove-source, which read its commit and say in the plan what it holds. Use those",
+	string(gitdeploykey.Kind):  "an SSH deploy key changes through dockwell git-keys, which generates keys, checks host keys and checks what uses it. Use those",
 }
 
 // ProposeChange plans edits as a new change.
@@ -280,6 +282,20 @@ func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwell
 		return nil, err
 	}
 	return h.proposeAlso(ctx, who, summary, edits, field, also)
+}
+
+// ApplyOwned starts applying a planned change proposed by a resource's own
+// service handler (such as GitDeployKeyService), after that handler has run
+// its own role and step-up checks.
+func (h *Handler) ApplyOwned(ctx context.Context, changeID string) error {
+	who, _, err := by(ctx)
+	if err != nil {
+		return err
+	}
+	if err := h.engine.Start(ctx, changeID, who); err != nil {
+		return h.rpcError(ctx, err)
+	}
+	return nil
 }
 
 func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also Also) (*dockwellv1.Change, error) {

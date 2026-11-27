@@ -115,6 +115,9 @@ type Config struct {
 	FetchTimeout time.Duration
 	// IdleTimeout overrides the default idle read timeout when > 0 (tests).
 	IdleTimeout time.Duration
+	// PackTempDir is the directory where temporary fetched packs are staged
+	// before verification. Empty uses os.TempDir().
+	PackTempDir string
 }
 
 func (c Config) handshakeTimeout() time.Duration {

@@ -23851,6 +23851,9 @@ components:
                     description: Observed host key details when a fetch detected a host key change.
                 observedHostKeyFingerprint:
                     type: string
+                verifiedAt:
+                    type: string
+                    description: Unix seconds when a connection test last succeeded, or 0 if never verified.
             description: |-
                 GitDeployKey is a project-scoped Ed25519 SSH deploy key for fetching a
                  private Git repository over SSH (ADR 0113). Its private keys stay sealed on
@@ -23945,6 +23948,15 @@ components:
                 revision:
                     type: string
                     description: Current resource revision.
+                verified:
+                    type: boolean
+                    description: |-
+                        True once a connection test with this deploy key has succeeded and no host
+                         key change is pending.
+                verifyTime:
+                    type: string
+                    description: When a connection test last succeeded, if ever.
+                    format: date-time
             description: |-
                 GitDeployKeyInfo is the public view of an SSH deploy key. Private keys are
                  never included.

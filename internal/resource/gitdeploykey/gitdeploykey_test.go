@@ -35,7 +35,7 @@ func TestGitDeployKeyType(t *testing.T) {
 	if err := typ.Validate(spec); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-	if spec.GetRepository() != "ssh://git@gitlab.com/acme/web.git" || spec.GetHost() != "gitlab.com" || spec.GetPort() != 22 || spec.GetUser() != "git" {
+	if spec.GetRepository() != "git@gitlab.com:acme/web.git" || spec.GetHost() != "gitlab.com" || spec.GetPort() != 22 || spec.GetUser() != "git" {
 		t.Fatalf("unexpected normalized spec: %+v", spec)
 	}
 	if err := typ.CheckNew(spec); err != nil {
@@ -61,14 +61,16 @@ func TestGitDeployKeyType(t *testing.T) {
 		t.Fatal("expected retargeting to another repository to fail")
 	}
 
-	// ActsElsewhere blocks undo on create, delete, and rotation, but allows host key pin update.
+	// ActsElsewhere blocks undo on every git.deploy_key change (create, delete,
+	// rotation, and host-key pin/accept updates) so ChangeService.UndoChange
+	// cannot bypass GitDeployKeyService checks.
 	if typ.ActsElsewhere(nil, spec) == "" {
 		t.Fatal("expected create to refuse automatic undo")
 	}
 	if typ.ActsElsewhere(spec, nil) == "" {
 		t.Fatal("expected delete to refuse automatic undo")
 	}
-	if typ.ActsElsewhere(spec, pinUpdate) != "" {
-		t.Fatal("expected host-key pin update with same private key to not block undo")
+	if typ.ActsElsewhere(spec, pinUpdate) == "" {
+		t.Fatal("expected host-key pin update to refuse automatic undo")
 	}
 }

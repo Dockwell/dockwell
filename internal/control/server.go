@@ -856,9 +856,14 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 			handle(dockwellv1connect.NewGitProviderServiceHandler(apps, opts...))
 			cfg.Auth.SetDeployRepoCheck(apps.ValidateDeployRepositoryInTx)
 			appSources.SetApps(apps)
+			var packTempDir string
+			if cfg.DataDir != "" {
+				packTempDir = filepath.Join(cfg.DataDir, "ssh-packs")
+			}
 			deployKeys := gitkeys.New(gitkeys.Config{
 				Auth: cfg.Auth, DB: cfg.Store, Keeper: cfg.Secrets, Changes: ch, Logger: cfg.Logger,
-				Local: cfg.GitKeysLocal || testing.Testing(),
+				Local:       cfg.GitKeysLocal || testing.Testing(),
+				PackTempDir: packTempDir,
 			})
 			handle(dockwellv1connect.NewGitDeployKeyServiceHandler(deployKeys, opts...))
 			keySources.SetKeys(deployKeys)

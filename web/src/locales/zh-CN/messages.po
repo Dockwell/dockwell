@@ -4962,14 +4962,14 @@ msgstr "接受新主机密钥"
 msgid "Active public key"
 msgstr "当前公钥"
 
-msgid "Add this new key alongside the current one with read-only access, then test it. Dockwell switches only after the test passes."
-msgstr "将此新密钥以只读权限添加到当前密钥旁，然后进行测试。只有在测试通过后，Dockwell 才会切换。"
+msgid "Add this key alongside the current one (read-only), then test."
+msgstr "将此密钥与当前密钥一并添加（只读），然后测试。"
 
-msgid "Add this public key to your Git host with read-only access, then test it."
-msgstr "将此公钥以只读权限添加到你的 Git 托管平台，然后进行测试。"
+msgid "Add this public key to your Git host (read-only), then test."
+msgstr "将此公钥添加到您的 Git 托管平台（只读），然后测试。"
 
-msgid "Add this public key to {hostName} with read-only access, then test it."
-msgstr "将此公钥以只读权限添加到 {hostName}，然后进行测试。"
+msgid "Add this public key to {hostName} (read-only), then test."
+msgstr "将此公钥添加到 {hostName}（只读），然后测试。"
 
 msgid "Cancel rotation"
 msgstr "取消轮换"
@@ -5000,6 +5000,12 @@ msgstr "复制新密钥"
 msgid "Couldn't create the deploy key"
 msgstr "无法创建部署密钥"
 
+msgid "Create a read-only deploy key for this project."
+msgstr "为此项目创建一个只读部署密钥。"
+
+msgid "Create a read-only deploy key to fetch this repository."
+msgstr "创建一个只读部署密钥以拉取此仓库。"
+
 msgid "Delete key"
 msgstr "删除密钥"
 
@@ -5027,11 +5033,8 @@ msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>�
 msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
 msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>。"
 
-msgid "Generate a replacement key without interrupting builds. The current key stays active until the new key passes a test."
-msgstr "在不中断构建的情况下生成替换密钥。在新密钥通过测试之前，当前密钥会保持有效。"
-
-msgid "Generate an Ed25519 deploy key for this project to fetch over SSH."
-msgstr "为此项目生成一个 Ed25519 部署密钥以通过 SSH 拉取代码。"
+msgid "Generate a replacement key without interrupting builds."
+msgstr "在不中断构建的情况下生成替换密钥。"
 
 msgid "Host key changed"
 msgstr "主机密钥已变更"
@@ -5103,9 +5106,6 @@ msgstr "测试新密钥"
 #. placeholder {0}: key.host
 msgid "The SSH host key for {0} changed"
 msgstr "{0} 的 SSH 主机密钥已变更"
-
-msgid "This repository needs access. Generate an Ed25519 deploy key for this project."
-msgstr "此仓库需要访问权限。请为此项目生成一个 Ed25519 部署密钥。"
 
 msgid "Use a deploy key"
 msgstr "使用部署密钥"
@@ -25609,6 +25609,12 @@ msgstr "{soon, plural, other {# 个将在两周内过期}}"
 msgid "A passkey may have been copied"
 msgstr "某个通行密钥可能已被复制"
 
+msgid "Accepted a changed SSH host key"
+msgstr "接受了变更后的 SSH 主机密钥"
+
+msgid "Accepted a changed SSH host key for {name}"
+msgstr "接受了 {name} 变更后的 SSH 主机密钥"
+
 msgid "Applied a change"
 msgstr "应用了一项变更"
 
@@ -25620,6 +25626,12 @@ msgstr "请求取消构建"
 
 msgid "Asked to cancel a build on {name}"
 msgstr "请求取消 {name} 上的构建"
+
+msgid "Cancelled a deploy key rotation"
+msgstr "取消了部署密钥轮换"
+
+msgid "Cancelled rotation of deploy key {name}"
+msgstr "取消了部署密钥 {name} 的轮换"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "更改了通行密钥的验证频率"
@@ -25645,6 +25657,18 @@ msgstr "无法用通行密钥确认"
 msgid "Couldn't sign in"
 msgstr "登录失败"
 
+msgid "Created a deploy key"
+msgstr "创建了部署密钥"
+
+msgid "Created deploy key {name}"
+msgstr "创建了部署密钥 {name}"
+
+msgid "Deleted a deploy key"
+msgstr "删除了部署密钥"
+
+msgid "Deleted deploy key {name}"
+msgstr "删除了部署密钥 {name}"
+
 msgid "Discarded a change"
 msgstr "舍弃了一项变更"
 
@@ -25656,6 +25680,12 @@ msgstr "结束了 {app} 更新的推迟"
 
 msgid "Made {name} the owner"
 msgstr "已将 {name} 设为所有者"
+
+msgid "Pinned an SSH host key"
+msgstr "固定了 SSH 主机密钥"
+
+msgid "Pinned the SSH host key for {name}"
+msgstr "固定了 {name} 的 SSH 主机密钥"
 
 msgid "Planned a change"
 msgstr "规划了一项变更"
@@ -25686,6 +25716,12 @@ msgstr "拒绝续签某台服务器的证书"
 
 msgid "Refused to renew the certificate of {name}"
 msgstr "拒绝续签 {name} 的证书"
+
+msgid "Rotated a deploy key"
+msgstr "轮换了部署密钥"
+
+msgid "Rotated deploy key {name}"
+msgstr "轮换了部署密钥 {name}"
 
 msgid "Saving {path}"
 msgstr "正在保存 {path}"
@@ -25725,6 +25761,12 @@ msgstr "开始打开终端"
 
 msgid "Started opening a terminal on {name}"
 msgstr "开始在 {name} 上打开终端"
+
+msgid "Started rotating a deploy key"
+msgstr "开始轮换部署密钥"
+
+msgid "Started rotating deploy key {name}"
+msgstr "开始轮换部署密钥 {name}"
 
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "错误次数过多，已停止使用验证码登录"

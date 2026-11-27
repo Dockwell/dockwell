@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -57,12 +59,16 @@ type Config struct {
 	Dial netguard.DialFunc
 	// Now overrides time.Now in tests.
 	Now func() time.Time
+	// PackTempDir is a Dockwell-owned directory for temporary verified packs
+	// (swept on startup). Empty falls back to os.TempDir().
+	PackTempDir string
 }
 
 // Handler serves GitDeployKeyService and provides deploy-key lookup, pinning,
 // ref resolution and pack fetching for the control plane.
 type Handler struct {
-	cfg Config
+	cfg  Config
+	gate sshGate
 	// changing serializes mutating operations on keys so concurrent tests,
 	// rotations and pin updates cannot clobber each other.
 	changing sync.Mutex
@@ -75,7 +81,29 @@ func New(cfg Config) *Handler {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	sweepPackTempDir(cfg.PackTempDir, cfg.Logger)
 	return &Handler{cfg: cfg}
+}
+
+// sweepPackTempDir creates the Dockwell-owned SSH pack scratch folder and
+// removes any temporary packs left behind by a crashed control plane.
+func sweepPackTempDir(dir string, logger *slog.Logger) {
+	if dir == "" {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		logger.Warn("couldn't create SSH pack scratch directory", slog.String("dir", dir), slog.String("error", err.Error()))
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "dockwell-ssh-pack-") {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }
 
 func (h *Handler) now() time.Time {
@@ -249,15 +277,26 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		pinFP, pinAlgo = acceptFP, acceptAlgo
 	}
 
+	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	if err != nil {
+		if giveBack != nil {
+			giveBack()
+		}
+		return nil, err
+	}
+	defer release()
+
 	head, branches, hs, dialErr := gitssh.Branches(ctx, gitssh.Config{
 		Endpoint:         ep,
 		HostKeyAlgorithm: pinAlgo,
 		HostKeyPin:       pinFP,
 		PrivateKeyPEM:    privKey,
 		Local:            h.cfg.Local,
+		PackTempDir:      h.cfg.PackTempDir,
 	}, h.cfg.Dial)
 
 	var changeID string
+	var verifiedSaved bool
 	// If the caller accepted a host key and the server verified against that
 	// exact fingerprint, persist the pin immediately (even if SSH auth later
 	// fails because the public key hasn't been added yet).
@@ -265,23 +304,38 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		h.changing.Lock()
 		fresh, ferr := h.oneByID(ctx, k.r.ID)
 		if ferr == nil {
-			next := cloneSpec(fresh.spec)
+			freshChangingPin := fresh.spec.GetHostKeyFingerprint() != "" &&
+				(fresh.spec.GetHostKeyFingerprint() != hs.Fingerprint || (fresh.spec.GetHostKeyAlgorithm() != "" && fresh.spec.GetHostKeyAlgorithm() != hs.HostKeyAlgorithm))
+			if freshChangingPin && !changingPin {
+				if giveBack != nil {
+					giveBack()
+				}
+				h.changing.Unlock()
+				return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("someone else already pinned a different SSH host key for this deploy key. Ask an admin to review and accept the new host key"), authapi.ReasonNeedsRole)
+			}
+			next := cloneMeta(fresh.spec)
 			next.HostKeyFingerprint = hs.Fingerprint
 			next.HostKeyAlgorithm = hs.HostKeyAlgorithm
 			next.ObservedHostKeyFingerprint = ""
 			next.ObservedHostKeyAlgorithm = ""
+			if dialErr == nil && !m.GetUsePending() {
+				next.VerifiedAt = h.now().Unix()
+			}
 			summary := "Pin SSH host key for deploy key " + fresh.r.Name
-			if changingPin {
+			if freshChangingPin {
 				summary = "Accept changed SSH host key for deploy key " + fresh.r.Name
 			}
 			cid, cerr := h.applyEdit(ctx, summary, fresh.r.Scope, fresh.r.Name, fresh.r.Revision, next)
 			if cerr == nil {
 				changeID = cid
+				if dialErr == nil && !m.GetUsePending() {
+					verifiedSaved = true
+				}
 				if reloaded, rerr := h.oneByID(ctx, fresh.r.ID); rerr == nil {
 					k = reloaded
 				}
 				action := "git_deploy_key.host_key_pinned"
-				if changingPin {
+				if freshChangingPin {
 					action = "git_deploy_key.host_key_changed_accepted"
 				}
 				_ = h.cfg.DB.Update(ctx, func(tx *store.Tx) error {
@@ -358,12 +412,16 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 			return nil, authapi.Invalid(errors.New("there is no pending rotated key left to promote"))
 		}
 		oldFP := fresh.spec.GetKeyFingerprint()
-		next := cloneSpec(fresh.spec)
+		nowUnix := h.now().Unix()
+		next := cloneMeta(fresh.spec)
 		next.PrivateKey = fresh.spec.GetPendingPrivateKey()
 		next.PublicKey = fresh.spec.GetPendingPublicKey()
 		next.KeyType = fresh.spec.GetPendingKeyType()
 		next.KeyFingerprint = fresh.spec.GetPendingKeyFingerprint()
-		next.RotatedAt = h.now().Unix()
+		next.RotatedAt = nowUnix
+		next.VerifiedAt = nowUnix
+		next.ObservedHostKeyAlgorithm = ""
+		next.ObservedHostKeyFingerprint = ""
 		next.PendingPrivateKey = ""
 		next.PendingPublicKey = ""
 		next.PendingKeyType = ""
@@ -385,6 +443,23 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		resp.OldKeyFingerprint = oldFP
 		resp.Key = toInfo(k, usedBy)
 		resp.ChangeId = changeID
+	} else if !verifiedSaved && (k.spec.GetVerifiedAt() == 0 || k.spec.GetObservedHostKeyFingerprint() != "") {
+		h.changing.Lock()
+		if fresh, ferr := h.oneByID(ctx, k.r.ID); ferr == nil {
+			next := cloneMeta(fresh.spec)
+			next.VerifiedAt = h.now().Unix()
+			next.ObservedHostKeyAlgorithm = ""
+			next.ObservedHostKeyFingerprint = ""
+			if cid, cerr := h.applyEdit(ctx, "Verify SSH deploy key "+fresh.r.Name, fresh.r.Scope, fresh.r.Name, fresh.r.Revision, next); cerr == nil {
+				changeID = cid
+				if reloaded, rerr := h.oneByID(ctx, fresh.r.ID); rerr == nil {
+					k = reloaded
+					resp.Key = toInfo(k, usedBy)
+					resp.ChangeId = changeID
+				}
+			}
+		}
+		h.changing.Unlock()
 	}
 
 	resp.Status = dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_OK
@@ -429,7 +504,7 @@ func (h *Handler) BeginRotateGitDeployKey(ctx context.Context, req *connect.Requ
 		giveBack()
 		return nil, h.internal(ctx, "generating a replacement SSH deploy key", err)
 	}
-	next := cloneSpec(k.spec)
+	next := cloneMeta(k.spec)
 	next.PendingPrivateKey = kp.PrivateKeyPEM
 	next.PendingPublicKey = kp.PublicKey
 	next.PendingKeyType = kp.KeyType
@@ -470,7 +545,7 @@ func (h *Handler) CancelRotateGitDeployKey(ctx context.Context, req *connect.Req
 		usedBy, _ := h.usedByForKey(ctx, k.r.Scope, k.r.Name)
 		return connect.NewResponse(&dockwellv1.CancelRotateGitDeployKeyResponse{Key: toInfo(k, usedBy)}), nil
 	}
-	next := cloneSpec(k.spec)
+	next := cloneMeta(k.spec)
 	next.PendingPrivateKey = ""
 	next.PendingPublicKey = ""
 	next.PendingKeyType = ""
@@ -555,50 +630,42 @@ func (h *Handler) applyEdit(ctx context.Context, summary, projectID, name string
 	} else {
 		edit.Spec = &resourcev1.Spec{Kind: &resourcev1.Spec_GitDeployKey{GitDeployKey: spec}}
 	}
-	propose := &dockwellv1.ProposeChangeRequest{Summary: summary, Edits: []*dockwellv1.Edit{edit}}
-	pctx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceProposeChangeProcedure, propose)
+	c, err := h.cfg.Changes.Propose(ctx, summary, []*dockwellv1.Edit{edit}, nil, changes.Also{})
 	if err != nil {
 		return "", err
 	}
-	planned, err := h.cfg.Changes.ProposeChange(pctx, connect.NewRequest(propose))
-	if err != nil {
-		return "", err
-	}
-	c := planned.Msg.GetChange()
-	apply := &dockwellv1.ApplyChangeRequest{Id: c.GetId(), Fingerprint: c.GetPlan().GetFingerprint()}
-	actx, err := authapi.Check(ctx, h.cfg.Auth, h.cfg.Logger, dockwellv1connect.ChangeServiceApplyChangeProcedure, apply)
-	if err != nil {
-		return c.GetId(), err
-	}
-	if _, err := h.cfg.Changes.ApplyChange(actx, connect.NewRequest(apply)); err != nil {
+	if err := h.cfg.Changes.ApplyOwned(ctx, c.GetId()); err != nil {
 		return c.GetId(), err
 	}
 	return c.GetId(), nil
 }
 
 // recordObservedHostKey persists an observed host key change when a fetch or
-// test fails due to host key mismatch so the UI can alert an admin. It only
-// updates the resource when running under a caller or via the revision store.
+// test fails due to host key mismatch so the UI can alert an admin. Background
+// fetches without a signed-in caller record the change as Dockwell.
 func (h *Handler) recordObservedHostKey(ctx context.Context, keyID, algo, fp string) {
 	if algo == "" || fp == "" || !gitssh.ValidFingerprint(fp) || !gitssh.ValidAlgorithm(algo) {
 		return
 	}
+	editCtx := ctx
+	var cancel context.CancelFunc
 	if _, ok := authapi.PrincipalFrom(ctx); !ok {
-		return
+		editCtx, cancel = context.WithTimeout(changes.AsDockwell(context.WithoutCancel(ctx)), 5*time.Second)
+		defer cancel()
 	}
 	h.changing.Lock()
 	defer h.changing.Unlock()
-	k, err := h.oneByID(ctx, keyID)
+	k, err := h.oneByID(editCtx, keyID)
 	if err != nil {
 		return
 	}
 	if k.spec.GetObservedHostKeyAlgorithm() == algo && k.spec.GetObservedHostKeyFingerprint() == fp {
 		return
 	}
-	next := cloneSpec(k.spec)
+	next := cloneMeta(k.spec)
 	next.ObservedHostKeyAlgorithm = algo
 	next.ObservedHostKeyFingerprint = fp
-	_, _ = h.applyEdit(ctx, "Record changed SSH host key observed for "+k.r.Name, k.r.Scope, k.r.Name, k.r.Revision, next)
+	_, _ = h.applyEdit(editCtx, "Record changed SSH host key observed for "+k.r.Name, k.r.Scope, k.r.Name, k.r.Revision, next)
 }
 
 func (h *Handler) resolveProject(ctx context.Context, nameOrID string) (string, error) {
@@ -867,7 +934,10 @@ func (h *Handler) internal(ctx context.Context, doing string, err error) error {
 	return connect.NewError(connect.CodeInternal, fmt.Errorf("couldn't finish %s. Try again", doing))
 }
 
-func cloneSpec(s *resourcev1.GitDeployKey) *resourcev1.GitDeployKey {
+// cloneMeta copies non-secret deploy key metadata and leaves PrivateKey and
+// PendingPrivateKey empty so gitdeploykey.Type.Keep preserves them without
+// marking private_key modified in the revision plan.
+func cloneMeta(s *resourcev1.GitDeployKey) *resourcev1.GitDeployKey {
 	return &resourcev1.GitDeployKey{
 		Repository:                 s.GetRepository(),
 		Host:                       s.GetHost(),
@@ -876,18 +946,17 @@ func cloneSpec(s *resourcev1.GitDeployKey) *resourcev1.GitDeployKey {
 		KeyType:                    s.GetKeyType(),
 		PublicKey:                  s.GetPublicKey(),
 		KeyFingerprint:             s.GetKeyFingerprint(),
-		PrivateKey:                 s.GetPrivateKey(),
 		HostKeyAlgorithm:           s.GetHostKeyAlgorithm(),
 		HostKeyFingerprint:         s.GetHostKeyFingerprint(),
 		CreatedAt:                  s.GetCreatedAt(),
 		RotatedAt:                  s.GetRotatedAt(),
-		PendingPrivateKey:          s.GetPendingPrivateKey(),
 		PendingPublicKey:           s.GetPendingPublicKey(),
 		PendingKeyType:             s.GetPendingKeyType(),
 		PendingKeyFingerprint:      s.GetPendingKeyFingerprint(),
 		PendingCreatedAt:           s.GetPendingCreatedAt(),
 		ObservedHostKeyAlgorithm:   s.GetObservedHostKeyAlgorithm(),
 		ObservedHostKeyFingerprint: s.GetObservedHostKeyFingerprint(),
+		VerifiedAt:                 s.GetVerifiedAt(),
 	}
 }
 
@@ -927,6 +996,7 @@ func toInfo(k kept, usedBy []string) *dockwellv1.GitDeployKeyInfo {
 		GitLogin:                   service.SSHLoginPrefix + k.r.Name,
 		UsedBy:                     usedBy,
 		Revision:                   int64(k.r.Revision),
+		Verified:                   s.GetVerifiedAt() > 0 && s.GetHostKeyFingerprint() != "" && s.GetObservedHostKeyFingerprint() == "",
 	}
 	if ts := s.GetCreatedAt(); ts > 0 {
 		info.CreateTime = timestamppb.New(time.Unix(ts, 0).UTC())
@@ -936,6 +1006,9 @@ func toInfo(k kept, usedBy []string) *dockwellv1.GitDeployKeyInfo {
 	}
 	if ts := s.GetPendingCreatedAt(); ts > 0 {
 		info.PendingCreateTime = timestamppb.New(time.Unix(ts, 0).UTC())
+	}
+	if ts := s.GetVerifiedAt(); ts > 0 {
+		info.VerifyTime = timestamppb.New(time.Unix(ts, 0).UTC())
 	}
 	return info
 }

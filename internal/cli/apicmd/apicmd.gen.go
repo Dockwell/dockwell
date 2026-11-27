@@ -6288,6 +6288,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "pending_created_at", Help: "Unix seconds when the pending replacement key was generated."},
 				{Path: "observed_host_key_algorithm", Help: "Observed host key details when a fetch detected a host key change."},
 				{Path: "observed_host_key_fingerprint"},
+				{Path: "verified_at", Help: "Unix seconds when a connection test last succeeded, or 0 if never verified."},
 			},
 		},
 	}

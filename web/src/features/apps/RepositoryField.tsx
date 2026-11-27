@@ -11,8 +11,13 @@ import "./ImageField.css";
 export function sameRepository(a: string, b: string): boolean {
   const plain = (url: string) => {
     const trimmed = url.trim().toLowerCase();
-    const scp = /^[\w.-]+@([^:/]+):(.+)$/.exec(trimmed);
-    const body = scp ? `${scp[1]}/${scp[2]}` : trimmed.replace(/^(https?|ssh):\/\//, "").replace(/^[^/@]+@/, "");
+    const scp = /^[\w.-]+@([^:/]+):\/?(.+)$/.exec(trimmed);
+    const body = scp
+      ? `${scp[1]}/${scp[2]}`
+      : trimmed
+          .replace(/^(https?|ssh):\/\//, "")
+          .replace(/^[^/@]+@/, "")
+          .replace(/^([^/]+)\/~\//, "$1/");
     return body.replace(/\/+$/, "").replace(/\.git$/, "");
   };
   return a.trim() !== "" && plain(a) === plain(b);

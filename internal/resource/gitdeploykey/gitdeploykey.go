@@ -28,6 +28,7 @@ var (
 	_ resource.Type           = Type{}
 	_ resource.Rotates        = Type{}
 	_ resource.Keeper         = Type{}
+	_ resource.ReadChanger    = Type{}
 	_ resource.NewChecker     = Type{}
 	_ resource.ElsewhereActor = Type{}
 )
@@ -46,11 +47,18 @@ func (Type) IDPrefix() string { return "gdk" }
 func (Type) New() proto.Message { return &resourcev1.GitDeployKey{} }
 
 // RotatesSensitive says sensitive key fields never compare for equality in
-// plans, preventing any API equality oracle (ADR 0022).
+// plans when explicitly restated, preventing any API equality oracle (ADR 0022).
 func (Type) RotatesSensitive() {}
 
-// ActsElsewhere explains why creating, rotating or deleting a deploy key cannot
-// be undone automatically because the public key is managed on the Git host.
+// ChangesWhatsRead returns false because git.deploy_key is not read through
+// resource.ReadThrough; edits that omit private_key (such as host-key pinning
+// or observation updates) keep it via Keep without reporting private_key as
+// modified in the plan.
+func (Type) ChangesWhatsRead(_, _ proto.Message) bool { return false }
+
+// ActsElsewhere explains why deploy key changes cannot be undone automatically
+// through ChangeService because keys and host-key trust are managed through
+// GitDeployKeyService and on the Git host.
 func (Type) ActsElsewhere(current, desired proto.Message) string {
 	cur, _ := current.(*resourcev1.GitDeployKey)
 	des, _ := desired.(*resourcev1.GitDeployKey)
@@ -63,8 +71,9 @@ func (Type) ActsElsewhere(current, desired proto.Message) string {
 		return "deleting a deploy key removed it from Dockwell, and it may already be removed on the Git host. Create a new deploy key instead"
 	case cur.GetPrivateKey() != des.GetPrivateKey() && des.GetPrivateKey() != "":
 		return "rotating a deploy key switched to a new key, and the old key may already be removed on the Git host. Rotate it again if you need a new key"
+	default:
+		return "deploy keys and their pinned SSH host keys are managed through dockwell git-keys, so Dockwell won't undo them automatically. Test or rotate the deploy key instead"
 	}
-	return ""
 }
 
 // CheckName validates the deploy key's name within its project.
@@ -142,6 +151,9 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	if is.GetRotatedAt() == 0 {
 		is.RotatedAt = was.GetRotatedAt()
 	}
+	if is.GetVerifiedAt() == 0 {
+		is.VerifiedAt = was.GetVerifiedAt()
+	}
 	kept := false
 	if is.GetPrivateKey() == "" && was.GetPrivateKey() != "" {
 		is.PrivateKey = was.GetPrivateKey()
@@ -150,10 +162,10 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 		is.KeyFingerprint = was.GetKeyFingerprint()
 		kept = true
 	}
-	// Preserve pending key only when the update left both pending private and
-	// pending public key empty and didn't clear rotation explicitly via a new
-	// active key; explicit cancel sets pending_public_key == "" with the same
-	// active key, so callers that want to keep pending set it explicitly.
+	if is.GetPendingPrivateKey() == "" && is.GetPendingPublicKey() != "" && is.GetPendingPublicKey() == was.GetPendingPublicKey() && was.GetPendingPrivateKey() != "" {
+		is.PendingPrivateKey = was.GetPendingPrivateKey()
+		kept = true
+	}
 	if !kept {
 		return resource.Kept{}, nil
 	}

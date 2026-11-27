@@ -37,10 +37,12 @@ export function useGitDeployKeys(project: string, enabled = true) {
   );
 }
 
-/** Whether the signed-in user holds admin or owner on the install (required to accept a changed host key). */
-function useIsAdmin(): boolean {
+/** Whether the signed-in user holds admin or owner on the install or on projectId. */
+function useIsAdmin(projectId: string): boolean {
   const grants = useAuthState().data?.grants ?? [];
-  return grants.some((g) => g.role === Role.ADMIN || g.role === Role.OWNER);
+  return grants.some(
+    (g) => (g.projectId === "" || g.projectId === projectId) && (g.role === Role.ADMIN || g.role === Role.OWNER),
+  );
 }
 
 /** Label for the external deploy keys button on a recognized host. */
@@ -78,7 +80,7 @@ export function DeployKeySetup({
   const transport = useTransport();
   const explain = useAuthError();
   const may = useMay();
-  const isAdmin = useIsAdmin();
+  const isAdmin = useIsAdmin(project);
   const mayCreate = may(GitDeployKeyService.method.createGitDeployKey, project ? { project } : undefined);
   const client = useMemo(() => createClient(GitDeployKeyService, transport), [transport]);
 
@@ -101,10 +103,7 @@ export function DeployKeySetup({
   const hostButtonLabel = useHostButtonLabel(hostName);
 
   const createKey = useCallback(async () => {
-    if (!project) {
-      setError(t`Choose a project first.`);
-      return;
-    }
+    if (!project) return;
     setBusy(true);
     setError(undefined);
     setLastTest(undefined);
@@ -121,7 +120,7 @@ export function DeployKeySetup({
     } finally {
       setBusy(false);
     }
-  }, [client, explain, onCreated, project, repository, t, transport]);
+  }, [client, explain, onCreated, project, repository, transport]);
 
   const runTest = useCallback(
     async (accept?: { algorithm: string; fingerprint: string; changed: boolean }) => {
@@ -168,22 +167,32 @@ export function DeployKeySetup({
 
   // No key exists yet for this repository: show one short in-place prompt with "Use a deploy key".
   if (!key) {
+    const noProjectReason = !project ? t`Choose a project first.` : "";
+    const disabled = !project || Boolean(mayCreate.off.disabled);
     return (
       <div className="deploy-key-card" data-testid="deploy-key-offer">
         <div className="deploy-key-head">
           <p className="deploy-key-title">
             {sshAddress ? <Trans>Connect over SSH</Trans> : <Trans>Private repository</Trans>}
           </p>
-          <Button size="sm" variant="secondary" loading={busy} onClick={() => void createKey()} {...mayCreate.off}>
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={busy}
+            disabled={disabled}
+            off={noProjectReason || mayCreate.off.off}
+            onClick={() => void createKey()}
+          >
             <Trans>Use a deploy key</Trans>
           </Button>
         </div>
         <p className="deploy-key-copy">
-          {mayCreate.reason ||
+          {noProjectReason ||
+            mayCreate.reason ||
             (sshAddress ? (
-              <Trans>Generate an Ed25519 deploy key for this project to fetch over SSH.</Trans>
+              <Trans>Create a read-only deploy key for this project.</Trans>
             ) : (
-              <Trans>This repository needs access. Generate an Ed25519 deploy key for this project.</Trans>
+              <Trans>Create a read-only deploy key to fetch this repository.</Trans>
             ))}
         </p>
         {error ? (
@@ -195,10 +204,10 @@ export function DeployKeySetup({
     );
   }
 
-  // Key exists and is already verified (pinned host key, no host key change, and no pending error/unverified test).
+  // Key exists and is verified: only show Ready after a passing connection test.
   const verified =
     lastTest?.status === GitDeployKeyTestStatus.OK ||
-    (key.hostKeyPinned && !key.hostKeyChanged && lastTest === undefined);
+    (key.verified && key.hostKeyPinned && !key.hostKeyChanged && lastTest === undefined);
 
   if (verified) {
     return (
@@ -243,9 +252,9 @@ export function DeployKeySetup({
       <div className="deploy-key-block">
         <p className="deploy-key-copy">
           {hostName ? (
-            <Trans>Add this public key to {hostName} with read-only access, then test it.</Trans>
+            <Trans>Add this public key to {hostName} (read-only), then test.</Trans>
           ) : (
-            <Trans>Add this public key to your Git host with read-only access, then test it.</Trans>
+            <Trans>Add this public key to your Git host (read-only), then test.</Trans>
           )}
         </p>
         <code className="deploy-key-pubkey" data-testid="deploy-key-pubkey">
@@ -348,10 +357,10 @@ export function DeployKeySheet({
   const transport = useTransport();
   const explain = useAuthError();
   const may = useMay();
-  const isAdmin = useIsAdmin();
+  const [current, setCurrent] = useState<GitDeployKeyInfo>(deployKey);
+  const isAdmin = useIsAdmin(current.projectId);
   const client = useMemo(() => createClient(GitDeployKeyService, transport), [transport]);
 
-  const [current, setCurrent] = useState<GitDeployKeyInfo>(deployKey);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [lastTest, setLastTest] = useState<TestGitDeployKeyResponse>();
@@ -622,10 +631,7 @@ export function DeployKeySheet({
           {pending ? (
             <div className="deploy-key-card" data-testid="deploy-key-rotate-pending">
               <p className="deploy-key-copy">
-                <Trans>
-                  Add this new key alongside the current one with read-only access, then test it. Dockwell switches only
-                  after the test passes.
-                </Trans>
+                <Trans>Add this key alongside the current one (read-only), then test.</Trans>
               </p>
               <code className="deploy-key-pubkey" data-testid="deploy-key-pending-pubkey">
                 {current.pendingPublicKey}
@@ -665,10 +671,7 @@ export function DeployKeySheet({
           ) : (
             <>
               <p className="deploy-key-copy">
-                <Trans>
-                  Generate a replacement key without interrupting builds. The current key stays active until the new key
-                  passes a test.
-                </Trans>
+                <Trans>Generate a replacement key without interrupting builds.</Trans>
               </p>
               <div className="deploy-key-actions">
                 <Button

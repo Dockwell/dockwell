@@ -203,6 +203,11 @@ func (h *Handler) ResolveSSH(ctx context.Context, login, repoURL, ref string) (c
 	if err != nil {
 		return "", "", err
 	}
+	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	if err != nil {
+		return "", "", err
+	}
+	defer release()
 	commit, full, err = gitssh.Resolve(ctx, h.sshConfig(k, ep), h.cfg.Dial, ref)
 	if err != nil {
 		h.maybeNoteHostKeyChange(ctx, k.r.ID, err)
@@ -217,6 +222,11 @@ func (h *Handler) BranchesSSH(ctx context.Context, login, repoURL string) (head 
 	if err != nil {
 		return "", nil, err
 	}
+	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	if err != nil {
+		return "", nil, err
+	}
+	defer release()
 	head, branches, _, err = gitssh.Branches(ctx, h.sshConfig(k, ep), h.cfg.Dial)
 	if err != nil {
 		h.maybeNoteHostKeyChange(ctx, k.r.ID, err)
@@ -232,6 +242,11 @@ func (h *Handler) FetchPackIn(ctx context.Context, login, repoURL, ref, commit, 
 	if err != nil {
 		return nil, 0, nil, err
 	}
+	release, err := h.gate.acquire(k.r.Scope, k.r.ID, true)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	defer release()
 	f, size, err := gitssh.FetchPack(ctx, h.sshConfig(k, ep), h.cfg.Dial, ref, commit, gitssh.DefaultPackLimits())
 	if err != nil {
 		h.maybeNoteHostKeyChange(ctx, k.r.ID, err)
@@ -251,6 +266,7 @@ func (h *Handler) sshConfig(k kept, ep gitssh.Endpoint) gitssh.Config {
 		HostKeyPin:       k.spec.GetHostKeyFingerprint(),
 		PrivateKeyPEM:    k.spec.GetPrivateKey(),
 		Local:            h.cfg.Local,
+		PackTempDir:      h.cfg.PackTempDir,
 	}
 }
 

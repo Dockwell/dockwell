@@ -35,7 +35,7 @@ service GitDeployKeyService {
   rpc CreateGitDeployKey(CreateGitDeployKeyRequest) returns (CreateGitDeployKeyResponse) {
     option (dockwell.v1.command) = {noun: "git-keys"};
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.needs_session) = true;
@@ -67,7 +67,7 @@ service GitDeployKeyService {
   rpc BeginRotateGitDeployKey(BeginRotateGitDeployKeyRequest) returns (BeginRotateGitDeployKeyResponse) {
     option (dockwell.v1.command) = {noun: "git-keys"};
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.needs_session) = true;
@@ -96,7 +96,7 @@ service GitDeployKeyService {
   rpc DeleteGitDeployKey(DeleteGitDeployKeyRequest) returns (DeleteGitDeployKeyResponse) {
     option (dockwell.v1.command) = {noun: "git-keys"};
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
     option (dockwell.v1.needs_session) = true;
@@ -164,6 +164,11 @@ message GitDeployKeyInfo {
   repeated string used_by = 26;
   // Current resource revision.
   int64 revision = 27;
+  // True once a connection test with this deploy key has succeeded and no host
+  // key change is pending.
+  bool verified = 28;
+  // When a connection test last succeeded, if ever.
+  google.protobuf.Timestamp verify_time = 29;
 }
 
 // GitDeployKeyTestStatus describes the outcome of TestGitDeployKey.

@@ -21,6 +21,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -472,7 +473,20 @@ func sameRepository(built string, pushed ...string) bool {
 }
 
 func repoKey(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
+	s := strings.TrimSpace(raw)
+	if service.IsSSHRepository(s) {
+		ep, err := service.ParseSSHRepository(s)
+		if err != nil {
+			return ""
+		}
+		host := ep.Host
+		if ep.Port != 0 && ep.Port != service.DefaultSSHPort {
+			host += ":" + strconv.FormatUint(uint64(ep.Port), 10)
+		}
+		p := strings.TrimSuffix(strings.TrimPrefix(ep.RepoPath, "/"), ".git")
+		return host + "/" + p
+	}
+	u, err := url.Parse(s)
 	if err != nil || u.Host == "" {
 		return ""
 	}

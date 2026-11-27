@@ -263,7 +263,7 @@ func checkBuild(svc *resourcev1.Service) error {
 
 // CheckRepository checks a repository's URL, and gives it as Dockwell keeps it:
 // over HTTPS, HTTP on a private network, or SSH (ssh:// or user@host:path,
-// normalized to ssh://user@host[:port]/path) (ADR 0046, ADR 0113). One without
+// preserving absolute vs relative paths) (ADR 0046, ADR 0113). One without
 // a scheme, as people paste github.com/acme/web, is HTTPS.
 func CheckRepository(raw string) (string, error) {
 	s := strings.TrimSpace(raw)
@@ -279,8 +279,12 @@ func CheckRepository(raw string) (string, error) {
 	if strings.HasPrefix(s, "git://") {
 		return "", fmt.Errorf("can't fetch %s: Dockwell fetches a repository over HTTPS, SSH with a deploy key, or HTTP on a private network", s)
 	}
-	if isSSHRepository(s) {
-		return checkSSHRepository(s)
+	if IsSSHRepository(s) {
+		ep, err := ParseSSHRepository(s)
+		if err != nil {
+			return "", err
+		}
+		return ep.CanonicalURL, nil
 	}
 	if !strings.Contains(s, "://") {
 		s = "https://" + s
@@ -306,82 +310,6 @@ func CheckRepository(raw string) (string, error) {
 		return "", fmt.Errorf("can't fetch %s over plain HTTP: anyone between the server and %s could choose what's built. Use HTTPS, or HTTP to a server on a private network, such as http://10.0.0.5/acme/web", raw, u.Hostname())
 	}
 	return u.Scheme + "://" + strings.ToLower(u.Host) + p, nil
-}
-
-var scpRepository = lazyre.Regexp(`^([A-Za-z0-9._-]+)@([^:/?#\s]+):(.+)$`)
-
-// IsSSHRepository reports whether raw is an SSH Git repository address (ssh://
-// or SCP-style user@host:path).
-func IsSSHRepository(raw string) bool { return isSSHRepository(strings.TrimSpace(raw)) }
-
-func isSSHRepository(s string) bool {
-	if strings.HasPrefix(s, "ssh://") {
-		return true
-	}
-	if strings.Contains(s, "://") {
-		return false
-	}
-	return scpRepository().MatchString(s)
-}
-
-func checkSSHRepository(s string) (string, error) {
-	var user, host, repoPath string
-	port := uint64(22)
-	if m := scpRepository().FindStringSubmatch(s); m != nil && !strings.Contains(s, "://") {
-		user, host, repoPath = m[1], strings.ToLower(m[2]), m[3]
-	} else {
-		u, err := url.Parse(s)
-		if err != nil {
-			return "", fmt.Errorf("%q isn't a valid SSH repository URL", s)
-		}
-		if u.User != nil {
-			if _, hasPass := u.User.Password(); hasPass {
-				return "", errors.New("a repository's URL can't hold a password or a token: plans, history and the server would show it")
-			}
-			user = u.User.Username()
-		}
-		if user == "" {
-			user = "git"
-		}
-		if u.RawQuery != "" || u.Fragment != "" || strings.HasSuffix(s, "?") || strings.HasSuffix(s, "#") {
-			return "", errors.New("a repository's URL can't have a ? or a # in it: set the branch in its own field")
-		}
-		host = strings.ToLower(u.Hostname())
-		if ps := u.Port(); ps != "" {
-			n, err := strconv.ParseUint(ps, 10, 16)
-			if err != nil || n == 0 {
-				return "", fmt.Errorf("%q isn't a valid SSH port. Use a port from 1 to 65535", ps)
-			}
-			port = n
-		}
-		repoPath = strings.TrimPrefix(u.Path, "/")
-	}
-	if host == "" {
-		return "", fmt.Errorf("%q has no host. Write one as ssh://git@gitlab.com/acme/web.git", s)
-	}
-	if user == "" || len(user) > 128 || strings.ContainsAny(user, " \t\r\n:@/'\"\\") {
-		return "", fmt.Errorf("%q isn't a valid SSH username", user)
-	}
-	trimmed := strings.TrimPrefix(strings.TrimRight(repoPath, "/"), "/")
-	if trimmed == "" || len(trimmed) > 1024 {
-		return "", fmt.Errorf("%q names a host and no repository. Write one as ssh://git@gitlab.com/acme/web.git", s)
-	}
-	if strings.ContainsAny(trimmed, " \t\r\n'\"\\`$;|&<>?*") {
-		return "", fmt.Errorf("%q isn't a valid repository path", repoPath)
-	}
-	for part := range strings.SplitSeq(trimmed, "/") {
-		if part == ".." || part == "." || part == "" {
-			return "", fmt.Errorf("%q isn't a valid repository path", repoPath)
-		}
-	}
-	hostPart := host
-	if strings.Contains(hostPart, ":") {
-		hostPart = "[" + hostPart + "]"
-	}
-	if port != 22 {
-		return fmt.Sprintf("ssh://%s@%s:%d/%s", user, hostPart, port, trimmed), nil
-	}
-	return fmt.Sprintf("ssh://%s@%s/%s", user, hostPart, trimmed), nil
 }
 
 // PrivateHost reports a host a repository may be fetched from over plain HTTP: an

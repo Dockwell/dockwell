@@ -152,7 +152,12 @@ type GitDeployKeyInfo struct {
 	// Service names in this project that currently use this deploy key.
 	UsedBy []string `protobuf:"bytes,26,rep,name=used_by,json=usedBy,proto3" json:"used_by,omitempty"`
 	// Current resource revision.
-	Revision      int64 `protobuf:"varint,27,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision int64 `protobuf:"varint,27,opt,name=revision,proto3" json:"revision,omitempty"`
+	// True once a connection test with this deploy key has succeeded and no host
+	// key change is pending.
+	Verified bool `protobuf:"varint,28,opt,name=verified,proto3" json:"verified,omitempty"`
+	// When a connection test last succeeded, if ever.
+	VerifyTime    *timestamppb.Timestamp `protobuf:"bytes,29,opt,name=verify_time,json=verifyTime,proto3" json:"verify_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -374,6 +379,20 @@ func (x *GitDeployKeyInfo) GetRevision() int64 {
 		return x.Revision
 	}
 	return 0
+}
+
+func (x *GitDeployKeyInfo) GetVerified() bool {
+	if x != nil {
+		return x.Verified
+	}
+	return false
+}
+
+func (x *GitDeployKeyInfo) GetVerifyTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.VerifyTime
+	}
+	return nil
 }
 
 // ListGitDeployKeysRequest names the project whose deploy keys to list.
@@ -1150,7 +1169,7 @@ var File_dockwell_v1_gitkey_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_gitkey_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/gitkey.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb5\b\n" +
+	"\x18dockwell/v1/gitkey.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8e\t\n" +
 	"\x10GitDeployKeyInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
@@ -1185,7 +1204,10 @@ const file_dockwell_v1_gitkey_proto_rawDesc = "" +
 	"\thost_name\x18\x18 \x01(\tR\bhostName\x12\x1b\n" +
 	"\tgit_login\x18\x19 \x01(\tR\bgitLogin\x12\x17\n" +
 	"\aused_by\x18\x1a \x03(\tR\x06usedBy\x12\x1a\n" +
-	"\brevision\x18\x1b \x01(\x03R\brevision\"4\n" +
+	"\brevision\x18\x1b \x01(\x03R\brevision\x12\x1a\n" +
+	"\bverified\x18\x1c \x01(\bR\bverified\x12;\n" +
+	"\vverify_time\x18\x1d \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"verifyTime\"4\n" +
 	"\x18ListGitDeployKeysRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\"N\n" +
 	"\x19ListGitDeployKeysResponse\x121\n" +
@@ -1254,19 +1276,19 @@ const file_dockwell_v1_gitkey_proto_rawDesc = "" +
 	"\bgit-keys\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02(\x12&/v1/projects/{project}/git-deploy-keys\x90\x02\x01\x12\xba\x01\n" +
 	"\x12CreateGitDeployKey\x12&.dockwell.v1.CreateGitDeployKeyRequest\x1a'.dockwell.v1.CreateGitDeployKeyResponse\"S\xa0\xbb\x18\x03\xaa\xbb\x18\n" +
 	"\n" +
-	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/projects/{project}/git-deploy-keys\x12\xa7\x01\n" +
+	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/projects/{project}/git-deploy-keys\x12\xa7\x01\n" +
 	"\x10TestGitDeployKey\x12$.dockwell.v1.TestGitDeployKeyRequest\x1a%.dockwell.v1.TestGitDeployKeyResponse\"F\xa0\xbb\x18\x03\xaa\xbb\x18\n" +
 	"\n" +
 	"\bgit-keys\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/git-deploy-keys/{id}:test\x12\xc8\x01\n" +
 	"\x17BeginRotateGitDeployKey\x12+.dockwell.v1.BeginRotateGitDeployKeyRequest\x1a,.dockwell.v1.BeginRotateGitDeployKeyResponse\"R\xa0\xbb\x18\x03\xaa\xbb\x18\n" +
 	"\n" +
-	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/git-deploy-keys/{id}:begin-rotate\x12\xc8\x01\n" +
+	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/git-deploy-keys/{id}:begin-rotate\x12\xc8\x01\n" +
 	"\x18CancelRotateGitDeployKey\x12,.dockwell.v1.CancelRotateGitDeployKeyRequest\x1a-.dockwell.v1.CancelRotateGitDeployKeyResponse\"O\xa0\xbb\x18\x03\xaa\xbb\x18\n" +
 	"\n" +
 	"\bgit-keys\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/git-deploy-keys/{id}:cancel-rotate\x12\xb3\x01\n" +
 	"\x12DeleteGitDeployKey\x12&.dockwell.v1.DeleteGitDeployKeyRequest\x1a'.dockwell.v1.DeleteGitDeployKeyResponse\"L\xa0\xbb\x18\x04\xaa\xbb\x18\n" +
 	"\n" +
-	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/git-deploy-keys/{id}:delete\x1a\xe7\x01\xa2\xbb\x18\xe2\x01\n" +
+	"\bgit-keys\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/git-deploy-keys/{id}:delete\x1a\xe7\x01\xa2\xbb\x18\xe2\x01\n" +
 	"\bgit-keys\x12\xd5\x01Project-scoped Ed25519 SSH deploy keys for private Git repositories. Dockwell generates the key, pins the host's SSH key on acceptance, and fetches over SSH from the control plane without exposing the private key.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vGitkeyProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -1305,29 +1327,30 @@ var file_dockwell_v1_gitkey_proto_depIdxs = []int32{
 	14, // 0: dockwell.v1.GitDeployKeyInfo.create_time:type_name -> google.protobuf.Timestamp
 	14, // 1: dockwell.v1.GitDeployKeyInfo.rotate_time:type_name -> google.protobuf.Timestamp
 	14, // 2: dockwell.v1.GitDeployKeyInfo.pending_create_time:type_name -> google.protobuf.Timestamp
-	1,  // 3: dockwell.v1.ListGitDeployKeysResponse.keys:type_name -> dockwell.v1.GitDeployKeyInfo
-	1,  // 4: dockwell.v1.CreateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
-	0,  // 5: dockwell.v1.TestGitDeployKeyResponse.status:type_name -> dockwell.v1.GitDeployKeyTestStatus
-	1,  // 6: dockwell.v1.TestGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
-	1,  // 7: dockwell.v1.BeginRotateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
-	1,  // 8: dockwell.v1.CancelRotateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
-	2,  // 9: dockwell.v1.GitDeployKeyService.ListGitDeployKeys:input_type -> dockwell.v1.ListGitDeployKeysRequest
-	4,  // 10: dockwell.v1.GitDeployKeyService.CreateGitDeployKey:input_type -> dockwell.v1.CreateGitDeployKeyRequest
-	6,  // 11: dockwell.v1.GitDeployKeyService.TestGitDeployKey:input_type -> dockwell.v1.TestGitDeployKeyRequest
-	8,  // 12: dockwell.v1.GitDeployKeyService.BeginRotateGitDeployKey:input_type -> dockwell.v1.BeginRotateGitDeployKeyRequest
-	10, // 13: dockwell.v1.GitDeployKeyService.CancelRotateGitDeployKey:input_type -> dockwell.v1.CancelRotateGitDeployKeyRequest
-	12, // 14: dockwell.v1.GitDeployKeyService.DeleteGitDeployKey:input_type -> dockwell.v1.DeleteGitDeployKeyRequest
-	3,  // 15: dockwell.v1.GitDeployKeyService.ListGitDeployKeys:output_type -> dockwell.v1.ListGitDeployKeysResponse
-	5,  // 16: dockwell.v1.GitDeployKeyService.CreateGitDeployKey:output_type -> dockwell.v1.CreateGitDeployKeyResponse
-	7,  // 17: dockwell.v1.GitDeployKeyService.TestGitDeployKey:output_type -> dockwell.v1.TestGitDeployKeyResponse
-	9,  // 18: dockwell.v1.GitDeployKeyService.BeginRotateGitDeployKey:output_type -> dockwell.v1.BeginRotateGitDeployKeyResponse
-	11, // 19: dockwell.v1.GitDeployKeyService.CancelRotateGitDeployKey:output_type -> dockwell.v1.CancelRotateGitDeployKeyResponse
-	13, // 20: dockwell.v1.GitDeployKeyService.DeleteGitDeployKey:output_type -> dockwell.v1.DeleteGitDeployKeyResponse
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	14, // 3: dockwell.v1.GitDeployKeyInfo.verify_time:type_name -> google.protobuf.Timestamp
+	1,  // 4: dockwell.v1.ListGitDeployKeysResponse.keys:type_name -> dockwell.v1.GitDeployKeyInfo
+	1,  // 5: dockwell.v1.CreateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
+	0,  // 6: dockwell.v1.TestGitDeployKeyResponse.status:type_name -> dockwell.v1.GitDeployKeyTestStatus
+	1,  // 7: dockwell.v1.TestGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
+	1,  // 8: dockwell.v1.BeginRotateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
+	1,  // 9: dockwell.v1.CancelRotateGitDeployKeyResponse.key:type_name -> dockwell.v1.GitDeployKeyInfo
+	2,  // 10: dockwell.v1.GitDeployKeyService.ListGitDeployKeys:input_type -> dockwell.v1.ListGitDeployKeysRequest
+	4,  // 11: dockwell.v1.GitDeployKeyService.CreateGitDeployKey:input_type -> dockwell.v1.CreateGitDeployKeyRequest
+	6,  // 12: dockwell.v1.GitDeployKeyService.TestGitDeployKey:input_type -> dockwell.v1.TestGitDeployKeyRequest
+	8,  // 13: dockwell.v1.GitDeployKeyService.BeginRotateGitDeployKey:input_type -> dockwell.v1.BeginRotateGitDeployKeyRequest
+	10, // 14: dockwell.v1.GitDeployKeyService.CancelRotateGitDeployKey:input_type -> dockwell.v1.CancelRotateGitDeployKeyRequest
+	12, // 15: dockwell.v1.GitDeployKeyService.DeleteGitDeployKey:input_type -> dockwell.v1.DeleteGitDeployKeyRequest
+	3,  // 16: dockwell.v1.GitDeployKeyService.ListGitDeployKeys:output_type -> dockwell.v1.ListGitDeployKeysResponse
+	5,  // 17: dockwell.v1.GitDeployKeyService.CreateGitDeployKey:output_type -> dockwell.v1.CreateGitDeployKeyResponse
+	7,  // 18: dockwell.v1.GitDeployKeyService.TestGitDeployKey:output_type -> dockwell.v1.TestGitDeployKeyResponse
+	9,  // 19: dockwell.v1.GitDeployKeyService.BeginRotateGitDeployKey:output_type -> dockwell.v1.BeginRotateGitDeployKeyResponse
+	11, // 20: dockwell.v1.GitDeployKeyService.CancelRotateGitDeployKey:output_type -> dockwell.v1.CancelRotateGitDeployKeyResponse
+	13, // 21: dockwell.v1.GitDeployKeyService.DeleteGitDeployKey:output_type -> dockwell.v1.DeleteGitDeployKeyResponse
+	16, // [16:22] is the sub-list for method output_type
+	10, // [10:16] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_gitkey_proto_init() }
