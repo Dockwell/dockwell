@@ -55,7 +55,10 @@ type StepUpAction string
 const (
 	// StepUpRevealSecret reveals a secret's value. Its target is the
 	// secret's ID.
-	StepUpRevealSecret StepUpAction = "secret.reveal"
+	StepUpRevealSecret             StepUpAction = "secret.reveal"
+	StepUpControlBackupDestination StepUpAction = "control_backup.destination"
+	StepUpControlBackupShow        StepUpAction = "control_backup.show_passphrase"
+	StepUpControlBackupSet         StepUpAction = "control_backup.set_passphrase"
 	// StepUpAddPasskey adds a passkey.
 	StepUpAddPasskey StepUpAction = "passkey.add"
 	// StepUpRemovePasskey removes a passkey. Its target is the passkey's
@@ -199,29 +202,32 @@ var stepUpActions = map[StepUpAction]struct {
 	doing    string
 	targeted bool
 }{
-	StepUpRevealSecret:         {"revealing", true},
-	StepUpAddPasskey:           {"adding a passkey", false},
-	StepUpRemovePasskey:        {"removing passkey", true},
-	StepUpSetUpCodes:           {"setting up code sign-in", false},
-	StepUpDisableCodes:         {"turning code sign-in off", false},
-	StepUpRecoveryCodes:        {"making new recovery codes", false},
-	StepUpCreateToken:          {"creating an API token", false},
-	StepUpApplyRootChange:      {"applying", true},
-	StepUpSaveWayBackIn:        {"saving", true},
-	StepUpCreateGitHook:        {"turning deploy on push on for", true},
-	StepUpRotateGitHook:        {"making a new hook secret for", true},
-	StepUpWidenGitHook:         {"letting deploy on push go without waiting for", true},
-	StepUpConnectGitHubApp:     {"connecting GitHub", false},
-	StepUpRotateGitHubApp:      {"giving a new secret or key to", true},
-	StepUpRemoveGitHubApp:      {"removing", true},
-	StepUpEditSSHKey:           {"changing SSH keys for", true},
-	StepUpDisconnectSSHSession: {"disconnecting SSH session", true},
-	StepUpBanSSHAddress:        {"banning SSH address", true},
-	StepUpBanFail2banAddress:   {"banning a fail2ban address", true},
-	StepUpEndProcess:           {"ending process", true},
-	StepUpOpenTerminal:         {"opening a terminal on", true},
-	StepUpApproveChange:        {"approving", true},
-	StepUpApplyHostToolbox:     {"applying host settings", true},
+	StepUpRevealSecret:             {"revealing", true},
+	StepUpControlBackupDestination: {"choosing where to keep control plane backups", true},
+	StepUpControlBackupShow:        {"showing the recovery passphrase", false},
+	StepUpControlBackupSet:         {"setting the recovery passphrase", false},
+	StepUpAddPasskey:               {"adding a passkey", false},
+	StepUpRemovePasskey:            {"removing passkey", true},
+	StepUpSetUpCodes:               {"setting up code sign-in", false},
+	StepUpDisableCodes:             {"turning code sign-in off", false},
+	StepUpRecoveryCodes:            {"making new recovery codes", false},
+	StepUpCreateToken:              {"creating an API token", false},
+	StepUpApplyRootChange:          {"applying", true},
+	StepUpSaveWayBackIn:            {"saving", true},
+	StepUpCreateGitHook:            {"turning deploy on push on for", true},
+	StepUpRotateGitHook:            {"making a new hook secret for", true},
+	StepUpWidenGitHook:             {"letting deploy on push go without waiting for", true},
+	StepUpConnectGitHubApp:         {"connecting GitHub", false},
+	StepUpRotateGitHubApp:          {"giving a new secret or key to", true},
+	StepUpRemoveGitHubApp:          {"removing", true},
+	StepUpEditSSHKey:               {"changing SSH keys for", true},
+	StepUpDisconnectSSHSession:     {"disconnecting SSH session", true},
+	StepUpBanSSHAddress:            {"banning SSH address", true},
+	StepUpBanFail2banAddress:       {"banning a fail2ban address", true},
+	StepUpEndProcess:               {"ending process", true},
+	StepUpOpenTerminal:             {"opening a terminal on", true},
+	StepUpApproveChange:            {"approving", true},
+	StepUpApplyHostToolbox:         {"applying host settings", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
 	StepUpMakeWayBackIn:                     {"making", true},
 	StepUpMoveWayBackIn:                     {"moving", true},

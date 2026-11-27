@@ -228,7 +228,19 @@ Pass `--version 0.2.0` to install a particular release instead of the latest.
 
 ## Back up the control plane
 
-Dockwell doesn't back up its own state yet, so copy it off the control server yourself, as often as you change what it manages. Everything it knows is there: your apps and their history, plans, variables and secrets, who can sign in, and the servers that joined, which trust it by what's there. Your apps' own volumes and databases are backed up in the panel, under Backups, and a copy of the control plane doesn't hold them.
+Open **Settings → Backups** and select an off-site destination. Dockwell makes sealed control plane backups automatically and sends them there and to up to two other connected servers. The page shows the age of each copy and offers **Take one now**. Keep the recovery passphrase and recovery sheet outside this install.
+
+A bundle holds the store and its key. It leaves out server metric history and your apps' volume and database data. Schedule those backups under **Backups**.
+
+To verify and open a downloaded bundle on a machine with the full build, use your recovery passphrase:
+
+```sh
+dockwell open-backup ./control-backup.dwcb --output ./recovered-control --passphrase-file ./recovery-passphrase
+```
+
+The command writes a verified SQLite store and its key into a new private directory. Those two files together open every secret in the backup. Promotion of another server from a bundle will use the restore command described in [ADR 0073](adr/0073-backing-up-and-restoring-the-control-plane.md).
+
+### Manual copy for same-server recovery
 
 What to copy, from `/var/lib/dockwell`:
 
@@ -258,7 +270,7 @@ rc-service dockwell start
 
 If you started `dockwell run` yourself, stop it first, run the `tar` and `cp` lines as root, and start it again. Then move `/root/dockwell-control.tgz` and `/root/dockwell-key` off the server, to two different places, and delete them from it. The archive holds the panel's certificate keys and a token that acts for you, so keep it as carefully as the key. The panel's Settings, under Control plane, shows these commands with this install's own paths, for what runs Dockwell there.
 
-With the state in Postgres (`DOCKWELL_DATABASE`), back the database up with `pg_dump`, as any Postgres database, and copy `control/`, `agent/` and the key as above: the key and the agent are still files on the control server. Metric history (`server_history`, `history_series`, `history_chunks`) is telemetry rather than state; with `pg_dump` you can pass `--exclude-table-data='server_history' --exclude-table-data='history_series' --exclude-table-data='history_chunks'` for smaller dumps, and automated control-plane backups will leave it out by default once [ADR 0073](adr/0073-backing-up-and-restoring-the-control-plane.md) is built ([ADR 0065](adr/0065-a-servers-history-kept-by-the-control-plane.md)).
+With the state in Postgres (`DOCKWELL_DATABASE`), back the database up with `pg_dump`, as any Postgres database, and copy `control/`, `agent/` and the key as above: the key and the agent are still files on the control server. Metric history (`server_history`, `history_series`, `history_chunks`) is telemetry rather than state; with `pg_dump` you can pass `--exclude-table-data='server_history' --exclude-table-data='history_series' --exclude-table-data='history_chunks'` for smaller dumps ([ADR 0065](adr/0065-a-servers-history-kept-by-the-control-plane.md)).
 
 **To restore** on the same server, after its disk was replaced or Dockwell was removed with its data, install Dockwell again as above, then put the copies back and start it:
 

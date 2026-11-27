@@ -112,50 +112,55 @@ func (h *Handler) destination(ctx context.Context, name string) (map[string]stri
 	}
 	var values map[string]string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
-		org, err := tx.Organization(ctx)
-		if err != nil {
-			return err
-		}
-		r, err := tx.GetResource(ctx, string(backuppolicy.DestinationKind), org.ID, name)
-		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
-			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup destination %s. List them to find its name", name), "not_found")
-		}
-		if err != nil {
-			return err
-		}
-		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
-		if err != nil {
-			return fmt.Errorf("can't read the backup destination %s: %w", name, err)
-		}
-		d := spec.(*resourcev1.BackupDestination)
-		if d.GetConnection() != "" {
-			_, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
-			if err != nil {
-				return err
-			}
-			s3c := c.GetS3()
-			if err := backuppolicy.CheckTransport(s3c.GetEndpoint(), s3c.GetBucket(), s3c.GetPathStyle()); err != nil {
-				return authapi.Invalid(fmt.Errorf("the connection %s can't be used for backups: its endpoint %s. Change %s to HTTPS", d.GetConnection(), err.Error(), d.GetConnection()))
-			}
-			values = map[string]string{
-				"endpoint": s3c.GetEndpoint(), "region": s3c.GetRegion(), "bucket": s3c.GetBucket(), "prefix": d.GetPrefix(),
-				"access_key": s3c.GetAccessKeyId(), "secret_key": s3c.GetSecretKey(), "passphrase": d.GetPassphrase(),
-			}
-			if !s3c.GetPathStyle() {
-				values["virtual_host"] = "true"
-			}
-			return nil
-		}
-		values = map[string]string{
-			"endpoint": d.GetEndpoint(), "region": d.GetRegion(), "bucket": d.GetBucket(), "prefix": d.GetPrefix(),
-			"access_key": d.GetAccessKey(), "secret_key": d.GetSecretKey(), "passphrase": d.GetPassphrase(),
-		}
-		return nil
+		var err error
+		_, values, err = h.ControlDestination(ctx, tx, name)
+		return err
 	})
+	return values, err
+}
+
+// ControlDestination reads the identity and current credentials of the selected
+// destination so control plane backups can pin where they go.
+func (h *Handler) ControlDestination(ctx context.Context, tx *store.Tx, name string) (string, map[string]string, error) {
+	org, err := tx.Organization(ctx)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return values, nil
+	r, err := tx.GetResource(ctx, string(backuppolicy.DestinationKind), org.ID, name)
+	if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+		return "", nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup destination %s. List them to find its name", name), "not_found")
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+	if err != nil {
+		return "", nil, fmt.Errorf("can't read the backup destination %s: %w", name, err)
+	}
+	d := spec.(*resourcev1.BackupDestination)
+	if d.GetConnection() != "" {
+		_, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
+		if err != nil {
+			return "", nil, err
+		}
+		s3c := c.GetS3()
+		if err := backuppolicy.CheckTransport(s3c.GetEndpoint(), s3c.GetBucket(), s3c.GetPathStyle()); err != nil {
+			return "", nil, authapi.Invalid(fmt.Errorf("the connection %s can't be used for backups: its endpoint %s. Change %s to HTTPS", d.GetConnection(), err.Error(), d.GetConnection()))
+		}
+		values := map[string]string{
+			"endpoint": s3c.GetEndpoint(), "region": s3c.GetRegion(), "bucket": s3c.GetBucket(), "prefix": d.GetPrefix(),
+			"access_key": s3c.GetAccessKeyId(), "secret_key": s3c.GetSecretKey(), "passphrase": d.GetPassphrase(),
+		}
+		if !s3c.GetPathStyle() {
+			values["virtual_host"] = "true"
+		}
+		return r.ID, values, nil
+	}
+	values := map[string]string{
+		"endpoint": d.GetEndpoint(), "region": d.GetRegion(), "bucket": d.GetBucket(), "prefix": d.GetPrefix(),
+		"access_key": d.GetAccessKey(), "secret_key": d.GetSecretKey(), "passphrase": d.GetPassphrase(),
+	}
+	return r.ID, values, nil
 }
 
 // sealedWith says which passphrase a destination seals with, as a keyed hash that says

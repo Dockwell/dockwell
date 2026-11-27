@@ -727,6 +727,12 @@ msgstr "变更失败：{subject}"
 msgid "A change in a project you can't see"
 msgstr "你无法查看的项目中的一项变更"
 
+msgid "A control plane backup failed"
+msgstr "控制平面备份失败"
+
+msgid "A control plane backup failed at {copyPlace}"
+msgstr "控制平面备份未能存入 {copyPlace}"
+
 msgid "A major update of {subject} is out: {where}"
 msgstr "{subject} 有主要版本更新：{where}"
 
@@ -841,6 +847,9 @@ msgstr "请求运行某个计划任务"
 msgid "Asked to run {task}"
 msgstr "请求运行 {task}"
 
+msgid "Backed up the control plane"
+msgstr "已备份控制平面"
+
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
@@ -855,6 +864,9 @@ msgstr "取消了下载到 {server} 的 {path}"
 
 msgid "Changed permissions or ownership on {path} on {server}"
 msgstr "更改了 {server} 上 {path} 的权限或所有权"
+
+msgid "Changed the control plane backup destination"
+msgstr "已更改控制平面备份目标"
 
 msgid "Changed their email"
 msgstr "更改了自己的邮箱"
@@ -876,6 +888,9 @@ msgstr "更改了推送时部署是否等人确认"
 
 msgid "Changed whether {name}'s deploy on push waits for a person"
 msgstr "更改了 {name} 的推送时部署是否等人确认"
+
+msgid "Changed which servers keep control plane copies"
+msgstr "已更改保留控制平面副本的服务器"
 
 msgid "Checked a DNS provider"
 msgstr "检查了一个 DNS 服务商"
@@ -936,6 +951,9 @@ msgstr "压缩了 {server} 上的 {path}，该路径可用于重新进入服务�
 
 msgid "Compressed {path} on {server}, {size}"
 msgstr "压缩了 {server} 上的 {path}，{size}"
+
+msgid "Confirmed the recovery passphrase was kept"
+msgstr "已确认保存恢复口令"
 
 msgid "Confirmed which environments are protected"
 msgstr "确认了哪些环境受保护"
@@ -1025,6 +1043,9 @@ msgstr "已删除 {server} 上的 {path}，这里可能让他人重新进入服�
 
 msgid "Disconnected an SSH session on {server}"
 msgstr "已断开 {server} 上的 SSH 会话"
+
+msgid "Dismissed an earlier control plane backup destination"
+msgstr "已隐藏先前的控制平面备份目标"
 
 msgid "Downloaded a certificate's private key"
 msgstr "下载了证书私钥"
@@ -1297,6 +1318,9 @@ msgstr "移除 {rule} 时替换了在 Cloudflare 中对 {target} 所做的修改
 msgid "Replaced the DNS record made in Cloudflare for {name}, in {where}"
 msgstr "已替换在 Cloudflare 的 {where} 中为 {name} 创建的 DNS 记录"
 
+msgid "Requested a control plane backup"
+msgstr "已请求备份控制平面"
+
 msgid "Resolved: {title}"
 msgstr "已恢复：{title}"
 
@@ -1358,6 +1382,12 @@ msgstr "将通过 DNS 证明的证书密钥发送到了一台服务器"
 msgid "Sent a certificate's key, proven by DNS, to {name}"
 msgstr "将通过 DNS 证明的证书密钥发送到了 {name}"
 
+msgid "Sent a control plane backup"
+msgstr "已发送控制平面备份"
+
+msgid "Sent a control plane backup to {copyPlace}"
+msgstr "已将控制平面备份发送到 {copyPlace}"
+
 msgid "Sent a test to a new {kind} channel at {host}, which arrived"
 msgstr "向 {host} 上新的 {kind} 渠道发送了测试，已送达"
 
@@ -1409,6 +1439,9 @@ msgstr "将 {server} 的公网地址设置为 {address}"
 msgid "Set the public address of {server} to {address}, which was {previous}"
 msgstr "将 {server} 的公网地址设置为 {address}，原地址为 {previous}"
 
+msgid "Set the recovery passphrase"
+msgstr "已设置恢复口令"
+
 msgid "Set the time zone for new schedules to {value}"
 msgstr "将新计划的时区设为 {value}"
 
@@ -1423,6 +1456,9 @@ msgstr "把自己的时区设为 {value}"
 
 msgid "Set {name}'s SSL mode at Cloudflare"
 msgstr "已在 Cloudflare 设置 {name} 的 SSL 模式"
+
+msgid "Showed the recovery passphrase"
+msgstr "已显示恢复口令"
 
 msgid "Signed in"
 msgstr "登录了"
@@ -8231,6 +8267,9 @@ msgstr "备份，最新的在前"
 msgid "Check it now"
 msgstr "立即检查"
 
+msgid "Control plane backups"
+msgstr "控制平面备份"
+
 msgid "Delete from both"
 msgstr "从两处都删除"
 
@@ -8396,6 +8435,267 @@ msgstr "{shown, plural, other {仅在最新的 # 个备份内排序。}}"
 
 msgid "{shown} newest"
 msgstr "最新的 {shown} 个"
+
+msgid "Access key ID"
+msgstr "访问密钥 ID"
+
+msgid "Add an S3 connection"
+msgstr "添加 S3 连接"
+
+msgid "Add backup destination {destName}"
+msgstr "添加备份目标 {destName}"
+
+msgid "Ask the owner to choose storage for off-site copies."
+msgstr "请让所有者选择异地备份存储。"
+
+msgid "At least 20 characters and up to 256 bytes, on one line"
+msgstr "至少 20 个字符，最多 256 字节，请勿换行"
+
+msgid "Backup queued"
+msgstr "备份已排队"
+
+msgid "Bucket"
+msgstr "存储桶"
+
+msgid "Can't read control plane backups"
+msgstr "无法读取控制平面备份"
+
+msgid "Change destination"
+msgstr "更改目标"
+
+msgid "Choose by available space"
+msgstr "按可用空间选择"
+
+msgid "Choose servers"
+msgstr "选择服务器"
+
+msgid "Commands copied"
+msgstr "已复制命令"
+
+msgid "Confirm and open recovery sheet"
+msgstr "确认并打开恢复清单"
+
+msgid "Confirmed kept"
+msgstr "已确认保存"
+
+msgid "Control plane"
+msgstr "控制平面"
+
+msgid "Control plane backup"
+msgstr "控制平面备份"
+
+msgid "Control plane recovery sheet"
+msgstr "控制平面恢复清单"
+
+msgid "Copy from {name}"
+msgstr "从 {name} 复制"
+
+msgid "Copy passphrase"
+msgstr "复制口令"
+
+msgid "Copy recovery commands"
+msgstr "复制恢复命令"
+
+msgid "Couldn't dismiss the destination"
+msgstr "无法隐藏此备份目标"
+
+msgid "Couldn't request a backup"
+msgstr "无法请求备份"
+
+msgid "Couldn't save servers"
+msgstr "无法保存服务器选项"
+
+msgid "Couldn't save the destination"
+msgstr "无法保存目标"
+
+msgid "Couldn't use the recovery passphrase"
+msgstr "无法使用恢复口令"
+
+msgid "Destination"
+msgstr "存放位置"
+
+msgid "Each place needs a new copy before it can remove older ones."
+msgstr "每个位置收到新副本后才能删除旧副本。"
+
+msgid "Earlier destination"
+msgstr "先前的目标"
+
+#. placeholder {0}: words.ago(timestampDate(place.sentAt), now)
+msgid "Earlier destination · Last copy {0}"
+msgstr "先前的目标 · 上次收到副本：{0}"
+
+msgid "Earlier destinations"
+msgstr "先前的目标"
+
+msgid "Endpoint"
+msgstr "端点"
+
+msgid "Fetch the newest off-site copy"
+msgstr "获取最新的异地副本"
+
+msgid "First copy"
+msgstr "第一份副本"
+
+msgid "Generate a stronger passphrase"
+msgstr "生成强度更高的口令"
+
+msgid "Generate passphrase"
+msgstr "生成口令"
+
+msgid "Generation"
+msgstr "代次"
+
+msgid "Install ID"
+msgstr "安装 ID"
+
+msgid "It opens every secret in your control plane backup."
+msgstr "该口令可解开控制平面备份中的所有密钥。"
+
+msgid "Keep it outside this install"
+msgstr "请在此安装之外保存"
+
+msgid "Keep off-site copies protected"
+msgstr "保护异地备份"
+
+msgid "Keep the passphrase outside this install"
+msgstr "请在此安装之外保存口令"
+
+msgid "Keep the recovery passphrase separately"
+msgstr "请单独保存恢复口令"
+
+msgid "Leave out"
+msgstr "排除服务器"
+
+msgid "Loading control plane backups"
+msgstr "正在加载控制平面备份"
+
+msgid "Needs attention"
+msgstr "需要关注"
+
+msgid "New passphrase"
+msgstr "新口令"
+
+msgid "Newest off-site copy"
+msgstr "最新异地副本"
+
+msgid "No copies on other servers"
+msgstr "其他服务器上没有副本"
+
+msgid "No destination"
+msgstr "没有目标"
+
+msgid "Off-site copy needed"
+msgstr "需要异地副本"
+
+msgid "Off-site destination"
+msgstr "异地备份目标"
+
+msgid "Older copies may still open with the old passphrase"
+msgstr "旧口令可能仍能打开旧副本"
+
+msgid "Older copies still open with the previous passphrase."
+msgstr "旧副本仍可用之前的密码短语打开。"
+
+msgid "Open on the machine with the full Dockwell build"
+msgstr "在装有完整 Dockwell 的机器上打开"
+
+msgid "Opening a bundle needs it. Off-site access also needs your storage credentials."
+msgstr "打开备份需要恢复口令。访问异地存储还需要存储凭据。"
+
+msgid "Opens with the current recovery passphrase."
+msgstr "可用当前的恢复密码短语打开。"
+
+msgid "Over 256 MiB · Hourly at most"
+msgstr "超过 256 MiB · 最多每小时一次"
+
+msgid "Pick a destination"
+msgstr "选择目标"
+
+msgid "Prefix"
+msgstr "前缀"
+
+msgid "Print or save as PDF"
+msgstr "打印或保存为 PDF"
+
+#. placeholder {0}: words.span(next)
+msgid "Queued · In about {0}"
+msgstr "已排队 · 约 {0} 后运行"
+
+msgid "Received {received}"
+msgstr "接收于 {received}"
+
+msgid "Recovery passphrase"
+msgstr "恢复口令"
+
+msgid "Recovery passphrase still needs to be kept"
+msgstr "恢复口令尚待保存"
+
+msgid "Recovery sheet"
+msgstr "恢复清单"
+
+msgid "Remove destination"
+msgstr "移除目标"
+
+msgid "Save destination"
+msgstr "保存目标"
+
+msgid "Save servers"
+msgstr "保存服务器选项"
+
+msgid "Second copy"
+msgstr "第二份副本"
+
+msgid "Server copies"
+msgstr "服务器副本"
+
+msgid "Servers that keep copies"
+msgstr "保存副本的服务器"
+
+msgid "Set backup_ssh to a root SSH login or one with passwordless sudo on this server."
+msgstr "将 backup_ssh 设为这台服务器的 root SSH 登录，或可免密执行 sudo 的 SSH 登录。"
+
+msgid "Set passphrase"
+msgstr "设置口令"
+
+msgid "Set recovery passphrase"
+msgstr "设置恢复口令"
+
+#. placeholder {0}: item.label
+msgid "Set up {0}"
+msgstr "设置 {0}"
+
+msgid "Show passphrase"
+msgstr "显示口令"
+
+msgid "Stored"
+msgstr "已存放"
+
+msgid "Strength: enter a longer phrase on one line"
+msgstr "强度：请输入更长的密码短语，请勿换行"
+
+msgid "Strength: meets the requirement"
+msgstr "强度：符合要求"
+
+msgid "Strength: too easy to guess"
+msgstr "强度：太容易猜到"
+
+msgid "Take one now"
+msgstr "立即备份"
+
+msgid "Taking a backup"
+msgstr "正在备份"
+
+msgid "The last backup failed"
+msgstr "上次备份失败"
+
+msgid "Type the passphrase to confirm"
+msgstr "输入口令以确认"
+
+msgid "Use bucket versioning or object lock and a key that can't delete."
+msgstr "启用存储桶版本控制或对象锁，并使用没有删除权限的密钥。"
+
+msgid "Use your own"
+msgstr "使用自定义口令"
 
 msgid "Add storage"
 msgstr "添加存储"
@@ -10815,9 +11115,6 @@ msgstr "正在检查镜像仓库"
 
 msgid "Choose another tag"
 msgstr "换用其他标签"
-
-msgid "Destination"
-msgstr "存放位置"
 
 msgid "Manifest digest"
 msgstr "清单摘要"
@@ -13800,17 +14097,11 @@ msgstr "存储桶的密钥，粘贴一次即可。"
 msgid "A key goes only into a secret, as plans show a variable."
 msgstr "密钥只能放入机密，因为计划会显示变量。"
 
-msgid "Access key ID"
-msgstr "访问密钥 ID"
-
 msgid "Add another"
 msgstr "再添加一个"
 
 msgid "An admin adds one."
 msgstr "由管理员添加。"
-
-msgid "Bucket"
-msgstr "存储桶"
 
 msgid "Bucket in the path: true or false"
 msgstr "存储桶放在路径中：true 或 false"
@@ -13823,9 +14114,6 @@ msgstr "将 {app} 连接到存储"
 
 msgid "Connection"
 msgstr "连接方式"
-
-msgid "Endpoint"
-msgstr "端点"
 
 msgid "Folders, each ending with a slash, such as {app}/"
 msgstr "文件夹，每个以斜杠结尾，例如 {app}/"
@@ -14006,9 +14294,6 @@ msgstr "登录"
 
 msgid "Stop sharing the connection {label}"
 msgstr "停止共享连接 {label}"
-
-msgid "Stored"
-msgstr "已存放"
 
 msgid "TLS from the start"
 msgstr "一开始就用 TLS"
@@ -16298,9 +16583,6 @@ msgstr "正在加载 Compose 项目"
 
 msgid "Managed by Dockwell"
 msgstr "由 Dockwell 管理"
-
-msgid "Needs attention"
-msgstr "需要关注"
 
 msgid "New Compose"
 msgstr "新建 Compose 项目"
@@ -22226,9 +22508,6 @@ msgstr "接收 {rx} · 发送 {tx}"
 msgid "Can't read Docker"
 msgstr "无法读取 Docker"
 
-msgid "Control plane"
-msgstr "控制平面"
-
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
 
@@ -23343,7 +23622,7 @@ msgid "Answers in"
 msgstr "响应时间"
 
 msgid "Apps' backups"
-msgstr "应用的备份"
+msgstr "应用备份"
 
 msgid "Apps' volumes and databases have backups of their own"
 msgstr "应用的卷和数据库有各自的备份"
@@ -27985,3 +28264,6 @@ msgstr "{minutes} 分 {seconds} 秒"
 
 msgid "{seconds} s"
 msgstr "{seconds} 秒"
+
+msgid "App backups"
+msgstr "应用备份"

@@ -85,7 +85,19 @@ func addAPICommands(root *cobra.Command, stdio IO, g *globalFlags, _ []string) e
 		return fmt.Errorf("can't build the API commands, so dockwell can't run them: %w. This is a bug in this build of dockwell; its own commands, such as dockwell run, still work", err)
 	}
 	root.AddGroup(&cobra.Group{ID: apicli.GroupID, Title: "API commands, which call the control plane:"})
-	root.AddCommand(api...)
+	for _, cmd := range api {
+		if cmd.Name() == "control" {
+			// Keep the generated flags and rendering on the backup command.
+			cmd.Use, cmd.GroupID = "backup", ""
+			for _, verb := range cmd.Commands() {
+				verb.Hidden = verb.Name() != "status" && verb.Name() != "now"
+			}
+			control := &cobra.Command{Use: "control", Short: "Manage the control plane", GroupID: apicli.GroupID}
+			control.AddCommand(cmd)
+			cmd = control
+		}
+		root.AddCommand(cmd)
+	}
 	return nil
 }
 

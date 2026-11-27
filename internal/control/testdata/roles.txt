@@ -1,327 +1,334 @@
-# service.method                                effect       min_role   protected  reach    session
-AlertService.AcknowledgeAlert                  apply        admin      admin      install
-AlertService.ListAlertChannels                 read         admin      admin      install
-AlertService.ListAlertChecks                   read         admin      admin      install
-AlertService.ListAlertDeliveries               read         admin      admin      install
-AlertService.ListAlertMutes                    read         admin      admin      install
-AlertService.ListAlertRules                    read         admin      admin      install
-AlertService.ListAlerts                        read         admin      admin      install
-AlertService.MuteAlerts                        apply        admin      admin      install
-AlertService.RunAlertCheck                     apply        admin      admin      install
-AlertService.TestAlertChannel                  apply        admin      admin      install
-AlertService.UnacknowledgeAlert                apply        admin      admin      install
-AlertService.UnmuteAlerts                      apply        admin      admin      install
-AuditService.ListAuditEvents                   read         admin      admin      install  session
-AuthService.BeginAcceptInvite                  read         nothing    nothing    anyone
-AuthService.BeginAddPasskey                    read         viewer     viewer     self
-AuthService.BeginClaim                         read         nothing    nothing    anyone
-AuthService.BeginLinkProvider                  apply        viewer     viewer     self
-AuthService.BeginPasskeySignIn                 read         nothing    nothing    anyone
-AuthService.BeginProviderSignIn                read         nothing    nothing    anyone
-AuthService.BeginStepUp                        read         viewer     viewer     self
-AuthService.BeginTotpSetup                     apply        viewer     viewer     self
-AuthService.CancelTotpSetup                    apply        viewer     viewer     self
-AuthService.CheckClaim                         read         nothing    nothing    anyone
-AuthService.CheckInvite                        read         nothing    nothing    anyone
-AuthService.ConfirmTotpSetup                   apply        viewer     viewer     self
-AuthService.DeleteProviderLink                 destructive  viewer     viewer     self
-AuthService.DisableTotp                        destructive  viewer     viewer     self
-AuthService.FinishAcceptInvite                 apply        nothing    nothing    anyone
-AuthService.FinishAddPasskey                   apply        viewer     viewer     self
-AuthService.FinishClaim                        apply        nothing    nothing    anyone
-AuthService.FinishPasskeySignIn                apply        nothing    nothing    anyone
-AuthService.FinishStepUp                       apply        viewer     viewer     self
-AuthService.GetAuthState                       read         nothing    nothing    anyone
-AuthService.GetStepUpPolicy                    read         viewer     viewer     self
-AuthService.GetTotp                            read         viewer     viewer     self
-AuthService.ListPasskeys                       read         viewer     viewer     self
-AuthService.ListProviderLinks                  read         viewer     viewer     self
-AuthService.ListSessions                       read         viewer     viewer     self
-AuthService.RegenerateRecoveryCodes            destructive  viewer     viewer     self
-AuthService.RemovePasskey                      destructive  viewer     viewer     self
-AuthService.RevokeOtherSessions                destructive  viewer     viewer     self
-AuthService.RevokeSession                      destructive  viewer     viewer     self
-AuthService.SetStepUpPolicy                    apply        viewer     viewer     self
-AuthService.SignInWithCode                     apply        nothing    nothing    anyone
-AuthService.SignInWithLink                     apply        nothing    nothing    anyone
-AuthService.SignOut                            apply        nothing    nothing    self
-AuthService.UnlockCodeSignIn                   apply        viewer     viewer     self
-AuthService.UpdateProfile                      apply        viewer     viewer     self     session
-BackupService.CreateBackup                     apply        developer  admin      project
-BackupService.DeleteBackup                     destructive  developer  admin      project  session
-BackupService.DrillBackup                      apply        developer  admin      project
-BackupService.FetchBackup                      apply        developer  admin      project
-BackupService.GetBackup                        read         viewer     viewer     project
-BackupService.ListBackupDestinations           read         viewer     viewer     named
-BackupService.ListBackupPolicies               read         viewer     viewer     project
-BackupService.ListBackups                      read         viewer     viewer     project
-BackupService.PreviewBackup                    read         viewer     viewer     project
-BackupService.RestoreBackup                    plan         developer  developer  project
-BackupService.TestBackupDestination            apply        admin      admin      install
-BackupService.UseDestinationAsConnection       plan         admin      admin      install
-BuildService.CancelBuild                       apply        developer  admin      project
-BuildService.DetectBuild                       plan         developer  developer  project
-BuildService.GetBuild                          read         viewer     viewer     project
-BuildService.ListBuilds                        read         viewer     viewer     project
-BuildService.ListRepositoryBranches            plan         developer  developer  named
-BuildService.ReadBuildLog                      read         viewer     viewer     project
-BuildService.WatchBuild                        read         viewer     viewer     project
-CatalogService.BackUpCatalogNeed               apply        developer  admin      project
-CatalogService.CheckCatalogSource              apply        admin      admin      install
-CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
-CatalogService.InstallCatalogEntry             plan         admin      admin      install
-CatalogService.KeepCatalogOwnerPassword        apply        developer  admin      project  session
-CatalogService.ListCatalogEntries              read         viewer     viewer     shared
-CatalogService.ListCatalogInstalls             read         viewer     viewer     project
-CatalogService.ListCatalogNeedBackups          read         viewer     viewer     project
-CatalogService.ListCatalogSourceRefs           read         admin      admin      install
-CatalogService.ListCatalogSources              read         viewer     viewer     shared
-CatalogService.ListCatalogStores               read         viewer     viewer     shared
-CatalogService.OpenCatalogInstall              plan         developer  developer  project
-CatalogService.RemoveCatalogSource             plan         admin      admin      install
-CatalogService.ResetCatalogOwnerPassword       apply        developer  admin      project  session
-CatalogService.RestoreCatalogNeed              plan         developer  developer  project
-CatalogService.RetryCatalogOwner               apply        developer  admin      project
-CatalogService.RevealCatalogOwnerPendingPassword read         developer  admin      project  session
-CatalogService.SetCatalogCompanion             plan         developer  developer  project
-CatalogService.SetCatalogNeed                  plan         developer  developer  project
-CatalogService.SetCatalogOwnerEmail            plan         developer  developer  project
-CatalogService.SetCatalogSource                plan         admin      admin      install
-CatalogService.SetUpCatalogInstall             apply        developer  admin      project  session
-CatalogService.SettleCatalogOwner              plan         developer  developer  project
-CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
-ChangeService.AdoptDrift                       plan         developer  developer  project
-ChangeService.ApplyChange                      apply        developer  admin      project
-ChangeService.ConfirmChange                    apply        admin      admin      install  session
-ChangeService.DiscardChange                    plan         developer  developer  project
-ChangeService.GetChange                        read         viewer     viewer     project
-ChangeService.ListChanges                      read         viewer     viewer     project
-ChangeService.ListDrift                        read         viewer     viewer     project
-ChangeService.PlanAgentUpgrade                 plan         admin      admin      install  session
-ChangeService.PlanHostToolbox                  plan         admin      admin      install  session
-ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
-ChangeService.PlanReboot                       plan         admin      admin      install  session
-ChangeService.PlanRemoveServer                 plan         admin      admin      install  session
-ChangeService.PlanServerLabels                 plan         admin      admin      install
-ChangeService.PlanSystemServiceAction          plan         admin      admin      install  session
-ChangeService.ProposeChange                    plan         developer  developer  project
-ChangeService.RestartService                   plan         developer  developer  project
-ChangeService.RevertDrift                      plan         developer  developer  project
-ChangeService.UndoChange                       plan         developer  developer  project
-ChangeService.WatchChange                      read         viewer     viewer     project
-ComposeService.AdoptCompose                    plan         admin      admin      install  session
-ComposeService.CheckCompose                    plan         developer  developer  project
-ComposeService.ExportCompose                   read         viewer     viewer     project
-ComposeService.GetComposeTemplate              read         viewer     viewer     project
-ComposeService.GetComposeWorkspace             read         admin      admin      install
-ComposeService.ImportCompose                   plan         developer  developer  project
-ComposeService.ListComposeTemplates            read         viewer     viewer     project
-ComposeService.PlanComposeWorkspace            plan         admin      admin      install
-ComposeService.PlanFromComposeTemplate         plan         developer  developer  project
-ComposeService.PrepareComposeTemplate          plan         developer  developer  project
-ConnectionService.CheckConnection              read         admin      admin      install  session
-ConnectionService.ConnectStorage               plan         developer  developer  project
-ConnectionService.DisconnectStorage            plan         developer  developer  project
-ConnectionService.ListConnections              read         viewer     viewer     named
-ContainerService.AdoptContainer                plan         admin      admin      install  session
-ContainerService.ListContainers                read         admin      admin      install
-DatabaseService.BeginDatabaseImport            apply        admin      admin      project  session
-DatabaseService.CancelDatabaseImport           destructive  admin      admin      project  session
-DatabaseService.ChangeDatabasePassword         plan         developer  developer  project
-DatabaseService.CheckDatabaseSignIn            read         developer  admin      project
-DatabaseService.ConnectDatabase                plan         developer  developer  project
-DatabaseService.CreateDatabaseUser             plan         developer  developer  project
-DatabaseService.CreateLogicalDatabase          plan         developer  developer  project
-DatabaseService.DeleteLogicalDatabase          plan         developer  developer  project
-DatabaseService.GetDatabase                    read         viewer     viewer     project
-DatabaseService.ListDatabases                  read         viewer     viewer     project
-DatabaseService.PlanDatabaseImport             plan         admin      admin      project  session
-DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project
-DatabaseService.UploadDatabaseImport           apply        admin      admin      project  session
-DockerService.AbortDockerArtifact              apply        admin      admin      install  session
-DockerService.BeginDockerArtifactUpload        apply        admin      admin      install  session
-DockerService.CancelDockerImageBuild           apply        admin      admin      install  session
-DockerService.CheckDockerNetwork               read         admin      admin      install
-DockerService.CheckDockerSettings              read         admin      admin      install
-DockerService.DownloadDockerArtifact           read         admin      admin      install  session
-DockerService.FinishDockerArtifactUpload       apply        admin      admin      install  session
-DockerService.GetDockerArtifact                read         admin      admin      install  session
-DockerService.GetDockerObject                  read         admin      admin      install
-DockerService.GetDockerOverview                read         admin      admin      install
-DockerService.GetDockerSettings                read         admin      admin      install
-DockerService.ListDockerArtifacts              read         admin      admin      install  session
-DockerService.ListDockerObjects                read         admin      admin      install
-DockerService.PlanDockerContainerLogging       plan         admin      admin      install
-DockerService.PlanDockerMaintenance            plan         admin      admin      install
-DockerService.PlanDockerNetworkAttachment      plan         admin      admin      install
-DockerService.PreviewDockerCleanup             read         admin      admin      install
-DockerService.UploadDockerArtifact             apply        admin      admin      install  session
-DockerService.WatchDockerImageBuild            read         admin      admin      install  session
-DockerService.WatchDockerObjects               read         admin      admin      install
-DomainService.CheckDnsProvider                 plan         admin      admin      install  session
-DomainService.CheckDomain                      plan         developer  developer  named
-DomainService.CheckSigninProvider              read         admin      admin      install  session
-DomainService.DownloadCertificate              read         viewer     viewer     project
-DomainService.ListCertificates                 read         viewer     viewer     named
-DomainService.ListDnsProviders                 read         viewer     viewer     named
-DomainService.ListDomains                      read         viewer     viewer     project
-DomainService.ListSigninProviders              read         viewer     viewer     named
-DomainService.RenewCertificate                 apply        developer  admin      project
-DomainService.SetCustomCertificate             plan         admin      admin      project
-DomainService.SyncDnsProvider                  read         admin      admin      install
-EventService.CountEvents                       read         viewer     viewer     project
-EventService.ListEvents                        read         viewer     viewer     project
-EventService.WatchEvents                       read         viewer     viewer     project
-FileService.BeginUpload                        apply        admin      admin      install  session
-FileService.CalculateFolderSize                read         admin      admin      install  session
-FileService.CancelFileDownload                 apply        admin      admin      install  session
-FileService.CancelUpload                       destructive  admin      admin      install  session
-FileService.ChangeFileAccess                   destructive  admin      admin      install  session
-FileService.CompressFiles                      apply        admin      admin      install  session
-FileService.DeleteFile                         destructive  admin      admin      install  session
-FileService.DownloadFile                       read         admin      admin      install  session
-FileService.DownloadFileFromURL                apply        admin      admin      install  session
-FileService.ExtractArchive                     apply        admin      admin      install  session
-FileService.FinishUpload                       apply        admin      admin      install  session
-FileService.GetArchiveJob                      read         admin      admin      install  session
-FileService.ListArchiveJobs                    read         admin      admin      install  session
-FileService.ListDeletedFiles                   read         admin      admin      install  session
-FileService.ListFileAccounts                   read         admin      admin      install  session
-FileService.ListFiles                          read         admin      admin      install  session
-FileService.ListPinnedFolders                  read         admin      admin      install  session
-FileService.MakeFile                           apply        admin      admin      install  session
-FileService.MoveFile                           apply        admin      admin      install  session
-FileService.PinFolder                          apply        admin      admin      install  session
-FileService.PurgeDeletedFile                   destructive  admin      admin      install  session
-FileService.ReadFile                           read         admin      admin      install  session
-FileService.RestoreFile                        apply        admin      admin      install  session
-FileService.SaveFile                           destructive  admin      admin      install  session
-FileService.SearchFiles                        read         admin      admin      install  session
-FileService.UnpinFolder                        apply        admin      admin      install  session
-FileService.UploadFile                         apply        admin      admin      install  session
-FirewallService.BanServerSshAddress            destructive  admin      admin      install  session
-FirewallService.DisconnectServerSshSession     destructive  admin      admin      install  session
-FirewallService.EditServerSshKey               destructive  admin      admin      install  session
-FirewallService.GetServerFail2ban              read         admin      admin      install
-FirewallService.GetServerFirewall              read         admin      admin      install
-FirewallService.GetServerSsh                   read         admin      admin      install
-FirewallService.ListServerSshKeys              read         admin      admin      install  session
-FirewallService.ListServerSshLogins            read         admin      admin      install  session
-FirewallService.ListServerSshSessions          read         admin      admin      install  session
-FirewallService.SetFail2banAddressBan          destructive  admin      admin      install  session
-GitHookService.CreateGitHook                   apply        developer  admin      project  session
-GitHookService.DeleteGitHook                   apply        developer  developer  project
-GitHookService.GetGitHook                      read         viewer     viewer     project
-GitHookService.RotateGitHookSecret             apply        developer  admin      project  session
-GitHookService.SetGitHookRole                  apply        developer  admin      project  session
-GitProviderService.AddGitHubInstallation       apply        admin      admin      install  session
-GitProviderService.FinishGitHubApp             apply        admin      admin      install  session
-GitProviderService.ListGitProviders            read         viewer     viewer     named
-GitProviderService.ListGitRepositories         read         viewer     viewer     project
-GitProviderService.RemoveGitHubApp             destructive  admin      admin      install  session
-GitProviderService.ReplaceGitHubPrivateKey     apply        admin      admin      install  session
-GitProviderService.RotateGitHubWebhookSecret   apply        admin      admin      install  session
-GitProviderService.StartGitHubApp              apply        admin      admin      install  session
-HealthService.ListHealth                       read         viewer     viewer     project
-ImageService.CheckRegistryLogin                read         admin      admin      install  session
-ImageService.GetImage                          read         developer  developer  project
-ImageService.ListImageTags                     read         developer  developer  project
-ImageService.ListRegistryLogins                read         viewer     viewer     named
-ImageService.ListRegistryRepositories          read         admin      admin      install  session
-ImageService.SearchImages                      read         developer  developer  project
-ImportService.CheckPanelDomains                read         admin      admin      install  session
-ImportService.ImportCoolify                    plan         admin      admin      install
-ImportService.ImportDokploy                    plan         admin      admin      install
-ImportService.ImportOnePanel                   plan         admin      admin      install
-ImportService.PlanPanelDomains                 plan         admin      admin      install  session
-ImportService.PlanStartPanel                   plan         admin      admin      install  session
-ImportService.PlanStopPanel                    plan         admin      admin      install  session
-LogService.ListLogSources                      read         viewer     viewer     project
-LogService.ReadLogs                            read         viewer     viewer     project
-LogService.WatchLogs                           read         viewer     viewer     project
-MemberService.ConfirmProtections               apply        admin      admin      install  session
-MemberService.CreateInvite                     apply        admin      admin      install  session
-MemberService.ListMembers                      read         admin      admin      install  session
-MemberService.PlanMemberRemoval                read         admin      admin      install  session
-MemberService.RemoveMember                     destructive  admin      admin      install  session
-MemberService.RevokeInvite                     apply        admin      admin      install  session
-MemberService.SetMemberRole                    apply        admin      admin      install  session
-MemberService.TransferOwnership                apply        owner      owner      install  session
-ProcessService.EndProcess                      destructive  admin      admin      install  session
-ProcessService.GetProcess                      read         admin      admin      install  session
-ProcessService.ListSockets                     read         admin      admin      install  session
-ProcessService.WatchProcesses                  read         admin      admin      install  session
-ResourceService.ListResources                  read         viewer     viewer     project
-ServerService.CheckServerPorts                 read         admin      admin      install
-ServerService.CreateJoinTicket                 apply        admin      admin      install  session
-ServerService.GetContainerHistory              read         admin      admin      install
-ServerService.GetHostToolbox                   read         admin      admin      install  session
-ServerService.GetJoinTicket                    read         admin      admin      install
-ServerService.GetServer                        read         viewer     viewer     named
-ServerService.GetServerDiskUse                 read         admin      admin      install
-ServerService.GetServerHistory                 read         admin      admin      install
-ServerService.ListJoinTickets                  read         admin      admin      install
-ServerService.ListServers                      read         viewer     viewer     named
-ServerService.ReadSystemLog                    read         admin      admin      install  session
-ServerService.RevokeJoinTicket                 apply        admin      admin      install
-ServerService.SetServerPublicAddress           apply        admin      admin      install
-ServerService.WatchServers                     read         viewer     viewer     named
-ServerService.WatchSystemLog                   read         admin      admin      install  session
-ServerService.WatchSystemServices              read         admin      admin      install  session
-ServiceService.AddServicePort                  plan         developer  developer  project
-ServiceService.ChangeServiceRuntime            plan         developer  developer  project
-ServiceService.CheckServicePorts               read         developer  developer  project
-ServiceService.DeployService                   plan         developer  developer  project
-ServiceService.ListServiceRevisions            read         viewer     viewer     project
-ServiceService.ListServices                    read         viewer     viewer     project
-ServiceService.MoveService                     plan         developer  developer  project
-ServiceService.OpenService                     read         developer  admin      project  session
-ServiceService.RollBackService                 plan         developer  developer  project
-ServiceService.UpgradeService                  plan         developer  developer  project
-ServiceUpdateService.CheckServiceUpdates       read         developer  developer  project
-ServiceUpdateService.ListServiceUpdates        read         viewer     viewer     project
-ServiceUpdateService.SkipServiceUpdate         apply        developer  developer  project
-ServiceUpdateService.SnoozeServiceUpdates      apply        developer  developer  project
-SettingsService.CheckPanelDomain               read         admin      admin      install
-SettingsService.CheckPanelReach                read         admin      admin      install
-SettingsService.CreatePanelSignInLink          apply        admin      admin      install  session
-SettingsService.GetControlPlane                read         admin      admin      install
-SettingsService.GetSettings                    read         viewer     viewer     shared
-SettingsService.SetAutoUpdateDefault           apply        admin      admin      install
-SettingsService.SetInstallName                 apply        admin      admin      install  session
-SettingsService.SetPanelDomain                 apply        admin      admin      install  session
-SettingsService.SetStepUpFloor                 apply        admin      admin      install  session
-SettingsService.SetTimeZone                    apply        admin      admin      install
-SystemService.GetVersion                       read         nothing    nothing    anyone
-TaskService.GetTask                            read         viewer     viewer     project
-TaskService.ListTaskRuns                       read         viewer     viewer     project
-TaskService.ListTasks                          read         viewer     viewer     project
-TaskService.RunTask                            apply        admin      admin      project
-TerminalService.AttachTerminal                 read         admin      admin      install  session
-TerminalService.CloseTerminal                  destructive  admin      admin      install  session
-TerminalService.DeleteSavedCommand             destructive  admin      admin      install  session
-TerminalService.GetTerminalPreferences         read         admin      admin      install  session
-TerminalService.GetTerminalWorkingDirectory    read         admin      admin      install  session
-TerminalService.ImportSavedCommands            apply        admin      admin      install  session
-TerminalService.ListSavedCommands              read         admin      admin      install  session
-TerminalService.ListTerminals                  read         admin      admin      install  session
-TerminalService.OpenTerminal                   destructive  admin      admin      install  session
-TerminalService.SaveCommand                    apply        admin      admin      install  session
-TerminalService.UpdateTerminalPreferences      apply        admin      admin      install  session
-TerminalService.WriteTerminal                  destructive  admin      admin      install  session
-TokenService.CreateToken                       apply        viewer     viewer     self
-TokenService.ListTokens                        read         viewer     viewer     self
-TokenService.RevokeToken                       destructive  viewer     viewer     self
-UpdateService.CheckServerUpdates               read         admin      admin      install  session
-UpdateService.GetServerUpdates                 read         admin      admin      install
-VariableService.ListVariables                  read         viewer     viewer     project
-VariableService.RevealSecret                   read         developer  admin      project  session
-VariableService.RevealServiceValue             read         developer  admin      project  session
-VolumeService.GetVolume                        read         viewer     viewer     project
-WebsiteService.BatchUpdateWebsites             plan         admin      admin      project
-WebsiteService.CreateWebsite                   plan         admin      admin      install
-WebsiteService.DeleteWebsite                   plan         admin      admin      project
-WebsiteService.ListWebsiteRuntimes             read         viewer     viewer     shared
-WebsiteService.ListWebsites                    read         viewer     viewer     project
-WebsiteService.PreviewWebsite                  read         viewer     viewer     shared
-WebsiteService.UpdateWebsite                   plan         admin      admin      project
+# service.method                                     effect       min_role   protected  reach    session
+AlertService.AcknowledgeAlert                        apply        admin      admin      install
+AlertService.ListAlertChannels                       read         admin      admin      install
+AlertService.ListAlertChecks                         read         admin      admin      install
+AlertService.ListAlertDeliveries                     read         admin      admin      install
+AlertService.ListAlertMutes                          read         admin      admin      install
+AlertService.ListAlertRules                          read         admin      admin      install
+AlertService.ListAlerts                              read         admin      admin      install
+AlertService.MuteAlerts                              apply        admin      admin      install
+AlertService.RunAlertCheck                           apply        admin      admin      install
+AlertService.TestAlertChannel                        apply        admin      admin      install
+AlertService.UnacknowledgeAlert                      apply        admin      admin      install
+AlertService.UnmuteAlerts                            apply        admin      admin      install
+AuditService.ListAuditEvents                         read         admin      admin      install  session
+AuthService.BeginAcceptInvite                        read         nothing    nothing    anyone
+AuthService.BeginAddPasskey                          read         viewer     viewer     self
+AuthService.BeginClaim                               read         nothing    nothing    anyone
+AuthService.BeginLinkProvider                        apply        viewer     viewer     self
+AuthService.BeginPasskeySignIn                       read         nothing    nothing    anyone
+AuthService.BeginProviderSignIn                      read         nothing    nothing    anyone
+AuthService.BeginStepUp                              read         viewer     viewer     self
+AuthService.BeginTotpSetup                           apply        viewer     viewer     self
+AuthService.CancelTotpSetup                          apply        viewer     viewer     self
+AuthService.CheckClaim                               read         nothing    nothing    anyone
+AuthService.CheckInvite                              read         nothing    nothing    anyone
+AuthService.ConfirmTotpSetup                         apply        viewer     viewer     self
+AuthService.DeleteProviderLink                       destructive  viewer     viewer     self
+AuthService.DisableTotp                              destructive  viewer     viewer     self
+AuthService.FinishAcceptInvite                       apply        nothing    nothing    anyone
+AuthService.FinishAddPasskey                         apply        viewer     viewer     self
+AuthService.FinishClaim                              apply        nothing    nothing    anyone
+AuthService.FinishPasskeySignIn                      apply        nothing    nothing    anyone
+AuthService.FinishStepUp                             apply        viewer     viewer     self
+AuthService.GetAuthState                             read         nothing    nothing    anyone
+AuthService.GetStepUpPolicy                          read         viewer     viewer     self
+AuthService.GetTotp                                  read         viewer     viewer     self
+AuthService.ListPasskeys                             read         viewer     viewer     self
+AuthService.ListProviderLinks                        read         viewer     viewer     self
+AuthService.ListSessions                             read         viewer     viewer     self
+AuthService.RegenerateRecoveryCodes                  destructive  viewer     viewer     self
+AuthService.RemovePasskey                            destructive  viewer     viewer     self
+AuthService.RevokeOtherSessions                      destructive  viewer     viewer     self
+AuthService.RevokeSession                            destructive  viewer     viewer     self
+AuthService.SetStepUpPolicy                          apply        viewer     viewer     self
+AuthService.SignInWithCode                           apply        nothing    nothing    anyone
+AuthService.SignInWithLink                           apply        nothing    nothing    anyone
+AuthService.SignOut                                  apply        nothing    nothing    self
+AuthService.UnlockCodeSignIn                         apply        viewer     viewer     self
+AuthService.UpdateProfile                            apply        viewer     viewer     self     session
+BackupService.CreateBackup                           apply        developer  admin      project
+BackupService.DeleteBackup                           destructive  developer  admin      project  session
+BackupService.DrillBackup                            apply        developer  admin      project
+BackupService.FetchBackup                            apply        developer  admin      project
+BackupService.GetBackup                              read         viewer     viewer     project
+BackupService.ListBackupDestinations                 read         viewer     viewer     named
+BackupService.ListBackupPolicies                     read         viewer     viewer     project
+BackupService.ListBackups                            read         viewer     viewer     project
+BackupService.PreviewBackup                          read         viewer     viewer     project
+BackupService.RestoreBackup                          plan         developer  developer  project
+BackupService.TestBackupDestination                  apply        admin      admin      install
+BackupService.UseDestinationAsConnection             plan         admin      admin      install
+BuildService.CancelBuild                             apply        developer  admin      project
+BuildService.DetectBuild                             plan         developer  developer  project
+BuildService.GetBuild                                read         viewer     viewer     project
+BuildService.ListBuilds                              read         viewer     viewer     project
+BuildService.ListRepositoryBranches                  plan         developer  developer  named
+BuildService.ReadBuildLog                            read         viewer     viewer     project
+BuildService.WatchBuild                              read         viewer     viewer     project
+CatalogService.BackUpCatalogNeed                     apply        developer  admin      project
+CatalogService.CheckCatalogSource                    apply        admin      admin      install
+CatalogService.GetCatalogEntry                       read         viewer     viewer     shared
+CatalogService.InstallCatalogEntry                   plan         admin      admin      install
+CatalogService.KeepCatalogOwnerPassword              apply        developer  admin      project  session
+CatalogService.ListCatalogEntries                    read         viewer     viewer     shared
+CatalogService.ListCatalogInstalls                   read         viewer     viewer     project
+CatalogService.ListCatalogNeedBackups                read         viewer     viewer     project
+CatalogService.ListCatalogSourceRefs                 read         admin      admin      install
+CatalogService.ListCatalogSources                    read         viewer     viewer     shared
+CatalogService.ListCatalogStores                     read         viewer     viewer     shared
+CatalogService.OpenCatalogInstall                    plan         developer  developer  project
+CatalogService.RemoveCatalogSource                   plan         admin      admin      install
+CatalogService.ResetCatalogOwnerPassword             apply        developer  admin      project  session
+CatalogService.RestoreCatalogNeed                    plan         developer  developer  project
+CatalogService.RetryCatalogOwner                     apply        developer  admin      project
+CatalogService.RevealCatalogOwnerPendingPassword     read         developer  admin      project  session
+CatalogService.SetCatalogCompanion                   plan         developer  developer  project
+CatalogService.SetCatalogNeed                        plan         developer  developer  project
+CatalogService.SetCatalogOwnerEmail                  plan         developer  developer  project
+CatalogService.SetCatalogSource                      plan         admin      admin      install
+CatalogService.SetUpCatalogInstall                   apply        developer  admin      project  session
+CatalogService.SettleCatalogOwner                    plan         developer  developer  project
+CatalogService.UpgradeCatalogInstall                 plan         developer  developer  project
+ChangeService.AdoptDrift                             plan         developer  developer  project
+ChangeService.ApplyChange                            apply        developer  admin      project
+ChangeService.ConfirmChange                          apply        admin      admin      install  session
+ChangeService.DiscardChange                          plan         developer  developer  project
+ChangeService.GetChange                              read         viewer     viewer     project
+ChangeService.ListChanges                            read         viewer     viewer     project
+ChangeService.ListDrift                              read         viewer     viewer     project
+ChangeService.PlanAgentUpgrade                       plan         admin      admin      install  session
+ChangeService.PlanHostToolbox                        plan         admin      admin      install  session
+ChangeService.PlanInstallUpdates                     plan         admin      admin      install  session
+ChangeService.PlanReboot                             plan         admin      admin      install  session
+ChangeService.PlanRemoveServer                       plan         admin      admin      install  session
+ChangeService.PlanServerLabels                       plan         admin      admin      install
+ChangeService.PlanSystemServiceAction                plan         admin      admin      install  session
+ChangeService.ProposeChange                          plan         developer  developer  project
+ChangeService.RestartService                         plan         developer  developer  project
+ChangeService.RevertDrift                            plan         developer  developer  project
+ChangeService.UndoChange                             plan         developer  developer  project
+ChangeService.WatchChange                            read         viewer     viewer     project
+ComposeService.AdoptCompose                          plan         admin      admin      install  session
+ComposeService.CheckCompose                          plan         developer  developer  project
+ComposeService.ExportCompose                         read         viewer     viewer     project
+ComposeService.GetComposeTemplate                    read         viewer     viewer     project
+ComposeService.GetComposeWorkspace                   read         admin      admin      install
+ComposeService.ImportCompose                         plan         developer  developer  project
+ComposeService.ListComposeTemplates                  read         viewer     viewer     project
+ComposeService.PlanComposeWorkspace                  plan         admin      admin      install
+ComposeService.PlanFromComposeTemplate               plan         developer  developer  project
+ComposeService.PrepareComposeTemplate                plan         developer  developer  project
+ConnectionService.CheckConnection                    read         admin      admin      install  session
+ConnectionService.ConnectStorage                     plan         developer  developer  project
+ConnectionService.DisconnectStorage                  plan         developer  developer  project
+ConnectionService.ListConnections                    read         viewer     viewer     named
+ContainerService.AdoptContainer                      plan         admin      admin      install  session
+ContainerService.ListContainers                      read         admin      admin      install
+ControlBackupService.ConfirmControlBackupPassphrase  apply        owner      owner      install  session
+ControlBackupService.GetControlBackup                read         admin      admin      install
+ControlBackupService.SetControlBackupDestination     apply        owner      owner      install  session
+ControlBackupService.SetControlBackupPassphrase      apply        owner      owner      install  session
+ControlBackupService.SetControlBackupServers         apply        owner      owner      install  session
+ControlBackupService.ShowControlBackupPassphrase     read         owner      owner      install  session
+ControlBackupService.TakeControlBackup               apply        admin      admin      install
+DatabaseService.BeginDatabaseImport                  apply        admin      admin      project  session
+DatabaseService.CancelDatabaseImport                 destructive  admin      admin      project  session
+DatabaseService.ChangeDatabasePassword               plan         developer  developer  project
+DatabaseService.CheckDatabaseSignIn                  read         developer  admin      project
+DatabaseService.ConnectDatabase                      plan         developer  developer  project
+DatabaseService.CreateDatabaseUser                   plan         developer  developer  project
+DatabaseService.CreateLogicalDatabase                plan         developer  developer  project
+DatabaseService.DeleteLogicalDatabase                plan         developer  developer  project
+DatabaseService.GetDatabase                          read         viewer     viewer     project
+DatabaseService.ListDatabases                        read         viewer     viewer     project
+DatabaseService.PlanDatabaseImport                   plan         admin      admin      project  session
+DatabaseService.SetDatabaseExternalAccess            plan         admin      admin      project
+DatabaseService.UploadDatabaseImport                 apply        admin      admin      project  session
+DockerService.AbortDockerArtifact                    apply        admin      admin      install  session
+DockerService.BeginDockerArtifactUpload              apply        admin      admin      install  session
+DockerService.CancelDockerImageBuild                 apply        admin      admin      install  session
+DockerService.CheckDockerNetwork                     read         admin      admin      install
+DockerService.CheckDockerSettings                    read         admin      admin      install
+DockerService.DownloadDockerArtifact                 read         admin      admin      install  session
+DockerService.FinishDockerArtifactUpload             apply        admin      admin      install  session
+DockerService.GetDockerArtifact                      read         admin      admin      install  session
+DockerService.GetDockerObject                        read         admin      admin      install
+DockerService.GetDockerOverview                      read         admin      admin      install
+DockerService.GetDockerSettings                      read         admin      admin      install
+DockerService.ListDockerArtifacts                    read         admin      admin      install  session
+DockerService.ListDockerObjects                      read         admin      admin      install
+DockerService.PlanDockerContainerLogging             plan         admin      admin      install
+DockerService.PlanDockerMaintenance                  plan         admin      admin      install
+DockerService.PlanDockerNetworkAttachment            plan         admin      admin      install
+DockerService.PreviewDockerCleanup                   read         admin      admin      install
+DockerService.UploadDockerArtifact                   apply        admin      admin      install  session
+DockerService.WatchDockerImageBuild                  read         admin      admin      install  session
+DockerService.WatchDockerObjects                     read         admin      admin      install
+DomainService.CheckDnsProvider                       plan         admin      admin      install  session
+DomainService.CheckDomain                            plan         developer  developer  named
+DomainService.CheckSigninProvider                    read         admin      admin      install  session
+DomainService.DownloadCertificate                    read         viewer     viewer     project
+DomainService.ListCertificates                       read         viewer     viewer     named
+DomainService.ListDnsProviders                       read         viewer     viewer     named
+DomainService.ListDomains                            read         viewer     viewer     project
+DomainService.ListSigninProviders                    read         viewer     viewer     named
+DomainService.RenewCertificate                       apply        developer  admin      project
+DomainService.SetCustomCertificate                   plan         admin      admin      project
+DomainService.SyncDnsProvider                        read         admin      admin      install
+EventService.CountEvents                             read         viewer     viewer     project
+EventService.ListEvents                              read         viewer     viewer     project
+EventService.WatchEvents                             read         viewer     viewer     project
+FileService.BeginUpload                              apply        admin      admin      install  session
+FileService.CalculateFolderSize                      read         admin      admin      install  session
+FileService.CancelFileDownload                       apply        admin      admin      install  session
+FileService.CancelUpload                             destructive  admin      admin      install  session
+FileService.ChangeFileAccess                         destructive  admin      admin      install  session
+FileService.CompressFiles                            apply        admin      admin      install  session
+FileService.DeleteFile                               destructive  admin      admin      install  session
+FileService.DownloadFile                             read         admin      admin      install  session
+FileService.DownloadFileFromURL                      apply        admin      admin      install  session
+FileService.ExtractArchive                           apply        admin      admin      install  session
+FileService.FinishUpload                             apply        admin      admin      install  session
+FileService.GetArchiveJob                            read         admin      admin      install  session
+FileService.ListArchiveJobs                          read         admin      admin      install  session
+FileService.ListDeletedFiles                         read         admin      admin      install  session
+FileService.ListFileAccounts                         read         admin      admin      install  session
+FileService.ListFiles                                read         admin      admin      install  session
+FileService.ListPinnedFolders                        read         admin      admin      install  session
+FileService.MakeFile                                 apply        admin      admin      install  session
+FileService.MoveFile                                 apply        admin      admin      install  session
+FileService.PinFolder                                apply        admin      admin      install  session
+FileService.PurgeDeletedFile                         destructive  admin      admin      install  session
+FileService.ReadFile                                 read         admin      admin      install  session
+FileService.RestoreFile                              apply        admin      admin      install  session
+FileService.SaveFile                                 destructive  admin      admin      install  session
+FileService.SearchFiles                              read         admin      admin      install  session
+FileService.UnpinFolder                              apply        admin      admin      install  session
+FileService.UploadFile                               apply        admin      admin      install  session
+FirewallService.BanServerSshAddress                  destructive  admin      admin      install  session
+FirewallService.DisconnectServerSshSession           destructive  admin      admin      install  session
+FirewallService.EditServerSshKey                     destructive  admin      admin      install  session
+FirewallService.GetServerFail2ban                    read         admin      admin      install
+FirewallService.GetServerFirewall                    read         admin      admin      install
+FirewallService.GetServerSsh                         read         admin      admin      install
+FirewallService.ListServerSshKeys                    read         admin      admin      install  session
+FirewallService.ListServerSshLogins                  read         admin      admin      install  session
+FirewallService.ListServerSshSessions                read         admin      admin      install  session
+FirewallService.SetFail2banAddressBan                destructive  admin      admin      install  session
+GitHookService.CreateGitHook                         apply        developer  admin      project  session
+GitHookService.DeleteGitHook                         apply        developer  developer  project
+GitHookService.GetGitHook                            read         viewer     viewer     project
+GitHookService.RotateGitHookSecret                   apply        developer  admin      project  session
+GitHookService.SetGitHookRole                        apply        developer  admin      project  session
+GitProviderService.AddGitHubInstallation             apply        admin      admin      install  session
+GitProviderService.FinishGitHubApp                   apply        admin      admin      install  session
+GitProviderService.ListGitProviders                  read         viewer     viewer     named
+GitProviderService.ListGitRepositories               read         viewer     viewer     project
+GitProviderService.RemoveGitHubApp                   destructive  admin      admin      install  session
+GitProviderService.ReplaceGitHubPrivateKey           apply        admin      admin      install  session
+GitProviderService.RotateGitHubWebhookSecret         apply        admin      admin      install  session
+GitProviderService.StartGitHubApp                    apply        admin      admin      install  session
+HealthService.ListHealth                             read         viewer     viewer     project
+ImageService.CheckRegistryLogin                      read         admin      admin      install  session
+ImageService.GetImage                                read         developer  developer  project
+ImageService.ListImageTags                           read         developer  developer  project
+ImageService.ListRegistryLogins                      read         viewer     viewer     named
+ImageService.ListRegistryRepositories                read         admin      admin      install  session
+ImageService.SearchImages                            read         developer  developer  project
+ImportService.CheckPanelDomains                      read         admin      admin      install  session
+ImportService.ImportCoolify                          plan         admin      admin      install
+ImportService.ImportDokploy                          plan         admin      admin      install
+ImportService.ImportOnePanel                         plan         admin      admin      install
+ImportService.PlanPanelDomains                       plan         admin      admin      install  session
+ImportService.PlanStartPanel                         plan         admin      admin      install  session
+ImportService.PlanStopPanel                          plan         admin      admin      install  session
+LogService.ListLogSources                            read         viewer     viewer     project
+LogService.ReadLogs                                  read         viewer     viewer     project
+LogService.WatchLogs                                 read         viewer     viewer     project
+MemberService.ConfirmProtections                     apply        admin      admin      install  session
+MemberService.CreateInvite                           apply        admin      admin      install  session
+MemberService.ListMembers                            read         admin      admin      install  session
+MemberService.PlanMemberRemoval                      read         admin      admin      install  session
+MemberService.RemoveMember                           destructive  admin      admin      install  session
+MemberService.RevokeInvite                           apply        admin      admin      install  session
+MemberService.SetMemberRole                          apply        admin      admin      install  session
+MemberService.TransferOwnership                      apply        owner      owner      install  session
+ProcessService.EndProcess                            destructive  admin      admin      install  session
+ProcessService.GetProcess                            read         admin      admin      install  session
+ProcessService.ListSockets                           read         admin      admin      install  session
+ProcessService.WatchProcesses                        read         admin      admin      install  session
+ResourceService.ListResources                        read         viewer     viewer     project
+ServerService.CheckServerPorts                       read         admin      admin      install
+ServerService.CreateJoinTicket                       apply        admin      admin      install  session
+ServerService.GetContainerHistory                    read         admin      admin      install
+ServerService.GetHostToolbox                         read         admin      admin      install  session
+ServerService.GetJoinTicket                          read         admin      admin      install
+ServerService.GetServer                              read         viewer     viewer     named
+ServerService.GetServerDiskUse                       read         admin      admin      install
+ServerService.GetServerHistory                       read         admin      admin      install
+ServerService.ListJoinTickets                        read         admin      admin      install
+ServerService.ListServers                            read         viewer     viewer     named
+ServerService.ReadSystemLog                          read         admin      admin      install  session
+ServerService.RevokeJoinTicket                       apply        admin      admin      install
+ServerService.SetServerPublicAddress                 apply        admin      admin      install
+ServerService.WatchServers                           read         viewer     viewer     named
+ServerService.WatchSystemLog                         read         admin      admin      install  session
+ServerService.WatchSystemServices                    read         admin      admin      install  session
+ServiceService.AddServicePort                        plan         developer  developer  project
+ServiceService.ChangeServiceRuntime                  plan         developer  developer  project
+ServiceService.CheckServicePorts                     read         developer  developer  project
+ServiceService.DeployService                         plan         developer  developer  project
+ServiceService.ListServiceRevisions                  read         viewer     viewer     project
+ServiceService.ListServices                          read         viewer     viewer     project
+ServiceService.MoveService                           plan         developer  developer  project
+ServiceService.OpenService                           read         developer  admin      project  session
+ServiceService.RollBackService                       plan         developer  developer  project
+ServiceService.UpgradeService                        plan         developer  developer  project
+ServiceUpdateService.CheckServiceUpdates             read         developer  developer  project
+ServiceUpdateService.ListServiceUpdates              read         viewer     viewer     project
+ServiceUpdateService.SkipServiceUpdate               apply        developer  developer  project
+ServiceUpdateService.SnoozeServiceUpdates            apply        developer  developer  project
+SettingsService.CheckPanelDomain                     read         admin      admin      install
+SettingsService.CheckPanelReach                      read         admin      admin      install
+SettingsService.CreatePanelSignInLink                apply        admin      admin      install  session
+SettingsService.GetControlPlane                      read         admin      admin      install
+SettingsService.GetSettings                          read         viewer     viewer     shared
+SettingsService.SetAutoUpdateDefault                 apply        admin      admin      install
+SettingsService.SetInstallName                       apply        admin      admin      install  session
+SettingsService.SetPanelDomain                       apply        admin      admin      install  session
+SettingsService.SetStepUpFloor                       apply        admin      admin      install  session
+SettingsService.SetTimeZone                          apply        admin      admin      install
+SystemService.GetVersion                             read         nothing    nothing    anyone
+TaskService.GetTask                                  read         viewer     viewer     project
+TaskService.ListTaskRuns                             read         viewer     viewer     project
+TaskService.ListTasks                                read         viewer     viewer     project
+TaskService.RunTask                                  apply        admin      admin      project
+TerminalService.AttachTerminal                       read         admin      admin      install  session
+TerminalService.CloseTerminal                        destructive  admin      admin      install  session
+TerminalService.DeleteSavedCommand                   destructive  admin      admin      install  session
+TerminalService.GetTerminalPreferences               read         admin      admin      install  session
+TerminalService.GetTerminalWorkingDirectory          read         admin      admin      install  session
+TerminalService.ImportSavedCommands                  apply        admin      admin      install  session
+TerminalService.ListSavedCommands                    read         admin      admin      install  session
+TerminalService.ListTerminals                        read         admin      admin      install  session
+TerminalService.OpenTerminal                         destructive  admin      admin      install  session
+TerminalService.SaveCommand                          apply        admin      admin      install  session
+TerminalService.UpdateTerminalPreferences            apply        admin      admin      install  session
+TerminalService.WriteTerminal                        destructive  admin      admin      install  session
+TokenService.CreateToken                             apply        viewer     viewer     self
+TokenService.ListTokens                              read         viewer     viewer     self
+TokenService.RevokeToken                             destructive  viewer     viewer     self
+UpdateService.CheckServerUpdates                     read         admin      admin      install  session
+UpdateService.GetServerUpdates                       read         admin      admin      install
+VariableService.ListVariables                        read         viewer     viewer     project
+VariableService.RevealSecret                         read         developer  admin      project  session
+VariableService.RevealServiceValue                   read         developer  admin      project  session
+VolumeService.GetVolume                              read         viewer     viewer     project
+WebsiteService.BatchUpdateWebsites                   plan         admin      admin      project
+WebsiteService.CreateWebsite                         plan         admin      admin      install
+WebsiteService.DeleteWebsite                         plan         admin      admin      project
+WebsiteService.ListWebsiteRuntimes                   read         viewer     viewer     shared
+WebsiteService.ListWebsites                          read         viewer     viewer     project
+WebsiteService.PreviewWebsite                        read         viewer     viewer     shared
+WebsiteService.UpdateWebsite                         plan         admin      admin      project

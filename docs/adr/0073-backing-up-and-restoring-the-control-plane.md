@@ -1,6 +1,6 @@
 # 0073. Backing up the control plane, and restoring it
 
-- Status: Proposed
+- Status: Accepted, slice 1 built
 - Date: 2026-11-08
 
 ## Context
@@ -40,7 +40,7 @@ What there is to build on:
 - **Off-site, to one destination,** an existing `backup.destination` the owner picks. Choosing it, changing it or removing it takes the owner and a passkey just now, as an admin may otherwise edit destinations (ADR 0048 and ADR 0049, in review), and a destination repointed elsewhere would still show a fresh copy. The panel recommends a bucket with object lock or versioning, and a key that can't delete, as a control plane that's taken over holds the key.
 - **Named by generation.** Bundles go under `dockwell-control/<install ID>/<generation>/` in the bucket and on agents, and retention touches only its own generation's. So an old control server that comes back can't delete a restored one's bundles, and "the newest off-site" is the newest of the highest generation.
 - **The off-site copy is the one to trust.** An agent can't open what it keeps, but one that's taken over can delete it, keep an older one, or not send one back. So the overview and Settings → Backups show how old the newest off-site bundle is, first and largest, to admins, with the agents' copies under it, and an install with no destination is a warning there until it has one.
-- **Retention:** each place keeps the newest 24, and one a day for the 7 days before, and drops older ones after a newer one is whole there. A run of failures drops nothing. A destination whose key can't delete needs bucket lifecycle rules for expiry; locked copies remain until their lock expires, and the panel reports them.
+- **Retention:** each place keeps the newest 24, and one a day for the 7 days before, and drops older ones after a newer one is whole there. A run of failures drops nothing. For a destination whose key cannot delete, scope lifecycle expiration to `dockwell-control/<install>/<generation>/` under the configured destination prefix. `current.json` is outside that generation directory and must remain available. Locked copies remain until their lock expires, and the panel reports locked copies that still open with a previous passphrase.
 
 ### How often
 
@@ -127,3 +127,14 @@ The agent protocol's fields for this are in 190 to 199: the welcome's generation
 - After a restore, what a server alone ran comes back on its own, and anything that reaches further, or is in a protected environment, waits for a person, so a restore can leave a list to look at.
 - It needs ADR 0033's restore to another server, the audit log's retention, and a way to rotate the CA and the install's key, which that follow-up to #34 lists.
 - It comes in four slices: bundles, taken and kept on agents and off-site by generation, with Settings → Backups and the recovery sheet; restoring, with the generation, fencing, certificates taken once, what's back confirmed, repointing, and `--replace`, proved in the Docker job; reconciling with agents' records, tombstones and conflicts included; and rebuilding from agents' records.
+
+
+## Slice 1 implementation decisions
+
+- Migration 0058 records the generation number and random ID, and advances a position in the transaction that changes managed state. Session last-seen and token last-use writes leave the position alone.
+- The destination remains an existing backup destination. The owner approves its identity, storage coordinates and access key ID. A new access key ID or a change to the coordinates requires selecting it again with a passkey. A new secret for the approved key ID works in place. Delivery history stays visible for each earlier destination until the owner dismisses it with a passkey.
+- The scheduler keeps the same two connected servers while they have room. Owners can prefer or exclude servers. Empty preferences choose by available room.
+- The initial marker is `dockwell-control/<install ID>/current.json` under the destination prefix. Its random nonce is pinned in the store before the first upload. An upload refreshes a marker older than a day using its ETag where the store supports conditional writes. When a pinned marker disappears or changes, the owner must select the destination again. A later slice can publish a new marker at that same path using its ETag.
+- Requests to take a backup and passphrase rotation use the same minimum interval as automatic runs. A rotation queues the first available run, and each place retires previous passphrase copies after its new copy completes. For versioned storage, this includes noncurrent object versions. A refusal to delete an old version remains visible with its lock expiry when storage provides one. While an install has no place to send an automatic backup, it leaves the run pending.
+- `dockwell open-backup` opens and verifies a control plane bundle offline in the full build. The recovery sheet includes the paths and commands available in this slice.
+- The migration-time copy in ADR 0099 stays in place. Existing installations reach that upgrade before they have recovery passphrase and destination settings available for a sealed bundle.

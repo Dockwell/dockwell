@@ -42,7 +42,16 @@ func (r *Runner) disk() (disk, error) {
 	if r.Disk != nil {
 		return r.Disk(), nil
 	}
-	at := r.Root
+	return diskAt(r.Root)
+}
+
+// AvailableRoom leaves the same free space as an application backup.
+func AvailableRoom(path string) (int64, error) {
+	d, err := diskAt(path)
+	return max(0, d.free-d.reserve), err
+}
+
+func diskAt(at string) (disk, error) {
 	if err := os.MkdirAll(at, 0o700); err != nil {
 		return disk{}, fmt.Errorf("can't make a place for backups: %w", err)
 	}

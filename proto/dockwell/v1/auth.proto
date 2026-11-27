@@ -1019,6 +1019,10 @@ message Passkey {
 // StepUpAction is an action that needs a fresh passkey assertion.
 enum StepUpAction {
   STEP_UP_ACTION_UNSPECIFIED = 0;
+  // ADR 0073. Destination changes bind the proof to the destination name.
+  STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION = 190;
+  STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE = 191;
+  STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE = 192;
   // Revealing a secret's value, with RevealSecret. The target is the
   // secret's ID.
   STEP_UP_ACTION_REVEAL_SECRET = 1;

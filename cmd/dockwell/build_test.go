@@ -54,6 +54,7 @@ var agentPackages = []string{
 	"internal/resource/host",    // a server's host, which installs its updates in a unit of its own (ADR 0064)
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)
 	"internal/backup/s3",        // sending them to S3-compatible storage, with no SDK
+	"internal/backup/keep",      // retaining sealed control plane copies
 	"internal/backup/seal",      // sealing them before they leave
 	"internal/build",            // building services' images from Git on this server (ADR 0046)
 	"internal/buildinfo",
@@ -119,6 +120,7 @@ var agentModules = []string{
 // of its own, so its heaviest packages that only the control plane uses are
 // named here.
 var controlOnly = map[string]string{
+	"golang.org/x/crypto/argon2":                       "the offline control backup passphrase derivation",
 	"github.com/dockwell/dockwell/internal/control":    "the control plane",
 	"github.com/dockwell/dockwell/internal/store":      "the control plane's state, on SQLite or Postgres",
 	"github.com/dockwell/dockwell/internal/auth":       "sign-in and passkeys",

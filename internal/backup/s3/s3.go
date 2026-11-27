@@ -256,6 +256,10 @@ func SignV4(req *http.Request, payload, accessKey, secretKey, region, service st
 // do sends a signed request to an object, and returns the answer of one that went
 // well. The caller closes its body.
 func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body io.Reader, length int64, payload string) (*http.Response, error) {
+	return b.request(ctx, method, key, q, body, length, payload, "", "")
+}
+
+func (b *Bucket) request(ctx context.Context, method, key string, q url.Values, body io.Reader, length int64, payload, condition, etag string) (*http.Response, error) {
 	u, err := b.objectURL(key)
 	if err != nil {
 		return nil, err
@@ -278,6 +282,9 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 	}
 	if body != nil {
 		req.ContentLength = length
+	}
+	if condition != "" {
+		req.Header.Set(condition, etag)
 	}
 	b.sign(req, payload)
 	res, err := b.client().Do(req)

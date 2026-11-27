@@ -224,6 +224,10 @@ type StepUpAction int32
 
 const (
 	StepUpAction_STEP_UP_ACTION_UNSPECIFIED StepUpAction = 0
+	// ADR 0073. Destination changes bind the proof to the destination name.
+	StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION     StepUpAction = 190
+	StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE StepUpAction = 191
+	StepUpAction_STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE  StepUpAction = 192
 	// Revealing a secret's value, with RevealSecret. The target is the
 	// secret's ID.
 	StepUpAction_STEP_UP_ACTION_REVEAL_SECRET StepUpAction = 1
@@ -385,6 +389,9 @@ const (
 var (
 	StepUpAction_name = map[int32]string{
 		0:   "STEP_UP_ACTION_UNSPECIFIED",
+		190: "STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION",
+		191: "STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE",
+		192: "STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE",
 		1:   "STEP_UP_ACTION_REVEAL_SECRET",
 		2:   "STEP_UP_ACTION_ADD_PASSKEY",
 		3:   "STEP_UP_ACTION_REMOVE_PASSKEY",
@@ -437,6 +444,9 @@ var (
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":                           0,
+		"STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION":            190,
+		"STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE":        191,
+		"STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE":         192,
 		"STEP_UP_ACTION_REVEAL_SECRET":                         1,
 		"STEP_UP_ACTION_ADD_PASSKEY":                           2,
 		"STEP_UP_ACTION_REMOVE_PASSKEY":                        3,
@@ -5151,9 +5161,12 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xff\x0e\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\x96\x10\n" +
 	"\fStepUpAction\x12\x1e\n" +
-	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12.\n" +
+	")STEP_UP_ACTION_CONTROL_BACKUP_DESTINATION\x10\xbe\x01\x122\n" +
+	"-STEP_UP_ACTION_CONTROL_BACKUP_SHOW_PASSPHRASE\x10\xbf\x01\x121\n" +
+	",STEP_UP_ACTION_CONTROL_BACKUP_SET_PASSPHRASE\x10\xc0\x01\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_ADD_PASSKEY\x10\x02\x12!\n" +
 	"\x1dSTEP_UP_ACTION_REMOVE_PASSKEY\x10\x03\x12\x1f\n" +

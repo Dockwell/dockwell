@@ -14,6 +14,7 @@ import {
   BackupService,
   BackupState,
   ChangeService,
+  ControlBackupService,
   DrillResult,
 } from "@dockwell/api";
 import {
@@ -94,6 +95,7 @@ export function BackupsPage({
 }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const controlBackups = useMay()(ControlBackupService.method.getControlBackup).allowed;
   const volumes = useVolumes();
   const [searchingAll, setSearchingAll] = useState(false);
   const query = useBackupPages(searchingAll);
@@ -292,7 +294,22 @@ export function BackupsPage({
     </section>
   );
   return (
-    <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
+    <Page
+      title={t`Backups`}
+      lead={where}
+      phoneSub={where}
+      back="/more"
+      actions={
+        <>
+          {controlBackups ? (
+            <RouterButtonLink to="/settings/backups">
+              <Trans>Control plane backups</Trans>
+            </RouterButtonLink>
+          ) : null}
+          {backups.length > 0 ? action : null}
+        </>
+      }
+    >
       {query.error ? (
         <Callout
           tone="critical"

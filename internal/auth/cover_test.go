@@ -235,7 +235,7 @@ func testSomeActionsAlwaysAsk(t *testing.T, backend store.Backend) {
 	always := []StepUpAction{
 		StepUpAddPasskey, StepUpRemovePasskey, StepUpSetUpCodes, StepUpDisableCodes, StepUpRecoveryCodes,
 		StepUpSetPolicy, StepUpSetFloor, StepUpApproveChange, StepUpLinkProvider, StepUpTransferOwnership,
-		StepUpChangeEmail,
+		StepUpChangeEmail, StepUpControlBackupDestination, StepUpControlBackupSet, StepUpControlBackupShow,
 	}
 	if got := slices.Sorted(maps.Keys(alwaysAsks)); !slices.Equal(got, slices.Sorted(slices.Values(always))) {
 		t.Fatalf("what always asks = %v, want %v", got, always)

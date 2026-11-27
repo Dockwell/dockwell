@@ -224,6 +224,9 @@ func openSQLite(file string) (*DB, error) {
 		_ = write.Close()
 		return nil, err
 	}
+	// SQLite parses the schema separately on every connection. Keep warm
+	// readers between bursts while still allowing the full pool when busy.
+	read.SetMaxIdleConns(4)
 	return &DB{write: write, read: read, dialect: sqliteDialect, where: file}, nil
 }
 

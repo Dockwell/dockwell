@@ -1045,6 +1045,7 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
               </>
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
+            {event.controlBackup?.problem ? <Callout tone="warning" title={event.controlBackup.problem} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} volumeId={event.subject?.id ?? ""} /> : null}
             {event.alert ? <AlertFacts alert={event.alert} /> : null}
             {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}

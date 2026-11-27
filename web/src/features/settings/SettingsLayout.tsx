@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { AuditService, MemberService, SettingsService } from "@dockwell/api";
+import { AuditService, ControlBackupService, MemberService, SettingsService } from "@dockwell/api";
 import { Icon, type IconName, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
@@ -19,6 +19,7 @@ interface Section {
     | "/settings/api-tokens"
     | "/settings/audit-log"
     | "/settings/control-plane"
+    | "/settings/backups"
     | "/settings/integrations"
     | "/profile";
   label: string;
@@ -39,6 +40,9 @@ function useSections(): { label: string; sections: Section[] }[] {
   const controlPlane: Section[] = may(SettingsService.method.getControlPlane).allowed
     ? [{ to: "/settings/control-plane", label: t`Control plane`, icon: "server" }]
     : [];
+  const backups: Section[] = may(ControlBackupService.method.getControlBackup).allowed
+    ? [{ to: "/settings/backups", label: t`Backups`, icon: "archive" }]
+    : [];
   return [
     {
       label: t`Install`,
@@ -52,7 +56,7 @@ function useSections(): { label: string; sections: Section[] }[] {
     },
     {
       label: t`Platform`,
-      sections: [...controlPlane, { to: "/settings/integrations", label: t`Integrations`, icon: "layers" }],
+      sections: [...controlPlane, ...backups, { to: "/settings/integrations", label: t`Integrations`, icon: "layers" }],
     },
     { label: t`Account`, sections: [{ to: "/profile", label: t`Profile and security`, icon: "user" }] },
   ];

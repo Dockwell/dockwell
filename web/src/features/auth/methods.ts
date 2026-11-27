@@ -86,6 +86,14 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.testBackupDestination": "unused",
   "BackupService.useDestinationAsConnection": "may",
 
+  "ControlBackupService.confirmControlBackupPassphrase": "may",
+  "ControlBackupService.getControlBackup": "may",
+  "ControlBackupService.setControlBackupDestination": "may",
+  "ControlBackupService.setControlBackupPassphrase": "may",
+  "ControlBackupService.setControlBackupServers": "may",
+  "ControlBackupService.showControlBackupPassphrase": "may",
+  "ControlBackupService.takeControlBackup": "may",
+
   "BuildService.cancelBuild": "may",
   "BuildService.detectBuild": "may",
   "BuildService.getBuild": "unused",

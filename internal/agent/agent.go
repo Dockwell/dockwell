@@ -775,6 +775,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	_, hasImports := cfg.Backups.(databaseImporter)
 	hello.DatabaseImports = hasImports
+	hello.KeepsControlBackups = cfg.Dir != ""
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}

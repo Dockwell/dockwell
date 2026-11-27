@@ -132,7 +132,7 @@ func TestTheRolesTableIsCurrent(t *testing.T) {
 				trim := func(s fmt.Stringer, prefix string) string {
 					return strings.ToLower(strings.TrimPrefix(s.String(), prefix))
 				}
-				line := fmt.Sprintf("%-46s %-12s %-10s %-10s %-8s", string(sd.Name())+"."+string(md.Name()),
+				line := fmt.Sprintf("%-52s %-12s %-10s %-10s %-8s", string(sd.Name())+"."+string(md.Name()),
 					trim(effect, "EFFECT_"), trim(low, "NEEDS_"), trim(high, "NEEDS_"), trim(reach, "REACH_"))
 				if session {
 					line += " session"
@@ -143,7 +143,7 @@ func TestTheRolesTableIsCurrent(t *testing.T) {
 		return true
 	})
 	slices.Sort(lines)
-	got := "# service.method                                effect       min_role   protected  reach    session\n" + strings.Join(lines, "\n") + "\n"
+	got := fmt.Sprintf("%-52s %-12s %-10s %-10s %-8s session\n", "# service.method", "effect", "min_role", "protected", "reach") + strings.Join(lines, "\n") + "\n"
 	if *updateRoles {
 		if err := os.WriteFile(rolesTable, []byte(got), 0o600); err != nil {
 			t.Fatal(err)

@@ -13,6 +13,7 @@ import {
   ComposeService,
   ConnectionService,
   ContainerService,
+  ControlBackupService,
   DatabaseService,
   DockerService,
   DomainService,
@@ -76,6 +77,7 @@ export type Api = {
   firewall?: Partial<ServiceImpl<typeof FirewallService>>;
   files?: Partial<ServiceImpl<typeof FileService>>;
   backups?: Partial<ServiceImpl<typeof BackupService>>;
+  controlBackup?: Partial<ServiceImpl<typeof ControlBackupService>>;
   processes?: Partial<ServiceImpl<typeof ProcessService>>;
   settings?: Partial<ServiceImpl<typeof SettingsService>>;
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
@@ -196,6 +198,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         listBackupDestinations: () => ({}),
         ...api.backups,
       });
+      service(ControlBackupService, api.controlBackup ?? {});
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
       service(ConnectionService, { listConnections: () => ({}), ...api.connections });
       service(WebsiteService, { listWebsites: () => ({}), ...api.websites });

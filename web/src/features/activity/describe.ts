@@ -53,6 +53,36 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.kind === EventKind.HEALTH && !event.cloudflare) return describeHealth(event, i18n);
       if (event.kind === EventKind.PUSH) return describePush(event, i18n);
       if (event.kind === EventKind.ALERT) return describeAlert(event, i18n);
+      const copyPlace = event.controlBackup?.place;
+      switch (event.action) {
+        case "control_backup.requested":
+          return { title: t`Requested a control plane backup`, icon: "archive" };
+        case "control_backup.taken":
+          return { title: t`Backed up the control plane`, icon: "archive" };
+        case "control_backup.sent":
+          return {
+            title: copyPlace ? t`Sent a control plane backup to ${copyPlace}` : t`Sent a control plane backup`,
+            icon: "archive",
+          };
+        case "control_backup.failed":
+          return {
+            title: copyPlace ? t`A control plane backup failed at ${copyPlace}` : t`A control plane backup failed`,
+            icon: "archive",
+            tone: "critical",
+          };
+        case "control_backup.destination":
+          return { title: t`Changed the control plane backup destination`, icon: "archive" };
+        case "control_backup.dismiss_destination":
+          return { title: t`Dismissed an earlier control plane backup destination`, icon: "archive" };
+        case "control_backup.servers":
+          return { title: t`Changed which servers keep control plane copies`, icon: "archive" };
+        case "control_backup.show_passphrase":
+          return { title: t`Showed the recovery passphrase`, icon: "key" };
+        case "control_backup.set_passphrase":
+          return { title: t`Set the recovery passphrase`, icon: "key" };
+        case "control_backup.confirm_passphrase":
+          return { title: t`Confirmed the recovery passphrase was kept`, icon: "key" };
+      }
       const volume = event.backup?.volume ?? name;
       if (event.action === "backup.taken") return { title: t`Backed up ${volume}`, icon: "archive" };
       if (event.action === "backup.failed") {
