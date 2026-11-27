@@ -328,6 +328,9 @@ func (h *Handler) DetectBuild(ctx context.Context, req *connect.Request[dockwell
 		return nil, errTooManyReadings
 	case errors.Is(err, ErrServerOffline):
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's agent isn't connected, so it can't read how the commit builds. Try again once it reconnects, or name another server", name), "server_offline")
+	case resource.ReasonOf(err) == resource.ReasonBuildMemory, resource.ReasonOf(err) == resource.ReasonBuildKilled:
+		plain, _ := resource.Explain(err)
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New(plain), resource.ReasonOf(err))
 	case err != nil:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s couldn't read how the commit builds: %w", name, err), "unreadable")
 	}

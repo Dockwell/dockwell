@@ -123,6 +123,9 @@ func (b *Builder) ensureRailpack(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if resource.ReasonOf(err) == resource.ReasonBuildMemory {
+				return err
+			}
 			b.logger().Warn("can't fetch mise for Railpack once for all readings, so each fetches its own; check the server reaches github.com", "error", err.Error())
 		} else {
 			b.miseSeeded = true
@@ -181,6 +184,7 @@ func (b *Builder) copyRailpack(ctx context.Context) error {
 		HostConfig: docker.HostConfig{
 			// It copies a file, and reaches nothing.
 			NetworkMode: "none",
+			OomScoreAdj: 1000,
 			LogConfig:   &docker.LogConfig{Type: "none"},
 			Mounts:      []docker.Mount{{Type: "volume", Source: RailpackVolume, Target: railpackHome}},
 		},
@@ -231,6 +235,11 @@ func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRe
 		e = o
 	}
 	code, err := b.Client.RunAttached(ctx, id, docker.Streams{Stdout: o, Stderr: e})
+	if ctx.Err() == nil {
+		if c, inspectErr := b.Client.InspectContainer(ctx, id); inspectErr == nil && c != nil && c.State.OOMKilled {
+			return code, buildMemoryOOM(create.HostConfig.Memory)
+		}
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
@@ -351,7 +360,7 @@ esac
 // Dockerfile, or with Railpack and what Railpack found. It builds nothing, and runs
 // beside a build.
 func (b *Builder) Detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, error) {
-	d, _, err := b.read(ctx, req, false)
+	d, _, err := b.read(ctx, req, nil)
 	return d, hideIn(err, hiddenForms(req))
 }
 
@@ -360,7 +369,7 @@ func (b *Builder) Detect(ctx context.Context, req service.BuildRequest) (*resour
 // who asks; a build's own reading takes no place among them, as it holds the
 // server's build slot already, so no number of readings asked for keeps a build
 // waiting. Whatever goes wrong comes back as an error, and never as nothing.
-func (b *Builder) read(ctx context.Context, req service.BuildRequest, ownSlot bool) (d *resource.BuildDetection, plan []byte, err error) {
+func (b *Builder) read(ctx context.Context, req service.BuildRequest, limits *buildLimits) (d *resource.BuildDetection, plan []byte, err error) {
 	b.init()
 	defer func() {
 		// Nothing a repository holds may take the agent down.
@@ -374,7 +383,7 @@ func (b *Builder) read(ctx context.Context, req service.BuildRequest, ownSlot bo
 	}
 	ctx, cancel := context.WithTimeout(ctx, detectWait)
 	defer cancel()
-	if !ownSlot {
+	if limits == nil {
 		select {
 		case b.reading <- struct{}{}:
 		case <-ctx.Done():
@@ -389,6 +398,13 @@ func (b *Builder) read(ctx context.Context, req service.BuildRequest, ownSlot bo
 	if err := b.checkPlain(ctx, req.URL); err != nil {
 		return nil, nil, err
 	}
+	if limits == nil {
+		admitted, err := b.limits(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		limits = &admitted
+	}
 	if err := b.ensureImage(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -397,12 +413,12 @@ func (b *Builder) read(ctx context.Context, req service.BuildRequest, ownSlot bo
 			return nil, nil, err
 		}
 	}
-	d, plan, need, err := b.detect(ctx, req)
+	d, plan, need, err := b.detect(ctx, req, *limits)
 	if err == nil && need {
 		if err := b.ensureRailpack(ctx); err != nil {
 			return nil, nil, err
 		}
-		if d, plan, need, err = b.detect(ctx, req); err == nil && need {
+		if d, plan, need, err = b.detect(ctx, req, *limits); err == nil && need {
 			return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,
 				"The reading still found no Railpack once the agent put it in "+RailpackVolume+". Check the server's disk has room, then try again",
 				errors.New("the reading needed railpack twice"))
@@ -452,11 +468,7 @@ func detectArgs(req service.BuildRequest) []string {
 }
 
 // detect runs a detect container once, and says whether it needs Railpack first.
-func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, []byte, bool, error) {
-	memory, cpus, err := b.limits(ctx)
-	if err != nil {
-		return nil, nil, false, err
-	}
+func (b *Builder) detect(ctx context.Context, req service.BuildRequest, limits buildLimits) (*resource.BuildDetection, []byte, bool, error) {
 	if err := b.ensureNetwork(ctx); err != nil {
 		return nil, nil, false, err
 	}
@@ -480,7 +492,7 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 		HostConfig: docker.HostConfig{
 			// On the build network, as what it reads comes from the same repository.
 			NetworkMode: Network,
-			Memory:      min(memory, detectMemory), MemorySwap: min(memory, detectMemory), NanoCPUs: cpus * 1e9,
+			Memory:      min(limits.memory, detectMemory), MemorySwap: min(limits.memory, detectMemory), NanoCPUs: limits.cpus * 1e9,
 			CPUShares: cpuShares, OomScoreAdj: 1000, PidsLimit: detectPids,
 			LogConfig: &docker.LogConfig{Type: "none"},
 			Mounts:    mounts,
@@ -564,8 +576,8 @@ func readDetection(req service.BuildRequest, says, said string, code int) (*reso
 	case failed == "fetch", failed == "notonref", failed == "context", failed == "dockerfile":
 		return nil, nil, failure(req, f, 3, false)
 	case code == 137:
-		return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,
-			fmt.Sprintf("Reading the commit ran out of the %s it may use, which holds its checkout too. Choose the Dockerfile as its builder, which reads nothing first, or make the repository smaller", human.Size(detectMemory)),
+		return nil, nil, resource.PlainlyBecause(resource.ReasonBuildKilled,
+			"The server stopped reading the commit before the build could deploy. Build in CI and deploy the image, or try again",
 			errors.New("the detect container was killed"))
 	case code != 0:
 		return nil, nil, resource.PlainlyBecause(resource.ReasonBuild,

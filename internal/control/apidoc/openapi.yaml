@@ -14059,6 +14059,15 @@ components:
                     description: |-
                         What its server found as it read the commit: what built it, and with
                          Railpack, what it installed and ran.
+                errorReason:
+                    type: string
+                    description: Why the build failed, as a code such as build_memory.
+                memoryAvailableMib:
+                    type: string
+                    description: The available memory in MiB while waiting for admission or at refusal.
+                memoryLimitMib:
+                    type: string
+                    description: The builder cap in MiB if the kernel ended the build under memory pressure.
             description: Build is one build of a service's image, on one server, for one change.
         BuildDetection:
             type: object

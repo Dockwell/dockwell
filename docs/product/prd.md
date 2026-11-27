@@ -366,6 +366,12 @@ The platform must be light enough for a 1 GB VPS and sturdy enough for a 1,000-n
 | Access | Languages at launch | English and Simplified Chinese; community translations after |
 | Access | Devices | Every feature at 360 px; 44 px touch targets; installable PWA with push |
 
+### The 1 GiB mixed-load budget
+
+Dockwell must run beside apps on a 1 GiB host under mixed load. `make small-host`
+gates memory, swap, app restarts, p99 latency and clean build refusal under pressure.
+See [ADR 0114](../adr/0114-mixed-load-on-a-1-gib-host.md) for the stand and measurements.
+
 ## Roadmap and milestones
 
 The first public release is the Solo beta around month 7: a better 1Panel with real deploys and free multi-node, which earns the users that the Team and Fleet phases are built for.

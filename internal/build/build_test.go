@@ -106,6 +106,7 @@ func (b *bench) final() resource.BuildUpdate {
 		}
 		if u.Error != "" {
 			out.Error, out.Step, out.StepName, out.FailedLine = u.Error, u.Step, u.StepName, u.FailedLine
+			out.ErrorReason, out.MemoryAvailableMiB, out.MemoryLimitMiB = u.ErrorReason, u.MemoryAvailableMiB, u.MemoryLimitMiB
 		}
 		if u.Detection != nil {
 			out.Detection = u.Detection
@@ -415,26 +416,32 @@ func TestABuildThatRunsOutOfMemorySaysSo(t *testing.T) {
 	commit := b.repo.Commit("main", "Big", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN make oom\n"})
 	err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A"))
 	plain, _ := resource.Explain(err)
-	if !strings.Contains(plain, "ran out of the 512 MB it may use") {
-		t.Errorf("a build that ran out of memory says %q", plain)
+	if resource.ReasonOf(err) != resource.ReasonBuildMemory ||
+		!strings.Contains(plain, "The kernel stopped the build when memory ran out. The build could use up to 512 MiB and deployed nothing") {
+		t.Errorf("a build that ran out of memory says %q with reason %q", plain, resource.ReasonOf(err))
+	}
+	ended := b.final()
+	if ended.ErrorReason != resource.ReasonBuildMemory || ended.MemoryLimitMiB == nil ||
+		*ended.MemoryLimitMiB != 512 || ended.MemoryAvailableMiB != nil {
+		t.Errorf("the OOM build update lost its reason or cap: %+v", ended)
 	}
 }
 
 func TestABuildsLimitsLeaveRoomForWhatRuns(t *testing.T) {
 	for _, c := range []struct {
 		name               string
-		available          int64
+		available, total   int64
 		cpus               int
 		wantMemory, wantNs int64
 	}{
-		{"a server of 1 GB", 600 << 20, 1, 512 << 20, 1e9},
-		{"a server of 4 GB", 3 << 30, 2, 3<<30 - 256<<20, 1e9},
-		{"a large server", 60 << 30, 16, 8 << 30, 15e9},
+		{"a server of 1 GB", 600 << 20, 1 << 30, 1, 512 << 20, 1e9},
+		{"a server of 4 GB", 3 << 30, 4 << 30, 2, 3<<30 - 256<<20, 1e9},
+		{"a large server", 60 << 30, 64 << 30, 16, 8 << 30, 15e9},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := newBench(t)
 			b.engine.NCPU = 16
-			b.builder.Memory = func() (int64, int64, error) { return c.available, 2 * c.available, nil }
+			b.builder.Memory = func() (int64, int64, error) { return c.available, c.total, nil }
 			b.builder.CPUs = func() int { return c.cpus }
 			commit := b.repo.Commit("main", "x", map[string]string{"Dockerfile": nodeDockerfile})
 			if err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A")); err != nil {

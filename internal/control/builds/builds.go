@@ -233,6 +233,11 @@ func merge(b *store.Build, u *agentv1.BuildUpdate) {
 	if v := u.GetError(); v != "" {
 		b.Error = fit(v, maxLine)
 	}
+	if v := u.GetErrorReason(); v != "" {
+		b.ErrorReason = short(v)
+	}
+	b.MemoryAvailableMiB = u.MemoryAvailableMib
+	b.MemoryLimitMiB = u.MemoryLimitMib
 	if v := u.GetFailedLine(); v != "" {
 		b.FailedLine = fit(v, maxLine)
 	}
@@ -416,7 +421,11 @@ func toProto(b store.Build, server string) *dockwellv1.Build {
 		ChangeId: b.ChangeID, Revision: b.Revision, ServerId: b.ServerID, ServerName: server, State: stateProtos[b.State],
 		Url: b.URL, Ref: b.Ref, Commit: b.Commit, CommitSubject: b.Subject, CommitAuthor: b.Author, Image: b.Image,
 		CreateTime: timestamppb.New(b.CreatedAt), Steps: int32(b.Steps), CachedSteps: int32(b.Cached), Step: int32(b.Step), StepName: b.StepName, //nolint:gosec // a build's steps are few
+		ErrorReason: b.ErrorReason, MemoryAvailableMib: b.MemoryAvailableMiB, MemoryLimitMib: b.MemoryLimitMiB,
 		Error: b.Error, FailedLine: b.FailedLine, CancelledBy: b.CancelledBy, LogLines: b.Lines, LogLinesLeftOut: b.LeftOut, LogLinesDropped: b.Dropped,
+	}
+	if b.Ended() && b.ErrorReason != resource.ReasonBuildMemory {
+		p.MemoryAvailableMib = nil
 	}
 	if imageBuild(b) {
 		p.ServiceId = ""

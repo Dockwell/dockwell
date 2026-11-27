@@ -39,7 +39,7 @@ shopt -s inherit_errexit
 # listed. Licenses and links and Install, every job always run, and Build of
 # main runs on every pull request, as it can't run this before it builds.
 # every-leg isn't a job: it runs every install leg, not only some.
-ci_jobs="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel swarm-docker"
+ci_jobs="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel small-host swarm-docker"
 install_jobs="snapshot budgets install systemd every-leg"
 every_job="$ci_jobs $install_jobs"
 
@@ -48,7 +48,7 @@ declare -A names=(
   [go]="Go" [docker-go]="Go on Docker" [caddy-go]="Go on Caddy" [docker-e2e]="Service end to end on Docker"
   [catalog-docker]="Catalog on Docker" [store-docker]="Other stores on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
   [containers-load]="Hundreds of containers" [transfers-load]="Transfer load" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
-  [chaos]="Chaos on Docker" [swarm-docker]="Swarm import on Docker"
+  [small-host]="Small host" [chaos]="Chaos on Docker" [swarm-docker]="Swarm import on Docker"
   [snapshot]="Release snapshot" [budgets]="Memory budgets"
   [install]="Install on each image" [systemd]="Install with systemd" [every-leg]="every install leg"
 )
@@ -67,7 +67,7 @@ some_systemd_arches='["arm64"]'
 # run. The idle memory budgets move with any of it, and some install legs run,
 # as the install script runs the binary's run, join, token, claim and role,
 # which reach most of the control plane and the agent.
-go="${ci_jobs% swarm-docker} snapshot budgets install systemd"
+go="${ci_jobs% small-host swarm-docker} snapshot budgets install systemd"
 # What makes a Swarm-run app again, or reads one (ADR 0089): the panels' reader and
 # stopper, the import and the take-on it reads through, Docker's client, and what
 # carries a panel's step from the plan to the agent and back. Only
@@ -109,7 +109,7 @@ biome_checks() {
 jobs_for() {
   case $1 in
   .github/workflows/* | .github/actions/* | Makefile | scripts/ci-jobs.sh | scripts/ci-jobs-test.sh)
-    echo "$every_job"
+    echo "${every_job/ small-host/}"
     ;;
   ci/*) echo "go" ;;
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
@@ -118,11 +118,13 @@ jobs_for() {
   internal/docker/lifecycle-signals.json) echo "$go $web" ;;
   # The fake Docker Engine is the tests', which reach no Swarm.
   internal/docker/dockertest/*) echo "$go" ;;
+  scripts/swarm-e2e.sh) echo "$swarm" ;;
   internal/agent/panels/*.go | internal/control/importapi/*.go | internal/control/composeapi/*.go | internal/docker/*.go | \
     internal/resource/container/*.go | internal/resource/panel.go | internal/resource/resourcepb/*.go | internal/resource/host/*.go | \
-    internal/revision/units.go | scripts/swarm-e2e.sh)
+    internal/revision/units.go)
     echo "$swarm"
     ;;
+  scripts/small-host.*) ;;
   # go vet ./... compiles a Go file wherever it is, under docs/ too.
   *.go) echo "$go" ;;
   # The release archives carry both, and the snapshot builds them.
@@ -150,10 +152,27 @@ jobs_for() {
   web/* | packages/* | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | biome.json | tsconfig.base.json | .nvmrc)
     echo "$web"
     ;;
-  */*) echo "$every_job" ;;
+  */*) echo "${every_job/ small-host/}" ;;
   # CONTRIBUTING.md and the rest at the top.
   *.md) ;;
-  *) echo "$every_job" ;;
+  *) echo "${every_job/ small-host/}" ;;
+  esac
+}
+
+# The mixed-load run is scoped to memory-critical paths and its own inputs.
+# List the relevant agent files explicitly where the package also has other jobs.
+small_host_for() {
+  case $1 in
+    *_test.go) ;;
+    scripts/small-host.* | scripts/load-files.sh | scripts/logfixture/* | \
+      scripts/gitserve/* | scripts/claim/* | scripts/ingress-tools.sh | scripts/install.sh | \
+      scripts/ci-jobs.sh | scripts/ci-jobs-test.sh | Makefile | \
+      internal/build/*.go | internal/control/builds/builds.go | \
+      internal/agent/pageout/*.go | internal/agent/logs/*.go | \
+      internal/agent/files/transfer.go | internal/agent/enroll/transfers.go | \
+      internal/agent/builds.go | internal/control/agentapi/transfer.go | \
+      internal/docker/dockertest/build.go | internal/docker/dockertest/logs.go | \
+      internal/backup/disk.go | proto/dockwell/v1/build.proto) echo small-host ;;
   esac
 }
 
@@ -176,7 +195,7 @@ reasons() {
   else
     # The last path counts even without a NUL after it.
     while IFS= read -r -d '' path || [[ -n $path ]]; do
-      for job in $(jobs_for "$path") $(biome_checks "$path" && echo panel); do
+      for job in $(jobs_for "$path") $(small_host_for "$path") $(biome_checks "$path" && echo panel); do
         [[ -n ${why[$job]:-} ]] || why[$job]="\`$path\` needs it"
       done
     done

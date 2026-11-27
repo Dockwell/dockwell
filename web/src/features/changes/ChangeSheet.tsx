@@ -8,6 +8,7 @@ import {
   ActorKind,
   AlertService,
   BackupService,
+  BuildService,
   CatalogService,
   type Change,
   type ChangeConfirmation,
@@ -32,6 +33,7 @@ import {
   PlanAction,
   type PlannedResource,
   ResourceService,
+  type StepProgress,
   StepState,
   StepUpAction,
   SystemServiceAction,
@@ -73,6 +75,7 @@ import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
 import { appOf, unreached } from "../apps/app";
+import { BuildMemoryNotice, isBuildMemoryFailure } from "../apps/BuildMemoryNotice";
 import { DomainFacts, DomainNote, useSilent } from "../apps/DomainNote";
 import {
   type EnvironmentReach,
@@ -1423,6 +1426,32 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   return t`Applied`;
 }
 
+function ChangeBuildMemoryNotice({
+  step,
+  changeId,
+  onLeave,
+}: {
+  step: StepProgress;
+  changeId: string;
+  onLeave: () => void;
+}) {
+  const services = useServices().data;
+  const service = services?.find((item) => item.id === step.resourceId);
+  const builds = useQuery(BuildService.method.listBuilds, { id: step.resourceId }, { enabled: !!service });
+  const build = builds.data?.builds.find((item) => item.changeId === changeId && item.serverId === step.serverId);
+  return (
+    <BuildMemoryNotice
+      reason={step.reason}
+      available={build?.memoryAvailableMib}
+      limit={build?.memoryLimitMib}
+      serverId={step.serverId}
+      service={service}
+      onLeave={onLeave}
+      fallback={{ message: step.message, detail: step.detail }}
+    />
+  );
+}
+
 function PlanBody({
   phase,
   phone,
@@ -1717,11 +1746,15 @@ function PlanBody({
           ) : null}
           {wentOffline(change) || (dockerImageAction(plan)?.push && pushResultUnknown(change)) ? null : (
             <>
-              <FailureNotice
-                message={change.error || t`A step failed, so the change stopped there.`}
-                detail={failed?.detail}
-                fix={opening.fix?.(failed?.reason ?? "")}
-              />
+              {failed && isBuildMemoryFailure(failed.reason) ? (
+                <ChangeBuildMemoryNotice step={failed} changeId={change.id} onLeave={onLeave} />
+              ) : (
+                <FailureNotice
+                  message={change.error || t`A step failed, so the change stopped there.`}
+                  detail={failed?.detail}
+                  fix={opening.fix?.(failed?.reason ?? "")}
+                />
+              )}
               <FailedDeployLogs change={change} />
             </>
           )}

@@ -4723,6 +4723,9 @@ msgstr "Lost"
 msgid "Step {step}, <0>{0}</0>"
 msgstr "Step {step}, <0>{0}</0>"
 
+msgid "Waiting for memory to build"
+msgstr "Waiting for memory to build"
+
 #. placeholder {0}: build.serverName
 msgid "{0} went away during the build, so how it ended isn't known."
 msgstr "{0} went away during the build, so how it ended isn't known."
@@ -4745,6 +4748,30 @@ msgstr "{0, plural, one {# line dropped, as the build printed faster than its lo
 
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
+
+msgid "Nothing was deployed."
+msgstr "Nothing was deployed."
+
+msgid "See what uses memory"
+msgstr "See what uses memory"
+
+msgid "The build could use up to {cap} MiB. Nothing was deployed."
+msgstr "The build could use up to {cap} MiB. Nothing was deployed."
+
+msgid "The build didn't start."
+msgstr "The build didn't start."
+
+msgid "The build was killed"
+msgstr "The build was killed"
+
+msgid "The kernel stopped the build when memory ran out."
+msgstr "The kernel stopped the build when memory ran out."
+
+msgid "This server had less than the 256 MiB a build needs."
+msgstr "This server had less than the 256 MiB a build needs."
+
+msgid "This server had {free} MiB free and a build needs 256 MiB."
+msgstr "This server had {free} MiB free and a build needs 256 MiB."
 
 msgid "CI deploy · {name}"
 msgstr "CI deploy · {name}"

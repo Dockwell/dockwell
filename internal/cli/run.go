@@ -526,6 +526,17 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		}
 	}
 	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
+	if isSet(stdio.Getenv(envTest)) {
+		proc, parent := stdio.Getenv(envTestBuildProc), stdio.Getenv(envTestBuildCgroup)
+		if proc != "" || parent != "" {
+			if proc == "" {
+				proc = "/proc"
+			}
+			builder.Memory = func() (int64, int64, error) {
+				return imagebuild.ReadMemory(os.DirFS(proc), os.DirFS("/sys/fs/cgroup"), parent)
+			}
+		}
+	}
 	if dir := testBuildSecrets(stdio.Getenv); dir != "" {
 		// A test's machine may have nowhere in memory a test may write, as /run is
 		// root's: its builds keep their secrets and registry logins in the folder it

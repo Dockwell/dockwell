@@ -6,7 +6,7 @@
 # DNS server it asks. Each is checked against the SHA-256 written here, and
 # fetched only if it isn't there yet. It prints the directory.
 #
-#   scripts/ingress-tools.sh path/to/dir
+#   scripts/ingress-tools.sh path/to/dir [caddy]
 set -euo pipefail
 
 dir=${1:?usage: scripts/ingress-tools.sh path/to/dir}
@@ -56,6 +56,10 @@ case "$arch" in
 esac
 
 fetch caddy "https://github.com/caddyserver/caddy/releases/download/v$caddy_version/caddy_${caddy_version}_linux_$arch.tar.gz" "$caddy_sum" caddy
+if [[ ${2:-} == caddy ]]; then
+  realpath "$dir"
+  exit 0
+fi
 fetch pebble "https://github.com/letsencrypt/pebble/releases/download/v$pebble_version/pebble-linux-$arch.tar.gz" "$pebble_sum" "pebble-linux-$arch/linux/$arch/pebble"
 fetch pebble-challtestsrv "https://github.com/letsencrypt/pebble/releases/download/v$pebble_version/pebble-challtestsrv-linux-$arch.tar.gz" "$challtest_sum" "pebble-challtestsrv-linux-$arch/linux/$arch/pebble-challtestsrv"
 realpath "$dir"

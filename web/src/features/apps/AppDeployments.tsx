@@ -68,6 +68,7 @@ import {
   shortImages,
 } from "./app";
 import { BuildPart, buildUnderWay, shortCommit } from "./Build";
+import { isBuildMemoryFailure } from "./BuildMemoryNotice";
 import { CIDeploySheet } from "./CIDeploySheet";
 import { ImageName, WholeImage } from "./ImageName";
 import { type Look, plansBuild, useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
@@ -808,7 +809,8 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
       ) : null}
       {(change?.state === ChangeState.FAILED || failed) &&
       !wentOffline(change) &&
-      rev.build?.state !== BuildState.CANCELLED ? (
+      rev.build?.state !== BuildState.CANCELLED &&
+      !isBuildMemoryFailure(rev.build?.errorReason) ? (
         <FailureNotice message={failed?.error || change?.error || ""} detail={failedStep(change)?.detail} />
       ) : null}
       {rev.deleted || wentOffline(change) ? null : (
@@ -832,7 +834,7 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
         </div>
       )}
       {rev.build ? (
-        <BuildPart build={rev.build} onEnded={onBuildEnded} />
+        <BuildPart build={rev.build} service={service} onEnded={onBuildEnded} />
       ) : change?.state === ChangeState.APPLYING && plansBuild(change) ? (
         <div className="deploy-part build-part">
           <div className="build-head">

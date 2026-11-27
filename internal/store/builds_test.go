@@ -92,3 +92,47 @@ func TestABuildsLogKeepsItsStartAndItsEnd(t *testing.T) {
 		})
 	})
 }
+
+func TestBuildMemoryAdmissionRoundTripsThroughTheStore(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		db, _ := storetest.Open(t, backend)
+		ctx := t.Context()
+		err := db.Update(ctx, func(tx *store.Tx) error {
+			b := store.Build{
+				ID: "bld_1", ChangeID: "chg_1", ResourceID: "svc_1", EnvironmentID: "env_1",
+				Service: "web", ServerID: "srv_1", State: store.BuildQueued, CreatedAt: time.Now(),
+			}
+			if err := tx.CreateBuild(ctx, b); err != nil {
+				return err
+			}
+			var available int64
+			b.State, b.ErrorReason, b.MemoryAvailableMiB = store.BuildFailed, "build_memory", &available
+			if err := tx.UpdateBuild(ctx, b); err != nil {
+				return err
+			}
+			got, err := tx.GetBuild(ctx, b.ID)
+			if err != nil {
+				return err
+			}
+			if got.ErrorReason != "build_memory" || got.MemoryAvailableMiB == nil || *got.MemoryAvailableMiB != 0 {
+				return fmt.Errorf("the build lost its memory refusal: %+v", got)
+			}
+			limit := int64(512)
+			b.MemoryAvailableMiB, b.MemoryLimitMiB = nil, &limit
+			if err := tx.UpdateBuild(ctx, b); err != nil {
+				return err
+			}
+			got, err = tx.GetBuild(ctx, b.ID)
+			if err != nil {
+				return err
+			}
+			if got.MemoryAvailableMiB != nil || got.MemoryLimitMiB == nil || *got.MemoryLimitMiB != limit {
+				return fmt.Errorf("the build lost its OOM cap: %+v", got)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}

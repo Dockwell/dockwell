@@ -96,7 +96,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BuildService.cancelBuild": "may",
   "BuildService.detectBuild": "may",
   "BuildService.getBuild": "unused",
-  "BuildService.listBuilds": "unused",
+  "BuildService.listBuilds": "read",
   "BuildService.listRepositoryBranches": "may",
   "BuildService.readBuildLog": "read",
   "BuildService.watchBuild": "read",

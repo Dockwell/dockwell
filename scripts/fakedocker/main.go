@@ -51,6 +51,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/scripts/logfixture"
 )
 
 // tb is what dockertest asks of a test: a place for the socket, and what to
@@ -485,6 +486,15 @@ func main() {
 	e := dockertest.New(t)
 	e.ArchiveLayer = os.Getenv("DOCKWELL_TEST_ARCHIVE_LAYER")
 	e.Mountpoints = os.Getenv("DOCKWELL_TEST_VOLUME_MOUNTPOINTS") == "1"
+	if addr := os.Getenv("FAKEDOCKER_LOG_LOAD"); addr != "" {
+		e.Mountpoints = true
+		listener, err := logfixture.Listen(e, addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		t.Cleanup(func() { _ = listener.Close() })
+		log.Printf("log fixture listening on %s", listener.Addr())
+	}
 	if os.Getenv("FAKEDOCKER_CLEANUP_FIXTURE") == "1" {
 		used := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
 		e.SetBuildCache(

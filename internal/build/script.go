@@ -171,7 +171,11 @@ mkdir -p /etc/buildkit
   printf '[worker.containerd]\n  enabled = false\n'
   if [ -n "${DW_PLAIN_REGISTRY:-}" ]; then printf '[registry."%s"]\n  http = true\n' "$DW_PLAIN_REGISTRY"; fi
 } >/etc/buildkit/buildkitd.toml
-/usr/bin/buildkitd-entrypoint --addr ` + buildkitSock + ` --config /etc/buildkit/buildkitd.toml >/tmp/buildkitd.log 2>&1 &
+(
+  # Keep the daemon and its OCI workers at the builder container's OOM priority.
+  printf '1000\n' >/proc/self/oom_score_adj || true
+  exec /usr/bin/buildkitd-entrypoint --addr ` + buildkitSock + ` --config /etc/buildkit/buildkitd.toml
+) >/tmp/buildkitd.log 2>&1 &
 bk=$!
 i=0
 until buildctl --addr ` + buildkitSock + ` debug workers >/dev/null 2>&1; do

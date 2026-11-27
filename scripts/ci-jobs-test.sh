@@ -20,11 +20,31 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel swarm-docker snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel small-host swarm-docker snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
 go="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
+other_jobs=${all/ small-host/}
 web="schema panel e2e docker-panel"
 install="snapshot install systemd every-leg"
+
+# Print which of the default branch's 60 most recent first-parent commits
+# would have selected the mixed-load job if reviewed as pull requests.
+if [[ ${1:-} == --small-host-history ]]; then
+  base=${2:-origin/main}
+  count=0
+  total=0
+  while IFS= read -r sha; do
+    total=$((total + 1))
+    selected=$(git -C "$root" diff --name-only --no-renames -z "$sha^" "$sha" |
+      "$jobs" pick | sed -n 's/^jobs=//p')
+    if jq -e 'index("small-host") != null' <<<"$selected" >/dev/null; then
+      git -C "$root" show -s --format='%h %s' "$sha"
+      count=$((count + 1))
+    fi
+  done < <(git -C "$root" rev-list --first-parent -60 "$base")
+  printf 'Small host would run on %s of %s commits.\n' "$count" "$total"
+  exit 0
+fi
 
 # sorted prints its words sorted, once each.
 sorted() { tr ' ' '\n' <<<"$1" | sed '/^$/d' | sort -u | paste -sd ' ' -; }
@@ -77,6 +97,17 @@ picks "$go" internal/revision/revision.go internal/resource/resource.go
 picks "$go" internal/agent/collect/containers.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
+picks "$go small-host" scripts/load-files.sh scripts/logfixture/server.go
+picks "$go small-host" internal/build/build.go
+picks "$go small-host" internal/control/builds/builds.go proto/dockwell/v1/build.proto
+picks "$go small-host" internal/agent/enroll/transfers.go internal/agent/files/transfer.go
+picks "$go" internal/agent/files/download.go
+picks "$go small-host" internal/agent/logs/reader.go internal/agent/pageout/pageout_linux.go
+picks "$go" internal/control/services/services.go
+picks "$go" internal/store/store.go internal/store/history.go internal/agent/collect/disk.go
+picks "$go" proto/dockwell/v1/file.proto
+picks "small-host" scripts/small-host.py
+picks "small-host" scripts/small-host.sh
 picks "$go" scripts/fakedocker/main.go
 picks "go" ci/github/action.yml ci/gitlab/dockwell-deploy.yml ci/deploy.sh
 picks "go chaos" scripts/chaos/main.go scripts/chaos.sh
@@ -110,7 +141,7 @@ picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/entries/media
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/commit
 picks "go docker-e2e catalog-docker e2e" internal/catalog/snapshot/checks/redis.sh
 # Service end to end on Docker uninstalls with it.
-picks "go containers-load transfers-load docker-e2e snapshot budgets $install" scripts/install.sh
+picks "go containers-load transfers-load docker-e2e small-host snapshot budgets $install" scripts/install.sh
 # It runs inside the install legs, under mawk, gawk and busybox awk.
 picks "$go $install" scripts/connected.awk
 picks "$install" scripts/install-test/run.sh
@@ -118,14 +149,14 @@ picks "$install" scripts/sigstore_trusted_root.json
 picks "snapshot budgets" scripts/budgets.sh
 picks "$go" scripts/slow-packages.sh
 picks "snapshot budgets $install" .goreleaser.yaml
-picks "$all" .github/workflows/ci.yml
-picks "$all" .github/workflows/chaos.yml
-picks "$all" .github/actions/docker-hub-mirror/mirror.sh
+picks "$other_jobs" .github/workflows/ci.yml
+picks "$other_jobs" .github/workflows/chaos.yml
+picks "$other_jobs" .github/actions/docker-hub-mirror/mirror.sh
 picks "$all" Makefile
 picks "$all" scripts/ci-jobs.sh
-picks "$all" .gitignore
-picks "$all" newdir/file.txt
-picks "$all" docs/install.md .gitattributes
+picks "$other_jobs" .gitignore
+picks "$other_jobs" newdir/file.txt
+picks "$other_jobs" docs/install.md .gitattributes
 picks "$go" "internal/control/a file with spaces.go"
 
 # A path that's only in the old name of a rename still counts, as git diff
