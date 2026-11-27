@@ -20,6 +20,7 @@ import { anApp, places, SERVER } from "../../test/apps";
 import { authState } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { sameRepository } from "./RepositoryField";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
 
@@ -28,7 +29,7 @@ function makeKey(fields: MessageInitShape<typeof GitDeployKeyInfoSchema> = {}): 
     id: "gdk_01TESTKEY0000000000000001",
     name: "acme-web",
     projectId: "prj_1",
-    repository: "ssh://git@github.com/acme/web.git",
+    repository: "git@github.com:acme/web.git",
     host: "github.com",
     port: 22,
     user: "git",
@@ -184,6 +185,7 @@ describe("SSH deploy keys on App Source panel", () => {
   it("rotates a deploy key and tells you to delete the old key once the new key passes Test", async () => {
     const user = userEvent.setup();
     let storedKey = makeKey({
+      repository: "ssh://git@github.com/acme/web.git",
       hostKeyAlgorithm: "ssh-ed25519",
       hostKeyFingerprint: "SHA256:HostKeyFP00000000000000000000000000000000000",
       hostKeyPinned: true,
@@ -262,6 +264,7 @@ describe("SSH deploy keys on App Source panel", () => {
   it("hides Accept new host key from a project developer when a host key changed", async () => {
     const user = userEvent.setup();
     const changedKey = makeKey({
+      repository: "ssh://git@github.com/acme/web.git",
       hostKeyAlgorithm: "ssh-ed25519",
       hostKeyFingerprint: "SHA256:OldHostKey0000000000000000000000000000000000",
       hostKeyPinned: true,
@@ -306,5 +309,75 @@ describe("SSH deploy keys on App Source panel", () => {
     const sheet = await screen.findByRole("dialog", { name: "Deploy key acme-web" });
     expect(within(sheet).getByText("The SSH host key for github.com changed")).toBeVisible();
     expect(within(sheet).queryByRole("button", { name: "Accept new host key" })).not.toBeInTheDocument();
+  });
+
+  it("shows a one-line delete confirmation with host button before deleting an unused key", async () => {
+    const user = userEvent.setup();
+    let deleteCalls = 0;
+    const unusedKey = makeKey({
+      repository: "ssh://git@github.com/acme/web.git",
+      hostKeyAlgorithm: "ssh-ed25519",
+      hostKeyFingerprint: "SHA256:HostKeyFP00000000000000000000000000000000000",
+      hostKeyPinned: true,
+      verified: true,
+      usedBy: [],
+    });
+    const app = anApp(
+      "web",
+      "dockwell.local/built:1",
+      {},
+      {
+        spec: create(ServiceSchema, {
+          runs: { case: "app", value: { image: "dockwell.local/built:1" } },
+          build: {
+            source: { case: "git", value: { url: "ssh://git@github.com/acme/web.git", ref: "refs/heads/main" } },
+            gitLogin: "ssh:acme-web",
+          },
+        }),
+      },
+    );
+
+    const { container } = renderAt(
+      "/apps/svc_web",
+      baseApi({
+        services: { listServices: () => ({ services: [app] }), listServiceRevisions: () => ({}) },
+        gitKeys: {
+          listGitDeployKeys: () => ({ keys: [unusedKey] }),
+          deleteGitDeployKey: () => {
+            deleteCalls += 1;
+            return { oldKeyFingerprint: unusedKey.keyFingerprint, changeId: "chg_del" };
+          },
+        },
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Manage deploy key" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy key acme-web" });
+    // L6: Rotate section has buttons alone without extra filler sentence.
+    expect(
+      within(sheet).queryByText("Generate a replacement key without interrupting builds."),
+    ).not.toBeInTheDocument();
+
+    // First click opens inline confirmation rather than calling deleteGitDeployKey.
+    await user.click(within(sheet).getByRole("button", { name: "Delete key" }));
+    expect(deleteCalls).toBe(0);
+    const confirm = await within(sheet).findByTestId("deploy-key-delete-confirm");
+    expect(confirm).toHaveTextContent("Deleting this key can't be undone. Remove it on GitHub too.");
+    expect(within(confirm).getByRole("link", { name: "Open GitHub deploy keys" })).toHaveAttribute(
+      "href",
+      "https://github.com/acme/web/settings/keys",
+    );
+    await expectAccessible(container);
+
+    // Confirming invokes deleteGitDeployKey.
+    await user.click(within(confirm).getByRole("button", { name: "Delete key" }));
+    await waitFor(() => expect(deleteCalls).toBe(1));
+  });
+
+  it("keeps absolute and relative SSH paths distinct in sameRepository", () => {
+    expect(sameRepository("git@git.example.com:/srv/git/app.git", "ssh://git@git.example.com/srv/git/app")).toBe(true);
+    expect(sameRepository("git@github.com:acme/web.git", "ssh://git@github.com/~/acme/web")).toBe(true);
+    expect(sameRepository("git@git.example.com:/srv/git/app.git", "git@git.example.com:srv/git/app.git")).toBe(false);
+    expect(sameRepository("git@github.com:acme/web.git", "ssh://git@github.com/acme/web")).toBe(false);
   });
 });

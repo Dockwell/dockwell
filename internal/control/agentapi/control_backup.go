@@ -16,6 +16,7 @@ type controlBackupTransfer struct {
 	session *Session
 	file    *io.SectionReader
 	used    bool
+	onRead  func()
 }
 
 func (t *controlBackupTransfer) send(ctx context.Context, done <-chan struct{}, stream *connect.ServerStream[agentv1.ReceiveFileResponse]) error {
@@ -35,6 +36,9 @@ func (t *controlBackupTransfer) send(ctx context.Context, done <-chan struct{}, 
 			}
 		}
 		if errors.Is(err, io.EOF) {
+			if t.onRead != nil {
+				t.onRead()
+			}
 			return nil
 		}
 		if err != nil {

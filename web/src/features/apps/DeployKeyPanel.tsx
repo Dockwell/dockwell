@@ -204,10 +204,11 @@ export function DeployKeySetup({
     );
   }
 
-  // Key exists and is verified: only show Ready after a passing connection test.
+  // Key exists and is verified: only show Ready after a passing connection test
+  // and only while no host-key change is pending admin review (L1, N11).
   const verified =
-    lastTest?.status === GitDeployKeyTestStatus.OK ||
-    (key.verified && key.hostKeyPinned && !key.hostKeyChanged && lastTest === undefined);
+    !key.hostKeyChanged &&
+    (lastTest?.status === GitDeployKeyTestStatus.OK || (key.verified && key.hostKeyPinned && lastTest === undefined));
 
   if (verified) {
     return (
@@ -365,6 +366,7 @@ export function DeployKeySheet({
   const [error, setError] = useState<string>();
   const [lastTest, setLastTest] = useState<TestGitDeployKeyResponse>();
   const [rotatedOldFP, setRotatedOldFP] = useState<string>();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const where = { project: current.projectId };
   const mayTest = may(GitDeployKeyService.method.testGitDeployKey, where);
@@ -670,9 +672,6 @@ export function DeployKeySheet({
             </div>
           ) : (
             <>
-              <p className="deploy-key-copy">
-                <Trans>Generate a replacement key without interrupting builds.</Trans>
-              </p>
               <div className="deploy-key-actions">
                 <Button
                   size="sm"
@@ -683,12 +682,44 @@ export function DeployKeySheet({
                 >
                   <Trans>Rotate key</Trans>
                 </Button>
-                {current.usedBy.length === 0 ? (
-                  <Button size="sm" variant="danger" loading={busy} onClick={() => void deleteKey()} {...mayDelete.off}>
+                {current.usedBy.length === 0 && !confirmingDelete ? (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={busy}
+                    onClick={() => setConfirmingDelete(true)}
+                    {...mayDelete.off}
+                  >
                     <Trans>Delete key</Trans>
                   </Button>
                 ) : null}
               </div>
+              {current.usedBy.length === 0 && confirmingDelete ? (
+                <div className="deploy-key-card" data-testid="deploy-key-delete-confirm">
+                  <p className="deploy-key-copy">
+                    <Trans>Deleting this key can't be undone. Remove it on {hostName || current.host} too.</Trans>
+                  </p>
+                  <div className="deploy-key-actions">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      loading={busy}
+                      onClick={() => void deleteKey()}
+                      {...mayDelete.off}
+                    >
+                      <Trans>Delete key</Trans>
+                    </Button>
+                    {deployKeysUrl ? (
+                      <ButtonLink href={deployKeysUrl} target="_blank" rel="noreferrer" variant="ghost" size="sm">
+                        {hostButtonLabel}
+                      </ButtonLink>
+                    ) : null}
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmingDelete(false)}>
+                      <Trans>Cancel</Trans>
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </div>

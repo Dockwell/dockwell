@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/gitssh"
 	"github.com/dockwell/dockwell/internal/gitssh/gitsshtest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/gitdeploykey"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -283,6 +285,14 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		if b := revs[0].GetBuild(); b.GetState() != dockwellv1.BuildState_BUILD_STATE_DONE || b.GetCommit() != commit1 || b.GetCommitSubject() != "Second commit on main" {
 			t.Fatalf("SSH build record = %+v", b)
 		}
+		// N13: temporary pack files are removed as soon as the agent finishes reading them.
+		if entries, err := os.ReadDir(filepath.Join(g.f.config.DataDir, "ssh-packs")); err == nil {
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), "dockwell-ssh-pack-") {
+					t.Fatalf("leftover SSH pack temp file after build: %s", e.Name())
+				}
+			}
+		}
 
 		// 7. Cross-project isolation: another project cannot use default project's deploy key.
 		otherProj := resourceIn(t, apply(t, g.c, propose(t, g.c, "Make other project", &dockwellv1.Edit{
@@ -409,6 +419,57 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		if !obsKey.GetHostKeyChanged() || obsKey.GetObservedHostKeyAlgorithm() != newAlgo || obsKey.GetObservedHostKeyFingerprint() != newFP {
 			t.Fatalf("background fetch did not record observed host key change: %+v (want %s %s)", obsKey, newAlgo, newFP)
 		}
+
+		// N7: a planned git.deploy_key change left behind (e.g. if ApplyOwned failed
+		// to start) cannot be applied or discarded directly via ChangeService by
+		// either an owner or a developer (tested on both SQLite and Postgres).
+		leftoverPlan, err := g.f.engine.Propose(ctx, revision.Proposal{
+			Summary: "Simulated leftover host-key pin",
+			Actor:   revision.SystemActor,
+			Via:     revision.ViaAPI,
+			Edits: []revision.Edit{{
+				Ref:  resource.Ref{Kind: gitdeploykey.Kind, Scope: defaultProjectID, Name: key.GetName()},
+				Base: int(obsKey.GetRevision()),
+				Spec: &resourcev1.GitDeployKey{
+					Repository:         obsKey.GetRepository(),
+					Host:               obsKey.GetHost(),
+					Port:               obsKey.GetPort(),
+					User:               obsKey.GetUser(),
+					KeyType:            obsKey.GetKeyType(),
+					PublicKey:          obsKey.GetPublicKey(),
+					KeyFingerprint:     obsKey.GetKeyFingerprint(),
+					HostKeyAlgorithm:   newAlgo,
+					HostKeyFingerprint: newFP,
+					CreatedAt:          obsKey.GetCreateTime().AsTime().Unix(),
+				},
+			}},
+		})
+		if err != nil {
+			t.Fatalf("simulate leftover git.deploy_key plan: %v", err)
+		}
+		if _, err := g.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: leftoverPlan.Change})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("owner ApplyChange on planned git.deploy_key = %v, want InvalidArgument", err)
+		}
+		if _, err := g.c.DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: leftoverPlan.Change})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("owner DiscardChange on planned git.deploy_key = %v, want InvalidArgument", err)
+		}
+
+		// N11: if the host intermittently presents the old pinned key again, a
+		// passing TestGitDeployKey must NOT clear the "Host key changed" warning.
+		srv.RestoreInitialHostKey()
+		intermittentOK, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: key.GetId()}))
+		if err != nil || intermittentOK.Msg.GetStatus() != dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_OK {
+			t.Fatalf("intermittent TestGitDeployKey = %+v, %v; want OK", intermittentOK, err)
+		}
+		if !intermittentOK.Msg.GetKey().GetHostKeyChanged() || intermittentOK.Msg.GetKey().GetObservedHostKeyFingerprint() != newFP {
+			t.Fatalf("passing test cleared host_key_changed warning (N11): %+v", intermittentOK.Msg.GetKey())
+		}
+		// Rotate back to a changed ECDSA host key for the rest of the check.
+		newAlgo, newFP, err = srv.RotateHostKeyECDSA()
+		if err != nil {
+			t.Fatalf("RotateHostKeyECDSA (second): %v", err)
+		}
+
 		hkFail, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: key.GetId()}))
 		if err != nil || hkFail.Msg.GetStatus() != dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_CHANGED {
 			t.Fatalf("test after host key change = %+v, %v; want HOST_KEY_CHANGED", hkFail, err)
@@ -429,9 +490,18 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 		})); reasonOf(err) != authapi.ReasonNeedsStepUp {
 			t.Fatalf("accept changed host key without step-up: %v, want %s", err, authapi.ReasonNeedsStepUp)
 		}
-		// A project developer cannot accept a changed host key and cannot bypass via ProposeChange.
+		// A project developer cannot accept a changed host key and cannot bypass via ProposeChange, ApplyChange, or DiscardChange.
 		hold := aMember(t, g.f)
 		hold(in(defaultProjectID, store.RoleDeveloper))
+		if _, err := g.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: leftoverPlan.Change})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("developer ApplyChange on planned git.deploy_key = %v, want InvalidArgument", err)
+		}
+		if _, err := g.c.DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: leftoverPlan.Change})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("developer DiscardChange on planned git.deploy_key = %v, want InvalidArgument", err)
+		}
+		if err := g.f.engine.Discard(ctx, leftoverPlan.Change, revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}); err != nil {
+			t.Fatalf("cleanup simulated leftover plan: %v", err)
+		}
 		if _, err := g.c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
 			Summary: "Developer bypass host key pin",
 			Edits: []*dockwellv1.Edit{{
@@ -531,9 +601,9 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 	})
 }
 
-// TestSSHDeployKeyConcurrencyCap verifies that concurrent SSH tests on a key
-// hit the shared SSH concurrency gate and return ResourceExhausted with
-// reason "too_many_readings" (H2).
+// TestSSHDeployKeyConcurrencyCap verifies cross-project fairness, FIFO waiting
+// for transient contention, and bounded busy refusal ("too_many_readings") on
+// sustained contention across projects (H2, N8).
 func TestSSHDeployKeyConcurrencyCap(t *testing.T) {
 	t.Parallel()
 	g := newGitBench(t, store.SQLite)
@@ -547,55 +617,97 @@ func TestSSHDeployKeyConcurrencyCap(t *testing.T) {
 	t.Cleanup(func() { _ = srv.Close() })
 
 	keys := gitKeysClient(g.b)
-	defaultProjectID := envProject(t, g.f, listedEnv(t, g.b))
-	created, err := keys.CreateGitDeployKey(ctx, connect.NewRequest(&dockwellv1.CreateGitDeployKeyRequest{
-		Project:    defaultProjectID,
-		Repository: srv.URL(),
-		Proof:      stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY, defaultProjectID),
-	}))
-	if err != nil {
-		t.Fatalf("CreateGitDeployKey: %v", err)
+	projA := envProject(t, g.f, listedEnv(t, g.b))
+	projB := resourceIn(t, apply(t, g.c, propose(t, g.c, "Make second project", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "projb"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	})), "project")
+
+	makeKey := func(projectID string) *dockwellv1.GitDeployKeyInfo {
+		t.Helper()
+		created, err := keys.CreateGitDeployKey(ctx, connect.NewRequest(&dockwellv1.CreateGitDeployKeyRequest{
+			Project:    projectID,
+			Repository: srv.URL(),
+			Proof:      stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY, projectID),
+		}))
+		if err != nil {
+			t.Fatalf("CreateGitDeployKey(%s): %v", projectID, err)
+		}
+		return created.Msg.GetKey()
 	}
-	key := created.Msg.GetKey()
-	if err := srv.SetAuthorizedKeys(key.GetPublicKey()); err != nil {
+	keyA := makeKey(projA)
+	keyB := makeKey(projB)
+	if err := srv.SetAuthorizedKeys(keyA.GetPublicKey(), keyB.GetPublicKey()); err != nil {
 		t.Fatal(err)
 	}
 	algo, fp := srv.HostKey()
-	if _, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
-		Id:                 key.GetId(),
-		AcceptHostKey:      true,
-		HostKeyAlgorithm:   algo,
-		HostKeyFingerprint: fp,
-	})); err != nil {
-		t.Fatalf("initial TestGitDeployKey: %v", err)
+	for _, k := range []*dockwellv1.GitDeployKeyInfo{keyA, keyB} {
+		if _, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
+			Id:                 k.GetId(),
+			AcceptHostKey:      true,
+			HostKeyAlgorithm:   algo,
+			HostKeyFingerprint: fp,
+		})); err != nil {
+			t.Fatalf("initial TestGitDeployKey(%s): %v", k.GetId(), err)
+		}
 	}
 
-	srv.SetDelay(250 * time.Millisecond)
-	defer srv.SetDelay(0)
-
+	// 1. Short delay (< defaultListWait = 2s): a second call on project A waits
+	// in FIFO order and succeeds rather than failing immediately.
+	srv.SetDelay(200 * time.Millisecond)
 	var wg sync.WaitGroup
-	errs := make([]error, 2)
+	shortErrs := make([]error, 2)
 	for i := range 2 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, errs[i] = keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: key.GetId()}))
+			_, shortErrs[i] = keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: keyA.GetId()}))
 		}()
 	}
 	wg.Wait()
+	for i, err := range shortErrs {
+		if err != nil {
+			t.Fatalf("short-wait TestGitDeployKey[%d] = %v, want nil", i, err)
+		}
+	}
 
-	var okCount, busyCount int
-	for _, err := range errs {
+	// 2. Long delay (> defaultListWait = 2s): project A holds its 1 listing slot
+	// so its second call hits ResourceExhausted ("too_many_readings"), while
+	// project B still gets the second listing slot concurrently and succeeds (N8).
+	srv.SetDelay(2300 * time.Millisecond)
+	defer srv.SetDelay(0)
+
+	errsA := make([]error, 2)
+	var errB error
+	for i := range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errsA[i] = keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: keyA.GetId()}))
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, errB = keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{Id: keyB.GetId()}))
+	}()
+	wg.Wait()
+
+	if errB != nil {
+		t.Fatalf("project B TestGitDeployKey while project A saturated its cap = %v, want nil (N8 fairness)", errB)
+	}
+	var okA, busyA int
+	for _, err := range errsA {
 		switch {
 		case err == nil:
-			okCount++
+			okA++
 		case connect.CodeOf(err) == connect.CodeResourceExhausted && reasonOf(err) == "too_many_readings":
-			busyCount++
+			busyA++
 		default:
 			t.Fatalf("unexpected error from concurrent TestGitDeployKey: %v (code %v, reason %q)", err, connect.CodeOf(err), reasonOf(err))
 		}
 	}
-	if okCount != 1 || busyCount != 1 {
-		t.Fatalf("concurrent TestGitDeployKey: ok=%d busy=%d, want ok=1 busy=1", okCount, busyCount)
+	if okA != 1 || busyA != 1 {
+		t.Fatalf("project A concurrent TestGitDeployKey: ok=%d busy=%d, want ok=1 busy=1", okA, busyA)
 	}
 }

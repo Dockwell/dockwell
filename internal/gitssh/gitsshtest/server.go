@@ -38,6 +38,7 @@ type Server struct {
 
 	mu             sync.Mutex
 	hostSigner     ssh.Signer
+	initialSigner  ssh.Signer
 	authorized     map[string]bool
 	denyRepo       bool
 	v1Only         bool
@@ -45,6 +46,7 @@ type Server struct {
 	delay          time.Duration
 	extraBytes     int
 	listFloodBytes int
+	v1ExtraRefs    int
 	closed         bool
 	seenChannels   []string
 	seenReqs       []string
@@ -65,13 +67,14 @@ func NewServer(listenAddr, repoName, repoDir string) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{
-		Addr:       ln.Addr().String(),
-		RepoName:   repoName,
-		RepoDir:    repoDir,
-		ln:         ln,
-		hostSigner: signer,
-		authorized: map[string]bool{},
-		strictPath: strings.HasPrefix(repoName, "/"),
+		Addr:          ln.Addr().String(),
+		RepoName:      repoName,
+		RepoDir:       repoDir,
+		ln:            ln,
+		hostSigner:    signer,
+		initialSigner: signer,
+		authorized:    map[string]bool{},
+		strictPath:    strings.HasPrefix(repoName, "/"),
 	}
 	s.wg.Add(1)
 	go s.serve()
@@ -115,6 +118,16 @@ func (s *Server) RotateHostKeyECDSA() (algorithm, fingerprint string, err error)
 	s.mu.Unlock()
 	pub := signer.PublicKey()
 	return pub.Type(), ssh.FingerprintSHA256(pub), nil
+}
+
+// RestoreInitialHostKey restores the server's initial host key, useful for
+// simulating an intermittent host-key change (N11).
+func (s *Server) RestoreInitialHostKey() (algorithm, fingerprint string) {
+	s.mu.Lock()
+	s.hostSigner = s.initialSigner
+	pub := s.hostSigner.PublicKey()
+	s.mu.Unlock()
+	return pub.Type(), ssh.FingerprintSHA256(pub)
 }
 
 // SetAuthorizedKeys replaces the set of authorized OpenSSH public keys.
@@ -178,6 +191,15 @@ func (s *Server) SetStrictPath(strict bool) {
 func (s *Server) SetListFloodBytes(n int) {
 	s.mu.Lock()
 	s.listFloodBytes = n
+	s.mu.Unlock()
+}
+
+// SetV1ExtraRefs injects n extra non-branch/tag refs (refs/pull/<i+1>/head)
+// into a protocol v1 ref advertisement before the flush packet to simulate an
+// older server advertising tens of thousands of pull-request refs (N14).
+func (s *Server) SetV1ExtraRefs(n int) {
+	s.mu.Lock()
+	s.v1ExtraRefs = n
 	s.mu.Unlock()
 }
 
@@ -320,6 +342,7 @@ func (s *Server) runExec(ch ssh.Channel, command, gitProtocol string) int {
 	extra := s.extraBytes
 	strict := s.strictPath
 	flood := s.listFloodBytes
+	extraRefs := s.v1ExtraRefs
 	s.mu.Unlock()
 
 	if delay > 0 {
@@ -383,6 +406,63 @@ func (s *Server) runExec(ch ssh.Channel, command, gitProtocol string) int {
 		cmd.Env = append(cmd.Environ(), "GIT_PROTOCOL="+gitProtocol)
 	}
 	cmd.Stdin = ch
+	if extraRefs > 0 && gitProtocol == "" {
+		// Intercept git-upload-pack's v1 ref advertisement so we inject extra
+		// refs/pull/* lines right before its terminating 0000 flush packet,
+		// then transparently relay any subsequent packfile stream.
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			return 1
+		}
+		cmd.Stderr = ch.Stderr()
+		if err := cmd.Start(); err != nil {
+			return 1
+		}
+		var adv bytes.Buffer
+		var head [4]byte
+		for {
+			if _, err := io.ReadFull(stdoutPipe, head[:]); err != nil {
+				_ = cmd.Wait()
+				return 1
+			}
+			if string(head[:]) == "0000" {
+				break
+			}
+			var n int
+			if _, err := fmt.Sscanf(string(head[:]), "%04x", &n); err != nil || n < 4 {
+				_ = cmd.Wait()
+				return 1
+			}
+			line := make([]byte, n-4)
+			if _, err := io.ReadFull(stdoutPipe, line); err != nil {
+				_ = cmd.Wait()
+				return 1
+			}
+			adv.Write(head[:])
+			adv.Write(line)
+		}
+		if _, err := ch.Write(adv.Bytes()); err != nil {
+			_ = cmd.Wait()
+			return 1
+		}
+		for i := range extraRefs {
+			line := fmt.Sprintf("0123456789abcdef0123456789abcdef01234567 refs/pull/%d/head\n", i+1)
+			pkt := fmt.Sprintf("%04x%s", len(line)+4, line)
+			if _, err := io.WriteString(ch, pkt); err != nil {
+				_ = cmd.Wait()
+				return 1
+			}
+		}
+		if _, err := io.WriteString(ch, "0000"); err != nil {
+			_ = cmd.Wait()
+			return 1
+		}
+		_, _ = io.Copy(ch, stdoutPipe)
+		if err := cmd.Wait(); err != nil {
+			return 1
+		}
+		return 0
+	}
 	cmd.Stdout = ch
 	cmd.Stderr = ch.Stderr()
 	if err := cmd.Run(); err != nil {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/dockwell/dockwell/internal/control/changes"
@@ -203,7 +204,7 @@ func (h *Handler) ResolveSSH(ctx context.Context, login, repoURL, ref string) (c
 	if err != nil {
 		return "", "", err
 	}
-	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	release, err := h.gate.acquireList(ctx, k.r.Scope, k.r.ID)
 	if err != nil {
 		return "", "", err
 	}
@@ -222,7 +223,7 @@ func (h *Handler) BranchesSSH(ctx context.Context, login, repoURL string) (head 
 	if err != nil {
 		return "", nil, err
 	}
-	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	release, err := h.gate.acquireList(ctx, k.r.Scope, k.r.ID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -242,7 +243,7 @@ func (h *Handler) FetchPackIn(ctx context.Context, login, repoURL, ref, commit, 
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	release, err := h.gate.acquire(k.r.Scope, k.r.ID, true)
+	release, err := h.gate.acquireFetch(ctx, k.r.Scope, k.r.ID)
 	if err != nil {
 		return nil, 0, nil, err
 	}
@@ -252,9 +253,12 @@ func (h *Handler) FetchPackIn(ctx context.Context, login, repoURL, ref, commit, 
 		h.maybeNoteHostKeyChange(ctx, k.r.ID, err)
 		return nil, 0, nil, err
 	}
+	var once sync.Once
 	cleanup := func() {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
+		once.Do(func() {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+		})
 	}
 	return f, size, cleanup, nil
 }

@@ -3,64 +3,181 @@
 package gitkeys
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 )
 
-func TestSSHGateBoundsListsFetchesProjectsAndKeys(t *testing.T) {
-	var g sshGate
+func TestSSHGateFairnessAcrossProjects(t *testing.T) {
+	g := sshGate{listWait: 60 * time.Millisecond}
+	ctx := t.Context()
 
-	// Per-key listing cap is 1.
-	rel1, err := g.acquire("prj_1", "gdk_1", false)
+	// Project A takes its 1 listing slot and 1 fetch slot.
+	listA, err := g.acquireList(ctx, "prj_a", "gdk_a1")
 	if err != nil {
-		t.Fatalf("first list acquire: %v", err)
+		t.Fatalf("project A first list: %v", err)
 	}
-	if _, err := g.acquire("prj_1", "gdk_1", false); connect.CodeOf(err) != connect.CodeResourceExhausted {
-		t.Fatalf("second concurrent list on same key = %v, want ResourceExhausted", err)
-	}
-
-	// Second listing on another key succeeds, hitting install-wide list cap (2).
-	rel2, err := g.acquire("prj_2", "gdk_2", false)
+	fetchA, err := g.acquireFetch(ctx, "prj_a", "gdk_a1")
 	if err != nil {
-		t.Fatalf("second list on other project: %v", err)
-	}
-	if _, err := g.acquire("prj_3", "gdk_3", false); connect.CodeOf(err) != connect.CodeResourceExhausted {
-		t.Fatalf("third concurrent list = %v, want ResourceExhausted", err)
+		t.Fatalf("project A first fetch: %v", err)
 	}
 
-	// Pack fetches have their own 2 slots (up to maxSSHTotal = 4).
-	f1, err := g.acquire("prj_1", "gdk_1", true)
+	// Project B immediately gets a listing slot and a fetch slot even while A
+	// holds its full per-project allowance (N8 fairness).
+	listB, err := g.acquireList(ctx, "prj_b", "gdk_b1")
 	if err != nil {
-		t.Fatalf("first fetch acquire: %v", err)
+		t.Fatalf("project B list while A holds its cap: %v", err)
 	}
-	// prj_1 now has 2 ops (1 list + 1 fetch), hitting per-project cap (2).
-	if _, err := g.acquire("prj_1", "gdk_1", true); connect.CodeOf(err) != connect.CodeResourceExhausted {
-		t.Fatalf("third op in prj_1 = %v, want ResourceExhausted", err)
-	}
-	f2, err := g.acquire("prj_3", "gdk_3", true)
+	fetchB, err := g.acquireFetch(ctx, "prj_b", "gdk_b1")
 	if err != nil {
-		t.Fatalf("second fetch in prj_3: %v", err)
-	}
-	// Total is now 4 (2 lists + 2 fetches): any further op is refused.
-	if _, err := g.acquire("prj_4", "gdk_4", true); connect.CodeOf(err) != connect.CodeResourceExhausted {
-		t.Fatalf("fifth total op = %v, want ResourceExhausted", err)
+		t.Fatalf("project B fetch while A holds its cap: %v", err)
 	}
 
-	// Releasing frees slots cleanly and is idempotent.
-	rel1()
-	rel1()
-	rel2()
-	f1()
-	f2()
-	rel3, err := g.acquire("prj_1", "gdk_1", false)
+	// Project A trying a second listing waits listWait then returns ResourceExhausted.
+	start := time.Now()
+	if _, err := g.acquireList(ctx, "prj_a", "gdk_a2"); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("project A second list = %v, want ResourceExhausted", err)
+	}
+	if waited := time.Since(start); waited < 40*time.Millisecond {
+		t.Fatalf("project A second list failed immediately after %v; want bounded wait", waited)
+	}
+
+	// Releasing is idempotent and restores slots cleanly.
+	listA()
+	listA()
+	fetchA()
+	listB()
+	fetchB()
+	again, err := g.acquireList(ctx, "prj_a", "gdk_a1")
 	if err != nil {
 		t.Fatalf("re-acquire after release: %v", err)
 	}
-	rel3()
+	again()
+}
+
+func TestSSHGateFIFOWaitAndBuildFetchWait(t *testing.T) {
+	g := sshGate{listWait: 80 * time.Millisecond}
+	ctx := t.Context()
+
+	// 1. Fill both global fetch slots (prj_a and prj_b).
+	fetchA, err := g.acquireFetch(ctx, "prj_a", "gdk_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fetchB, err := g.acquireFetch(ctx, "prj_b", "gdk_b")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Queue prj_c then prj_d as build fetches (wait past listWait until freed,
+	// in FIFO order).
+	var mu sync.Mutex
+	var order []string
+	cQueued := make(chan struct{})
+	dQueued := make(chan struct{})
+	cDone := make(chan error, 1)
+	dDone := make(chan error, 1)
+
+	go func() {
+		close(cQueued)
+		rel, err := g.acquireFetch(ctx, "prj_c", "gdk_c")
+		if err != nil {
+			cDone <- err
+			return
+		}
+		mu.Lock()
+		order = append(order, "prj_c")
+		mu.Unlock()
+		time.Sleep(25 * time.Millisecond)
+		rel()
+		cDone <- nil
+	}()
+	<-cQueued
+	// Ensure prj_c is registered in the waiter queue before prj_d arrives.
+	deadline := time.Now().Add(time.Second)
+	for {
+		g.mu.Lock()
+		n := len(g.waiters)
+		g.mu.Unlock()
+		if n >= 1 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	go func() {
+		close(dQueued)
+		rel, err := g.acquireFetch(ctx, "prj_d", "gdk_d")
+		if err != nil {
+			dDone <- err
+			return
+		}
+		mu.Lock()
+		order = append(order, "prj_d")
+		mu.Unlock()
+		rel()
+		dDone <- nil
+	}()
+	<-dQueued
+	deadline = time.Now().Add(time.Second)
+	for {
+		g.mu.Lock()
+		n := len(g.waiters)
+		g.mu.Unlock()
+		if n >= 2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// Hold past listWait (80ms) to prove build fetches wait on their own context
+	// rather than failing at listWait.
+	time.Sleep(110 * time.Millisecond)
+	fetchA()
+	if err := <-cDone; err != nil {
+		t.Fatalf("prj_c build fetch failed while waiting: %v", err)
+	}
+	fetchB()
+	if err := <-dDone; err != nil {
+		t.Fatalf("prj_d build fetch failed while waiting: %v", err)
+	}
+	if !slices.Equal(order, []string{"prj_c", "prj_d"}) {
+		t.Fatalf("waiter wake order = %v, want [prj_c prj_d]", order)
+	}
+
+	// 3. A queued build fetch respects context cancellation and does not leak a slot.
+	holdA, err := g.acquireFetch(ctx, "prj_a", "gdk_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelCtx, cancel := context.WithTimeout(ctx, 40*time.Millisecond)
+	defer cancel()
+	if _, err := g.acquireFetch(cancelCtx, "prj_a", "gdk_a2"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cancelled fetch wait = %v, want DeadlineExceeded", err)
+	}
+	holdA()
+
+	// 4. Interactive listing waits in order and succeeds if freed before listWait.
+	holdL, err := g.acquireList(ctx, "prj_a", "gdk_a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(25 * time.Millisecond)
+		holdL()
+	}()
+	relL, err := g.acquireList(ctx, "prj_a", "gdk_a")
+	if err != nil {
+		t.Fatalf("interactive list freed before listWait failed: %v", err)
+	}
+	relL()
 }
 
 func TestSweepPackTempDirRemovesStalePacks(t *testing.T) {

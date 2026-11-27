@@ -18,7 +18,10 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
 )
@@ -603,4 +606,192 @@ func TestARefDeltaIsRefused(t *testing.T) {
 	if _, err := Fetch(t.Context(), gitfetchtest.Client(), serve(t, p.bytes()), commit, "", Default); err == nil || !strings.Contains(err.Error(), "a delta that names its base") {
 		t.Errorf("a ref-delta: %v", err)
 	}
+}
+
+// buildCommitDeltaChainPack constructs a hostile pack containing a commit of
+// targetSize bytes built through a chain of depth ofs-deltas.
+func buildCommitDeltaChainPack(t *testing.T, targetSize, depth int) (pack []byte, commit string) {
+	t.Helper()
+	p := &packBuilder{}
+	blob := p.add(objBlob, []byte("ok\n"))
+	top := p.add(objTree, tree([3]string{"100644", "f", blob}))
+	header := commitOf(top)
+	if targetSize < len(header)+16 {
+		targetSize = len(header) + 16
+	}
+	base := make([]byte, targetSize)
+	copy(base, header)
+	for i := len(header); i < len(base); i++ {
+		base[i] = byte('a' + (i % 26))
+	}
+	p.add(objCommit, base)
+	cur := append([]byte(nil), base...)
+	for i := range depth {
+		tag := fmt.Sprintf("%08d", i)
+		ops := [][]byte{copyOp(0, int64(len(header))), insertOp([]byte(tag))}
+		for off := int64(len(header) + len(tag)); off < int64(len(cur)); off += 0x10000 {
+			ops = append(ops, copyOp(off, min(0x10000, int64(len(cur))-off)))
+		}
+		p.delta(p.last(), deltaOf(int64(len(cur)), int64(len(cur)), ops...))
+		copy(cur[len(header):], tag)
+	}
+	return p.bytes(), gitName("commit", cur)
+}
+
+func peakHeapDuring(f func()) (peakAllocDelta, peakSysDelta uint64) {
+	var base runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&base)
+	var maxAlloc, maxSys atomic.Uint64
+	maxAlloc.Store(base.HeapAlloc)
+	maxSys.Store(base.HeapSys)
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var ms runtime.MemStats
+		tick := time.NewTicker(time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-tick.C:
+				runtime.ReadMemStats(&ms)
+				for prev := maxAlloc.Load(); ms.HeapAlloc > prev; prev = maxAlloc.Load() {
+					if maxAlloc.CompareAndSwap(prev, ms.HeapAlloc) {
+						break
+					}
+				}
+				for prev := maxSys.Load(); ms.HeapSys > prev; prev = maxSys.Load() {
+					if maxSys.CompareAndSwap(prev, ms.HeapSys) {
+						break
+					}
+				}
+			}
+		}
+	}()
+	f()
+	close(stop)
+	wg.Wait()
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	peakA := max(maxAlloc.Load(), after.HeapAlloc)
+	peakS := max(maxSys.Load(), after.HeapSys)
+	if peakA > base.HeapAlloc {
+		peakAllocDelta = peakA - base.HeapAlloc
+	}
+	if peakS > base.HeapSys {
+		peakSysDelta = peakS - base.HeapSys
+	}
+	return peakAllocDelta, peakSysDelta
+}
+
+// TestVerifyPackDeltaChainMemoryIsBounded verifies that SSH pack verification
+// rejects oversized commit delta chains without inflating them and keeps peak
+// live heap tightly bounded even with two worst-case hostile packs verifying at
+// once (N9, ADR 0113).
+func TestVerifyPackDeltaChainMemoryIsBounded(t *testing.T) {
+	writeTemp := func(data []byte) *os.File {
+		t.Helper()
+		f, err := os.CreateTemp(t.TempDir(), "pack-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = f.Close() })
+		if _, err := f.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+
+	// 1. Re-check hostile case: an ~8 MiB commit built through a 60-delta chain
+	// is refused without materializing the 8 MiB commit chain.
+	t.Run("8MiB_refused", func(t *testing.T) {
+		hostile8M, commit8M := buildCommitDeltaChainPack(t, 8<<20, 60)
+		f8M := writeTemp(hostile8M)
+		var err8M error
+		peak8M, sys8M := peakHeapDuring(func() {
+			err8M = VerifyPack(t.Context(), f8M, int64(len(hostile8M)), 4*(64<<20), commit8M, "")
+		})
+		if err8M == nil {
+			t.Fatalf("expected 8 MiB commit delta chain to be refused by VerifyPack")
+		}
+		t.Logf("hostile 8 MiB 60-delta commit (%d KiB pack): refused (%v), peak HeapAlloc delta=%d KiB, HeapSys delta=%d KiB",
+			len(hostile8M)>>10, err8M, peak8M>>10, sys8M>>10)
+		if peak8M > 16<<20 {
+			t.Errorf("refusing 8 MiB commit delta chain peaked at %d MiB live heap", peak8M>>20)
+		}
+	})
+
+	// 2. Worst-case allowed hostile pack: 1 MiB commit through a 60-delta chain.
+	t.Run("1MiB_single", func(t *testing.T) {
+		hostile1M, commit1M := buildCommitDeltaChainPack(t, verifyMaxCommit, 60)
+		f1a := writeTemp(hostile1M)
+		var err1 error
+		peakSingle, sysSingle := peakHeapDuring(func() {
+			err1 = VerifyPack(t.Context(), f1a, int64(len(hostile1M)), 4*(64<<20), commit1M, "")
+		})
+		t.Logf("single hostile 1 MiB 60-delta commit (%d KiB pack): err=%v, peak HeapAlloc delta=%d MiB, HeapSys delta=%d MiB",
+			len(hostile1M)>>10, err1, peakSingle>>20, sysSingle>>20)
+		if peakSingle > 32<<20 {
+			t.Errorf("single 1 MiB 60-delta VerifyPack peaked at %d MiB live heap (want <= 32 MiB)", peakSingle>>20)
+		}
+	})
+
+	// 3. Two concurrent worst-case allowed hostile packs (both fetch slots full).
+	t.Run("1MiB_two_concurrent", func(t *testing.T) {
+		hostile1M, commit1M := buildCommitDeltaChainPack(t, verifyMaxCommit, 60)
+		f1a := writeTemp(hostile1M)
+		f1b := writeTemp(hostile1M)
+		peakDual, sysDual := peakHeapDuring(func() {
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				_ = VerifyPack(t.Context(), f1a, int64(len(hostile1M)), 4*(64<<20), commit1M, "")
+			}()
+			go func() {
+				defer wg.Done()
+				_ = VerifyPack(t.Context(), f1b, int64(len(hostile1M)), 4*(64<<20), commit1M, "")
+			}()
+			wg.Wait()
+		})
+		t.Logf("two concurrent hostile 1 MiB 60-delta commits: peak HeapAlloc delta=%d MiB, HeapSys delta=%d MiB",
+			peakDual>>20, sysDual>>20)
+		if peakDual > 56<<20 {
+			t.Errorf("two concurrent 1 MiB 60-delta VerifyPack peaked at %d MiB live heap (want <= 56 MiB)", peakDual>>20)
+		}
+	})
+
+	// 4. Two concurrent 100k-object tiny packs in VerifyPack (commitsOnly skips
+	// indexing 100k blobs into byName).
+	t.Run("100k_two_concurrent", func(t *testing.T) {
+		tiny, tinyCommit := tinyPack(maxObjects - 3)
+		ft1 := writeTemp(tiny)
+		ft2 := writeTemp(tiny)
+		var errT1, errT2 error
+		peakTiny, sysTiny := peakHeapDuring(func() {
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				errT1 = VerifyPack(t.Context(), ft1, int64(len(tiny)), 4*(64<<20), tinyCommit, "")
+			}()
+			go func() {
+				defer wg.Done()
+				errT2 = VerifyPack(t.Context(), ft2, int64(len(tiny)), 4*(64<<20), tinyCommit, "")
+			}()
+			wg.Wait()
+		})
+		if errT1 != nil || errT2 != nil {
+			t.Fatalf("VerifyPack on 100k-object packs failed: %v, %v", errT1, errT2)
+		}
+		t.Logf("two concurrent 100k-object packs: peak HeapAlloc delta=%d MiB, HeapSys delta=%d MiB",
+			peakTiny>>20, sysTiny>>20)
+		if peakTiny > 40<<20 {
+			t.Errorf("two concurrent 100k-object VerifyPack peaked at %d MiB live heap (want <= 40 MiB)", peakTiny>>20)
+		}
+	})
 }

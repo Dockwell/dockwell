@@ -94,8 +94,17 @@ func TestParseAndDeployKeysPage(t *testing.T) {
 		t.Fatalf("unexpected relative ssh:// endpoint: %+v", epRelSSH)
 	}
 
-	if !gitssh.SameRepo("git@github.com:acme/web.git", "ssh://git@github.com/acme/web") {
-		t.Fatal("expected SameRepo to ignore leading / and .git")
+	if !gitssh.SameRepo("git@github.com:acme/web.git", "ssh://git@github.com/~/acme/web") {
+		t.Fatal("expected SameRepo to match relative SCP and ssh://~/ forms")
+	}
+	if !gitssh.SameRepo("git@git.example.com:/srv/git/app.git", "ssh://git@git.example.com/srv/git/app") {
+		t.Fatal("expected SameRepo to match absolute SCP and ssh:// forms")
+	}
+	if gitssh.SameRepo("git@git.example.com:/srv/git/app.git", "git@git.example.com:srv/git/app.git") {
+		t.Fatal("expected SameRepo to keep absolute /srv/git/app.git distinct from relative srv/git/app.git (N12)")
+	}
+	if gitssh.SameRepo("git@github.com:acme/web.git", "ssh://git@github.com/acme/web") {
+		t.Fatal("expected SameRepo to keep relative acme/web.git distinct from absolute /acme/web (N12)")
 	}
 
 	for _, bad := range []string{
@@ -422,4 +431,21 @@ func TestAbsoluteGitShellPathListFloodAndPackTempDir(t *testing.T) {
 	if _, _, _, err := gitssh.Branches(t.Context(), relCfg, nil); err != nil {
 		t.Fatalf("Branches against strict relative acme/web.git: %v", err)
 	}
+
+	// 4. Protocol v1 server advertising 40,000 refs/pull/* lines (> 3 MiB wire)
+	// streams and drops them in O(1) memory without hitting the 2 MiB kept cap (N14).
+	absSrv.SetV1Only(true)
+	absSrv.SetV1ExtraRefs(40_000)
+	head, branches, _, err = gitssh.Branches(t.Context(), cfg, nil)
+	if err != nil || head != "main" || !slices.Equal(branches, []string{"main", "release"}) {
+		t.Fatalf("Branches against v1 server with 40k refs/pull/*: head=%q branches=%v err=%v", head, branches, err)
+	}
+	fV1, sizeV1, err := gitssh.FetchPack(t.Context(), cfg, nil, "refs/heads/main", secondCommit, gitssh.DefaultPackLimits())
+	if err != nil || sizeV1 <= 0 {
+		t.Fatalf("FetchPack against v1 server with 40k refs/pull/*: size=%d err=%v", sizeV1, err)
+	}
+	_ = fV1.Close()
+	_ = os.Remove(fV1.Name())
+	absSrv.SetV1ExtraRefs(0)
+	absSrv.SetV1Only(false)
 }

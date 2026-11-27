@@ -277,7 +277,7 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		pinFP, pinAlgo = acceptFP, acceptAlgo
 	}
 
-	release, err := h.gate.acquire(k.r.Scope, k.r.ID, false)
+	release, err := h.gate.acquireList(ctx, k.r.Scope, k.r.ID)
 	if err != nil {
 		if giveBack != nil {
 			giveBack()
@@ -420,8 +420,6 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		next.KeyFingerprint = fresh.spec.GetPendingKeyFingerprint()
 		next.RotatedAt = nowUnix
 		next.VerifiedAt = nowUnix
-		next.ObservedHostKeyAlgorithm = ""
-		next.ObservedHostKeyFingerprint = ""
 		next.PendingPrivateKey = ""
 		next.PendingPublicKey = ""
 		next.PendingKeyType = ""
@@ -443,13 +441,11 @@ func (h *Handler) TestGitDeployKey(ctx context.Context, req *connect.Request[doc
 		resp.OldKeyFingerprint = oldFP
 		resp.Key = toInfo(k, usedBy)
 		resp.ChangeId = changeID
-	} else if !verifiedSaved && (k.spec.GetVerifiedAt() == 0 || k.spec.GetObservedHostKeyFingerprint() != "") {
+	} else if !verifiedSaved && k.spec.GetVerifiedAt() == 0 {
 		h.changing.Lock()
-		if fresh, ferr := h.oneByID(ctx, k.r.ID); ferr == nil {
+		if fresh, ferr := h.oneByID(ctx, k.r.ID); ferr == nil && fresh.spec.GetVerifiedAt() == 0 {
 			next := cloneMeta(fresh.spec)
 			next.VerifiedAt = h.now().Unix()
-			next.ObservedHostKeyAlgorithm = ""
-			next.ObservedHostKeyFingerprint = ""
 			if cid, cerr := h.applyEdit(ctx, "Verify SSH deploy key "+fresh.r.Name, fresh.r.Scope, fresh.r.Name, fresh.r.Revision, next); cerr == nil {
 				changeID = cid
 				if reloaded, rerr := h.oneByID(ctx, fresh.r.ID); rerr == nil {
@@ -635,7 +631,10 @@ func (h *Handler) applyEdit(ctx context.Context, summary, projectID, name string
 		return "", err
 	}
 	if err := h.cfg.Changes.ApplyOwned(ctx, c.GetId()); err != nil {
-		return c.GetId(), err
+		discardCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = h.cfg.Changes.DiscardOwned(discardCtx, c.GetId())
+		return "", err
 	}
 	return c.GetId(), nil
 }

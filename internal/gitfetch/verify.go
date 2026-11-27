@@ -16,7 +16,15 @@ var ErrCommitNotOnRef = errors.New("commit is not on the requested branch or tag
 
 // maxAncestrySteps bounds the parent walk when verifying commit ancestry in a
 // shallow pack.
-const maxAncestrySteps = 1024
+const (
+	maxAncestrySteps = 1024
+	// VerifyPack only reads commit objects and their parent pointers, never
+	// blobs or trees, so tighter object, cache and delta bounds keep concurrent
+	// SSH pack verifications well inside the control-plane memory budget.
+	verifyMaxCommit      = 1 << 20
+	verifyMaxCached      = 4 << 20
+	verifyMaxDeltaBudget = 64 << 20
+)
 
 // VerifyPack checks a raw Git pack file on disk using gitfetch's SHA-1DC pack
 // indexer and bounds (object count, single-object size, delta depth, ofs-delta
@@ -30,11 +38,16 @@ func VerifyPack(ctx context.Context, f *os.File, size, budget int64, commit, ref
 	if refTip != "" && !Commit.MatchString(refTip) {
 		return fmt.Errorf("%q isn't a commit. Name one in full, as 40 hex digits", refTip)
 	}
-	p, err := indexPack(ctx, f, size, budget)
+	p, err := indexPackOpts(ctx, f, size, budget, packOpts{
+		commitsOnly: true,
+		maxObj:      verifyMaxCommit,
+		maxCache:    verifyMaxCached,
+		deltaBudget: verifyMaxDeltaBudget,
+	})
 	if err != nil {
 		return err
 	}
-	c, err := p.object(commit, "commit", maxObject)
+	c, err := p.object(commit, "commit", verifyMaxCommit)
 	if err != nil {
 		return missing(err, "commit "+commit)
 	}
@@ -65,7 +78,7 @@ func isAncestor(ctx context.Context, p *pack, tip, want string) (bool, error) {
 		if cur == want {
 			return true, nil
 		}
-		raw, err := p.object(cur, "commit", maxObject)
+		raw, err := p.object(cur, "commit", p.maxObj)
 		if err != nil {
 			if errors.Is(err, errMissing) {
 				// Shallow boundary: parent isn't in the pack.

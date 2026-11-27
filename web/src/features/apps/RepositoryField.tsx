@@ -7,8 +7,34 @@ import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useId, useMemo
 
 import "./ImageField.css";
 
-/** A repository's URL as two can be compared: no scheme, no SSH login, no .git, no trailing slash, any case. */
+/**
+ * A repository's URL as two can be compared: no .git, no trailing slash, any
+ * case. When both URLs are SSH, absolute paths (/srv/git/app.git) stay distinct
+ * from relative paths (srv/git/app.git), matching service.SameSSHRepository.
+ */
 export function sameRepository(a: string, b: string): boolean {
+  const isSSH = (url: string) => {
+    const trimmed = url.trim().toLowerCase();
+    return trimmed.startsWith("ssh://") || (!trimmed.includes("://") && /^[\w.-]+@[^:/]+:.+$/.test(trimmed));
+  };
+  const parseSSH = (url: string) => {
+    const trimmed = url.trim().toLowerCase();
+    const scp = /^[\w.-]+@([^:/]+):(.+)$/.exec(trimmed);
+    if (scp?.[1] && scp[2]) {
+      const path = scp[2].replace(/\/+$/, "").replace(/\.git$/, "");
+      return `${scp[1]}:${path}`;
+    }
+    const noScheme = trimmed.replace(/^ssh:\/\//, "").replace(/^[^/@]+@/, "");
+    const slash = noScheme.indexOf("/");
+    if (slash < 0) return noScheme;
+    const hostPort = noScheme.slice(0, slash).replace(/:22$/, "");
+    let path = noScheme
+      .slice(slash)
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "");
+    if (path.startsWith("/~/")) path = path.slice(3);
+    return `${hostPort}:${path}`;
+  };
   const plain = (url: string) => {
     const trimmed = url.trim().toLowerCase();
     const scp = /^[\w.-]+@([^:/]+):\/?(.+)$/.exec(trimmed);
@@ -20,7 +46,9 @@ export function sameRepository(a: string, b: string): boolean {
           .replace(/^([^/]+)\/~\//, "$1/");
     return body.replace(/\/+$/, "").replace(/\.git$/, "");
   };
-  return a.trim() !== "" && plain(a) === plain(b);
+  if (a.trim() === "" || b.trim() === "") return false;
+  if (isSSH(a) && isSSH(b)) return parseSSH(a) === parseSSH(b);
+  return plain(a) === plain(b);
 }
 
 /**

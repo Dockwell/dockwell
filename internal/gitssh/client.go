@@ -24,9 +24,15 @@ import (
 )
 
 const (
-	// maxListBytes caps ref listing wire bytes well under 32 MiB so concurrent
-	// SSH listings cannot spike control-plane memory (ADR 0113).
+	// maxListBytes caps kept ref listing bytes (protocol v2 ls-refs and kept v1
+	// HEAD/branches/tags) well under 32 MiB so concurrent SSH listings cannot
+	// spike control-plane memory (ADR 0113).
 	maxListBytes = 2 << 20
+	// maxListWireBytes caps total wire bytes streamed during a protocol v0/v1
+	// ref advertisement before filtering out non-branch/tag refs (such as
+	// refs/pull/* or refs/changes/*). Dropped lines are discarded immediately
+	// after readPktBounded (<= 4 KiB each), so streaming them uses O(1) memory.
+	maxListWireBytes = 32 << 20
 	// maxListPktBytes caps a single pkt-line during ref listing so a hostile
 	// server cannot force a large per-line allocation.
 	maxListPktBytes = 4 << 10
@@ -315,7 +321,7 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 	v2Caps.format = "sha1"
 	v1Refs = Refs{Commits: map[string]string{}}
 	v1Caps = map[string]bool{}
-	var read int
+	var keptRead, wireRead int
 	first := true
 	for {
 		line, kind, err := readPktBounded(r, maxListPktBytes)
@@ -340,8 +346,9 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 		if kind != pktData {
 			continue
 		}
-		read += len(line) + 4
-		if read > maxListBytes {
+		pktLen := len(line) + 4
+		wireRead += pktLen
+		if wireRead > maxListWireBytes {
 			return false, v2Caps, v1Refs, v1Caps, ErrTooLarge
 		}
 		text := strings.TrimSuffix(string(line), "\n")
@@ -349,6 +356,7 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 			first = false
 			if text == "version 2" {
 				isV2 = true
+				keptRead += pktLen
 				continue
 			}
 			if strings.HasPrefix(text, "ERR ") {
@@ -367,10 +375,21 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 				}
 				text = text[:i]
 			}
-			addRef(&v1Refs, text)
+			if kept, err := addRef(&v1Refs, text); err != nil {
+				return false, v2Caps, v1Refs, v1Caps, err
+			} else if kept {
+				keptRead += pktLen
+				if keptRead > maxListBytes {
+					return false, v2Caps, v1Refs, v1Caps, ErrTooLarge
+				}
+			}
 			continue
 		}
 		if isV2 {
+			keptRead += pktLen
+			if keptRead > maxListBytes {
+				return false, v2Caps, v1Refs, v1Caps, ErrTooLarge
+			}
 			switch {
 			case strings.HasPrefix(text, "fetch"):
 				features := " " + strings.TrimPrefix(text, "fetch=") + " "
@@ -379,10 +398,16 @@ func readGreeting(r *bufio.Reader, _ *bytes.Buffer) (isV2 bool, v2Caps v2Capabil
 				v2Caps.format = strings.TrimPrefix(text, "object-format=")
 			}
 		} else {
-			if len(v1Refs.Commits) >= maxRefs {
-				return false, v2Caps, v1Refs, v1Caps, fmt.Errorf("the repository has over %d branches and tags, more than Dockwell lists", maxRefs)
+			kept, err := addRef(&v1Refs, text)
+			if err != nil {
+				return false, v2Caps, v1Refs, v1Caps, err
 			}
-			addRef(&v1Refs, text)
+			if kept {
+				keptRead += pktLen
+				if keptRead > maxListBytes {
+					return false, v2Caps, v1Refs, v1Caps, ErrTooLarge
+				}
+			}
 		}
 	}
 }
@@ -606,21 +631,30 @@ func readSidebandPack(r *bufio.Reader, f *os.File, most int64, expectPackfileHea
 	return size, nil
 }
 
-func addRef(refs *Refs, text string) {
+func addRef(refs *Refs, text string) (bool, error) {
 	commit, name, ok := strings.Cut(text, " ")
 	if !ok || !commitID.MatchString(commit) || name == "capabilities^{}" {
-		return
+		return false, nil
 	}
 	if name != "HEAD" && !strings.HasPrefix(name, "refs/heads/") && !strings.HasPrefix(name, "refs/tags/") {
-		return
+		return false, nil
 	}
 	if tag, peeled := strings.CutSuffix(name, "^{}"); peeled {
+		if _, exists := refs.Commits[tag]; !exists && len(refs.Commits) >= maxRefs {
+			return true, fmt.Errorf("the repository has over %d branches and tags, more than Dockwell lists", maxRefs)
+		}
 		refs.Commits[tag] = commit
-		return
+		return true, nil
 	}
-	if _, ok := refs.Commits[name]; !ok || !strings.HasPrefix(name, "refs/tags/") {
+	if _, ok := refs.Commits[name]; !ok {
+		if len(refs.Commits) >= maxRefs {
+			return true, fmt.Errorf("the repository has over %d branches and tags, more than Dockwell lists", maxRefs)
+		}
+		refs.Commits[name] = commit
+	} else if !strings.HasPrefix(name, "refs/tags/") {
 		refs.Commits[name] = commit
 	}
+	return true, nil
 }
 
 type pktKind int

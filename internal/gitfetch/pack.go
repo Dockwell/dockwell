@@ -118,17 +118,28 @@ type packEntry struct {
 func (e *packEntry) delta() bool { return e.kind == objOfsDelta }
 
 type pack struct {
-	ctx      context.Context
-	r        io.ReaderAt
-	entries  []packEntry
-	byName   map[[20]byte]int32
-	budget   int64
-	cache    map[int64][]byte
-	order    []int64       // what's kept, oldest first
-	zr       io.ReadCloser // the zlib reader the index reuses
-	filtered bool          // the host left out blobs over a limit
-	cached   int64
-	named    map[int8]bool
+	ctx         context.Context
+	r           io.ReaderAt
+	entries     []packEntry
+	byName      map[[20]byte]int32
+	budget      int64
+	deltaBudget int64
+	useDeltaBgt bool
+	maxObj      int64
+	maxCache    int64
+	cache       map[int64][]byte
+	order       []int64       // what's kept, oldest first
+	zr          io.ReadCloser // the zlib reader the index reuses
+	filtered    bool          // the host left out blobs over a limit
+	cached      int64
+	named       map[int8]bool
+}
+
+type packOpts struct {
+	commitsOnly bool
+	maxObj      int64
+	maxCache    int64
+	deltaBudget int64
 }
 
 // counter counts what's read through it, so the index knows where each object
@@ -166,6 +177,19 @@ func (h *head) Write(p []byte) (int, error) {
 // indexes each object, naming each whole one. budget bounds what it may inflate and
 // make, then and later.
 func indexPack(ctx context.Context, f *os.File, size, budget int64) (*pack, error) {
+	return indexPackOpts(ctx, f, size, budget, packOpts{
+		maxObj:   maxObject,
+		maxCache: maxCached,
+	})
+}
+
+func indexPackOpts(ctx context.Context, f *os.File, size, budget int64, opts packOpts) (*pack, error) {
+	if opts.maxObj <= 0 {
+		opts.maxObj = maxObject
+	}
+	if opts.maxCache <= 0 {
+		opts.maxCache = maxCached
+	}
 	if size < 32 {
 		return nil, errors.New("what it sent isn't a pack")
 	}
@@ -185,7 +209,17 @@ func indexPack(ctx context.Context, f *os.File, size, budget int64) (*pack, erro
 	case int64(count)*2 > size:
 		return nil, errors.New("the pack ends inside an object")
 	}
-	p := &pack{ctx: ctx, r: f, budget: budget, cache: map[int64][]byte{}, named: map[int8]bool{}}
+	p := &pack{
+		ctx:         ctx,
+		r:           f,
+		budget:      budget,
+		deltaBudget: opts.deltaBudget,
+		useDeltaBgt: opts.deltaBudget > 0,
+		maxObj:      opts.maxObj,
+		maxCache:    opts.maxCache,
+		cache:       map[int64][]byte{},
+		named:       map[int8]bool{},
+	}
 	if err := p.spend(int64(count) * perObject); err != nil {
 		return nil, err
 	}
@@ -202,7 +236,11 @@ func indexPack(ctx context.Context, f *os.File, size, budget int64) (*pack, erro
 		return nil, errors.New("the pack's checksum doesn't match it")
 	}
 	p.entries = make([]packEntry, 0, count)
-	p.byName = make(map[[20]byte]int32, count)
+	if opts.commitsOnly {
+		p.byName = map[[20]byte]int32{}
+	} else {
+		p.byName = make(map[[20]byte]int32, count)
+	}
 	c := &counter{r: bufio.NewReaderSize(io.NewSectionReader(f, 12, size-32), 64<<10), n: 12}
 	for range count {
 		if err := ctx.Err(); err != nil {
@@ -213,7 +251,7 @@ func indexPack(ctx context.Context, f *os.File, size, budget int64) (*pack, erro
 			return nil, err
 		}
 		p.entries = append(p.entries, e)
-		if !e.delta() {
+		if !e.delta() && (!opts.commitsOnly || e.typ == objCommit) {
 			if _, had := p.byName[e.name]; !had {
 				p.byName[e.name] = int32(len(p.entries) - 1) //nolint:gosec // maxObjects fits
 			}
@@ -338,6 +376,20 @@ func (p *pack) spend(n int64) error {
 	return nil
 }
 
+// spendDelta counts n bytes materialized in memory (base/delta inflation and
+// delta application) against both the pack budget and any stricter delta cap.
+func (p *pack) spendDelta(n int64) error {
+	if err := p.spend(n); err != nil {
+		return err
+	}
+	if p.useDeltaBgt {
+		if p.deltaBudget -= n; p.deltaBudget < 0 {
+			return errors.New("the pack's delta chains make more than Dockwell verifies in memory")
+		}
+	}
+	return nil
+}
+
 // at is the index of the entry at an offset, or -1.
 func (p *pack) at(offset int64) int {
 	i := sort.Search(len(p.entries), func(i int) bool { return p.entries[i].offset >= offset })
@@ -387,7 +439,7 @@ func (p *pack) object(hexName, typ string, most int64) ([]byte, error) {
 func (p *pack) nameDeltas(typ int8) error {
 	for i := range p.entries {
 		e := &p.entries[i]
-		if !e.delta() || e.named || e.made > maxObject {
+		if !e.delta() || e.named || e.made > p.maxObj {
 			continue
 		}
 		if err := p.ctx.Err(); err != nil {
@@ -465,7 +517,7 @@ func (p *pack) data(i int) ([]byte, error) {
 		if root.delta() {
 			return nil, errors.New("a delta's base isn't in the pack")
 		}
-		if data, err = p.inflate(root, maxObject); err != nil {
+		if data, err = p.inflate(root, p.maxObj); err != nil {
 			return nil, err
 		}
 	}
@@ -475,17 +527,17 @@ func (p *pack) data(i int) ([]byte, error) {
 		}
 		p.keep(p.entries[chain[k]].offset, data)
 		d := &p.entries[chain[k-1]]
-		if d.made > maxObject {
+		if d.made > p.maxObj {
 			return nil, tooBig{d.made}
 		}
-		delta, err := p.inflate(d, 2*maxObject)
+		delta, err := p.inflate(d, 2*p.maxObj)
 		if err != nil {
 			return nil, err
 		}
-		if err := p.spend(d.made); err != nil {
+		if err := p.spendDelta(d.made); err != nil {
 			return nil, err
 		}
-		if data, err = applyDelta(data, delta, maxObject); err != nil {
+		if data, err = applyDelta(data, delta, p.maxObj); err != nil {
 			return nil, err
 		}
 		d.typ = root.typ
@@ -501,7 +553,7 @@ func (p *pack) inflate(e *packEntry, most int64) ([]byte, error) {
 	if e.size > most {
 		return nil, tooBig{e.size}
 	}
-	if err := p.spend(e.size); err != nil {
+	if err := p.spendDelta(e.size); err != nil {
 		return nil, err
 	}
 	zr, err := zlib.NewReader(io.NewSectionReader(p.r, e.at, 1<<62))
@@ -519,10 +571,10 @@ func (p *pack) inflate(e *packEntry, most int64) ([]byte, error) {
 // keep keeps what's made, dropping the oldest to make room, so a chain isn't made
 // again for each delta on it.
 func (p *pack) keep(offset int64, data []byte) {
-	if _, ok := p.cache[offset]; ok || int64(len(data)) > maxCached {
+	if _, ok := p.cache[offset]; ok || int64(len(data)) > p.maxCache {
 		return
 	}
-	for p.cached+int64(len(data)) > maxCached && len(p.order) > 0 {
+	for p.cached+int64(len(data)) > p.maxCache && len(p.order) > 0 {
 		p.cached -= int64(len(p.cache[p.order[0]]))
 		delete(p.cache, p.order[0])
 		p.order = p.order[1:]

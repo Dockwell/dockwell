@@ -1842,7 +1842,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 				if packTransfer != nil {
 					s.agents.closeTransfer(packTransfer)
 				}
-				packTransfer = on.openGitPackTransfer(packReader, packSize)
+				packTransfer = on.openGitPackTransfer(packReader, packSize, cleanupPack)
 				call.Desired.BuildGitBundleStream = packTransfer.token
 			}
 			return nil

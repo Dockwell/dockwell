@@ -5009,6 +5009,10 @@ msgstr "创建一个只读部署密钥以拉取此仓库。"
 msgid "Delete key"
 msgstr "删除密钥"
 
+#. placeholder {0}: hostName || current.host
+msgid "Deleting this key can't be undone. Remove it on {0} too."
+msgstr "删除此密钥无法撤销，也请从 {0} 上移除它。"
+
 #. placeholder {0}: key.name
 msgid "Deploy key <0>{0}</0>"
 msgstr "部署密钥 <0>{0}</0>"
@@ -5032,9 +5036,6 @@ msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>�
 
 msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
 msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>。"
-
-msgid "Generate a replacement key without interrupting builds."
-msgstr "在不中断构建的情况下生成替换密钥。"
 
 msgid "Host key changed"
 msgstr "主机密钥已变更"

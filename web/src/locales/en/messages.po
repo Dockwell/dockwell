@@ -5009,6 +5009,10 @@ msgstr "Create a read-only deploy key to fetch this repository."
 msgid "Delete key"
 msgstr "Delete key"
 
+#. placeholder {0}: hostName || current.host
+msgid "Deleting this key can't be undone. Remove it on {0} too."
+msgstr "Deleting this key can't be undone. Remove it on {0} too."
+
 #. placeholder {0}: key.name
 msgid "Deploy key <0>{0}</0>"
 msgstr "Deploy key <0>{0}</0>"
@@ -5032,9 +5036,6 @@ msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}<
 
 msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
 msgstr "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
-
-msgid "Generate a replacement key without interrupting builds."
-msgstr "Generate a replacement key without interrupting builds."
 
 msgid "Host key changed"
 msgstr "Host key changed"

@@ -244,14 +244,15 @@ func validSSHHost(host string) bool {
 }
 
 // SameSSHRepository reports whether two SSH repository addresses refer to the
-// same repository on the same host and port (ignoring leading slash, .git
-// suffix, trailing slashes, and host case).
+// same repository on the same host and port (ignoring .git suffix, trailing
+// slashes, and host case, while keeping absolute /path distinct from relative
+// path).
 func SameSSHRepository(a, b string) bool {
 	ea, errA := ParseSSHRepository(a)
 	eb, errB := ParseSSHRepository(b)
 	if errA == nil && errB == nil {
-		pa := strings.TrimSuffix(strings.TrimPrefix(ea.RepoPath, "/"), ".git")
-		pb := strings.TrimSuffix(strings.TrimPrefix(eb.RepoPath, "/"), ".git")
+		pa := strings.TrimSuffix(ea.RepoPath, ".git")
+		pb := strings.TrimSuffix(eb.RepoPath, ".git")
 		return ea.Host == eb.Host && ea.Port == eb.Port && pa == pb
 	}
 	return false

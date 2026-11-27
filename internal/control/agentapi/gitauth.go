@@ -112,10 +112,10 @@ func (s *Session) detectGitAuth(ctx context.Context, call *agentv1.DetectBuildCa
 	}, nil
 }
 
-func (s *Session) openGitPackTransfer(r io.ReaderAt, size int64) *transfer {
+func (s *Session) openGitPackTransfer(r io.ReaderAt, size int64, onRead func()) *transfer {
 	s.agents.mu.Lock()
 	t := s.agents.transferLocked(s.server)
-	t.control = &controlBackupTransfer{session: s, file: io.NewSectionReader(r, 0, size)}
+	t.control = &controlBackupTransfer{session: s, file: io.NewSectionReader(r, 0, size), onRead: onRead}
 	s.agents.mu.Unlock()
 	return t
 }
@@ -174,7 +174,7 @@ func (s *Session) detectGitPack(ctx context.Context, call *agentv1.DetectBuildCa
 		if active != nil {
 			s.agents.closeTransfer(active)
 		}
-		active = on.openGitPackTransfer(r, size)
+		active = on.openGitPackTransfer(r, size, cleanupFile)
 		call.GitBundleStream = active.token
 		return nil
 	}

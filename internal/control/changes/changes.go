@@ -170,6 +170,26 @@ var ownMethods = map[string]string{
 	string(gitdeploykey.Kind):  "an SSH deploy key changes through dockwell git-keys, which generates keys, checks host keys and checks what uses it. Use those",
 }
 
+// ownApply are kinds whose planned changes are applied and discarded only
+// through their own service handler (never directly through ChangeService), so
+// a change that failed to start can't bypass that handler's role, step-up or
+// audit checks (ADR 0113).
+var ownApply = map[string]string{
+	string(gitdeploykey.Kind): ownMethods[string(gitdeploykey.Kind)],
+}
+
+func ownApplyReason(r *revision.Record) string {
+	if r == nil || r.Plan == nil {
+		return ""
+	}
+	for i := range r.Plan.Resources {
+		if how, ok := ownApply[string(r.Plan.Resources[i].Ref.Kind)]; ok {
+			return how
+		}
+	}
+	return ""
+}
+
 // ProposeChange plans edits as a new change.
 func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwellv1.ProposeChangeRequest]) (*connect.Response[dockwellv1.ProposeChangeResponse], error) {
 	who, _, err := by(ctx)
@@ -293,6 +313,19 @@ func (h *Handler) ApplyOwned(ctx context.Context, changeID string) error {
 		return err
 	}
 	if err := h.engine.Start(ctx, changeID, who); err != nil {
+		return h.rpcError(ctx, err)
+	}
+	return nil
+}
+
+// DiscardOwned discards a planned change proposed by a resource's own service
+// handler (such as GitDeployKeyService) when starting it fails.
+func (h *Handler) DiscardOwned(ctx context.Context, changeID string) error {
+	who, _, err := by(ctx)
+	if err != nil {
+		return err
+	}
+	if err := h.engine.Discard(ctx, changeID, who); err != nil {
 		return h.rpcError(ctx, err)
 	}
 	return nil
@@ -532,6 +565,9 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	r, err := h.engine.Change(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
+	}
+	if how := ownApplyReason(r); how != "" {
+		return nil, authapi.Invalid(errors.New(how))
 	}
 	if err := h.checkDeployToken(ctx, p, r); err != nil {
 		return nil, err
@@ -956,6 +992,13 @@ func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwe
 	who, _, err := by(ctx)
 	if err != nil {
 		return nil, err
+	}
+	r, err := h.engine.Change(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if how := ownApplyReason(r); how != "" {
+		return nil, authapi.Invalid(errors.New(how))
 	}
 	if err := h.engine.Discard(ctx, req.Msg.GetId(), who); err != nil {
 		return nil, h.rpcError(ctx, err)
