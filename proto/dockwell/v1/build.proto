@@ -225,6 +225,8 @@ message Build {
   string error_reason = 29;
   // The available memory in MiB while waiting for admission or at refusal.
   optional int64 memory_available_mib = 30;
+  // The builder cap in MiB if the kernel ended the build under memory pressure.
+  optional int64 memory_limit_mib = 31;
 }
 
 // BuildState is where a build stands.

@@ -106,6 +106,7 @@ func (b *bench) final() resource.BuildUpdate {
 		}
 		if u.Error != "" {
 			out.Error, out.Step, out.StepName, out.FailedLine = u.Error, u.Step, u.StepName, u.FailedLine
+			out.ErrorReason, out.MemoryAvailableMiB, out.MemoryLimitMiB = u.ErrorReason, u.MemoryAvailableMiB, u.MemoryLimitMiB
 		}
 		if u.Detection != nil {
 			out.Detection = u.Detection
@@ -415,8 +416,14 @@ func TestABuildThatRunsOutOfMemorySaysSo(t *testing.T) {
 	commit := b.repo.Commit("main", "Big", map[string]string{"Dockerfile": "FROM alpine:3.23\nRUN make oom\n"})
 	err := b.builder.Build(b.ctx(), b.request(commit, "chg_01KBZ00000000000000000000A"))
 	plain, _ := resource.Explain(err)
-	if !strings.Contains(plain, "The kernel stopped the build when memory ran out. The build could use up to 512 MiB and deployed nothing") {
-		t.Errorf("a build that ran out of memory says %q", plain)
+	if resource.ReasonOf(err) != resource.ReasonBuildMemory ||
+		!strings.Contains(plain, "The kernel stopped the build when memory ran out. The build could use up to 512 MiB and deployed nothing") {
+		t.Errorf("a build that ran out of memory says %q with reason %q", plain, resource.ReasonOf(err))
+	}
+	ended := b.final()
+	if ended.ErrorReason != resource.ReasonBuildMemory || ended.MemoryLimitMiB == nil ||
+		*ended.MemoryLimitMiB != 512 || ended.MemoryAvailableMiB != nil {
+		t.Errorf("the OOM build update lost its reason or cap: %+v", ended)
 	}
 }
 

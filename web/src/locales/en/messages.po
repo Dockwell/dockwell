@@ -4749,17 +4749,29 @@ msgstr "{0, plural, one {# line dropped, as the build printed faster than its lo
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
 
+msgid "Nothing was deployed."
+msgstr "Nothing was deployed."
+
 msgid "See what uses memory"
 msgstr "See what uses memory"
+
+msgid "The build could use up to {cap} MiB. Nothing was deployed."
+msgstr "The build could use up to {cap} MiB. Nothing was deployed."
 
 msgid "The build didn't start."
 msgstr "The build didn't start."
 
+msgid "The build was killed"
+msgstr "The build was killed"
+
+msgid "The kernel stopped the build when memory ran out."
+msgstr "The kernel stopped the build when memory ran out."
+
 msgid "This server had less than the 256 MiB a build needs."
 msgstr "This server had less than the 256 MiB a build needs."
 
-msgid "This server has {free} MiB free and a build needs 256 MiB."
-msgstr "This server has {free} MiB free and a build needs 256 MiB."
+msgid "This server had {free} MiB free and a build needs 256 MiB."
+msgstr "This server had {free} MiB free and a build needs 256 MiB."
 
 msgid "CI deploy · {name}"
 msgstr "CI deploy · {name}"

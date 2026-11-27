@@ -26,8 +26,11 @@ is higher. The allowance accounts for short scheduling delays on shared runners.
 
 On a runner with a writable cgroup v2 scope, systemd also enforces
 `MemoryMax=1G` and `MemorySwapMax=0` across the entire stand. The run records the
-kernel's peak and fails on a memory limit event or OOM. Build admission reads
-the real scope shared by the fake Engine. The measuring-only mode feeds the
+kernel's peak with reclaim and OOM counters. A memory charge reaching
+the limit can reclaim cache and continue. The OOM gate allows one confirmed
+kill of the builder stand-in, which runs with OOM score adjustment 1000.
+Every other stand process must survive, and any further OOM fails the run.
+Build admission reads the real scope shared by the fake Engine. The measuring-only mode feeds the
 admission policy a synthetic meminfo derived from sampled anonymous and shmem
 PSS. The sampled gate omits unmapped cache and kernel charges, and scope OOM
 counts are unavailable. The job summary names the mode and CI keeps the JSON

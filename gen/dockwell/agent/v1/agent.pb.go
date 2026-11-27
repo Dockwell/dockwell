@@ -746,8 +746,10 @@ type BuildUpdate struct {
 	ErrorReason string `protobuf:"bytes,18,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
 	// The available memory in MiB while waiting for admission or at refusal.
 	MemoryAvailableMib *int64 `protobuf:"varint,19,opt,name=memory_available_mib,json=memoryAvailableMib,proto3,oneof" json:"memory_available_mib,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// The builder cap in MiB if the kernel ended the build under memory pressure.
+	MemoryLimitMib *int64 `protobuf:"varint,20,opt,name=memory_limit_mib,json=memoryLimitMib,proto3,oneof" json:"memory_limit_mib,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *BuildUpdate) Reset() {
@@ -909,6 +911,13 @@ func (x *BuildUpdate) GetErrorReason() string {
 func (x *BuildUpdate) GetMemoryAvailableMib() int64 {
 	if x != nil && x.MemoryAvailableMib != nil {
 		return *x.MemoryAvailableMib
+	}
+	return 0
+}
+
+func (x *BuildUpdate) GetMemoryLimitMib() int64 {
+	if x != nil && x.MemoryLimitMib != nil {
+		return *x.MemoryLimitMib
 	}
 	return 0
 }
@@ -22191,7 +22200,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\amessage\"T\n" +
 	"\x0fArchiveJobEnded\x12)\n" +
 	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x12\x16\n" +
-	"\x06record\x18\x02 \x01(\tR\x06record\"\xfa\x05\n" +
+	"\x06record\x18\x02 \x01(\tR\x06record\"\xbe\x06\n" +
 	"\vBuildUpdate\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12-\n" +
@@ -22214,8 +22223,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05image\x18\x10 \x01(\tR\x05image\x129\n" +
 	"\tdetection\x18\x11 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\x12!\n" +
 	"\ferror_reason\x18\x12 \x01(\tR\verrorReason\x125\n" +
-	"\x14memory_available_mib\x18\x13 \x01(\x03H\x00R\x12memoryAvailableMib\x88\x01\x01B\x17\n" +
-	"\x15_memory_available_mib\"\x0f\n" +
+	"\x14memory_available_mib\x18\x13 \x01(\x03H\x00R\x12memoryAvailableMib\x88\x01\x01\x12-\n" +
+	"\x10memory_limit_mib\x18\x14 \x01(\x03H\x01R\x0ememoryLimitMib\x88\x01\x01B\x17\n" +
+	"\x15_memory_available_mibB\x13\n" +
+	"\x11_memory_limit_mib\"\x0f\n" +
 	"\rTaskRunsReady\"\x97\x01\n" +
 	"\rTerminalEnded\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +

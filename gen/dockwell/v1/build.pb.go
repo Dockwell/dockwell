@@ -304,8 +304,10 @@ type Build struct {
 	ErrorReason string `protobuf:"bytes,29,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
 	// The available memory in MiB while waiting for admission or at refusal.
 	MemoryAvailableMib *int64 `protobuf:"varint,30,opt,name=memory_available_mib,json=memoryAvailableMib,proto3,oneof" json:"memory_available_mib,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// The builder cap in MiB if the kernel ended the build under memory pressure.
+	MemoryLimitMib *int64 `protobuf:"varint,31,opt,name=memory_limit_mib,json=memoryLimitMib,proto3,oneof" json:"memory_limit_mib,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Build) Reset() {
@@ -544,6 +546,13 @@ func (x *Build) GetErrorReason() string {
 func (x *Build) GetMemoryAvailableMib() int64 {
 	if x != nil && x.MemoryAvailableMib != nil {
 		return *x.MemoryAvailableMib
+	}
+	return 0
+}
+
+func (x *Build) GetMemoryLimitMib() int64 {
+	if x != nil && x.MemoryLimitMib != nil {
+		return *x.MemoryLimitMib
 	}
 	return 0
 }
@@ -1342,7 +1351,7 @@ const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\bbranches\x18\x01 \x03(\tR\bbranches\x12%\n" +
 	"\x0edefault_branch\x18\x02 \x01(\tR\rdefaultBranch\x12\x14\n" +
 	"\x05total\x18\x03 \x01(\x05R\x05total\x12\x1b\n" +
-	"\tgit_login\x18\x04 \x01(\tR\bgitLogin\"\xc7\b\n" +
+	"\tgit_login\x18\x04 \x01(\tR\bgitLogin\"\x8b\t\n" +
 	"\x05Build\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -1379,8 +1388,10 @@ const file_dockwell_v1_build_proto_rawDesc = "" +
 	"\x11log_lines_dropped\x18\x1b \x01(\x03R\x0flogLinesDropped\x129\n" +
 	"\tdetection\x18\x1c \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\x12!\n" +
 	"\ferror_reason\x18\x1d \x01(\tR\verrorReason\x125\n" +
-	"\x14memory_available_mib\x18\x1e \x01(\x03H\x00R\x12memoryAvailableMib\x88\x01\x01B\x17\n" +
-	"\x15_memory_available_mib\"{\n" +
+	"\x14memory_available_mib\x18\x1e \x01(\x03H\x00R\x12memoryAvailableMib\x88\x01\x01\x12-\n" +
+	"\x10memory_limit_mib\x18\x1f \x01(\x03H\x01R\x0ememoryLimitMib\x88\x01\x01B\x17\n" +
+	"\x15_memory_available_mibB\x13\n" +
+	"\x11_memory_limit_mib\"{\n" +
 	"\tBuildLine\x12\x16\n" +
 	"\x06number\x18\x01 \x01(\x03R\x06number\x12.\n" +
 	"\x04time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x12\n" +

@@ -47,8 +47,10 @@ type BuildUpdate struct {
 	ErrorReason       string
 	// MemoryAvailableMiB is what is free while waiting for admission or at refusal.
 	MemoryAvailableMiB *int64
-	Start, End         time.Time
-	Image              string
+	// MemoryLimitMiB is the builder cap when the kernel ended the build.
+	MemoryLimitMiB *int64
+	Start, End     time.Time
+	Image          string
 	// Detection is what the build found as it read the commit, sent once.
 	Detection *BuildDetection
 }

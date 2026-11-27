@@ -214,6 +214,8 @@ message BuildUpdate {
   string error_reason = 18;
   // The available memory in MiB while waiting for admission or at refusal.
   optional int64 memory_available_mib = 19;
+  // The builder cap in MiB if the kernel ended the build under memory pressure.
+  optional int64 memory_limit_mib = 20;
 }
 
 // TaskRunsReady says a task's run started or ended, so the control plane reads

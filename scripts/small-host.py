@@ -54,8 +54,10 @@ class App(BaseHTTPRequestHandler):
 
 
 def fixture(role, mib):
+    if role == "builder":
+        Path("/proc/self/oom_score_adj").write_text("1000\n")
     with allocate(mib):
-        if role == "hold":
+        if role in ("hold", "builder"):
             print("ready", flush=True)
             signal.pause()
         else:
@@ -216,6 +218,9 @@ class Meter:
         except Exception as error:
             self.error = str(error)
 
+    def memory_events(self):
+        return fields(self.path / "memory.events") if self.path else {}
+
     def result(self):
         self.stop.set()
         if self.thread.is_alive():
@@ -237,7 +242,7 @@ class Meter:
         swap = [sample[2] for sample in self.samples if sample[2] is not None]
         events, peak, swap_peak = {}, None, None
         if self.path:
-            events = fields(self.path / "memory.events")
+            events = self.memory_events()
             peak = max(number(self.path / "memory.peak") or 0,
                        *(item[3] or 0 for item in self.samples))
             swap_peak = number(self.path / "memory.swap.peak")
@@ -501,7 +506,66 @@ def wait_time(record):
     return max(0, (start - queued).total_seconds())
 
 
+def oom_counts(events):
+    return tuple(events.get(name) for name in ("oom", "oom_kill"))
+
+
+def builder_gave_way(code, before, after, peers_alive):
+    oom, killed = oom_counts(after)
+    return (code == -signal.SIGKILL and oom_counts(before) == (0, 0)
+            and oom is not None and killed == 1 and peers_alive)
+
+
+def check_oom_events(events, builder_events=None):
+    expected = (0, 0) if builder_events is None else oom_counts(builder_events)
+    return oom_counts(events) == expected
+
+
+def finish_builder(stand, builder, before, peers, first):
+    given_way = None
+
+    def observe(code):
+        nonlocal given_way
+        if code is None or given_way is not None:
+            return
+        events = stand.meter.memory_events()
+        if not builder_gave_way(code, before, events, all(proc.poll() is None for proc in peers)):
+            raise RuntimeError(f"builder fixture exited {code} without a sole builder OOM in the scope")
+        given_way = events
+
+    def ended():
+        code = builder.poll()
+        first_death = code is not None and given_way is None
+        observe(code)
+        build = stand.build_record("mixed-build")
+        if first_death and given_way is not None and build and not build.get("endTime"):
+            try:
+                stand.post(f"/v1/builds/{first['id']}:cancel", {})
+            except RuntimeError:
+                # A build can end while its cancellation is in flight.
+                build = stand.build_record("mixed-build")
+                if not build or not build.get("endTime"):
+                    raise
+        return build if build and build.get("endTime") else None
+
+    completed = until("the mixed build to finish", ended, 65)
+    if builder.poll() is None:
+        builder.terminate()
+        code = builder.wait(timeout=5)
+        if code != -signal.SIGTERM:
+            observe(code)
+    else:
+        observe(builder.returncode)
+    if given_way is None:
+        if builder.returncode != -signal.SIGTERM or stand.logs["build-working-set"].read_text().strip() != "ready":
+            raise RuntimeError("the builder fixture did not hold its working set until teardown")
+        if completed["state"] != "BUILD_STATE_DONE":
+            raise RuntimeError(f"mixed build failed: {completed.get('error')}")
+    return completed, given_way
+
+
 def mixed(stand, seconds, report):
+    peers = tuple(stand.procs)
     good_change = stand.build_plan("mixed-build")
     pressure_change = stand.build_plan("pressure-build", "update")
     stop = threading.Event()
@@ -510,6 +574,7 @@ def mixed(stand, seconds, report):
         report["before"] = {app: job.result() for app, job in zip(APPS, baseline)}
         during = [pool.submit(traffic, stand.proxy, app, seconds, stop) for app in APPS]
         try:
+            before = stand.meter.memory_events()
             stand.start_build(good_change)
             def started():
                 build = stand.build_record("mixed-build")
@@ -518,7 +583,9 @@ def mixed(stand, seconds, report):
                 return build if build and build.get("startTime") else None
             first = until("the image build to start", started, 75)
             report["build"] = {"wait_seconds": wait_time(first), "state": first["state"]}
-            builder = stand.fixture("build-working-set", "hold", 128)[0]
+            builder = stand.start("build-working-set", sys.executable, __file__, "builder", "128", stdout_log=True)
+            until("the builder working set to start", lambda: builder.poll() is not None
+                  or stand.logs["build-working-set"].read_text().strip() == "ready")
             follow = stand.start("follow", stand.full, "logs", "follow", stand.service,
                                  "--tail", "-1", "--json", stdout_log=True)
             until("a live log follow", lambda: int(request(stand.log_origin, "GET", "/followers")))
@@ -543,15 +610,11 @@ def mixed(stand, seconds, report):
             report["uploads"] = sum(job.wait(timeout=45) == 0 for job in uploads)
             if report["uploads"] != 4:
                 raise RuntimeError("a file transfer did not finish with matching bytes")
-            def ended():
-                build = stand.build_record("mixed-build")
-                return build if build and build.get("endTime") else None
-            completed = until("the mixed build to finish", ended, 65)
+            completed, builder_events = finish_builder(stand, builder, before, (*peers, follow), first)
             report["build"]["state"] = completed["state"]
-            builder.terminate()
-            builder.wait(timeout=5)
-            if completed["state"] != "BUILD_STATE_DONE":
-                raise RuntimeError(f"mixed build failed: {completed.get('error')}")
+            if builder_events is not None:
+                report["build"]["state"] = "BUILD_GAVE_WAY"
+                report["build"]["builder_oom_events"] = builder_events
 
             # A second build must refuse before asking the Engine to run a builder.
             # This leaves less than 256 MiB free through the whole admission wait.
@@ -610,8 +673,9 @@ def show(report):
     print(f"| Process-tree PSS peak / swap peak (MiB) | {size(memory.get('peak_bytes'))} / {size(memory.get('swap_peak_bytes'))} |")
     if report["mode"] == "cgroup":
         events = memory.get("cgroup_memory_events", {})
-        print(f"| Kernel cgroup peak (MiB) / max / OOM events | {size(memory.get('cgroup_peak_bytes'))} / "
-              f"{events.get('max', 'unavailable')} / {events.get('oom', 'unavailable')} |")
+        print(f"| Kernel cgroup peak (MiB) / max / high / OOM events | {size(memory.get('cgroup_peak_bytes'))} / "
+              f"{events.get('max', 'unavailable')} / {events.get('high', 'unavailable')} / "
+              f"{events.get('oom', 'unavailable')} |")
     print(f"| Scope OOM kills | {memory.get('oom_kills') if memory.get('oom_kills') is not None else 'unavailable'} |")
     print(f"| Control + embedded agent peak / settled RSS (MiB) | "
           f"{size(dockwell.get('rss_peak_bytes'))} / {size(dockwell.get('settled', {}).get('rss_bytes'))} |")
@@ -624,7 +688,8 @@ def show(report):
     if report.get("build"):
         build = report["build"]
         refusal = report.get("refusal", {})
-        print(f"| Build / wait for admission / clean refusal | {build['state']} / "
+        state = "The build gave way (OOM)" if build["state"] == "BUILD_GAVE_WAY" else build["state"]
+        print(f"| Build / wait for admission / clean refusal | {state} / "
               f"{build['wait_seconds']:.3f} s / {refusal.get('clean', 'unavailable')} |")
     for app, before in report.get("before", {}).items():
         during = report.get("during", {}).get(app)
@@ -646,7 +711,10 @@ def run(work, full, caddy, out, duration, mode):
     meter.thread.start()
     try:
         stand.setup()
+        peers = tuple(stand.procs)
         mixed(stand, duration, report)
+        if any(proc.poll() is not None for proc in peers):
+            raise RuntimeError("a required stand process exited")
         after = stand.app_state()
         report["app_restarts"] = sum(stand.before[name] != after[name] or
                                      stand.apps[name].poll() is not None for name in APPS)
@@ -662,9 +730,9 @@ def run(work, full, caddy, out, duration, mode):
                 "the sampler failed": meter.error,
                 "the 1 GiB memory limit was exceeded": memory["peak_bytes"] > LIMIT,
                 "the run used swap": memory["swap_peak_bytes"] is None or memory["swap_peak_bytes"] > 0,
-                "the cgroup hit its memory limit, saw an OOM, or lost its counters":
-                    mode == "cgroup" and any(memory["cgroup_memory_events"].get(event) != 0
-                                             for event in ("max", "oom", "oom_kill")),
+                "the cgroup saw an OOM other than the builder giving way or lost its counters":
+                    mode == "cgroup" and not check_oom_events(memory["cgroup_memory_events"],
+                                                            report.get("build", {}).get("builder_oom_events")),
                 "Dockwell's RSS reached 250 MB or its process disappeared":
                     not 0 < memory["control_with_embedded_agent"].get("rss_peak_bytes", 0) < DOCKWELL_LIMIT or
                     not fields(Path(f"/proc/{meter.ctrl}/status")),

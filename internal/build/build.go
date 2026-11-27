@@ -305,6 +305,13 @@ func (b *Builder) buildAdmitted(ctx context.Context, req service.BuildRequest, r
 			return b.ended(ctx, req, facts{}, err)
 		}
 	}
+	limits, err := b.limits(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			err = b.stopped(ctx, r, req)
+		}
+		return b.ended(ctx, req, facts{}, err)
+	}
 	// Its cache follows the logins it was given, before its Dockerfile is read for
 	// which it hands BuildKit, so one build keeps to one cache.
 	root, volume := b.dockerRoot(ctx), cacheVolume(req)
@@ -330,18 +337,17 @@ func (b *Builder) buildAdmitted(ctx context.Context, req service.BuildRequest, r
 	rep := newReport(ctx, req, b.now)
 	builder, plan := req.Builder, []byte(nil)
 	var f facts
-	var err error
 	var read *resource.BuildDetection
 	// A build with registry logins reads its Dockerfile first, whatever builds it,
 	// for what it pulls (ADR 0086).
 	if req.Standalone == nil && (builder != resource.BuilderDockerfile || len(req.Logins) > 0) {
-		builder, plan, read, err = b.readFor(ctx, req, rep)
+		builder, plan, read, err = b.readFor(ctx, req, rep, limits)
 	}
 	if err == nil && req.Standalone == nil && len(req.Logins) > 0 {
 		req.Logins, err = b.loginsFor(req, builder, read)
 	}
 	if err == nil {
-		f, err = b.run(ctx, req, rep, builder, plan, volume, root)
+		f, err = b.run(ctx, req, rep, builder, plan, volume, root, limits)
 	} else {
 		// What the reading said is in the log too.
 		rep.send()
@@ -410,6 +416,11 @@ func (b *Builder) ended(ctx context.Context, req service.BuildRequest, f facts, 
 	if errors.As(err, &low) {
 		availableMiB := low.available / buildMiB
 		u.MemoryAvailableMiB = &availableMiB
+	}
+	var oom memoryOOM
+	if errors.As(err, &oom) {
+		limitMiB := oom.limit / buildMiB
+		u.MemoryLimitMiB = &limitMiB
 	}
 	// What a step printed reaches the error only masked, as it goes to the build's
 	// record and the change's.
@@ -489,12 +500,12 @@ func (b *Builder) CancelWithStatus(change string, svc resource.Ref, by string) (
 // wrote, unprivileged, for the builder to build. The builder never runs Railpack,
 // nor mounts what it runs from (ADR 0046). The reading has the build's secrets'
 // names, and none of their values.
-func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *report) (string, []byte, *resource.BuildDetection, error) {
+func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *report, limits buildLimits) (string, []byte, *resource.BuildDetection, error) {
 	rep.reading()
 	read := req
 	read.Secrets, read.SecretIDs, read.Logins = nil, slices.Sorted(mapsKeys(req.Secrets)), nil
 	// It holds the build slot already, so it takes no reading's place.
-	d, plan, err := b.read(ctx, read, true)
+	d, plan, err := b.read(ctx, read, &limits)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -585,12 +596,8 @@ func sentence(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte, volume, root string) (facts, error) {
+func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte, volume, root string, limits buildLimits) (facts, error) {
 	if err := b.ensureImage(ctx); err != nil {
-		return facts{}, err
-	}
-	limits, err := b.limits(ctx, true)
-	if err != nil {
 		return facts{}, err
 	}
 	if limits.tight {
@@ -808,9 +815,10 @@ func failure(req service.BuildRequest, f facts, code int, oom bool) error {
 	plain := func(s string) error { return resource.PlainlyBecause(resource.ReasonBuild, s, err) }
 	switch {
 	case oom:
-		return plain(fmt.Sprintf("The kernel stopped the build when memory ran out. The build could use up to %d MiB and deployed nothing. Build in CI and deploy the image, or stop an app first", f.memory/buildMiB))
+		return buildMemoryOOM(f.memory)
 	case code == 137 || strings.Contains(f.stepError, "exit code: 137"):
-		return plain("The build was killed before it could deploy. Build in CI and deploy the image, or check the server's available memory before retrying")
+		return resource.PlainlyBecause(resource.ReasonBuildKilled,
+			"The build was killed before it could deploy. Build in CI and deploy the image, or try again", err)
 	case f.failed == "fetch":
 		why := lastWords(f.tail)
 		if why == "" {

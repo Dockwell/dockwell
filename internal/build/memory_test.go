@@ -41,7 +41,7 @@ func TestBuildMemoryPolicy(t *testing.T) {
 				})
 				available, total, err := waitForMemory(ctx, func() (int64, int64, error) {
 					return tt.freeMiB * buildMiB, tt.totalMiB * buildMiB, nil
-				}, true)
+				})
 				if tt.limitMiB == 0 {
 					if resource.ReasonOf(err) != resource.ReasonBuildMemory || time.Since(start) != time.Minute ||
 						len(shown) != 1 || shown[0] != tt.freeMiB {
@@ -65,16 +65,42 @@ func TestBuildMemoryWaitCanRecoverOrCancel(t *testing.T) {
 				return admissionFloor, 1 << 30, nil
 			}
 			return admissionFloor - 1, 1 << 30, nil
-		}, true)
+		})
 		if err != nil || available != admissionFloor {
 			t.Fatalf("memory became available at the deadline, got %d, %v", available, err)
 		}
 
 		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
-		_, _, err = waitForMemory(ctx, func() (int64, int64, error) { return 0, 1 << 30, nil }, true)
+		_, _, err = waitForMemory(ctx, func() (int64, int64, error) { return 0, 1 << 30, nil })
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("cancelled wait returned %v", err)
+		}
+	})
+}
+
+func TestStarvedRailpackBuildAndDetectionRefuseBeforeUsingDocker(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		b := &Builder{
+			Memory: func() (int64, int64, error) { return 150 * buildMiB, 1 << 30, nil },
+			CPUs:   func() int { return 2 },
+		}
+		req := service.BuildRequest{
+			URL: "http://127.0.0.1/repo", Ref: "refs/heads/main", Builder: resource.BuilderRailpack,
+		}
+		// The builder has no Docker client. The refused build must get through
+		// the admission wait without pulling an image or starting a container.
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+		for _, call := range []func() error{
+			func() error { return b.buildAdmitted(ctx, req, &run{}, cancel) },
+			func() error { _, err := b.Detect(ctx, req); return err },
+		} {
+			start := time.Now()
+			err := call()
+			if resource.ReasonOf(err) != resource.ReasonBuildMemory || time.Since(start) != time.Minute {
+				t.Fatalf("starved build path returned %v after %s", err, time.Since(start))
+			}
 		}
 	})
 }
@@ -166,7 +192,7 @@ func TestStandaloneAdmissionRefusalKeepsItsBuildReason(t *testing.T) {
 func TestKilledWorkerDoesNotClaimAnOOMWithoutEvidence(t *testing.T) {
 	err := failure(service.BuildRequest{}, facts{}, 137, false)
 	plain, _ := resource.Explain(err)
-	if !strings.Contains(plain, "killed before it could deploy") {
+	if resource.ReasonOf(err) != resource.ReasonBuildKilled || !strings.Contains(plain, "killed before it could deploy") {
 		t.Fatalf("killed build says %q", plain)
 	}
 }

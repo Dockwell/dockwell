@@ -20,7 +20,7 @@ import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { BuildLog } from "./BuildLog";
-import { BuildMemoryNotice } from "./BuildMemoryNotice";
+import { BuildMemoryNotice, isBuildMemoryFailure } from "./BuildMemoryNotice";
 import { useDetectionWords } from "./detection";
 import "./Apps.css";
 
@@ -218,8 +218,14 @@ export function BuildPart({
           {refusal}
         </Callout>
       ) : null}
-      {build.errorReason === "build_memory" ? (
-        <BuildMemoryNotice available={build.memoryAvailableMib} serverId={build.serverId} service={service} />
+      {isBuildMemoryFailure(build.errorReason) ? (
+        <BuildMemoryNotice
+          reason={build.errorReason}
+          available={build.memoryAvailableMib}
+          limit={build.memoryLimitMib}
+          serverId={build.serverId}
+          service={service}
+        />
       ) : null}
       {build.state === BuildState.CANCELLED && build.cancelledBy ? (
         <p className="app-note">

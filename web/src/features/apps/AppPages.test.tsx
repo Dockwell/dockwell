@@ -4450,10 +4450,44 @@ describe("an app's deployments, for an app that builds from Git", () => {
     expect(screen.getByRole("button", { name: "Cancel build" })).toBeVisible();
     updates.push(create(WatchBuildResponseSchema, { build: failed }));
     expect(await screen.findByText("The build didn't start.")).toBeVisible();
-    expect(screen.getByText("This server has 150 MiB free and a build needs 256 MiB.")).toBeVisible();
+    expect(screen.getByText("This server had 150 MiB free and a build needs 256 MiB.")).toBeVisible();
     expect(screen.getByRole("link", { name: "See what uses memory" })).toHaveAttribute(
       "href",
-      `/servers/${SERVER}#srv-hist-title`,
+      `/servers/${SERVER}/processes?sort=-memory`,
+    );
+    await userEvent.setup().click(screen.getByRole("button", { name: "Deploy from CI" }));
+    expect(await screen.findByRole("dialog", { name: "Deploy from CI" })).toBeVisible();
+  });
+
+  it("offers CI and the memory-sorted processes after a confirmed build OOM", async () => {
+    const app = builtApp();
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({
+            revisions: [
+              aRevision(2n, image, {
+                build: aBuild({
+                  state: BuildState.FAILED,
+                  serverId: SERVER,
+                  errorReason: "build_memory",
+                  memoryLimitMib: 512n,
+                }),
+                change: { id: "chg_2", summary: "Deploy", state: ChangeState.FAILED },
+              }),
+            ],
+          }),
+        },
+        builds: { readBuildLog: () => ({ lines: [] }) },
+      }),
+    );
+    expect(await screen.findByText("The kernel stopped the build when memory ran out.")).toBeVisible();
+    expect(screen.getByText("The build could use up to 512 MiB. Nothing was deployed.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "See what uses memory" })).toHaveAttribute(
+      "href",
+      `/servers/${SERVER}/processes?sort=-memory`,
     );
     await userEvent.setup().click(screen.getByRole("button", { name: "Deploy from CI" }));
     expect(await screen.findByRole("dialog", { name: "Deploy from CI" })).toBeVisible();

@@ -45,9 +45,22 @@ func (m memoryLow) Error() string {
 	return fmt.Sprintf("only %d MiB of memory available for build admission", m.available/buildMiB)
 }
 
+type memoryOOM struct{ limit int64 }
+
+func (m memoryOOM) Error() string { return "the kernel ended the builder after running out of memory" }
+
+func buildMemoryOOM(limit int64) error {
+	message := "The kernel stopped the build when memory ran out, so nothing was deployed"
+	if limit > 0 {
+		message = fmt.Sprintf("The kernel stopped the build when memory ran out. The build could use up to %d MiB and deployed nothing", limit/buildMiB)
+	}
+	return resource.PlainlyBecause(resource.ReasonBuildMemory,
+		message+". Build in CI and deploy the image, or stop an app first", memoryOOM{limit})
+}
+
 // waitForMemory shares the build's cancellation. The last reading is taken
 // at the deadline too, so memory freed on the final interval can admit it.
-func waitForMemory(ctx context.Context, read func() (int64, int64, error), wait bool) (int64, int64, error) {
+func waitForMemory(ctx context.Context, read func() (int64, int64, error)) (int64, int64, error) {
 	deadline := time.Now().Add(memoryWait)
 	waiting := false
 	defer func() {
@@ -63,13 +76,13 @@ func waitForMemory(ctx context.Context, read func() (int64, int64, error), wait 
 		if err != nil {
 			return 0, 0, fmt.Errorf("can't read how much memory this server has free: %w", err)
 		}
-		if !wait || available >= admissionFloor {
+		if available >= admissionFloor {
 			return available, total, nil
 		}
 		left := time.Until(deadline)
 		if left <= 0 {
 			return 0, 0, resource.PlainlyBecause(resource.ReasonBuildMemory,
-				fmt.Sprintf("This server has %d MiB free and a build needs 256 MiB, so the build didn't start. Build in CI and deploy the image, or stop an app first", available/buildMiB),
+				fmt.Sprintf("This server had %d MiB free and a build needs 256 MiB, so the build didn't start. Build in CI and deploy the image, or stop an app first", available/buildMiB),
 				memoryLow{available})
 		}
 		if !waiting {
@@ -88,15 +101,18 @@ func waitForMemory(ctx context.Context, read func() (int64, int64, error), wait 
 	}
 }
 
-func (b *Builder) limits(ctx context.Context, wait bool) (buildLimits, error) {
-	info, _ := b.Client.Info(ctx)
+func (b *Builder) limits(ctx context.Context) (buildLimits, error) {
+	var info *docker.Info
+	if b.Memory == nil || b.CPUs == nil {
+		info, _ = b.Client.Info(ctx)
+	}
 	read := b.Memory
 	if read == nil {
 		proc, groups := os.DirFS("/proc"), os.DirFS("/sys/fs/cgroup")
 		parent := b.dockerCgroup(ctx, proc, info)
 		read = func() (int64, int64, error) { return ReadMemory(proc, groups, parent) }
 	}
-	available, total, err := waitForMemory(ctx, read, wait)
+	available, total, err := waitForMemory(ctx, read)
 	if err != nil {
 		return buildLimits{}, err
 	}
