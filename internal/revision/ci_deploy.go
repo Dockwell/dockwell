@@ -40,7 +40,9 @@ func (e *Engine) reusableCIDeploy(ctx context.Context, tx *store.Tx, key store.C
 		switch {
 		case err == nil || errors.Is(err, ErrBusy):
 			return id, nil
-		case staleCIDeploy(err):
+		case staleCIDeploy(err), errors.Is(err, ErrInvalid):
+			// A plan that no longer holds isn't reused: a new one reports
+			// its own problem instead of the old one sticking to the key.
 			return "", nil
 		default:
 			return "", err

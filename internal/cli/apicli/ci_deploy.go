@@ -4,6 +4,8 @@ package apicli
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -24,23 +26,54 @@ const (
 	exitDeployDiscarded  = 7
 )
 
-func retryDeploy(ctx context.Context, call func() error) error {
+// retryDeploy retries a call that failed on its way to the control server.
+// The first such failure is said once, and a timeout names the last one, so a
+// wrong address or certificate never fails silently.
+func (r *runner) retryDeploy(ctx context.Context, call func() error) error {
+	var last error
 	for delay := 250 * time.Millisecond; ; delay = min(delay*2, 5*time.Second) {
 		err := call()
 		if !deployRetryable(err) {
 			return err
 		}
+		if last == nil {
+			fmt.Fprintf(r.env.Err, "Can't reach the control server (%v). Trying again.\n", err)
+		}
+		last = err
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return ctx.Err()
+			return &unreachableError{ctx: ctx.Err(), last: last}
 		case <-timer.C:
 		}
 	}
 }
 
+// unreachableError is a deadline reached while the control server couldn't
+// be reached; it is the context's error, carrying the last failure.
+type unreachableError struct{ ctx, last error }
+
+func (e *unreachableError) Error() string { return e.last.Error() }
+func (e *unreachableError) Unwrap() error { return e.ctx }
+
 func deployRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	// A name that doesn't exist or a certificate that doesn't verify won't
+	// change by trying again.
+	var dns *net.DNSError
+	if errors.As(err, &dns) && dns.IsNotFound {
+		return false
+	}
+	var verify *tls.CertificateVerificationError
+	var authority x509.UnknownAuthorityError
+	var host x509.HostnameError
+	var invalid x509.CertificateInvalidError
+	if errors.As(err, &verify) || errors.As(err, &authority) || errors.As(err, &host) || errors.As(err, &invalid) {
+		return false
+	}
 	code := connect.CodeOf(err)
 	if code == connect.CodeUnavailable || code == connect.CodeDeadlineExceeded {
 		return true
@@ -65,7 +98,7 @@ func (r *runner) deployWithWait(ctx context.Context, req *v1.DeployServiceReques
 
 	var err error
 	if req.GetDeployOrigin() != nil {
-		err = retryDeploy(ctx, propose)
+		err = r.retryDeploy(ctx, propose)
 	} else {
 		err = propose()
 	}
@@ -128,7 +161,7 @@ func (r *runner) beginDeploy(ctx context.Context, c *v1.Change) (bool, error) {
 		fmt.Fprintln(r.env.Err, whyPerson(c.GetPlan())+". Waiting for approval in the panel.")
 		return true, nil
 	}
-	err := retryDeploy(ctx, func() error {
+	err := r.retryDeploy(ctx, func() error {
 		return r.do(ctx, func() error {
 			_, err := r.client.Changes().ApplyChange(ctx, connect.NewRequest(&v1.ApplyChangeRequest{
 				Id: c.GetId(), Fingerprint: c.GetPlan().GetFingerprint(),
@@ -157,6 +190,10 @@ func (r *runner) deployWaitError(ctx context.Context, c *v1.Change, err error, a
 	}
 	if c.GetId() != "" {
 		return ExitError{exitDeployTimeout, fmt.Errorf("timed out waiting for %s. Check its panel link or run the CI job again", c.GetId())}
+	}
+	var unreachable *unreachableError
+	if errors.As(err, &unreachable) {
+		return ExitError{exitDeployTimeout, fmt.Errorf("timed out reaching the control server, so nothing was deployed. The last try said: %w. Check the panel address and token, then run the CI job again", unreachable.last)}
 	}
 	return ExitError{exitDeployTimeout, errors.New("timed out waiting for a deploy plan. Check Activity or run the CI job again")}
 }

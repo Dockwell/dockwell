@@ -732,7 +732,7 @@ func (r *runner) watchTo(ctx context.Context, id string, rollback bool) (*dockwe
 	}
 	if r.opts.wait {
 		reconnect := false
-		err := retryDeploy(ctx, func() error {
+		err := r.retryDeploy(ctx, func() error {
 			if reconnect {
 				if err := r.do(ctx, func() error {
 					res, err := r.client.Changes().GetChange(ctx, connect.NewRequest(&dockwellv1.GetChangeRequest{Id: id}))

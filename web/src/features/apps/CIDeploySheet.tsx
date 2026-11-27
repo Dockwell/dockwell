@@ -57,8 +57,8 @@ jobs:
           set -euo pipefail
           image="ghcr.io/\${GITHUB_REPOSITORY,,}"
           printf '%s\\n' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker buildx build --push -t "$image:$GITHUB_SHA" --metadata-file "$RUNNER_TEMP/image.json" .
-          digest=$(jq -er '."containerimage.digest"' "$RUNNER_TEMP/image.json")
+          docker buildx build --push -t "$image:$GITHUB_SHA" .
+          digest=$(docker buildx imagetools inspect "$image:$GITHUB_SHA" --format '{{.Manifest.Digest}}')
           printf 'image=%s@%s\\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
       - uses: Dockwell/dockwell/ci/github@${tag}
         with:
