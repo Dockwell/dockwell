@@ -4,6 +4,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  ChangeState,
   ComposeService,
   type ContainerPort,
   ContainerService,
@@ -966,13 +967,21 @@ export function DockerContainers({
               extCount > 0 && followUpPlanNote && notAppliedText
                 ? {
                     notes: [followUpPlanNote],
-                    onNotApplied: () => {
+                    onNotApplied: (change) => {
                       const extIds = new Set(externalRows.map((row) => row.id));
                       const drop = selected.filter((row) => !extIds.has(row.id)).map((row) => row.id);
                       if (drop.length > 0) selection.setAll(drop, false);
+                      // A plan still applying hasn't failed: say only what waits. A planned one closed here is
+                      // discarded, or left for an admin, and hasn't applied either way.
+                      const pending = change?.state === ChangeState.APPLYING;
                       setFollowUpNote({
                         ids: externalRows.map((row) => row.id).join(","),
-                        text: notAppliedText,
+                        text: pending
+                          ? plural(extCount, {
+                              one: "# container Dockwell didn't make waits for its own plan.",
+                              other: "# containers Dockwell didn't make wait for their own plan.",
+                            })
+                          : notAppliedText,
                       });
                     },
                   }

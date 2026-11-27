@@ -5312,8 +5312,8 @@ msgstr "The app can't write to {path}"
 msgid "The app gets it as PORT."
 msgstr "The app gets it as PORT."
 
-msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
-msgstr "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
+msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1> (<2>{ids}</2>)."
+msgstr "This changes <0>{path}</0> and everything in it to <1>{user}</1> (<2>{ids}</2>)."
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "Use a folder of its own, not the server's root."
@@ -16999,6 +16999,9 @@ msgstr "{0, plural, one {# system container skipped} other {# system containers 
 #. placeholder {0}: verb.label
 msgid "{0} {count}"
 msgstr "{0} {count}"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make waits for its own plan.} other {# containers Dockwell didn't make wait for their own plan.}}"
+msgstr "{extCount, plural, one {# container Dockwell didn't make waits for its own plan.} other {# containers Dockwell didn't make wait for their own plan.}}"
 
 msgid "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"
 msgstr "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"

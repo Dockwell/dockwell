@@ -1,5 +1,15 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
+/* A detail page's measure inside the wide server frame, under the head and tabs at their usual place. */
+.server-overview-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: calc(var(--page-standard) - 2 * var(--space-6));
+  min-width: 0;
+}
+
 /* System, network and agent side by side, wrapping as the page narrows. */
 .server-panels {
   display: grid;
@@ -17,6 +27,11 @@
   flex-direction: column;
   /* The page's own gap, so stacked they sit as they would without this row, on a phone too. */
   gap: inherit;
+}
+
+/* Nothing to pair on an offline server: no empty row and its gap. */
+.server-pair:empty {
+  display: none;
 }
 
 .server-pair > * {

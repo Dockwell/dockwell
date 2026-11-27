@@ -519,8 +519,10 @@ function useFolderState({
       setAccessOutcome({ result, recursive: Boolean(change.recursive) });
       if (result.stopped) setFixError(result.stopped);
       lookup.refresh();
+      return true;
     } catch (error) {
       setFixError(sentence(error));
+      return false;
     } finally {
       setFixing(false);
     }
@@ -681,6 +683,8 @@ function useFolderState({
     }
   }
   const canChown = runUid !== undefined && runGid !== undefined && runUid > 0 && runGid > 0;
+  // The numbers the change will use, so a guessed group is never hidden behind a name.
+  const ids = `${runUid}:${runGid}`;
   const nonRootUsers = serverUsers.filter((account) => account.id > 0);
   const accessBanner = (() => {
     if (!accessOutcome) return null;
@@ -748,7 +752,7 @@ function useFolderState({
                 <>
                   <p>
                     <Trans>
-                      This changes <code>{path}</code> and everything in it to <code>{user}</code>.
+                      This changes <code>{path}</code> and everything in it to <code>{user}</code> (<code>{ids}</code>).
                     </Trans>
                   </p>
                   <div className="app-folder-runtime">
@@ -757,8 +761,9 @@ function useFolderState({
                       variant="primary"
                       loading={fixing}
                       onClick={() =>
-                        void fixAccess({ uid: runUid, gid: runGid, recursive: true }).then(() => {
-                          if (!parsedIds && runUid !== undefined && runGid !== undefined) {
+                        void fixAccess({ uid: runUid, gid: runGid, recursive: true }).then((changed) => {
+                          // Only a change that happened fills in the ids it used.
+                          if (changed && !parsedIds && runUid !== undefined && runGid !== undefined) {
                             onRunAs(`${runUid}:${runGid}`);
                           }
                         })

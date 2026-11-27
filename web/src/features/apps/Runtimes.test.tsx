@@ -475,7 +475,7 @@ describe("New app, from a folder", () => {
     const startBtn = await within(sheet).findByRole("button", { name: "Change owner to node" }, { timeout: 3_000 });
     await user.click(startBtn);
     expect(accessCalls).toHaveLength(0);
-    expect(sheet).toHaveTextContent("This changes /srv/root and everything in it to node.");
+    expect(sheet).toHaveTextContent("This changes /srv/root and everything in it to node (1000:1000).");
     await user.click(within(sheet).getByRole("button", { name: "Change owner of /srv/root and everything in it" }));
     await waitFor(() => expect(accessCalls).toHaveLength(1));
     expect(accessCalls[0]).toMatchObject({ path: "/srv/root", change: { uid: 1000, gid: 1000, recursive: true } });

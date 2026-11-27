@@ -5312,8 +5312,8 @@ msgstr "应用无法写入 {path}"
 msgid "The app gets it as PORT."
 msgstr "应用通过 PORT 获得它。"
 
-msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1>."
-msgstr "这会将 <0>{path}</0> 及其中的所有内容改为 <1>{user}</1>。"
+msgid "This changes <0>{path}</0> and everything in it to <1>{user}</1> (<2>{ids}</2>)."
+msgstr "这会将 <0>{path}</0> 及其中的所有内容改为 <1>{user}</1>（<2>{ids}</2>）。"
 
 msgid "Use a folder of its own, not the server's root."
 msgstr "请使用它自己的文件夹，不要用服务器的根目录。"
@@ -16999,6 +16999,9 @@ msgstr "{0, plural, other {已跳过 # 个系统容器}}"
 #. placeholder {0}: verb.label
 msgid "{0} {count}"
 msgstr "{0} {count} 个"
+
+msgid "{extCount, plural, one {# container Dockwell didn't make waits for its own plan.} other {# containers Dockwell didn't make wait for their own plan.}}"
+msgstr "{extCount, plural, other {# 个非 Dockwell 创建的容器等待各自的计划。}}"
 
 msgid "{extCount, plural, one {# container Dockwell didn't make wasn't paused because the managed plan didn't apply.} other {# containers Dockwell didn't make weren't paused because the managed plan didn't apply.}}"
 msgstr "{extCount, plural, other {由于托管计划未应用，# 个非 Dockwell 创建的容器未被暂停。}}"

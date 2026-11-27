@@ -28,9 +28,11 @@ export function ServerOverview({ id, search, onSearch }: { id: string } & ListRo
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
   return (
-    <ServerFrame id={id} width="standard">
+    <ServerFrame id={id}>
       {(server) => (
-        <>
+        // The frame stays as wide as every other server tab, so its head and tabs never move between them; the
+        // overview's own panels keep a detail page's measure.
+        <div className="server-overview-body">
           {/* What it last said of itself can't stand, so that is what it says, and nothing it last said instead. */}
           {unread ? (
             <FleetUnreadNote why={unread.why} heard={unread.heard} />
@@ -67,7 +69,7 @@ export function ServerOverview({ id, search, onSearch }: { id: string } & ListRo
             <NetworkPanel server={server} stale={unread !== undefined} />
             <AgentPanel server={server} unknown={unread !== undefined} />
           </div>
-        </>
+        </div>
       )}
     </ServerFrame>
   );

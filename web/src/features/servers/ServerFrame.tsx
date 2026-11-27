@@ -18,7 +18,7 @@ import { cx, Icon, type IconName, PHONE_QUERY, TabNav, Tag, useMediaQuery } from
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
@@ -140,17 +140,22 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, fullBody, width,
   const phone = useMediaQuery(PHONE_QUERY);
   const viewportNarrow = useMediaQuery("(max-width: 1200px)");
   const tabsWrapRef = useRef<HTMLDivElement>(null);
-  const [tabsWidth, setTabsWidth] = useState(0);
-  useEffect(() => {
+  // Measured before the first paint, so a narrow column never draws all ten tabs first; kept as a yes or no, so a
+  // resize re-renders the frame only when the answer changes.
+  const [measuredNarrow, setMeasuredNarrow] = useState<boolean | undefined>(undefined);
+  useLayoutEffect(() => {
     const el = tabsWrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => setTabsWidth(el.getBoundingClientRect().width);
+    const measure = () => {
+      const width = el.getBoundingClientRect().width;
+      setMeasuredNarrow(width > 0 ? width < 960 : undefined);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const narrow = tabsWidth > 0 ? tabsWidth < 960 : viewportNarrow;
+  const narrow = measuredNarrow ?? viewportNarrow;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const onDocker = pathname.startsWith(`/servers/${server.id}/docker`);
   const unread = useFleetUnread();

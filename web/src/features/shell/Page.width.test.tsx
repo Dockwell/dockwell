@@ -38,8 +38,9 @@ describe("a page's width by its kind", () => {
     ["/servers", "Servers", "wide"],
     ["/settings/general", "General", "narrow"],
     ["/profile", "Profile and security", "narrow"],
-    // A server overview and tables of few columns read at a detail page's standard measure.
-    ["/servers/srv_1", "hz-1", "standard"],
+    // A server's pages share the wide frame, so its head and tabs stay put between them.
+    ["/servers/srv_1", "hz-1", "wide"],
+    // Tables of few columns read at a detail page's standard measure.
     ["/apps", "Apps", "standard"],
     ["/websites", "Websites", "standard"],
     ["/domains", "Domains", "standard"],

@@ -14,7 +14,7 @@ import {
   type WatchServersResponse,
 } from "@dockwell/api";
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from "@tanstack/react-router";
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
@@ -423,6 +423,38 @@ it("does not plan external containers when the managed plan is cancelled or fail
       "1 container Dockwell didn't make wasn't stopped because the managed plan didn't apply.",
     ),
   ).toBeVisible();
+  cleanup();
+
+  // Closed while the managed plan still applies: nothing says it failed, and the external row only waits.
+  const applyingStream = feed<WatchChangeResponse>();
+  const applyingPlan = vi.fn((_request: PlanDockerMaintenanceRequest) => ({ change: webPlanned() }));
+  renderAt(`/servers/${SERVER}/docker/containers`, {
+    resources: places(),
+    services: { listServices: () => ({ services: [app] }) },
+    servers: { watchServers: makeServers() },
+    docker: {
+      watchDockerObjects: quietWatch,
+      listDockerObjects: () => ({ objects }),
+      planDockerMaintenance: applyingPlan,
+    },
+    changes: {
+      proposeChange: () => ({ change: managedChange }),
+      applyChange: () => ({ change: moved(managedChange, { state: ChangeState.APPLYING }) }),
+      watchChange: applyingStream.stream,
+    },
+  });
+  await user.click(await screen.findByRole("checkbox", { name: "Select shop-1" }));
+  await user.click(screen.getByRole("checkbox", { name: "Select redis-1" }));
+  await user.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Stop 2" }));
+  const applyingDialog = await screen.findByRole("dialog", { name: "Review plan" });
+  await user.click(within(applyingDialog).getByRole("button", { name: "Apply plan" }));
+  await within(applyingDialog).findByText(/keeps applying/i);
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(applyingPlan).not.toHaveBeenCalled();
+  const applyingBar = screen.getByRole("toolbar");
+  expect(within(applyingBar).getByText("1 container Dockwell didn't make waits for its own plan.")).toBeVisible();
+  expect(within(applyingBar).queryByText(/didn't apply/)).toBeNull();
 });
 
 it("sends external-only selections straight to planDockerMaintenance without proposeChange", async () => {
