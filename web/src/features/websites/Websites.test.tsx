@@ -1547,12 +1547,18 @@ describe("A PHP website", () => {
         serves: { case: "folder", value: { root: "/srv/site", owner: "2000:2000" } },
       }),
     });
-    const paths: string[] = [];
+    const inspectedOwners: string[] = [];
     renderAt(
       "/websites/prj_blog/configuration",
       api([saved], {
-        files: { listFiles: disk({}, paths) },
+        files: { listFiles: disk({}) },
         websites: {
+          previewWebsite: ({ website }) => {
+            if (website?.serves.case === "folder" && website.serves.value.root === "/srv/other") {
+              inspectedOwners.push(website.serves.value.owner);
+            }
+            return { website, config: ":8080 { file_server }" };
+          },
           updateWebsite: (req) => {
             asked = req;
             return { change: planned };
@@ -1565,8 +1571,7 @@ describe("A PHP website", () => {
     await within(fields).findByRole("link", { name: "Make it in Files" });
     expect(screen.getByRole("button", { name: "Review plan" })).toBeDisabled();
     await pickFolder(user, fields, "/srv/other");
-    await waitFor(() => expect(paths).toContain("/srv/other"));
-    await within(fields).findByRole("link", { name: "Make it in Files" });
+    await waitFor(() => expect(inspectedOwners).toContain("1000:1000"));
     await pickFolder(user, fields, "/srv/site");
     expect(screen.getByRole("button", { name: "Discard" })).toBeDisabled();
     await openAdvanced(user, fields);
