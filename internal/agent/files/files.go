@@ -39,6 +39,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/pageout"
 	"github.com/dockwell/dockwell/internal/mounts"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -370,6 +371,7 @@ func (s *Server) settleIfIdle() {
 		s.gcSet = false
 	}
 	debug.FreeOSMemory()
+	pageout.Executable()
 }
 
 // CheckPath refuses a path that isn't absolute, or that could read otherwise
