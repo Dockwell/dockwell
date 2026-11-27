@@ -28,14 +28,18 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";
 
-import { sentence } from "../../lib/errors";
+import { formatBytes } from "../../lib/format";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
+import { ReadFailed } from "../shell/ReadFailed";
 import { useAllVariables } from "../variables/VariablesPage";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import "./ToolboxPage.css";
+
+const MIB = 1024n * 1024n;
+const SWAP_PRESETS_MIB = [512n, 1024n, 2048n, 4096n] as const;
 
 type Operation = NonNullable<MessageInitShape<typeof HostToolboxOperationSchema>["operation"]>;
 type Editor = "swap" | "swappiness" | "hostname" | "timeZone" | "dns" | "hosts" | "cleanup" | "service";
@@ -53,16 +57,12 @@ export function ToolboxPage({ serverId }: { serverId: string }) {
         ) : isAgentOutdated(status.error) ? (
           <AgentOutdated server={server}>{t`This agent needs an update to manage host settings.`}</AgentOutdated>
         ) : status.error ? (
-          <Callout
-            tone="warning"
-            actions={
-              <Button variant="secondary" onClick={() => void status.refetch()}>
-                <Trans>Try again</Trans>
-              </Button>
-            }
-          >
-            {sentence(status.error)}
-          </Callout>
+          <ReadFailed
+            error={status.error}
+            title={t`Dockwell can't read ${server.name}'s host settings`}
+            onRetry={() => void status.refetch()}
+            retrying={status.isFetching}
+          />
         ) : status.data?.status ? (
           <Toolbox serverId={serverId} status={status.data.status} refresh={() => void status.refetch()} />
         ) : (
@@ -74,7 +74,7 @@ export function ToolboxPage({ serverId }: { serverId: string }) {
 }
 
 function Toolbox({ serverId, status, refresh }: { serverId: string; status: HostToolboxStatus; refresh: () => void }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const transport = useTransport();
   const changeSheet = useChangeSheet();
   const readAgain = useReadAgainOnceOver(refresh);
@@ -101,7 +101,7 @@ function Toolbox({ serverId, status, refresh }: { serverId: string; status: Host
   const active = status.activeSwap;
   return (
     <div className="toolbox">
-      <h2 className="dw-text-heading">
+      <h2 className="dw-sr">
         <Trans>Toolbox</Trans>
       </h2>
       <div className="toolbox-grid">
@@ -117,12 +117,16 @@ function Toolbox({ serverId, status, refresh }: { serverId: string; status: Host
         >
           {active.length ? (
             <ul className="toolbox-list">
-              {active.map((item) => (
-                <li key={item.path}>
-                  <code>{item.path}</code>
-                  <span>{t`${String(item.usedMib)} of ${String(item.sizeMib)} MiB used`}</span>
-                </li>
-              ))}
+              {active.map((item) => {
+                const used = formatBytes(item.usedMib * MIB, i18n.locale);
+                const size = formatBytes(item.sizeMib * MIB, i18n.locale);
+                return (
+                  <li key={item.path}>
+                    <code>{item.path}</code>
+                    <span>{t`${used} of ${size} used`}</span>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="ink-muted">
@@ -273,7 +277,7 @@ function Toolbox({ serverId, status, refresh }: { serverId: string; status: Host
           <p className="ink-muted">
             <Trans>Package cache, archived journals, rotated logs and old temporary files.</Trans>
           </p>
-          <Link to="/servers/$serverId/docker/cleanup" params={{ serverId }}>
+          <Link to="/servers/$serverId/docker/cleanup" params={{ serverId }} className="dw-link toolbox-card-link">
             <Trans>Docker cleanup</Trans>
           </Link>
         </Panel>
@@ -319,7 +323,12 @@ function Toolbox({ serverId, status, refresh }: { serverId: string; status: Host
               <Trans>No background services created in Dockwell.</Trans>
             </p>
           )}
-          <Link to="/servers/$serverId/services" params={{ serverId }} search={{}}>
+          <Link
+            to="/servers/$serverId/services"
+            params={{ serverId }}
+            search={{}}
+            className="dw-link toolbox-card-link"
+          >
             <Trans>System services</Trans>
           </Link>
         </Panel>
@@ -341,7 +350,7 @@ function SettingsEditor({
   close,
   plan,
 }: FormProps & { editor: Exclude<Editor, "service">; status: HostToolboxStatus }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const form = useId();
   const [value, setValue] = useState(
     () =>
@@ -402,25 +411,46 @@ function SettingsEditor({
         });
     }
   }
+  const swapPresets = SWAP_PRESETS_MIB.filter((mib) => mib <= status.swapFreeMib);
+  const availableSwap = formatBytes(status.swapFreeMib * MIB, i18n.locale);
   return (
     <Sheet
       open
+      compact={editor !== "cleanup"}
       title={title}
       onClose={close}
       footer={<EditorFooter form={form} close={close} scan={editor === "cleanup"} />}
     >
       <form className="toolbox-form" id={form} onSubmit={submit}>
         {editor === "swap" ? (
-          <TextField
-            label={t`Size (MiB)`}
-            type="number"
-            min={128}
-            max={Number(status.swapFreeMib)}
-            required
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            hint={t`${String(status.swapFreeMib)} MiB available for a new swap file.`}
-          />
+          <>
+            <TextField
+              label={t`Size (MB)`}
+              type="number"
+              min={128}
+              max={Number(status.swapFreeMib)}
+              required
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              hint={t`${availableSwap} available for a new swap file.`}
+            />
+            {swapPresets.length > 0 ? (
+              <fieldset className="toolbox-presets">
+                <legend className="dw-sr">{t`Common swap sizes`}</legend>
+                {swapPresets.map((mib) => (
+                  <button
+                    key={String(mib)}
+                    type="button"
+                    className="toolbox-preset"
+                    aria-pressed={value === String(mib)}
+                    onClick={() => setValue(String(mib))}
+                  >
+                    {formatBytes(mib * MIB, i18n.locale)}
+                  </button>
+                ))}
+              </fieldset>
+            ) : null}
+          </>
         ) : editor === "swappiness" ? (
           <TextField
             label={title}
@@ -466,7 +496,7 @@ function SettingsEditor({
             ) : null}
             {kind !== ToolboxCleanupKind.APT ? (
               <TextField
-                label={age ? t`Older than (days)` : t`Keep up to (MiB)`}
+                label={age ? t`Older than (days)` : t`Keep up to (MB)`}
                 type="number"
                 min={kind === ToolboxCleanupKind.TEMPORARY ? 3 : 1}
                 max={age ? 3650 : 1_048_576}

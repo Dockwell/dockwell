@@ -345,19 +345,21 @@ describe("New app, from a folder", () => {
     await waitFor(() => expect(sheet).toHaveTextContent("/srv/root is root's, and an app never runs as root"), {
       timeout: 3_000,
     });
+    expect(within(sheet).getByRole("button", { name: "Change owner to 1000:1000" })).toBeInTheDocument();
     await chooseFolder(user, sheet, "/srv/empty");
     await waitFor(() => expect(sheet).toHaveTextContent("No Node.js app in /srv/empty yetIt has no package.json."), {
       timeout: 3_000,
     });
-    // Its own, closed to itself: the mode is what to change.
+    // Its own, closed to itself: the mode is what to change, via an inline button.
     await chooseFolder(user, sheet, "/srv/locked");
     await waitFor(
       () =>
         expect(sheet).toHaveTextContent(
-          "The app can't write to /srv/lockedIts mode is dr-xr-xr-x. Run chmod u+w /srv/locked on the server.",
+          "The app can't write to /srv/lockedIts mode is dr-xr-xr-x, so 1000:1000 can't write to it.",
         ),
       { timeout: 3_000 },
     );
+    expect(within(sheet).getByRole("button", { name: "Make writable" })).toBeInTheDocument();
     await chooseFolder(user, sheet, "/srv/new");
     await waitFor(() => expect(sheet).toHaveTextContent("New Dockwell makes it, owned by 1000:1000"), {
       timeout: 3_000,
@@ -378,6 +380,119 @@ describe("New app, from a folder", () => {
     expect(within(sheet).getByLabelText(/^Runs as/)).toHaveAccessibleDescription(
       "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000.",
     );
+  });
+
+  it("confirms recursive owner change with undo, resolves named accounts, and keeps setgid on Make writable", async () => {
+    const user = userEvent.setup();
+    let rootUid = 0;
+    const accessCalls: {
+      path: string;
+      change?: {
+        uid?: number;
+        gid?: number;
+        mode?: number;
+        recursive?: boolean;
+        allowSetId?: boolean;
+        restore?: unknown[];
+      };
+    }[] = [];
+    renderAt(
+      "/apps/new?source=folder",
+      api(
+        {
+          files: {
+            listFiles: (req: { path: string }) => {
+              if (req.path === "/srv/root") {
+                return {
+                  path: "/srv/root",
+                  directory: {
+                    mode: "drwxr-xr-x",
+                    type: FileType.DIRECTORY,
+                    owner: rootUid === 0 ? "root" : "node",
+                    uid: rootUid,
+                    gid: rootUid,
+                  },
+                  entries: [entry("package.json")],
+                };
+              }
+              if (req.path === "/srv/setgid") {
+                return {
+                  path: "/srv/setgid",
+                  directory: {
+                    mode: "dr-xr-sr-x",
+                    type: FileType.DIRECTORY,
+                    owner: "node",
+                    uid: 1000,
+                    gid: 1000,
+                  },
+                  entries: [entry("package.json")],
+                };
+              }
+              return disk({ "/srv/root": { uid: rootUid, entries: ["package.json"] } })(req);
+            },
+            listFileAccounts: () => ({
+              users: [
+                { name: "root", id: 0 },
+                { name: "node", id: 1000 },
+              ],
+              groups: [
+                { name: "root", id: 0 },
+                { name: "node", id: 1000 },
+              ],
+            }),
+            changeFileAccess: (req) => {
+              accessCalls.push(req);
+              if (req.change?.restore?.length) {
+                rootUid = 0;
+                return { path: req.path, changed: 3n, skipped: 0n, undo: [] };
+              }
+              if (req.change?.uid) rootUid = req.change.uid;
+              return {
+                path: req.path,
+                changed: 3n,
+                skipped: 0n,
+                undo: [
+                  {
+                    path: req.path,
+                    before: { mode: 0o755, uid: 0, gid: 0 },
+                    after: { mode: 0o755, uid: 1000, gid: 1000 },
+                  },
+                ],
+              };
+            },
+          },
+        },
+        [],
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const runsAs = within(sheet).getByLabelText(/^Runs as/);
+    await user.clear(runsAs);
+    await user.type(runsAs, "node");
+    await chooseFolder(user, sheet, "/srv/root");
+    // Named account resolves through listFileAccounts and asks before recursing.
+    const startBtn = await within(sheet).findByRole("button", { name: "Change owner to node" }, { timeout: 3_000 });
+    await user.click(startBtn);
+    expect(accessCalls).toHaveLength(0);
+    expect(sheet).toHaveTextContent("This changes /srv/root and everything in it to node (1000:1000).");
+    await user.click(within(sheet).getByRole("button", { name: "Change owner of /srv/root and everything in it" }));
+    await waitFor(() => expect(accessCalls).toHaveLength(1));
+    expect(accessCalls[0]).toMatchObject({ path: "/srv/root", change: { uid: 1000, gid: 1000, recursive: true } });
+    // Shows changed item count and Undo button.
+    expect(await within(sheet).findByText("Changed 3 items")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(accessCalls).toHaveLength(2));
+    expect(accessCalls[1]?.change?.restore).toHaveLength(1);
+
+    // Make writable on a setgid folder preserves the setgid bit and sets allowSetId.
+    await chooseFolder(user, sheet, "/srv/setgid");
+    await user.click(await within(sheet).findByRole("button", { name: "Make writable" }, { timeout: 3_000 }));
+    await waitFor(() => expect(accessCalls).toHaveLength(3));
+    expect(accessCalls[2]).toMatchObject({
+      path: "/srv/setgid",
+      change: { mode: 0o2755, allowSetId: true },
+    });
   });
 
   it("finds a folder whose parent holds more than a listing carries, by its own path (#588)", async () => {

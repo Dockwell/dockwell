@@ -141,6 +141,7 @@
 .docker-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(275px, 100%), 1fr));
+  align-items: start;
   gap: var(--space-4);
 }
 
@@ -311,10 +312,6 @@
 .docker-table .dw-table th {
   overflow-wrap: anywhere;
   white-space: normal;
-}
-
-.docker-table th:first-child {
-  width: 17%;
 }
 
 .docker-cell-text,

@@ -9,12 +9,14 @@ import {
   Loading,
   Metric,
   Panel,
+  PHONE_QUERY,
   SelectField,
   Skeleton,
   SkeletonCard,
   SkeletonFacts,
   SkeletonRows,
   TabNav,
+  useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -177,115 +179,119 @@ interface WorkspaceProps {
 function Workspace({ tab, servers, server, multiple, attention, group, cleanupKinds }: WorkspaceProps) {
   const { t } = useLingui();
   const may = useMay();
+  const phone = useMediaQuery(PHONE_QUERY);
   const canReadSettings = may(DockerService.method.getDockerSettings).allowed;
   const ids = servers.map((s) => s.id);
+  const showNav = !(server && phone);
   return (
     <section className="docker-workspace" aria-label={t`Docker`}>
-      <div className="docker-navigation">
-        <TabNav label={t`Docker views`}>
-          {server ? (
-            <>
-              <RouterTabLink
-                to="/servers/$serverId/docker"
-                params={{ serverId: server.id }}
-                activeOptions={{ exact: true, includeSearch: false }}
-              >
-                <Trans>Overview</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/$serverId/docker/containers"
-                params={{ serverId: server.id }}
-                activeOptions={{ exact: true, includeSearch: false }}
-              >
-                <Trans>Containers</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/$serverId/docker/composes"
-                params={{ serverId: server.id }}
-                activeOptions={{ exact: true, includeSearch: false }}
-              >
-                <Trans>Composes</Trans>
-              </RouterTabLink>
-              <RouterTabLink to="/servers/$serverId/docker/images" params={{ serverId: server.id }}>
-                <Trans>Images</Trans>
-              </RouterTabLink>
-              <RouterTabLink to="/servers/$serverId/docker/networks" params={{ serverId: server.id }}>
-                <Trans>Networks</Trans>
-              </RouterTabLink>
-              <RouterTabLink to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
-                <Trans>Volumes</Trans>
-              </RouterTabLink>
-              <RouterTabLink to="/servers/$serverId/docker/cleanup" params={{ serverId: server.id }}>
-                <Trans>Cleanup</Trans>
-              </RouterTabLink>
-              {canReadSettings ? (
-                <RouterTabLink to="/servers/$serverId/docker/settings" params={{ serverId: server.id }}>
-                  <Trans>Settings</Trans>
+      {showNav ? (
+        <div className="docker-navigation">
+          <TabNav label={t`Docker views`}>
+            {server ? (
+              <>
+                <RouterTabLink
+                  to="/servers/$serverId/docker"
+                  params={{ serverId: server.id }}
+                  activeOptions={{ exact: true, includeSearch: false }}
+                >
+                  <Trans>Overview</Trans>
                 </RouterTabLink>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <RouterTabLink to="/servers/docker" search={{}} activeOptions={{ exact: true, includeSearch: true }}>
-                <Trans>Overview</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "containers", ...(tab === "containers" && attention ? { attention: true } : {}) }}
-                activeOptions={{ exact: true }}
-              >
-                <Trans>Containers</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "composes" }}
-                activeOptions={{ exact: true, includeSearch: true }}
-              >
-                <Trans>Composes</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "images" }}
-                activeOptions={{ exact: true, includeSearch: true }}
-              >
-                <Trans>Images</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "networks" }}
-                activeOptions={{ exact: true, includeSearch: true }}
-              >
-                <Trans>Networks</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "volumes" }}
-                activeOptions={{ exact: true, includeSearch: true }}
-              >
-                <Trans>Volumes</Trans>
-              </RouterTabLink>
-              <RouterTabLink
-                to="/servers/docker"
-                search={{ view: "cleanup" }}
-                activeOptions={{ exact: true, includeSearch: true }}
-              >
-                <Trans>Cleanup</Trans>
-              </RouterTabLink>
-            </>
-          )}
-        </TabNav>
-        {server && multiple ? (
-          <RouterButtonLink
-            to="/servers/docker"
-            search={tab === "overview" || tab === "settings" ? {} : { view: tab }}
-            variant="ghost"
-            size="sm"
-            icon="grid"
-          >
-            <Trans>All servers</Trans>
-          </RouterButtonLink>
-        ) : null}
-      </div>
+                <RouterTabLink
+                  to="/servers/$serverId/docker/containers"
+                  params={{ serverId: server.id }}
+                  activeOptions={{ exact: true, includeSearch: false }}
+                >
+                  <Trans>Containers</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/$serverId/docker/composes"
+                  params={{ serverId: server.id }}
+                  activeOptions={{ exact: true, includeSearch: false }}
+                >
+                  <Trans>Composes</Trans>
+                </RouterTabLink>
+                <RouterTabLink to="/servers/$serverId/docker/images" params={{ serverId: server.id }}>
+                  <Trans>Images</Trans>
+                </RouterTabLink>
+                <RouterTabLink to="/servers/$serverId/docker/networks" params={{ serverId: server.id }}>
+                  <Trans>Networks</Trans>
+                </RouterTabLink>
+                <RouterTabLink to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
+                  <Trans>Volumes</Trans>
+                </RouterTabLink>
+                <RouterTabLink to="/servers/$serverId/docker/cleanup" params={{ serverId: server.id }}>
+                  <Trans>Cleanup</Trans>
+                </RouterTabLink>
+                {canReadSettings ? (
+                  <RouterTabLink to="/servers/$serverId/docker/settings" params={{ serverId: server.id }}>
+                    <Trans>Settings</Trans>
+                  </RouterTabLink>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <RouterTabLink to="/servers/docker" search={{}} activeOptions={{ exact: true, includeSearch: true }}>
+                  <Trans>Overview</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "containers", ...(tab === "containers" && attention ? { attention: true } : {}) }}
+                  activeOptions={{ exact: true }}
+                >
+                  <Trans>Containers</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "composes" }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Trans>Composes</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "images" }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Trans>Images</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "networks" }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Trans>Networks</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "volumes" }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Trans>Volumes</Trans>
+                </RouterTabLink>
+                <RouterTabLink
+                  to="/servers/docker"
+                  search={{ view: "cleanup" }}
+                  activeOptions={{ exact: true, includeSearch: true }}
+                >
+                  <Trans>Cleanup</Trans>
+                </RouterTabLink>
+              </>
+            )}
+          </TabNav>
+          {server && multiple ? (
+            <RouterButtonLink
+              to="/servers/docker"
+              search={tab === "overview" || tab === "settings" ? {} : { view: tab }}
+              variant="ghost"
+              size="sm"
+              icon="grid"
+            >
+              <Trans>All servers</Trans>
+            </RouterButtonLink>
+          ) : null}
+        </div>
+      ) : null}
       {tab === "overview" ? (
         <Overview servers={servers} server={server} ids={ids} />
       ) : tab === "composes" ? (

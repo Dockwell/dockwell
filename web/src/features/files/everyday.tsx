@@ -38,7 +38,7 @@ export async function confirmed<T>(
 type AccessTarget = { path: string; entry: FileEntry };
 export type AccessResult = { result: ChangeFileAccessResponse; recursive: boolean };
 
-function permissionBits(mode: string): number {
+export function permissionBits(mode: string): number {
   let bits = 0;
   for (const [i, char] of [...mode.slice(1, 10)].entries()) {
     if ("rwxst".includes(char)) bits |= 1 << (8 - i);

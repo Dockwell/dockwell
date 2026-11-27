@@ -107,16 +107,23 @@ function SshSettings({
   const [keys, setKeys] = useState(keyNow);
   const [port, setPort] = useState(String(portNow));
   const [addresses, setAddresses] = useState(original.listenAddresses.join(", "));
-  const [account, setAccount] = useState(original.account);
+  const [pickedAccount, setPickedAccount] = useState<string>();
   const [testAddress, setTestAddress] = useState<string>();
   const testAddressesId = useId();
   const sessions = useQuery(FirewallService.method.listServerSshSessions, { serverId: server.id }, { retry: false });
-  const peers = (sessions.data?.sessions ?? []).filter((session) => session.user === account && session.address);
+  const activeSessions = sessions.data?.sessions ?? [];
+  const adminAccounts = new Set(ssh.adminAccounts);
+  const sessionAccount =
+    (ssh.yourAddress
+      ? activeSessions.find((session) => session.address === ssh.yourAddress && adminAccounts.has(session.user))?.user
+      : undefined) ?? activeSessions.find((session) => adminAccounts.has(session.user))?.user;
+  const account = pickedAccount ?? (original.account || sessionAccount || ssh.adminAccounts[0] || "");
+  const peers = activeSessions.filter((session) => session.user === account && session.address);
   const suggested =
     peers.find(({ address }) => address === ssh.yourAddress)?.address ??
     peers.find(({ tty }) => tty)?.address ??
     peers[0]?.address ??
-    "";
+    ssh.yourAddress;
   const peer = (testAddress ?? suggested).trim();
   const [error, setError] = useState("");
   const addressesChanged = addresses !== original.listenAddresses.join(", ");
@@ -214,7 +221,7 @@ function SshSettings({
           label={t`Administrator to test with`}
           value={account}
           onChange={(event) => {
-            setAccount(event.target.value);
+            setPickedAccount(event.target.value);
             setTestAddress(undefined);
           }}
           options={[

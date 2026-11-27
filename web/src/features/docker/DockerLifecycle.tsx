@@ -55,7 +55,7 @@ export function useLifecycleVerbs() {
   ] as const;
 }
 
-function accepts(row: DockerObject, action: DockerContainerAction) {
+export function acceptsLifecycle(row: DockerObject, action: DockerContainerAction) {
   if (!row.key || row.ownership !== DockerOwnership.EXTERNAL) return false;
   if (row.key.kind === DockerObjectKind.COMPOSE) return true;
   const running = row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING;
@@ -123,7 +123,7 @@ export function useDockerLifecycle() {
   };
   const actionsFor = (row: DockerObject, onApplied?: () => void): MenuAction[] =>
     verbs.flatMap((verb) =>
-      accepts(row, verb.action)
+      acceptsLifecycle(row, verb.action)
         ? [
             {
               id: `external-${verb.action}`,
@@ -138,27 +138,32 @@ export function useDockerLifecycle() {
     );
   const batch = (rows: readonly DockerObject[], onApplied: () => void) =>
     combineBatchActions(
-      ...verbs.map((verb) =>
-        batchAction(
-          rows,
-          (row) => {
-            if (row.ownership !== DockerOwnership.EXTERNAL) return { reason: t`Managed or system container` };
-            if (!accepts(row, verb.action)) return { reason: verb.unavailable };
-            return permission.allowed ? undefined : { permission };
-          },
-          {
-            id: `external-${verb.action}`,
-            label: (count) => (count ? t`${verb.label} ${count}` : verb.label),
-            icon: verb.icon,
-            ...("danger" in verb ? { danger: true } : {}),
-            onSelect: (targets) => select({ action: verb.action, label: verb.label, rows: targets, onApplied }),
-          },
+      ...verbs
+        .filter((verb) => verb.action !== DockerContainerAction.RENAME || rows.length === 1)
+        .map((verb) =>
+          batchAction(
+            rows,
+            (row) => {
+              if (row.ownership !== DockerOwnership.EXTERNAL) return { reason: t`Managed or system container` };
+              if (!acceptsLifecycle(row, verb.action)) return { reason: verb.unavailable };
+              return permission.allowed ? undefined : { permission };
+            },
+            {
+              id: `external-${verb.action}`,
+              label: (count) => (count ? t`${verb.label} ${count}` : verb.label),
+              icon: verb.icon,
+              ...("danger" in verb ? { danger: true } : {}),
+              onSelect: (targets) => select({ action: verb.action, label: verb.label, rows: targets, onApplied }),
+            },
+          ),
         ),
-      ),
     );
   return {
     actionsFor,
     batch,
+    permission,
+    select,
+    verbs,
     editor: pending ? (
       <LifecycleOptions
         request={pending}

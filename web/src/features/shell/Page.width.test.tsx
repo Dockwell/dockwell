@@ -30,16 +30,17 @@ const kindOf = (page: Element) => page.className.match(/\bis-(wide|narrow)\b/)?.
 // How wide each grows is the stylesheet's (Page.css), and web/e2e/layout-flow.ts measures it in a browser.
 describe("a page's width by its kind", () => {
   it.each([
-    // Pages that use the width: a grid, one server's dashboard, a server's pages.
+    // Pages that use the width: a grid, one server's dashboard, wide server tools.
     ["/catalog", "Catalog", "wide"],
     ["/", "Overview", "wide", "CPU"],
-    ["/servers/srv_1", "hz-1", "wide"],
     ["/servers/srv_1/files", "hz-1", "wide"],
     // Servers, with a server inspected beside its list, as Servers-List lays them out.
     ["/servers", "Servers", "wide"],
     ["/settings/general", "General", "narrow"],
     ["/profile", "Profile and security", "narrow"],
-    // A table of few columns reads at a detail page's width, its head and table sharing their edges.
+    // A server's pages share the wide frame, so its head and tabs stay put between them.
+    ["/servers/srv_1", "hz-1", "wide"],
+    // Tables of few columns read at a detail page's standard measure.
     ["/apps", "Apps", "standard"],
     ["/websites", "Websites", "standard"],
     ["/domains", "Domains", "standard"],

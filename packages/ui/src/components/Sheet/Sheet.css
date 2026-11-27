@@ -30,6 +30,19 @@
   height: 100%;
   animation: none;
 }
+/* Compact dialog sizing for short 1-2 field forms, centered rather than stretching a full-height empty drawer. */
+.dw-sheet.is-compact {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  max-height: calc(100dvh - 32px);
+  transform: translate(-50%, -50%);
+  animation: dw-fade var(--motion-fast) var(--ease-out);
+}
+.dw-sheet-layer.is-leaving .dw-sheet.is-compact {
+  animation: dw-fade-out var(--motion-fast) var(--ease-out) forwards;
+}
 /*
  * The views share the shell, which holds still: they sit in one cell, and only
  * their contents fade, for a form that hands on to its plan and back. Under

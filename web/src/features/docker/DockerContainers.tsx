@@ -4,6 +4,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  ChangeState,
   ComposeService,
   type ContainerPort,
   ContainerService,
@@ -11,6 +12,7 @@ import {
   DeploymentState,
   DesiredRunState,
   type DockerContainer,
+  DockerContainerAction,
   DockerHealth,
   type DockerObject,
   DockerObjectKind,
@@ -61,6 +63,7 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import {
+  type BatchAction,
   BatchBar,
   cardContextMenu,
   combineBatchActions,
@@ -71,7 +74,7 @@ import {
   useRowMenu,
   useRowSelection,
 } from "../shell/ListTools";
-import { useDockerLifecycle } from "./DockerLifecycle";
+import { acceptsLifecycle, useDockerLifecycle } from "./DockerLifecycle";
 import { DockerRunSheet } from "./DockerRunSheet";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, sameServerIds, useDockerWatch } from "./live";
@@ -100,7 +103,7 @@ export function ContainerStatus({
       case DockerHealth.STARTING:
         return <StatusBadge status="deploying" label={t`Starting`} title={t`Starting`} labelIsState />;
       default:
-        return <StatusBadge status="healthy" label={t`Running`} title={t`Running`} labelIsState />;
+        return <StatusBadge status="running" label={t`Running`} title={t`Running`} labelIsState />;
     }
   }
   const label = stateWord(state);
@@ -703,13 +706,14 @@ export function DockerContainers({
     return <ValuePreview values={values} />;
   };
   const columns: TableColumn<Row>[] = [
-    { key: "name", header: t`Name`, render: name },
-    { key: "state", header: t`State`, render: (row) => <ContainerStatus row={row.object} /> },
+    { key: "name", header: t`Name`, width: fleet ? "18%" : "19%", render: name },
+    { key: "state", header: t`State`, width: 120, render: (row) => <ContainerStatus row={row.object} /> },
     ...(fleet
       ? [
           {
             key: "serverName",
             header: t`Server`,
+            width: 100,
             render: (row: Row) => (
               <Link
                 className="dw-link docker-cell-text"
@@ -726,18 +730,19 @@ export function DockerContainers({
     {
       key: "image",
       header: t`Image`,
-      width: "23%",
+      width: fleet ? "14%" : "16%",
       render: (row) => <ImageReference image={row.container?.image} />,
       skeleton: "mono",
     },
     {
       key: "ports",
       header: t`Published ports`,
+      width: fleet ? 180 : 204,
       render: (row) => <PublishedPorts ports={row.container?.ports ?? []} address={address(row)} />,
     },
-    { key: "addresses", header: t`Addresses`, render: addresses, skeleton: "mono" },
-    { key: "usage", header: t`Usage`, render: measured, skeleton: "short" },
-    { key: "uptime", header: t`Uptime`, render: uptime, skeleton: "short" },
+    { key: "addresses", header: t`Addresses`, width: 104, render: addresses, skeleton: "mono" },
+    { key: "usage", header: t`Usage`, width: 112, render: measured, skeleton: "short" },
+    { key: "uptime", header: t`Uptime`, width: 92, render: uptime, skeleton: "short" },
     {
       key: "actions",
       header: (
@@ -746,7 +751,7 @@ export function DockerContainers({
         </span>
       ),
       align: "right",
-      width: 128,
+      width: 112,
       render: dots,
     },
   ];
@@ -773,6 +778,8 @@ export function DockerContainers({
     searchInput,
   );
   const selected = list.filter((row) => selection.has(row.id));
+  const selectedIdsKey = selected.map((row) => row.id).join(",");
+  const [followUpNote, setFollowUpNote] = useState<{ ids: string; text: string }>();
   const candidates = selected.flatMap((row) => {
     const target = runTarget(row.object);
     return target ? [{ row, ...target, permission: may(ChangeService.method.proposeChange, target.where) }] : [];
@@ -780,10 +787,34 @@ export function DockerContainers({
   const byId = new Map(candidates.map((target) => [target.row.id, target]));
   const batchAction = useBatchAction<Row>();
   const skippedServices = new Map<string, string>();
+  const multiServerReasons = new Set<string>();
+  const finishBatch = () => {
+    setFollowUpNote(undefined);
+    selection.clear();
+    refresh();
+  };
+  const sharedActionOf = {
+    start: DockerContainerAction.START,
+    stop: DockerContainerAction.STOP,
+    pause: DockerContainerAction.PAUSE,
+    unpause: DockerContainerAction.UNPAUSE,
+  } as const;
+  const withButtonHint = (
+    item: { actions: BatchAction[]; notes: string[] },
+    verbLabel: string,
+  ): { actions: BatchAction[]; notes: string[] } => {
+    if (item.notes.length === 0) return item;
+    const hint = `${verbLabel}: ${item.notes.join("; ")}`;
+    return {
+      actions: item.actions.map((action) => ({ ...action, title: action.title ? `${action.title}; ${hint}` : hint })),
+      notes: [],
+    };
+  };
   const runBatch = (mode: "start" | "stop" | "pause" | "unpause") => {
     const start = mode === "start";
     const pause = mode === "pause";
     const togglePause = pause || mode === "unpause";
+    const lifecycleAction = sharedActionOf[mode];
     const matches = (row: Row, starts: boolean) =>
       togglePause ? row.object.state === (pause ? ContainerState.RUNNING : ContainerState.PAUSED) : starts === start;
     const label = start ? t`Start` : pause ? t`Pause` : togglePause ? t`Unpause` : t`Stop`;
@@ -794,9 +825,14 @@ export function DockerContainers({
         : togglePause
           ? t`Not paused`
           : t`Already stopped`;
-    return batchAction(
+    const item = batchAction(
       selected,
       (row) => {
+        if (row.object.ownership === DockerOwnership.SYSTEM) return { reason: t`System container` };
+        if (row.object.ownership === DockerOwnership.EXTERNAL) {
+          if (!acceptsLifecycle(row.object, lifecycleAction)) return { reason: wrongState };
+          return lifecycle.permission.allowed ? undefined : { permission: lifecycle.permission };
+        }
         const target = byId.get(row.id);
         if (!target) return { reason: t`Dockwell doesn't manage this container` };
         if (!matches(row, target.start)) return { reason: wrongState };
@@ -825,9 +861,13 @@ export function DockerContainers({
             );
             const extra = [...placement].filter((server) => !selectedAnyState.has(server)).length;
             if (extra > 0) {
-              return { reason: plural(extra, { one: "Runs on # more server", other: "Runs on # more servers" }) };
+              const reason = plural(extra, { one: "Runs on # more server", other: "Runs on # more servers" });
+              multiServerReasons.add(reason);
+              return { reason };
             }
-            return { reason: t`Replicas are in different states` };
+            const reason = t`Replicas are in different states`;
+            multiServerReasons.add(reason);
+            return { reason };
           }
         }
         return undefined;
@@ -837,40 +877,170 @@ export function DockerContainers({
         label: (count) => (count ? t`${label} ${count}` : label),
         icon: pause ? "pause" : start || togglePause ? "play" : "stop",
         onSelect: (rows) => {
-          const unique = new Map(
-            rows.flatMap((row) => {
-              const target = byId.get(row.id);
-              return target ? [[row.object.managedResourceId, target] as const] : [];
-            }),
-          );
-          const n = unique.size;
-          const summary = start
-            ? plural(n, { one: "Start # workload", other: "Start # workloads" })
-            : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
-          const state = togglePause ? (pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING) : start;
-          const pauseSummary = pause
-            ? plural(n, { one: "Pause # workload", other: "Pause # workloads" })
-            : plural(n, { one: "Unpause # workload", other: "Unpause # workloads" });
-          changeRunMany([...unique.values()], state, togglePause ? pauseSummary : summary, () => {
-            selection.clear();
-            refresh();
-          });
+          setFollowUpNote(undefined);
+          const managedRows = rows.filter((row) => row.object.ownership !== DockerOwnership.EXTERNAL);
+          const externalRows = rows.filter((row) => row.object.ownership === DockerOwnership.EXTERNAL);
+          const runExternal = () =>
+            lifecycle.select({
+              action: lifecycleAction,
+              label,
+              rows: externalRows.map((row) => row.object),
+              onApplied: finishBatch,
+            });
+          if (managedRows.length > 0) {
+            const unique = new Map(
+              managedRows.flatMap((row) => {
+                const target = byId.get(row.id);
+                return target ? [[row.object.managedResourceId, target] as const] : [];
+              }),
+            );
+            const n = unique.size;
+            const summary = start
+              ? plural(n, { one: "Start # workload", other: "Start # workloads" })
+              : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
+            const state = togglePause ? (pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING) : start;
+            const pauseSummary = pause
+              ? plural(n, { one: "Pause # workload", other: "Pause # workloads" })
+              : plural(n, { one: "Unpause # workload", other: "Unpause # workloads" });
+            const extCount = externalRows.length;
+            const followUpPlanNote =
+              extCount > 0
+                ? start
+                  ? plural(extCount, {
+                      one: "Then starts # container Dockwell didn't make, in its own plan.",
+                      other: "Then starts # containers Dockwell didn't make, in their own plan.",
+                    })
+                  : pause
+                    ? plural(extCount, {
+                        one: "Then pauses # container Dockwell didn't make, in its own plan.",
+                        other: "Then pauses # containers Dockwell didn't make, in their own plan.",
+                      })
+                    : togglePause
+                      ? plural(extCount, {
+                          one: "Then unpauses # container Dockwell didn't make, in its own plan.",
+                          other: "Then unpauses # containers Dockwell didn't make, in their own plan.",
+                        })
+                      : plural(extCount, {
+                          one: "Then stops # container Dockwell didn't make, in its own plan.",
+                          other: "Then stops # containers Dockwell didn't make, in their own plan.",
+                        })
+                : undefined;
+            const notAppliedText =
+              extCount > 0
+                ? start
+                  ? plural(extCount, {
+                      one: "# container Dockwell didn't make wasn't started because the managed plan didn't apply.",
+                      other: "# containers Dockwell didn't make weren't started because the managed plan didn't apply.",
+                    })
+                  : pause
+                    ? plural(extCount, {
+                        one: "# container Dockwell didn't make wasn't paused because the managed plan didn't apply.",
+                        other:
+                          "# containers Dockwell didn't make weren't paused because the managed plan didn't apply.",
+                      })
+                    : togglePause
+                      ? plural(extCount, {
+                          one: "# container Dockwell didn't make wasn't unpaused because the managed plan didn't apply.",
+                          other:
+                            "# containers Dockwell didn't make weren't unpaused because the managed plan didn't apply.",
+                        })
+                      : plural(extCount, {
+                          one: "# container Dockwell didn't make wasn't stopped because the managed plan didn't apply.",
+                          other:
+                            "# containers Dockwell didn't make weren't stopped because the managed plan didn't apply.",
+                        })
+                : undefined;
+            changeRunMany(
+              [...unique.values()],
+              state,
+              togglePause ? pauseSummary : summary,
+              extCount > 0
+                ? () => {
+                    // Clear the managed rows that applied and keep only the external rows until their plan finishes.
+                    selection.setAll(
+                      selected.filter((row) => !externalRows.some((ext) => ext.id === row.id)).map((row) => row.id),
+                      false,
+                    );
+                    runExternal();
+                  }
+                : finishBatch,
+              extCount > 0 && followUpPlanNote && notAppliedText
+                ? {
+                    notes: [followUpPlanNote],
+                    onNotApplied: (change) => {
+                      const extIds = new Set(externalRows.map((row) => row.id));
+                      const drop = selected.filter((row) => !extIds.has(row.id)).map((row) => row.id);
+                      if (drop.length > 0) selection.setAll(drop, false);
+                      // A plan still applying hasn't failed: say only what waits. A planned one closed here is
+                      // discarded, or left for an admin, and hasn't applied either way.
+                      const pending = change?.state === ChangeState.APPLYING;
+                      setFollowUpNote({
+                        ids: externalRows.map((row) => row.id).join(","),
+                        text: pending
+                          ? plural(extCount, {
+                              one: "# container Dockwell didn't make waits for its own plan.",
+                              other: "# containers Dockwell didn't make wait for their own plan.",
+                            })
+                          : notAppliedText,
+                      });
+                    },
+                  }
+                : undefined,
+            );
+            return;
+          }
+          if (externalRows.length > 0) runExternal();
         },
       },
     );
+    return { rawNotes: item.notes, batch: withButtonHint(item, label) };
   };
-  const managedBatches = [runBatch("start"), runBatch("stop"), runBatch("pause"), runBatch("unpause")];
-  const externalBatch = lifecycle.batch(
-    selected.map((row) => row.object),
-    () => {
-      selection.clear();
-      refresh();
-    },
+  const sharedResults = [runBatch("start"), runBatch("stop"), runBatch("pause"), runBatch("unpause")];
+  const sharedBatches = sharedResults.map((item) => item.batch);
+  const externalSelected = selected.filter((row) => row.object.ownership === DockerOwnership.EXTERNAL);
+  const systemSelected = selected.filter((row) => row.object.ownership === DockerOwnership.SYSTEM);
+  const externalOnlyVerbs = lifecycle.verbs.filter(
+    (verb) =>
+      verb.action === DockerContainerAction.RESTART ||
+      verb.action === DockerContainerAction.KILL ||
+      verb.action === DockerContainerAction.REMOVE ||
+      (verb.action === DockerContainerAction.RENAME && selected.length === 1),
   );
+  // External-only verbs attach their skip reasons to their own buttons rather than flooding the bar.
+  const externalOnlyBatches =
+    externalSelected.length > 0
+      ? externalOnlyVerbs.map((verb) =>
+          withButtonHint(
+            batchAction(
+              externalSelected,
+              (row) => {
+                if (!acceptsLifecycle(row.object, verb.action)) return { reason: verb.unavailable };
+                return lifecycle.permission.allowed ? undefined : { permission: lifecycle.permission };
+              },
+              {
+                id: `external-${verb.action}`,
+                label: (count) => (count ? t`${verb.label} ${count}` : verb.label),
+                icon: verb.icon,
+                ...("danger" in verb ? { danger: true } : {}),
+                onSelect: (targets) => {
+                  setFollowUpNote(undefined);
+                  lifecycle.select({
+                    action: verb.action,
+                    label: verb.label,
+                    rows: targets.map((row) => row.object),
+                    onApplied: finishBatch,
+                  });
+                },
+              },
+            ),
+            verb.label,
+          ),
+        )
+      : [];
+  const multiServerNote = [...multiServerReasons][0];
   const openSkipped = (() => {
     if (skippedServices.size === 0) return { actions: [], notes: [] };
     const entries = [...skippedServices.entries()];
-    const multiServerNotes = managedBatches.flatMap((item) => item.notes);
     if (entries.length === 1 && entries[0]) {
       const [serviceId, serviceName] = entries[0];
       return {
@@ -882,7 +1052,7 @@ export function DockerContainers({
             onSelect: () => void navigate({ to: "/apps/$serviceId", params: { serviceId } }),
           },
         ],
-        notes: multiServerNotes,
+        notes: [],
       };
     }
     return {
@@ -894,10 +1064,26 @@ export function DockerContainers({
           onSelect: () => void navigate({ to: "/apps" }),
         },
       ],
-      notes: multiServerNotes,
+      notes: [],
     };
   })();
-  const batch = combineBatchActions(...managedBatches, externalBatch, openSkipped);
+  const activeFollowUp = followUpNote && followUpNote.ids === selectedIdsKey ? followUpNote.text : undefined;
+  const barNotes: string[] = activeFollowUp
+    ? [activeFollowUp]
+    : multiServerNote
+      ? [multiServerNote]
+      : systemSelected.length > 0
+        ? [
+            plural(systemSelected.length, {
+              one: "# system container skipped",
+              other: "# system containers skipped",
+            }),
+          ]
+        : [];
+  const batch = {
+    actions: combineBatchActions(...sharedBatches, ...externalOnlyBatches, openSkipped).actions,
+    notes: barNotes,
+  };
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -104,7 +105,7 @@ func (s *Service) readSystem(ctx context.Context, srv *dockwellv1.Server, f *fee
 			err = authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
 				"%s's agent is older than the control plane, and can't list system services. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
 		case err != nil:
-			err = authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't list its system services now: %w", srv.GetName(), agentWords(err)), authapi.ReasonUnavailable)
+			err = authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't list its system services now: %w", srv.GetName(), agentWords(err, srv.GetName())), authapi.ReasonUnavailable)
 		}
 		if err != nil {
 			f.Tell(nil, err)
@@ -118,17 +119,39 @@ func (s *Service) readSystem(ctx context.Context, srv *dockwellv1.Server, f *fee
 	}
 }
 
+type trimmedError struct {
+	msg string
+	err error
+}
+
+func (e trimmedError) Error() string { return e.msg }
+func (e trimmedError) Unwrap() error { return e.err }
+
 // agentWords is what a person reads of an agent's error: its plain words, without
 // the server's name in front, which the message says already.
-func agentWords(err error) error {
-	if p, _ := resource.Explain(err); p != "" {
-		return errors.New(p)
+func agentWords(err error, serverName string) error {
+	if p, detail := resource.Explain(err); detail != "" && p != "" {
+		return trimmedError{msg: trimServerPrefix(p, serverName), err: err}
 	}
 	var se *resource.ServerError
 	if errors.As(err, &se) {
+		if serverName != "" && se.Server == serverName {
+			return trimmedError{msg: trimServerPrefix(se.Err.Error(), serverName), err: err}
+		}
 		return se.Err
 	}
 	return err
+}
+
+func trimServerPrefix(text, serverName string) string {
+	if serverName == "" {
+		return text
+	}
+	prefix := serverName + ": "
+	for strings.HasPrefix(text, prefix) {
+		text = strings.TrimPrefix(text, prefix)
+	}
+	return text
 }
 
 // MaxWhyReads is how many failed units' journals a list reads why for.
@@ -229,7 +252,7 @@ func (s *Service) ReadSystemLog(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
 			"%s's agent is older than the control plane, and can't read its system log. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
 	case err != nil:
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read its system log now: %w", srv.GetName(), agentWords(err)), authapi.ReasonUnavailable)
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read its system log now: %w", srv.GetName(), agentWords(err, srv.GetName())), authapi.ReasonUnavailable)
 	}
 	return connect.NewResponse(&dockwellv1.ReadSystemLogResponse{
 		Lines: page.GetLines(), More: page.GetMore(), Source: page.GetSource(), SearchedTo: page.GetSearchedTo(), CutShort: page.GetCutShort(),

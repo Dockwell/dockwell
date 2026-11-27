@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -192,6 +192,29 @@ describe("the chevron at the end of a list that scrolls (#795)", () => {
     sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 100 });
     fireEvent.scroll(nav);
     expect(container.querySelector(".dw-tabs-more")).toBeNull();
+  });
+
+  it("drops the overflow chevron when tabs collapse to fit without the container resizing", async () => {
+    const { container, rerender } = render(
+      <TabNav label="App sections">
+        <TabLink href="/a">Overview</TabLink>
+        <TabLink href="/b">Settings</TabLink>
+        <TabLink href="/c">Firewall</TabLink>
+      </TabNav>,
+    );
+    const nav = screen.getByRole("navigation", { name: "App sections" });
+    sized(nav, { clientWidth: 300, scrollWidth: 420, scrollLeft: 0 });
+    fireEvent.scroll(nav);
+    expect(container.querySelector(".dw-tabs-more")).not.toBeNull();
+
+    sized(nav, { clientWidth: 300, scrollWidth: 280, scrollLeft: 0 });
+    rerender(
+      <TabNav label="App sections">
+        <TabLink href="/a">Overview</TabLink>
+        <TabLink href="/b">System</TabLink>
+      </TabNav>,
+    );
+    await waitFor(() => expect(container.querySelector(".dw-tabs-more")).toBeNull());
   });
 
   it("is there for Tabs too, and leaves the tab list's tabs as they are", async () => {

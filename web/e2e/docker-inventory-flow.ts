@@ -30,6 +30,21 @@ async function assertLayouts(page: Page, title: string, check?: () => Promise<vo
 }
 
 async function assertActiveTab(page: Page, name: "Overview" | "Containers") {
+  const phone = (page.viewportSize()?.width ?? 1440) <= 640;
+  const serverDocker = /\/servers\/[^/]+\/docker/.test(page.url());
+  if (phone && serverDocker) {
+    if ((await page.getByRole("navigation", { name: "Docker views" }).count()) !== 0) {
+      throw new Error("phone server Docker page should fold Docker views into one tab bar");
+    }
+    const nav = page.getByRole("navigation", { name: /^Server / });
+    const tab = nav.getByRole("button", { name: `Docker: ${name}`, exact: true });
+    await tab.waitFor();
+    const hasIndicator = await tab.evaluate(
+      (btn) => btn.getAttribute("aria-current") === "page" && getComputedStyle(btn, "::after").height === "2px",
+    );
+    if (!hasIndicator) throw new Error(`Docker: ${name} has no active tab indicator`);
+    return;
+  }
   const nav = page.getByRole("navigation", { name: "Docker views" });
   const tab = nav.getByRole("link", { name, exact: true });
   await tab.waitFor();

@@ -5,12 +5,19 @@ import { useQuery } from "@connectrpc/connect-query";
 import { type ContainerHistoryPoint, HistoryPointState, ServerService } from "@dockwell/api";
 import { Callout, Loading, SegmentedControl, SkeletonCard, TimeSeriesChart } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatFixed } from "../../lib/format";
 import { useMay } from "../auth/may";
-import { emptyReason, gapKindOf, RANGE_TO_PROTO, type RangeKey, useHistoryFormatters } from "./ServerHistory";
+import {
+  axisWidthCh,
+  emptyReason,
+  gapKindOf,
+  RANGE_TO_PROTO,
+  type RangeKey,
+  useHistoryFormatters,
+} from "./ServerHistory";
 import "./ServerHistory.css";
 
 /**
@@ -68,6 +75,16 @@ export function ContainerHistory({
   const memValues = points.map((p) => (covered(p) ? Number(p.memoryBytes) : null));
   const memPeaks = points.map((p) => (covered(p) ? Number(p.memoryPeakBytes) : null));
   const limit = points.reduce((acc, p) => Math.max(acc, Number(p.memoryLimitBytes)), Number(memoryLimitBytes ?? 0n));
+  const peakCpu = Math.max(1, ...cpuValues.map((v) => v ?? 0), ...cpuPeaks.map((v) => v ?? 0));
+  const peakMem = limit > 0 ? limit : Math.max(1, ...memValues.map((v) => v ?? 0), ...memPeaks.map((v) => v ?? 0));
+  const formatCpuAxis = (v: number) => `${formatFixed(v, v < 10 ? 1 : 0, locale)}%`;
+  const formatMemAxis = (v: number) => formatBytes(Math.round(v), locale);
+  const yAxisWidth = axisWidthCh([
+    formatCpuAxis(peakCpu),
+    formatCpuAxis(peakCpu / 2),
+    formatMemAxis(peakMem),
+    formatMemAxis(peakMem / 2),
+  ]);
 
   const rangeOptions: { value: RangeKey; label: string }[] = [
     { value: "1h", label: t`1 h` },
@@ -107,13 +124,13 @@ export function ContainerHistory({
           </div>
         </Loading>
       ) : (
-        <div className="srv-hist-grid">
+        <div className="srv-hist-grid" style={{ "--dw-ts-yaxis": `${yAxisWidth}ch` } as CSSProperties}>
           <TimeSeriesChart
             title={t`CPU`}
             timestamps={timestamps}
             gaps={gaps}
             min={0}
-            formatAxis={(v) => `${formatFixed(v, v < 10 ? 1 : 0, locale)}%`}
+            formatAxis={formatCpuAxis}
             formatTick={formatTick}
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
@@ -141,7 +158,7 @@ export function ContainerHistory({
             min={0}
             max={limit > 0 ? limit : undefined}
             threshold={limit > 0 ? limit * 0.9 : undefined}
-            formatAxis={(v) => formatBytes(Math.round(v), locale)}
+            formatAxis={formatMemAxis}
             formatTick={formatTick}
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}

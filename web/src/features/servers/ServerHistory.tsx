@@ -4,19 +4,20 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { HistoryPointState, HistoryRange, type Server, type ServerHistoryPoint, ServerService } from "@dockwell/api";
 import {
-  Callout,
   Loading,
+  Panel,
   SegmentedControl,
+  SelectField,
   SkeletonCard,
   TimeSeriesChart,
   type TimeSeriesGapKind,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 
-import { sentence } from "../../lib/errors";
 import { formatBitRate, formatBytes, formatClock, formatDateTime, formatDay, formatFixed } from "../../lib/format";
 import { useMay } from "../auth/may";
+import { ReadFailed } from "../shell/ReadFailed";
 import { HIGH_USE } from "./server";
 import "./ServerHistory.css";
 
@@ -95,6 +96,23 @@ export function emptyReason(
   return fallback;
 }
 
+/** Shared y-axis column width (in ch) so every chart plot in a row aligns on one vertical axis. */
+export function axisWidthCh(labels: readonly string[]): number {
+  let longest = 5;
+  for (const label of labels) {
+    if (label.length > longest) longest = label.length;
+  }
+  return longest + 1;
+}
+
+function maxOf(values: readonly (number | null)[]): number {
+  let max = 0;
+  for (const value of values) {
+    if (value != null && Number.isFinite(value) && value > max) max = value;
+  }
+  return max;
+}
+
 function formatByteRate(bytesPerSec: number, locale: string): string {
   return `${formatBytes(Math.max(0, Math.round(bytesPerSec)), locale)}/s`;
 }
@@ -168,6 +186,26 @@ export function ServerHistory({ server }: { server: Server }) {
   const netRx = points.map((p) => (covered(p) && !p.networkIoMissing ? Number(p.networkRxBytesPerSecond) : null));
   const netTx = points.map((p) => (covered(p) && !p.networkIoMissing ? Number(p.networkTxBytesPerSecond) : null));
 
+  const formatDiskAxis = (v: number) => (diskMode === "bytes" ? formatByteRate(v, locale) : formatIops(v, locale));
+  const formatNetAxis = (v: number) => formatBitRate(Math.round(v), locale).join(" ");
+  const memAxisMax = maxMemTotal > 0 ? maxMemTotal : Math.max(1, maxOf(memValues), maxOf(memPeaks));
+  const loadAxisMax = Math.max(cpus, maxOf(loadValues), maxOf(loadPeaks), 1);
+  const diskAxisMax =
+    diskMode === "bytes"
+      ? Math.max(maxOf(diskReadBytes), maxOf(diskWriteBytes), 1)
+      : Math.max(maxOf(diskReadIops), maxOf(diskWriteIops), 1);
+  const netAxisMax = Math.max(maxOf(netRx), maxOf(netTx), 1);
+  const yAxisWidth = axisWidthCh([
+    "100%",
+    formatBytes(Math.round(memAxisMax), locale),
+    formatBytes(Math.round(memAxisMax / 2), locale),
+    formatFixed(loadAxisMax, 1, locale),
+    formatDiskAxis(diskAxisMax),
+    formatDiskAxis(diskAxisMax / 2),
+    formatNetAxis(netAxisMax),
+    formatNetAxis(netAxisMax / 2),
+  ]);
+
   const rangeOptions: { value: RangeKey; label: string }[] = [
     { value: "1h", label: t`1 h` },
     { value: "6h", label: t`6 h` },
@@ -200,9 +238,12 @@ export function ServerHistory({ server }: { server: Server }) {
       </div>
 
       {query.error ? (
-        <Callout tone="warning" title={t`History couldn't be loaded`}>
-          {sentence(query.error)}
-        </Callout>
+        <ReadFailed
+          error={query.error}
+          title={t`History couldn't be loaded`}
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
       ) : query.isPending ? (
         <Loading label={t`Loading server history`}>
           <div className="srv-hist-grid">
@@ -213,8 +254,12 @@ export function ServerHistory({ server }: { server: Server }) {
             <SkeletonCard title={t`Network`} />
           </div>
         </Loading>
+      ) : emptyMsg ? (
+        <Panel className="srv-hist-empty">
+          <p className="srv-hist-empty-text">{emptyMsg}</p>
+        </Panel>
       ) : (
-        <div className="srv-hist-grid">
+        <div className="srv-hist-grid" style={{ "--dw-ts-yaxis": `${yAxisWidth}ch` } as CSSProperties}>
           <TimeSeriesChart
             title={t`CPU`}
             timestamps={timestamps}
@@ -227,7 +272,6 @@ export function ServerHistory({ server }: { server: Server }) {
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
             keyboardHint={keyboardHint}
-            emptyMessage={emptyMsg}
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             series={[
@@ -255,7 +299,6 @@ export function ServerHistory({ server }: { server: Server }) {
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
             keyboardHint={keyboardHint}
-            emptyMessage={emptyMsg}
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             series={[
@@ -282,7 +325,6 @@ export function ServerHistory({ server }: { server: Server }) {
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
             keyboardHint={keyboardHint}
-            emptyMessage={emptyMsg}
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             series={[
@@ -303,19 +345,15 @@ export function ServerHistory({ server }: { server: Server }) {
             controls={
               <div className="srv-hist-chart-controls">
                 {disks.length > 1 ? (
-                  <select
-                    className="srv-hist-select"
+                  <SelectField
+                    size="sm"
+                    mono
+                    className="srv-hist-select-field"
                     aria-label={t`Disk`}
                     value={disk}
                     onChange={(e) => setDisk(e.target.value)}
-                  >
-                    <option value="">{t`All disks`}</option>
-                    {disks.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
+                    options={[{ value: "", label: t`All disks` }, ...disks.map((d) => ({ value: d, label: d }))]}
+                  />
                 ) : disks.length === 1 ? (
                   <code className="srv-hist-tag">{disks[0]}</code>
                 ) : null}
@@ -331,12 +369,11 @@ export function ServerHistory({ server }: { server: Server }) {
             timestamps={timestamps}
             gaps={gaps}
             min={0}
-            formatAxis={(v) => (diskMode === "bytes" ? formatByteRate(v, locale) : formatIops(v, locale))}
+            formatAxis={formatDiskAxis}
             formatTick={formatTick}
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
             keyboardHint={keyboardHint}
-            emptyMessage={emptyMsg}
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             series={
@@ -381,19 +418,18 @@ export function ServerHistory({ server }: { server: Server }) {
             title={t`Network`}
             controls={
               interfaces.length > 1 ? (
-                <select
-                  className="srv-hist-select"
+                <SelectField
+                  size="sm"
+                  mono
+                  className="srv-hist-select-field"
                   aria-label={t`Network interface`}
                   value={iface}
                   onChange={(e) => setIface(e.target.value)}
-                >
-                  <option value="">{t`All interfaces`}</option>
-                  {interfaces.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: "", label: t`All interfaces` },
+                    ...interfaces.map((name) => ({ value: name, label: name })),
+                  ]}
+                />
               ) : interfaces.length === 1 ? (
                 <code className="srv-hist-tag">{interfaces[0]}</code>
               ) : null
@@ -401,12 +437,11 @@ export function ServerHistory({ server }: { server: Server }) {
             timestamps={timestamps}
             gaps={gaps}
             min={0}
-            formatAxis={(v) => formatBitRate(Math.round(v), locale).join(" ")}
+            formatAxis={formatNetAxis}
             formatTick={formatTick}
             formatHoverTime={formatHoverTime}
             gapLabel={gapLabel}
             keyboardHint={keyboardHint}
-            emptyMessage={emptyMsg}
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             series={[

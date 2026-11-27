@@ -27,6 +27,8 @@ export interface FolderLookup {
   parentMissing: boolean;
   /** What stopped it reading, for unread. */
   error?: ConnectError;
+  /** Re-reads the folder on the server after a change such as fixing permissions. */
+  refresh: () => void;
 }
 
 /** A path a form asks the server about: absolute, past the top, with no . or .. in it. */
@@ -52,10 +54,15 @@ export function useFolderLookup(server: string, path: string): FolderLookup {
     { serverId: server, path: parentOf(path), lookup: true, match: nameOf(path) },
     { ...options, enabled: asked && gone },
   );
-  if (!asked) return { asked, pending: false, parentMissing: false };
-  if (here.isPending) return { asked, pending: true, parentMissing: false };
-  if (here.data) return { asked, pending: false, state: "folder", listing: here.data, parentMissing: false };
-  if (reason === "not_a_directory") return { asked, pending: false, state: "not-a-folder", parentMissing: false };
+  const refresh = () => {
+    void here.refetch();
+    if (gone) void above.refetch();
+  };
+  if (!asked) return { asked, pending: false, parentMissing: false, refresh };
+  if (here.isPending) return { asked, pending: true, parentMissing: false, refresh };
+  if (here.data) return { asked, pending: false, state: "folder", listing: here.data, parentMissing: false, refresh };
+  if (reason === "not_a_directory")
+    return { asked, pending: false, state: "not-a-folder", parentMissing: false, refresh };
   if (!gone)
     return {
       asked,
@@ -63,20 +70,21 @@ export function useFolderLookup(server: string, path: string): FolderLookup {
       state: "unread",
       parentMissing: false,
       ...(here.error ? { error: here.error } : {}),
+      refresh,
     };
-  if (above.isPending) return { asked, pending: true, parentMissing: false };
+  if (above.isPending) return { asked, pending: true, parentMissing: false, refresh };
   if (above.error) {
     // The folder above not being there either means the same, as both are made. What else
     // can't be read of it says nothing of this one, so the form says nothing.
     const why = reasonOf(above.error);
-    if (why === "not_found") return { asked, pending: false, state: "missing", parentMissing: true };
+    if (why === "not_found") return { asked, pending: false, state: "missing", parentMissing: true, refresh };
     // An agent older than the control plane can't look for a name: it's still not there.
-    if (why === "agent_outdated") return { asked, pending: false, state: "missing", parentMissing: false };
-    return { asked, pending: false, parentMissing: false };
+    if (why === "agent_outdated") return { asked, pending: false, state: "missing", parentMissing: false, refresh };
+    return { asked, pending: false, parentMissing: false, refresh };
   }
   // A link that leads nowhere lists as not found, and is there all the same.
   if (above.data.entries.some((e) => e.name === nameOf(path))) {
-    return { asked, pending: false, state: "not-a-folder", parentMissing: false };
+    return { asked, pending: false, state: "not-a-folder", parentMissing: false, refresh };
   }
   return {
     asked,
@@ -84,5 +92,6 @@ export function useFolderLookup(server: string, path: string): FolderLookup {
     state: "missing",
     parentMissing: false,
     ...(above.data.directory ? { parent: above.data.directory } : {}),
+    refresh,
   };
 }

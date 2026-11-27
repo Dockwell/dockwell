@@ -38,6 +38,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
 import { type ListRouteProps, ListSectionTable, ListToolbar, useListPlace } from "../shell/ListTools";
 import { ReadFailed } from "../shell/ReadFailed";
+import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { Fail2banPanel, SshPanel } from "./FirewallAccess";
 import { DockwellRules, policyEdit, usePortUser } from "./FirewallRules";
 import { ServerFrame } from "./ServerFrame";
@@ -78,25 +79,49 @@ function Firewall({ server, search, onSearch }: { server: Server } & ListRoutePr
   const { t } = useLingui();
   const connected = server.connection === Connection.CONNECTED;
   const read = useFirewallRead(server, connected);
+  const [retryNonce, setRetryNonce] = useState(0);
   if (!connected) {
     return (
       <Callout tone="info">{t`${server.name} isn't reporting, so what filters its traffic can't be read now.`}</Callout>
     );
   }
   const fw = read.data?.firewall;
+  const suppressedError = read.error ? sentence(read.error) : undefined;
+  const suppressedOutdated = isAgentOutdated(read.error);
+  const retryAll = () => {
+    void read.refetch();
+    setRetryNonce((n) => n + 1);
+  };
   return (
     <div className="firewall">
       <div className="firewall-main">
         <FirewallRead
           server={server}
           read={read}
+          onRetry={retryAll}
           search={search}
           onSearch={onSearch}
-          ssh={<SshPanel key="ssh" server={server} connected={connected} listening={fw?.listening} />}
+          ssh={
+            <SshPanel
+              key="ssh"
+              server={server}
+              connected={connected}
+              listening={fw?.listening}
+              suppressedError={suppressedError}
+              suppressedOutdated={suppressedOutdated}
+              retryNonce={retryNonce}
+            />
+          }
         />
       </div>
       <div className="firewall-side">
-        <Fail2banPanel server={server} connected={connected} />
+        <Fail2banPanel
+          server={server}
+          connected={connected}
+          suppressedError={suppressedError}
+          suppressedOutdated={suppressedOutdated}
+          retryNonce={retryNonce}
+        />
       </div>
     </div>
   );
@@ -111,26 +136,25 @@ function Firewall({ server, search, onSearch }: { server: Server } & ListRoutePr
 function FirewallRead({
   server,
   read,
+  onRetry,
   ssh,
   search,
   onSearch,
 }: ListRouteProps & {
   server: Server;
   read: ReturnType<typeof useFirewallRead>;
+  onRetry: () => void;
   ssh: ReactNode;
 }) {
   const { t } = useLingui();
   const place = useListPlace(search, onSearch, ["action", "port", "from", "note", "rule"]);
   if (read.error) {
-    if (reasonOf(read.error) === "agent_outdated") {
+    if (isAgentOutdated(read.error)) {
       return (
         <>
-          <Callout tone="warning">
-            <Trans>
-              The agent on {server.name} is older than the control plane, so it can't read the firewall. Run the install
-              script on {server.name} again to update it.
-            </Trans>
-          </Callout>
+          <AgentOutdated server={server}>
+            <Trans>The agent on {server.name} is older than the control plane, so it can't read the firewall.</Trans>
+          </AgentOutdated>
           {ssh}
         </>
       );
@@ -142,7 +166,7 @@ function FirewallRead({
         <ReadFailed
           error={read.error}
           title={t`Dockwell can't read ${server.name}'s firewall`}
-          onRetry={() => void read.refetch()}
+          onRetry={onRetry}
           retrying={read.isFetching}
         />
         {reasonOf(read.error) === "needs_role" ? null : ssh}

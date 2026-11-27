@@ -376,11 +376,29 @@ describe("a server's Firewall tab", () => {
     await renderFirewall(
       authError(Code.FailedPrecondition, "agent_outdated", "the agent on hz-1 is older than the control plane"),
     );
+    expect(await screen.findByText("hz-1's agent is outdated")).toBeVisible();
     expect(
-      await screen.findByText(
-        "The agent on hz-1 is older than the control plane, so it can't read the firewall. Run the install script on hz-1 again to update it.",
-      ),
+      screen.getByText("The agent on hz-1 is older than the control plane, so it can't read the firewall."),
     ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Update its agent" })).toHaveAttribute("href", "/servers/srv_1/updates");
+  });
+
+  it("deduplicates identical unreachable errors across firewall, SSH, and fail2ban", async () => {
+    const down = authError(Code.Unavailable, "unavailable", "the agent on hz-1 isn't connected");
+    await renderFirewall(down, hz1, {
+      firewall: {
+        getServerSsh: () => {
+          throw down;
+        },
+        getServerFail2ban: () => {
+          throw down;
+        },
+      },
+    });
+    expect(await screen.findByText("Dockwell can't read hz-1's firewall")).toBeVisible();
+    expect(screen.getAllByText("The agent on hz-1 isn't connected.")).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: "SSH" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Fail2ban" })).toBeNull();
   });
 
   it("asks nothing of a server that isn't reporting, and says so", async () => {

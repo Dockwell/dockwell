@@ -181,7 +181,7 @@ describe("the containers Dockwell didn't make", () => {
     expect(within(panel).queryByRole("table")).toBeNull();
   });
 
-  it("says in its own words, in Chinese too, that a server not reporting can't say, and asks it nothing", async () => {
+  it("folds away quietly when a server isn't reporting, and asks it nothing", async () => {
     await activateLocale("zh-CN");
     const listContainers = vi.fn(() => {
       throw new ConnectError("hz-1 isn't connected, so nothing can say what runs there", Code.Unavailable);
@@ -190,34 +190,39 @@ describe("the containers Dockwell didn't make", () => {
     watch.push(changed(aServer({ id: "srv_1", name: "hz-1", connection: Connection.UNREACHABLE })), snapshotComplete);
     renderAt("/servers/srv_1", { servers: { watchServers: watch.stream }, containers: { listContainers } });
     await screen.findByRole("heading", { level: 1 });
-    const panel = await screen.findByRole("region", { name: "非 Dockwell 创建的容器" });
-    expect(panel).toHaveTextContent("hz-1 没有上报数据，因此现在无法读取那里 Docker 运行的内容。");
-    expect(panel).not.toHaveTextContent("isn't connected");
+    expect(screen.queryByRole("region", { name: "非 Dockwell 创建的容器" })).toBeNull();
     expect(listContainers).not.toHaveBeenCalled();
   });
 
-  it("says Docker isn't answering, or that the server waits for its agent, in its own words, and asks nothing", async () => {
+  it("says Docker isn't answering when connected, and folds away while waiting for its agent, asking nothing", async () => {
     const listContainers = vi.fn(() => answer({ containers: [container("legacy")] }));
-    for (const [server, words] of [
-      [
-        aServer({ id: "srv_1", name: "hz-1", dockerUnreadableSince: timestampFromDate(new Date()) }),
-        "Docker isn't answering on hz-1, so what runs there can't be read now.",
-      ],
-      [
-        aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING }),
-        "hz-1 is waiting for its agent, so what Docker runs there can't be read yet.",
-      ],
-    ] as const) {
-      const watch = feed<WatchServersResponse>();
-      watch.push(changed(server), snapshotComplete);
-      const { unmount } = renderAt("/servers/srv_1", {
-        servers: { watchServers: watch.stream },
-        containers: { listContainers },
-      });
-      await screen.findByRole("heading", { level: 1 });
-      expect(await screen.findByText(words)).toBeVisible();
-      unmount();
-    }
+    const blindWatch = feed<WatchServersResponse>();
+    blindWatch.push(
+      changed(aServer({ id: "srv_1", name: "hz-1", dockerUnreadableSince: timestampFromDate(new Date()) })),
+      snapshotComplete,
+    );
+    const blind = renderAt("/servers/srv_1", {
+      servers: { watchServers: blindWatch.stream },
+      containers: { listContainers },
+    });
+    await screen.findByRole("heading", { level: 1 });
+    expect(
+      await screen.findByText("Docker isn't answering on hz-1, so what runs there can't be read now."),
+    ).toBeVisible();
+    blind.unmount();
+
+    const pendingWatch = feed<WatchServersResponse>();
+    pendingWatch.push(
+      changed(aServer({ id: "srv_1", name: "hz-1", connection: Connection.PENDING })),
+      snapshotComplete,
+    );
+    const pending = renderAt("/servers/srv_1", {
+      servers: { watchServers: pendingWatch.stream },
+      containers: { listContainers },
+    });
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByRole("region", { name: "Containers Dockwell didn't make" })).toBeNull();
+    pending.unmount();
     expect(listContainers).not.toHaveBeenCalled();
   });
 

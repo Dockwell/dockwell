@@ -169,6 +169,12 @@
   border-top: 1px solid var(--line);
 }
 
+.phone-list-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-1) var(--space-2);
+}
+
 .phone-row {
   display: flex;
   align-items: center;

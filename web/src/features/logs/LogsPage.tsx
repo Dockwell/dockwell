@@ -47,6 +47,7 @@ import { formatClock } from "../../lib/format";
 import { useAppDeploy } from "../apps/deployAction";
 import { EmptyState } from "../shell/EmptyState";
 import { drawEntry } from "./draw";
+import { downloadLogText, useCopyLogText } from "./export";
 import { LinesLoading } from "./LinesLoading";
 import { LogContext } from "./LogContext";
 import { DeepWords, LogFoot, SearchCount } from "./LogFoot";
@@ -865,15 +866,10 @@ function DeployLabel({ deploy }: { deploy: Deploy }) {
 
 function saveText(store: LogStore, name: string, sources: ReadonlyMap<string, LogSource>) {
   if (store.length === 0) return;
-  const blob = new Blob([store.text((e) => textOf(e, sources))], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  downloadLogText(
+    store.text((e) => textOf(e, sources)),
+    name,
+  );
 }
 
 function CopyLines({
@@ -887,22 +883,8 @@ function CopyLines({
 }) {
   const { t } = useLingui();
   useSyncExternalStore(store.subscribe, store.snapshot);
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return undefined;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
   const nothing = store.length === 0;
-  const copy = async () => {
-    if (nothing) return;
-    try {
-      await navigator.clipboard.writeText(store.text((e) => textOf(e, sources)));
-      setCopied(true);
-    } catch {
-      // Clipboard access was refused; Download still works.
-    }
-  };
+  const { copied, copy } = useCopyLogText(() => (store.length === 0 ? "" : store.text((e) => textOf(e, sources))));
   return (
     <>
       {wide ? (

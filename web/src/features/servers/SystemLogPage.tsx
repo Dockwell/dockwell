@@ -11,21 +11,24 @@ import {
 } from "@dockwell/api";
 import {
   Button,
+  cx,
   Icon,
   type LogLine,
   LogStream,
   PHONE_QUERY,
+  plainText,
   SegmentedControl,
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { downloadLogText, useCopyLogText } from "../logs/export";
 import { LinesLoading } from "../logs/LinesLoading";
-import { clock, dayNoteOf, dayOf } from "../logs/words";
+import { clock, dayNoteOf, dayOf, localIso } from "../logs/words";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import { MAX_QUERY, type SystemLogEntry, type SystemLogRange, type SystemLogSearch, useSystemLog } from "./systemLog";
@@ -50,7 +53,7 @@ export function SystemLogPage({
   onSearch: (next: SystemLogSearch) => void;
 }) {
   return (
-    <ServerFrame id={serverId}>
+    <ServerFrame id={serverId} fullBody>
       {(server) => <SystemLog server={server} search={search} onSearch={onSearch} />}
     </ServerFrame>
   );
@@ -73,6 +76,7 @@ function SystemLog({
   const connected = server.connection === Connection.CONNECTED;
   const log = useSystemLog(server.id, search, connected);
   const [follow, setFollow] = useState(true);
+  const [wrap, setWrap] = useState(true);
   const [typed, setTyped] = useState(search.q ?? "");
   // The search waits for typing to settle, then goes in the URL.
   useEffect(() => {
@@ -129,6 +133,32 @@ function SystemLog({
   const searchedTo = log.searchedTo;
   const searchedWords = searchedTo !== undefined ? `${dayOf(searchedTo, i18n.locale)}, ${clock(searchedTo)}` : "";
   const unitName = search.unit ?? "";
+  const buildExportText = useCallback(
+    () =>
+      log.entries
+        .map((e) => {
+          if (e.kind === "dropped") return `${localIso(e.at)} -- ${e.count} lines dropped --`;
+          if (e.kind === "gap") return `${localIso(e.at)} -- gap in live stream --`;
+          const l = e.line;
+          const ms = l.time ? timestampMs(l.time) : 0;
+          const stamp = ms ? localIso(ms) : "";
+          const unit = l.unit.replace(/\.service$/, "");
+          const lvl = l.level === LogLevel.ERROR ? "ERROR " : l.level === LogLevel.WARN ? "WARN " : "";
+          return `${stamp}${stamp ? " " : ""}${unit ? `${unit} ` : ""}${lvl}${plainText(l.message)}`;
+        })
+        .join("\n"),
+    [log.entries],
+  );
+  const { copied, copy } = useCopyLogText(buildExportText);
+  const download = () => {
+    const text = buildExportText();
+    if (!text) return;
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const stem = unitName ? `${server.name}-${unitName.replace(/\.service$/, "")}` : server.name;
+    downloadLogText(`${text}\n`, `${stem}-system-${day}.log`);
+  };
+  const emptyLines = shown.length === 0;
 
   let empty: React.ReactNode;
   if (!connected) {
@@ -234,12 +264,64 @@ function SystemLog({
           live={log.live && log.following}
           follow={follow}
           onFollowChange={setFollow}
+          wrap={wrap}
           showSource={!unitName}
           highlight={search.q}
           empty={empty}
           top={top}
+          toolbar={
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="wrap-text"
+                className={cx("logs-wrap", wrap && "is-on")}
+                aria-pressed={wrap}
+                aria-label={t`Wrap long lines`}
+                title={t`Wrap long lines`}
+                onClick={() => setWrap((w) => !w)}
+              />
+              {!phone ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={copied ? "check" : "copy"}
+                    disabled={emptyLines}
+                    aria-label={copied ? t`Copied` : t`Copy visible lines`}
+                    title={copied ? t`Copied` : t`Copy visible lines`}
+                    onClick={() => void copy()}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="download"
+                    disabled={emptyLines}
+                    aria-label={t`Download log`}
+                    title={t`Download log`}
+                    onClick={download}
+                  />
+                </>
+              ) : null}
+            </>
+          }
         />
       </div>
+      {phone ? (
+        <div className="syslog-phone-bar">
+          <Button icon="download" variant="secondary" onClick={download} disabled={emptyLines}>
+            <Trans>Download</Trans>
+          </Button>
+          <Button
+            icon={copied ? "check" : "copy"}
+            variant="secondary"
+            onClick={() => void copy()}
+            disabled={emptyLines}
+          >
+            {copied ? <Trans>Copied</Trans> : <Trans>Copy</Trans>}
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
