@@ -168,10 +168,9 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   const lead = await page.locator(".page-lead").innerText();
   if (!/needs? a look/.test(lead)) fail(`the list's lead says nothing needs a look: ${lead}`);
 
-  step("health: Restart is a plan that says what it does and that it can't be undone, and it comes back");
+  step("health: Start reviews a recovery plan for a workload stopped by hand");
   await goToApp("checked");
-  await page.getByRole("button", { name: "Actions for checked" }).click();
-  await page.getByRole("menuitem", { name: "Restart", exact: true }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   const restart = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await restart.waitFor({ timeout: 30_000 });
   await restart.getByText("A restart has no undo, as it changes nothing to go back to.").waitFor();

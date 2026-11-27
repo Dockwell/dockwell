@@ -546,13 +546,18 @@
   font-weight: 550;
 }
 
-/* Settings stack in section-nav order so shorter sections leave no holes. */
+/* Settings flow in section-nav order into a second column where both fit. */
 .app-settings-main {
-  display: grid;
   flex: 1 1 560px;
-  gap: var(--space-6);
-  grid-template-columns: minmax(0, 1fr);
+  columns: 2 410px;
+  column-gap: var(--space-6);
   min-width: 0;
+  max-width: 1000px;
+}
+
+.app-settings-in-place .dw-field {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .app-settings-image {
@@ -598,6 +603,11 @@
 /* Below the sticky head, where a link from the nav lands. */
 .app-settings-anchor {
   scroll-margin-top: var(--space-5);
+  break-inside: avoid;
+}
+
+.app-settings-anchor + .app-settings-anchor {
+  margin-top: var(--space-6);
 }
 
 .app-settings-form {
@@ -1533,6 +1543,18 @@
 }
 
 /* Phones keep Deploy in reach of a thumb, above the tab bar. */
+.app-header-menu .action-menu-button {
+  --h: var(--control-md);
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.app-header-menu .action-menu-button:hover:not(:disabled) {
+  border-color: var(--line-strong);
+}
+
 .app-actionbar {
   position: sticky;
   bottom: var(--tabbar-height);

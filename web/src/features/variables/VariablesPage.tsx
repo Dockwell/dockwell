@@ -6,6 +6,7 @@ import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  DomainService,
   type EditSchema,
   type EnvironmentVariable,
   ListVariablesResponseSchema,
@@ -30,7 +31,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useQuery as useTanstackQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
@@ -39,10 +40,10 @@ import { useTimeWords } from "../../lib/time";
 import { passkeysAvailable } from "../../lib/webauthn";
 import { nameOf } from "../apps/app";
 import { cantMakeSecret, cantShare, type EnvRow, envEdits, envRows } from "../apps/envEdit";
-import { useServices } from "../apps/useServices";
+import { DEFAULT_PROJECT, useServices } from "../apps/useServices";
+import { useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
-import { useAllResources, useProjects } from "../projects/useProjects";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
@@ -50,7 +51,7 @@ import { ListPager, type ListPlace, ListSearchField, ListSortField, SortHeader, 
 import { nextSort, pagedRows, readListPages, readSort, sortedRows, sortParam } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
-import { ProjectPicker } from "./ProjectPicker";
+import { ProjectPicker, type VariablesProject } from "./ProjectPicker";
 import { ownValueKey, RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
 import { useActorWords } from "../activity/actor";
@@ -107,6 +108,39 @@ export function useAllVariables(environment: string | undefined) {
     },
     enabled: environment !== undefined,
   });
+}
+
+/** The first page of both shared value kinds is enough to find a populated environment in most fleets. */
+function useSharedValueResources(complete: boolean) {
+  const transport = useTransport();
+  const query = useInfiniteQuery({
+    queryKey: [
+      ...createConnectQueryKey({ schema: ResourceService.method.listResources, transport, cardinality: "infinite" }),
+      "shared-values",
+    ],
+    initialPageParam: { variable: "", secret: "" } as Record<Kind, string | undefined>,
+    queryFn: async ({ pageParam, signal }) => {
+      const client = createClient(ResourceService, transport);
+      const read = (kind: Kind) => {
+        const pageToken = pageParam[kind];
+        return pageToken === undefined
+          ? undefined
+          : client.listResources({ kind, pageSize: PAGE_SIZE, pageToken }, { signal });
+      };
+      const [variables, secrets] = await Promise.all([read("variable"), read("secret")]);
+      return {
+        resources: [...(variables?.resources ?? []), ...(secrets?.resources ?? [])],
+        next: { variable: variables?.nextPageToken || undefined, secret: secrets?.nextPageToken || undefined },
+      };
+    },
+    getNextPageParam: ({ next }) => (next.variable || next.secret ? next : undefined),
+  });
+  const { data, fetchNextPage, hasNextPage, isFetching, isFetchNextPageError, isPending } = query;
+  useEffect(() => {
+    if (complete && hasNextPage && !isFetching && !isFetchNextPageError) void fetchNextPage();
+  }, [complete, fetchNextPage, hasNextPage, isFetching, isFetchNextPageError]);
+  const resources = useMemo(() => data?.pages.flatMap((page) => page.resources), [data]);
+  return { resources, isPending, reading: isPending || (complete && hasNextPage && !isFetchNextPageError) };
 }
 
 /**
@@ -245,8 +279,14 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   const projectList = useQuery(ResourceService.method.listResources, { kind: "project" });
   const projects = projectList.data?.resources ?? [];
   const environments = envs.data?.resources ?? [];
-  const views = useProjects().projects;
-  const resources = useAllResources();
+  const [readingIndex, setReadingIndex] = useState(false);
+  const shared = useSharedValueResources(readingIndex);
+  const domains = useQuery(
+    DomainService.method.listDomains,
+    {},
+    { enabled: projects.length > 1, staleTime: Number.POSITIVE_INFINITY },
+  ).data?.domains;
+  const installs = useInstalls().data?.installs;
   const [last] = useState(remembered);
   const services = useServices();
   const appsIn = useMemo(() => {
@@ -259,7 +299,7 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   }, [services.data]);
   const populated = useMemo(() => {
     const out = new Set<string>();
-    for (const item of resources.data ?? []) {
+    for (const item of shared.resources ?? []) {
       const ref = item.resource;
       if (ref?.scope && (ref.kind === "variable" || ref.kind === "secret")) out.add(ref.scope);
     }
@@ -267,14 +307,49 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
       if (s.resource?.scope && rowsOf([], [s]).length > 0) out.add(s.resource.scope);
     }
     return out;
-  }, [resources.data, services.data]);
+  }, [shared.resources, services.data]);
+  const views = useMemo(() => {
+    if (!projectList.data || !envs.data) return [];
+    const byEnvironment = new Map(envs.data.resources.map((env) => [env.id, env.resource?.scope]));
+    const running = new Set(
+      (domains ?? []).filter((domain) => domain.routes.length > 0).map((domain) => domain.environmentId),
+    );
+    for (const id of appsIn.keys()) running.add(id);
+    const inside = new Map<string, Resource[]>();
+    for (const value of shared.resources ?? []) {
+      const project = byEnvironment.get(value.resource?.scope ?? "");
+      if (!project) continue;
+      const values = inside.get(project) ?? [];
+      values.push(value);
+      inside.set(project, values);
+    }
+    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+    return projectList.data.resources
+      .map((project): VariablesProject => {
+        const name = project.resource?.name ?? project.id;
+        const install = installs?.some((item) => item.projectId === project.id);
+        return {
+          project,
+          id: project.id,
+          name,
+          label: install ? name : project.displayName || name,
+          isDefault: name === DEFAULT_PROJECT,
+          idle:
+            domains !== undefined &&
+            !services.isPending &&
+            !envs.data.resources.some((env) => env.resource?.scope === project.id && running.has(env.id)),
+          inside: inside.get(project.id) ?? [],
+        };
+      })
+      .sort((a, b) => (a.isDefault !== b.isDefault ? (a.isDefault ? -1 : 1) : collator.compare(a.label, b.label)));
+  }, [projectList.data, envs.data, domains, appsIn, shared.resources, installs, services.isPending]);
   const chosen =
     environments.find((e) => e.id === environment) ??
     environments.find((e) => e.id === last) ??
-    (resources.isPending || services.isPending
+    (shared.isPending || services.isPending
       ? undefined
       : defaultEnvironment(environments, projects, appsIn, populated));
-  const view = views?.find((v) => v.id === chosen?.resource?.scope);
+  const view = views.find((v) => v.id === chosen?.resource?.scope);
   const siblings = environments.filter((e) => e.resource?.scope === chosen?.resource?.scope);
   // A choice made here is remembered; a link that names an environment isn't one.
   const choose = (id: string, q?: string) => {
@@ -409,10 +484,12 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
         <section className="variables-section" aria-label={t`Variables in ${envName}`}>
           <div className="variables-bar">
             {/* A project to choose, from the second, searchable, in place of a switch with every environment (ADR 0074). */}
-            {projects.length > 1 && views ? (
+            {projects.length > 1 ? (
               <ProjectPicker
                 views={views}
                 chosen={view}
+                onOpen={() => setReadingIndex(true)}
+                reading={shared.reading}
                 onChoose={(next) => {
                   const env = firstEnvironment(next.id, environments);
                   if (env) choose(env.id);
@@ -557,7 +634,15 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
             />
           ) : shown.length === 0 && chosen ? (
             opened ? null : (
-              <EmptyState icon="key" title={t`No variables or secrets in ${envName} yet`} />
+              <EmptyState
+                icon="key"
+                title={t`No variables or secrets in ${envName} yet`}
+                action={
+                  <Button icon="plus" onClick={add} {...mayAdd?.off}>
+                    <Trans>New variable or secret</Trans>
+                  </Button>
+                }
+              />
             )
           ) : phone ? (
             <>

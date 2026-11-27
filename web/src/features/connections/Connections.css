@@ -387,7 +387,7 @@ a.connections-name:hover {
 }
 
 @media (min-width: 640px) {
-  .connections-tiles .connection-store-grid:has(> :nth-child(6)) {
+  .connections-tiles .connection-store-grid:has(> :nth-child(6):last-child) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

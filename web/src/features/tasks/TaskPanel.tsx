@@ -59,6 +59,7 @@ export function TaskPanel({
   const transcript = selected ? words.transcript(selected, task, time.span) : [];
   const lastBad = runs.find((r) => runStatus(r.state) === "down");
   const spec = task.spec;
+  const saved = !!task.resource && task.revision !== 0n;
   const name = nameOf(task);
   const schedule = words.schedule(spec?.schedule ?? "");
   const timeout = time.span((spec?.timeoutSeconds ?? 600) * 1000);
@@ -118,7 +119,7 @@ export function TaskPanel({
           <Switch
             checked={!spec.paused}
             label={t`Enabled`}
-            disabled={!mayEdit.allowed || !task.resource || task.revision === 0n}
+            disabled={!mayEdit.allowed || !saved}
             description={mayEdit.reason || undefined}
             onChange={(enabled) => onReview(enabled ? "resume" : "pause")}
           />
@@ -169,6 +170,9 @@ export function TaskPanel({
                 ? t`None yet`
                 : `${t`${good} succeeded`} · ${plural(bad, { one: "# failed", other: "# failed" })}`}
             </span>
+            <RouterButtonLink to="/activity" search={{ resource: task.id }} variant="ghost" size="sm">
+              <Trans>All runs</Trans>
+            </RouterButtonLink>
           </div>
           {runs.length > 0 ? (
             <>
@@ -199,7 +203,7 @@ export function TaskPanel({
               {/* The span of time the strip covers, its ends by their day, and the last failure between them. */}
               <div className="tasks-row tasks-label tasks-strip-ends">
                 <span>{end(oldestFirst[0])}</span>
-                {lastBad?.startTime ? (
+                {selected === runs[0] && lastBad?.startTime ? (
                   <span className="tasks-bad">{t`${words.when(timestampDate(lastBad.startTime), now)} ${words.state(lastBad.state).toLowerCase()}: ${words.why(lastBad, task, time.span)}`}</span>
                 ) : null}
                 {oldestFirst.length > 1 ? <span>{end(oldestFirst.at(-1))}</span> : null}
@@ -268,15 +272,11 @@ export function TaskPanel({
           <Button icon="edit" onClick={() => setEditing(true)} {...mayEdit.off}>
             <Trans>Edit</Trans>
           </Button>
-          {task.resource ? (
-            <Button variant="ghost" icon="trash" onClick={() => onReview("delete")} {...mayEdit.off}>
+          {saved ? (
+            <Button variant="danger" icon="trash" onClick={() => onReview("delete")} {...mayEdit.off}>
               <Trans>Delete task</Trans>
             </Button>
           ) : null}
-          <span className="tasks-fill" />
-          <RouterButtonLink to="/activity" search={{ resource: task.id }} variant="ghost">
-            <Trans>All runs</Trans>
-          </RouterButtonLink>
         </div>
       </div>
       {editing ? <TaskSheet task={task} onClose={() => setEditing(false)} /> : null}

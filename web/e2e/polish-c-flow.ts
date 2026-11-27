@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Locator } from "playwright-core";
+
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
 import { proposeFixture } from "./row-verbs-shots.ts";
 import { atWidth, onTop } from "./sheets.ts";
+
+async function apply(plan: Locator) {
+  const button = plan.getByRole("button", { name: /Apply plan/ });
+  await button.waitFor();
+  const gate = plan.locator(".plan-gate input");
+  if (await gate.isVisible()) await gate.fill(await plan.locator(".plan-gate code").first().innerText());
+  await button.click();
+}
 
 export const flow: Flow = {
   order: 103,
@@ -36,10 +46,16 @@ export const flow: Flow = {
     await menuTrigger.click();
     const menu = page.getByRole("menu", { name: `Actions for ${app}` });
     await menu.getByRole("menuitem", { name: "Restart", exact: true }).waitFor();
+    const stop = menu.getByRole("menuitem", { name: "Stop", exact: true });
+    await stop.waitFor();
     await menu.getByRole("menuitem", { name: "Delete app" }).waitFor();
     await menu.getByRole("menuitem", { name: "Pause", exact: true }).click();
     const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await plan.getByText(`Pause ${app}`, { exact: true }).waitFor();
+    await plan.getByRole("button", { name: "Cancel", exact: true }).click();
+    await menuTrigger.click();
+    await stop.click();
+    await plan.getByText(`Stop ${app}`, { exact: true }).waitFor();
     await plan.getByRole("button", { name: "Cancel", exact: true }).click();
 
     step("polish-c: the task panel can open an older run's output");
@@ -50,8 +66,7 @@ export const flow: Flow = {
     await task.getByRole("textbox", { name: /^Name/ }).fill("Polish run history");
     await task.getByRole("button", { name: "Review plan" }).click();
     await plan.locator(".plan-gate").getByText("Applying this asks for your passkey").waitFor({ timeout: 30_000 });
-    await plan.locator(".plan-gate input").fill(await plan.locator(".plan-gate code").first().innerText());
-    await plan.getByRole("button", { name: /Apply plan/ }).click();
+    await apply(plan);
     await page.getByRole("button", { name: "Open Polish run history", exact: true }).click({ timeout: 30_000 });
 
     const panel = page.getByRole("region", { name: "Polish run history" });
@@ -74,5 +89,13 @@ export const flow: Flow = {
     if ((await dots.first().getAttribute("aria-pressed")) !== "true") throw new Error("The older run was not selected");
     await dots.nth(1).click();
     await output.getByText(second, { exact: true }).waitFor();
+
+    step("polish-c: remove the app and task fixtures");
+    await panel.getByRole("button", { name: "Delete task" }).click();
+    await apply(plan);
+    await page.getByRole("button", { name: "Done", exact: true }).click({ timeout: 30_000 });
+    await proposeFixture(page, "Remove the app used for the header menu", [
+      { resource: { kind: "service", name: app, scope }, delete: true },
+    ]);
   },
 };

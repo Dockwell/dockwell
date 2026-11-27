@@ -71,7 +71,8 @@ export function AlertsTab({ search, onSearch }: ListRouteProps<AlertsSearch>) {
     place.page,
   );
   const channels = useChannels().data?.channels ?? [];
-  const watching = (useRules().data?.rules ?? []).filter((r) => !r.spec?.disabled).length;
+  const rules = useRules().data?.rules;
+  const watching = (rules ?? []).filter((r) => !r.spec?.disabled).length;
   return (
     <AlertsPage>
       {list.length > 0 ? (
@@ -144,9 +145,9 @@ export function AlertsTab({ search, onSearch }: ListRouteProps<AlertsSearch>) {
         <>
           <div className="alerts-columns">
             {search.view !== "resolved" ? (
-              <OpenAlerts alerts={page.rows.filter((a) => a.state === AlertState.FIRING)} />
+              <OpenAlerts alerts={page.rows.filter((a) => a.state === AlertState.FIRING)} rules={rules} />
             ) : null}
-            <ResolvedAlerts alerts={page.rows.filter((a) => a.state !== AlertState.FIRING)} />
+            <ResolvedAlerts alerts={page.rows.filter((a) => a.state !== AlertState.FIRING)} rules={rules} />
           </div>
           <ListPager page={page} onPage={place.setPage} />
         </>

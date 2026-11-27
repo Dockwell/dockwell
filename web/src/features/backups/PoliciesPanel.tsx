@@ -12,11 +12,15 @@ import {
 } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
+import { StateLine } from "../apps/DomainStep";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { useStorage } from "./storage";
 import { useScheduleWords, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
@@ -47,6 +51,8 @@ export function PoliciesPanel({
   const mayPlan = useMay()(ChangeService.method.proposeChange);
   // Where each is, where they're in more than one place, as several volumes share a name such as data.
   const places = usePlaces();
+  const storage = useStorage();
+  const [addingStorage, setAddingStorage] = useState(false);
   const several = new Set(policies.map((p) => p.environmentId)).size > 1;
   return (
     <Panel
@@ -83,15 +89,29 @@ export function PoliciesPanel({
               policy={policy}
               place={several ? places.label(policy.environmentId) : ""}
               onEdit={() => onEdit(policy)}
+              onAddStorage={storage.ready && storage.items.length === 0 ? () => setAddingStorage(true) : undefined}
             />
           ))}
         </ul>
       )}
+      {addingStorage ? (
+        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
+      ) : null}
     </Panel>
   );
 }
 
-function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place: string; onEdit: () => void }) {
+function PolicyRow({
+  policy,
+  place,
+  onEdit,
+  onAddStorage,
+}: {
+  policy: BackupPolicyInfo;
+  place: string;
+  onEdit: () => void;
+  onAddStorage: (() => void) | undefined;
+}) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const words = useScheduleWords();
@@ -114,6 +134,7 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
   const may = useMay();
   const mayRemove = may(ChangeService.method.proposeChange, { environment: policy.environmentId });
+  const mayCopy = onAddStorage ? may(ChangeService.method.proposeChange, { install: true }) : mayRemove;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -144,7 +165,26 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
               ? t`Tests a restore monthly`
               : t`Never tests a restore`}
         </span>
-        {sentTo ? <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span> : null}
+        {sentTo ? (
+          <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span>
+        ) : (
+          <StateLine
+            status="degraded"
+            action={
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={onAddStorage ?? onEdit}
+                disabled={!mayCopy.allowed}
+                title={mayCopy.reason || undefined}
+              >
+                <Trans>Send copies off the server</Trans>
+              </button>
+            }
+          >
+            <Trans>Kept only on the server, unencrypted</Trans>
+          </StateLine>
+        )}
       </div>
       <div className="backup-state">
         {policy.last ? (

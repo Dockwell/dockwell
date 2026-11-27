@@ -190,6 +190,10 @@
 }
 
 /* A small fleet keeps its named rows under the legend. */
+.overview-fleet-map:has(.overview-fleet-few) {
+  align-self: start;
+}
+
 .overview-fleet-map:has(.overview-fleet-few) .dw-fleet {
   flex: none;
 }
@@ -331,7 +335,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-  padding: 0 var(--space-4) var(--space-4);
+  margin-top: var(--space-2);
 }
 
 .overview-serving-tile {

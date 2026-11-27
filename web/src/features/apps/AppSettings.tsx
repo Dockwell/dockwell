@@ -203,7 +203,7 @@ export function AppSettings() {
       >
         {inPlace && !open ? (
           // As it is now, and again from each new revision; Cancel puts back what it is.
-          <div key={`${service.revision}:${resets[id] ?? 0}`}>
+          <div key={`${service.revision}:${resets[id] ?? 0}`} className="app-settings-in-place">
             {form({
               service,
               app,
@@ -256,7 +256,7 @@ export function AppSettings() {
           ))}
         </nav>
       )}
-      <div className="app-settings-main dw-card-columns">
+      <div className="app-settings-main">
         {/* For someone who may not plan here, its settings are there to read, with why (ADR 0059). */}
         <MayEdit offer={mayPlan}>
           {section(

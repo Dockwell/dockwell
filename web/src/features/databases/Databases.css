@@ -410,8 +410,18 @@ a.databases-engine:hover .databases-engine-plus {
 .databases-backups .databases-panel-actions,
 .database-backups-card .databases-panel-actions {
   margin-top: auto;
+}
+
+.databases-backups .databases-panel-actions,
+.database-backups .databases-panel-actions,
+.database-backups-card .databases-panel-actions {
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
+}
+
+.database-users-table.dw-table-wrap {
+  border: 0;
+  border-radius: inherit;
 }
 
 /* An inline action in a table row or fact value, aligned to the same baseline as the text beside it. */

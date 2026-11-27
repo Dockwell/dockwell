@@ -470,6 +470,10 @@ export function WebsiteFields({
  * a picker behind Change that browses the server's folders, names a new one, or takes a
  * typed path. A folder that isn't there is made with the site.
  */
+function folderPath(root: string): string {
+  return root.trim().replace(/\/+$/, "");
+}
+
 function FolderField({
   settings: s,
   was,
@@ -495,6 +499,8 @@ function FolderField({
   // Lookups, as the folder note's are: the form reads them, not a person opening a folder, so
   // one the server refuses goes on no Activity.
   const list = useFolderList(server);
+  const savedPath = was && folderPath(was.root);
+  const atSavedPath = savedPath === folderPath(s.root);
   return (
     <FolderPicker
       label={t`Folder`}
@@ -524,7 +530,7 @@ function FolderField({
               onOwner={
                 s.serves === "folder"
                   ? (owner) => {
-                      if ((!existing || s.root.trim() !== was?.root) && owner !== s.owner) onChange({ ...s, owner });
+                      if (!atSavedPath && owner !== s.owner) onChange({ ...s, owner });
                     }
                   : undefined
               }
@@ -535,7 +541,7 @@ function FolderField({
                       // PHP runs as the folder's owner, following the folder picked, until
                       // someone types who it runs as: what's typed stays, and the note says
                       // when PHP can't write there.
-                      if (existing && s.root.trim() === was?.root) return;
+                      if (atSavedPath) return;
                       const typed = s.user.trim();
                       if (typed !== "" && typed !== filled.current) return;
                       filled.current = owner;
@@ -549,7 +555,7 @@ function FolderField({
         </>
       }
       onChange={(root) => {
-        const returnsToSaved = was && root.trim() === was.root;
+        const returnsToSaved = was && folderPath(root) === savedPath;
         onChange({
           ...s,
           root,
@@ -607,7 +613,7 @@ export function FolderNote({
   onRunAs?: (owner: string) => void;
 }) {
   const { t } = useLingui();
-  const requested = root.trim().replace(/\/+$/, "");
+  const requested = folderPath(root);
   const path = useSettled(requested, READ_AFTER_MS);
   // The folder by its own path, so one under a folder of any size is found (#588). The
   // folder above not being there either means the same, as Docker makes both.
@@ -622,7 +628,11 @@ export function FolderNote({
   const toldOwner = useRef<string>(undefined);
   useEffect(() => {
     const read = `${path}:${owner}`;
-    if (path !== requested || !missing || toldOwner.current === read) return;
+    if (path !== requested || !missing) {
+      toldOwner.current = undefined;
+      return;
+    }
+    if (toldOwner.current === read) return;
     toldOwner.current = read;
     onOwner?.(owner);
   }, [path, requested, missing, owner, onOwner]);
@@ -633,7 +643,11 @@ export function FolderNote({
   const toldFolderOwner = useRef("");
   useEffect(() => {
     const read = `${path}:${folderOwner}`;
-    if (path !== requested || !folderOwner || toldFolderOwner.current === read) return;
+    if (path !== requested || !folderOwner) {
+      toldFolderOwner.current = "";
+      return;
+    }
+    if (toldFolderOwner.current === read) return;
     toldFolderOwner.current = read;
     onFolderOwner?.(folderOwner);
   }, [path, requested, folderOwner, onFolderOwner]);

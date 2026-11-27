@@ -976,7 +976,12 @@
   }
 
   .catalog-card-summary {
+    display: -webkit-box;
     min-height: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
   }
 
   .catalog-card-about > code {

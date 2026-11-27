@@ -123,6 +123,7 @@ function WhoIsIn({ db, read }: { db: Database; read: DatabaseReading }) {
       {users.length > 0 ? (
         <Table
           caption={counts}
+          className="database-users-table"
           density="compact"
           rows={users.slice(0, 5).map((user) => ({
             ...user,

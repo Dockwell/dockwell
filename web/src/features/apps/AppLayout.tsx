@@ -39,6 +39,7 @@ import { AppContext, useApp, useRevisions } from "./AppContext";
 import {
   appOf,
   appState,
+  canChangeAppRunState,
   deployedAt,
   environmentOf,
   imageOf,
@@ -266,20 +267,26 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const moving = isMoving(state);
   // Nothing changes what can't be read, which the overview says.
   const changeable = state.kind !== "unreadable";
-  // Nothing restarts while it is moving, or where it has no server to do it on.
-  const isStopped = appOf(service)?.desiredRunState === DesiredRunState.STOPPED;
-  const controllable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
-  const pausable = controllable && !!appOf(service) && !!service.resource;
-  const isPaused = appOf(service)?.desiredRunState === DesiredRunState.PAUSED;
-  const startable = !moving && state.kind !== "unplaced" && changeable && isStopped;
+  const app = appOf(service);
+  const isStopped = app?.desiredRunState === DesiredRunState.STOPPED;
+  const isPaused = app?.desiredRunState === DesiredRunState.PAUSED;
+  const notRunning = health.kind === "not-running" || health.kind === "finished";
+  const runStateChangeable = !!app && !!service.resource && canChangeAppRunState(state);
+  const stoppable = runStateChangeable && !isStopped;
+  const pausable = stoppable && !isPaused && !notRunning;
+  const resume = stoppable && isPaused;
   const { changeRun, changePause, restart: restartWorkload } = useWorkloadControls();
   const start = () => {
-    if (service.resource) changeRun(service.resource, service.revision, true);
+    if (isStopped && service.resource) {
+      changeRun(service.resource, service.revision, true);
+    } else {
+      // The revision already says Running, so recovering a failed or finished workload needs a restart plan.
+      restartWorkload(service.id, undefined, t`Start ${name}`);
+    }
   };
   const pause = () => {
     if (service.resource) changePause(service.resource, service.revision, !isPaused);
   };
-  const pauseLabel = isPaused ? t`Unpause` : t`Pause`;
   const stop = () => {
     if (service.resource) changeRun(service.resource, service.revision, false);
   };
@@ -299,9 +306,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const may = useMay();
   const here = { environment: environmentOf(service) };
   const restartCheck = mayRestartApp(service, state, may);
-  const restartable = restartCheck.offered;
+  const restartable = restartCheck.offered && !notRunning;
+  const startable = runStateChangeable && (isStopped || (notRunning && restartCheck.offered));
   const mayRestart = restartCheck.grant;
-  const mayStart = may(ChangeService.method.proposeChange, here);
+  const mayEditRunState = may(ChangeService.method.proposeChange, here);
+  const mayStart = isStopped ? mayEditRunState : mayRestart;
   const remove = useDeleteApp(service);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
@@ -312,7 +321,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       ? domain.routes.filter((route) => !route.held && route.path === "").map((route) => visitorUrl(domain, route))
       : [],
   );
-  const opensAt = isStopped || isPaused ? undefined : reached[0];
+  const opensAt = isStopped || isPaused || notRunning ? undefined : reached[0];
   // The command bar offers what the header does, first (#795): only what the reader may do.
   const navigate = useNavigate();
   const mayChange = runtime ? mayChangeVersion : mayDeploy;
@@ -340,10 +349,10 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           },
         ]
       : []),
-    ...(controllable && !pausable && service.resource && mayStart.allowed
+    ...(stoppable && mayEditRunState.allowed
       ? [{ id: "stop", icon: "stop" as const, label: t`Stop ${name}`, hint: t`Opens a plan`, run: stop }]
       : []),
-    ...(pausable && mayStart.allowed
+    ...((pausable || resume) && mayEditRunState.allowed
       ? [
           {
             id: "pause",
@@ -354,7 +363,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           },
         ]
       : []),
-    ...(restartable && mayRestart.allowed
+    ...(restartable && restartCheck.allowed
       ? [{ id: "restart", icon: "refresh" as const, label: t`Restart ${name}`, hint: t`Opens a plan`, run: restart }]
       : []),
     {
@@ -371,21 +380,21 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
     },
   ]);
   const deployLabel = runtime ? t`Change version` : t`Deploy`;
-  const resume = pausable && isPaused;
   const menuActions: MenuAction[] = [];
   if (changeable && (opensAt || startable || resume)) {
     menuActions.push({ id: "deploy", icon: "deploy", label: deployLabel, ...mayChange.off, onSelect: deploy });
   }
-  if (pausable && !isPaused) {
+  if (pausable) {
     menuActions.push({
       id: "pause",
-      icon: isPaused ? "play" : "pause",
-      label: pauseLabel,
-      ...mayStart.off,
+      icon: "pause",
+      label: t`Pause`,
+      ...mayEditRunState.off,
       onSelect: pause,
     });
-  } else if (!pausable && controllable && service.resource) {
-    menuActions.push({ id: "stop", icon: "stop", label: t`Stop`, ...mayStart.off, onSelect: stop });
+  }
+  if (stoppable) {
+    menuActions.push({ id: "stop", icon: "stop", label: t`Stop`, ...mayEditRunState.off, onSelect: stop });
   }
   if (restartable) {
     menuActions.push({ id: "restart", icon: "refresh", label: t`Restart`, ...mayRestart.off, onSelect: restart });
@@ -396,19 +405,26 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       icon: "trash",
       label: t`Delete app`,
       danger: true,
-      ...mayStart.off,
+      ...mayEditRunState.off,
+      disabled: remove.pending || mayEditRunState.off.disabled,
       onSelect: remove.open,
     });
   }
-  const menu = <ActionMenu label={t`Actions for ${name}`} actions={menuActions} />;
+  const menu = <ActionMenu label={t`Actions for ${name}`} actions={menuActions} className="app-header-menu" />;
   const primary = (size: "md" | "lg" = "md") =>
     opensAt ? (
       <ButtonLink href={opensAt} target="_blank" rel="noreferrer" icon="external" variant="primary" size={size}>
         <Trans context="open an app at its domain">Open</Trans>
       </ButtonLink>
     ) : startable || resume ? (
-      <Button variant="primary" icon="play" size={size} onClick={resume ? pause : start} {...mayStart.off}>
-        {resume ? pauseLabel : <Trans>Start</Trans>}
+      <Button
+        variant="primary"
+        icon="play"
+        size={size}
+        onClick={resume ? pause : start}
+        {...(resume ? mayEditRunState.off : mayStart.off)}
+      >
+        {resume ? <Trans>Unpause</Trans> : <Trans>Start</Trans>}
       </Button>
     ) : changeable ? (
       <Button variant="primary" icon="deploy" size={size} onClick={deploy} {...mayChange.off}>

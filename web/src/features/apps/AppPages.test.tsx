@@ -18,6 +18,7 @@ import {
   Connection,
   type CreateTokenRequest,
   DeploymentState,
+  DesiredRunState,
   DomainCheckState,
   EntrySchema,
   FieldOp,
@@ -36,6 +37,7 @@ import {
   PublicAddressSource,
   Reachable,
   type Resource,
+  type RestartServiceRequest,
   Role,
   type RollBackServiceRequest,
   RollbackState,
@@ -490,6 +492,7 @@ describe("an app's frame", () => {
     await user.click(screen.getByRole("button", { name: "Actions for web" }));
     const menu = screen.getByRole("menu");
     expect(within(menu).getByRole("menuitem", { name: "Pause" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Stop" })).toBeVisible();
     expect(within(menu).getByRole("menuitem", { name: "Restart" })).toBeVisible();
     expect(within(menu).getByRole("menuitem", { name: "Delete app" })).toBeVisible();
     await user.keyboard("{Escape}");
@@ -498,6 +501,95 @@ describe("an app's frame", () => {
     await screen.findByRole("region", { name: "Logs" });
     expect(logs).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: "Actions for web" })).toBeVisible();
+  });
+
+  it.each([
+    { desired: DesiredRunState.RUNNING, health: HealthState.NO_CHECK, action: "Stop", primary: "Deploy" },
+    { desired: DesiredRunState.PAUSED, health: HealthState.PAUSED, action: "Stop", primary: "Unpause" },
+    { desired: DesiredRunState.STOPPED, health: HealthState.NOT_RUNNING, action: "Start", primary: "Start" },
+  ])("plans $action for an app whose primary action is $primary", async ({ desired, health, action, primary }) => {
+    const user = userEvent.setup();
+    const app = anApp("web", "nginx", { desiredRunState: desired });
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        health: { listHealth: () => ({ services: [aHealth(app.id, { state: health })] }) },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      }),
+    );
+    const main = await screen.findByRole("button", { name: primary });
+    if (action === "Stop") {
+      await user.click(screen.getByRole("button", { name: "Actions for web" }));
+      const menu = screen.getByRole("menu");
+      expect(within(menu).queryByRole("menuitem", { name: "Pause" }) !== null).toBe(
+        desired === DesiredRunState.RUNNING,
+      );
+      await user.click(within(menu).getByRole("menuitem", { name: "Stop" }));
+    } else {
+      await user.click(screen.getByRole("button", { name: "Actions for web" }));
+      expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /^(Pause|Stop)$/ })).toBeNull();
+      await user.keyboard("{Escape}");
+      await user.click(main);
+    }
+    await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(proposed[0]?.summary).toBe(`${action} web`));
+    expect(proposed[0]?.edits[0]?.spec?.kind).toMatchObject({
+      case: "service",
+      value: {
+        runs: {
+          case: "app",
+          value: { desiredRunState: action === "Stop" ? DesiredRunState.STOPPED : DesiredRunState.RUNNING },
+        },
+      },
+    });
+  });
+
+  it("uses a start plan for a workload reporting that it is no longer running", async () => {
+    const user = userEvent.setup();
+    const app = anApp("web", "nginx", { desiredRunState: DesiredRunState.RUNNING });
+    const restarted: RestartServiceRequest[] = [];
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        health: { listHealth: () => ({ services: [aHealth(app.id, { state: HealthState.NOT_RUNNING })] }) },
+        changes: {
+          restartService: (req) => {
+            restarted.push(req);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+        },
+      }),
+    );
+    const start = await screen.findByRole("button", { name: "Start" });
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    expect(within(screen.getByRole("menu")).queryByRole("menuitem", { name: /^(Pause|Restart)$/ })).toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(start);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(restarted[0]).toMatchObject({ id: app.id, summary: "Start web" }));
+  });
+
+  it("keeps workload controls out of a moving app's header", async () => {
+    const moving = anApp(
+      "web",
+      "nginx",
+      { desiredRunState: DesiredRunState.RUNNING },
+      {
+        deployments: [{ serverId: SERVER, state: DeploymentState.PENDING }],
+      },
+    );
+    renderAt("/apps/svc_web", api([moving]));
+    await screen.findByRole("heading", { level: 1, name: "web" });
+    expect(screen.queryByRole("button", { name: "Actions for web" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
   });
 
   it("shows the project it's in, once there is more than one", async () => {

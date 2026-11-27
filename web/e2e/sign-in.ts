@@ -893,7 +893,7 @@ async function main() {
   // By now there are several projects, so the environment goes by its project's name.
   const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default|production)$/ });
   // New opens the form when the environment has no values yet.
-  const add = page.getByRole("button", { name: "New variable or secret" });
+  const add = page.getByRole("button", { name: "New variable or secret" }).first();
   await add.waitFor();
   if (!(await valueForm.isVisible())) await add.click();
   await valueForm.getByRole("textbox", { name: "Key" }).fill("DB_PASSWORD");

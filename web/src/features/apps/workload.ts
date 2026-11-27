@@ -39,10 +39,10 @@ export function useWorkloadControls() {
   );
   /** Restarts a service on every server it runs on, as its own page's Restart does. */
   const restart = useCallback(
-    (id: string, onApplied?: () => void) =>
+    (id: string, onApplied?: () => void, summary = "") =>
       sheet.open({
         kind: "plan",
-        make: () => createClient(ChangeService, transport).restartService({ id }),
+        make: () => createClient(ChangeService, transport).restartService({ id, summary }),
         onClose: (change) => {
           if (change?.state === ChangeState.APPLIED) onApplied?.();
         },

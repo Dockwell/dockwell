@@ -3735,11 +3735,11 @@ msgstr "目录"
 msgid "Docker isn't answering the agent on {server}. It may well be running."
 msgstr "{server} 上的 Docker 没有响应代理。它很可能仍在运行。"
 
-msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
-msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重启或部署。"
+msgid "Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy."
+msgstr "Docker 只会在它出错退出时重启它，而现在不会。请启动或部署。"
 
-msgid "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
-msgstr "Docker 只会在它自行停止时重启它，因此是有人停止了它。请重启或部署。"
+msgid "Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy."
+msgstr "Docker 只会在它自行停止时重启它，因此是有人停止了它。请启动或部署。"
 
 msgid "Docker's socket"
 msgstr "Docker 套接字"
@@ -3841,8 +3841,8 @@ msgstr "服务器外部暂时无法访问它。"
 msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "服务器外部暂时无法访问它。同一网络中的其他应用可以访问。"
 
-msgid "Nothing starts it again on its own. Restart it, or deploy."
-msgstr "没有任何机制会自动再次启动它。请重启或部署。"
+msgid "Nothing starts it again on its own. Start it, or deploy."
+msgstr "没有任何机制会自动再次启动它。请启动或部署。"
 
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "暂无。部署完成后开始运行。"
@@ -8894,6 +8894,9 @@ msgstr "只有它的应用的数据库"
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "保留 {0} 份，当前有 {1} 份（{2}）"
 
+msgid "Kept only on the server, unencrypted"
+msgstr "仅保存在服务器上，未加密"
+
 msgid "Last copy failed"
 msgstr "上次副本发送失败"
 
@@ -8914,6 +8917,9 @@ msgstr "按计划运行"
 
 msgid "Schedules"
 msgstr "备份计划"
+
+msgid "Send copies off the server"
+msgstr "把副本发送到服务器之外"
 
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
@@ -8974,9 +8980,6 @@ msgstr "时区 {zone}"
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 msgid "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
 msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。放不下的备份会失败。"
-
-msgid "Kept only on the server, unencrypted"
-msgstr "仅保存在服务器上，未加密"
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
@@ -15117,9 +15120,6 @@ msgstr "没有按计划备份"
 
 msgid "Restoring"
 msgstr "恢复"
-
-msgid "Send copies off the server"
-msgstr "把副本发送到服务器之外"
 
 msgid "Sent to {sentTo}, encrypted"
 msgstr "加密后发送到 {sentTo}"

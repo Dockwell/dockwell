@@ -3735,11 +3735,11 @@ msgstr "Directory"
 msgid "Docker isn't answering the agent on {server}. It may well be running."
 msgstr "Docker isn't answering the agent on {server}. It may well be running."
 
-msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
-msgstr "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
+msgid "Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy."
+msgstr "Docker restarts it only when it exits with an error, and doesn't now. Start it, or deploy."
 
-msgid "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
-msgstr "Docker restarts it only when it stops on its own, so someone stopped it. Restart it, or deploy."
+msgid "Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy."
+msgstr "Docker restarts it only when it stops on its own, so someone stopped it. Start it, or deploy."
 
 msgid "Docker's socket"
 msgstr "Docker's socket"
@@ -3841,8 +3841,8 @@ msgstr "Nothing outside the server reaches it yet."
 msgid "Nothing outside the server reaches it yet. Other apps on its network do."
 msgstr "Nothing outside the server reaches it yet. Other apps on its network do."
 
-msgid "Nothing starts it again on its own. Restart it, or deploy."
-msgstr "Nothing starts it again on its own. Restart it, or deploy."
+msgid "Nothing starts it again on its own. Start it, or deploy."
+msgstr "Nothing starts it again on its own. Start it, or deploy."
 
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "Nothing yet. It runs once the deploy finishes."
@@ -8894,6 +8894,9 @@ msgstr "Its app's database alone"
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "Keeps {0}, holding {1} now ({2})"
 
+msgid "Kept only on the server, unencrypted"
+msgstr "Kept only on the server, unencrypted"
+
 msgid "Last copy failed"
 msgstr "Last copy failed"
 
@@ -8914,6 +8917,9 @@ msgstr "On schedule"
 
 msgid "Schedules"
 msgstr "Schedules"
+
+msgid "Send copies off the server"
+msgstr "Send copies off the server"
 
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
@@ -8974,9 +8980,6 @@ msgstr "In {zone}"
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
 msgid "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
 msgstr "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
-
-msgid "Kept only on the server, unencrypted"
-msgstr "Kept only on the server, unencrypted"
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "Minutes past the hour, as 00:MM"
@@ -15117,9 +15120,6 @@ msgstr "Not backed up on a schedule"
 
 msgid "Restoring"
 msgstr "Restoring"
-
-msgid "Send copies off the server"
-msgstr "Send copies off the server"
 
 msgid "Sent to {sentTo}, encrypted"
 msgstr "Sent to {sentTo}, encrypted"
