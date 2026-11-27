@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Resource } from "@dockwell/api";
 import { Icon, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { countKinds } from "../projects/contents";
-import type { ProjectView } from "../projects/useProjects";
+import type { ProjectSummary } from "../projects/summary";
 
-export type VariablesProject = Pick<ProjectView, "id" | "project" | "name" | "label" | "isDefault" | "idle" | "inside">;
+export type VariablesProject = ProjectSummary & { inside: Resource[] };
 
 /** A variable or secret found by its name, in any project, from the picker's box. */
 export interface Found {
@@ -61,8 +62,9 @@ export function ProjectPicker({
 
   const q = query.trim().toLowerCase();
   const matches = (view: VariablesProject) => q === "" || view.label.toLowerCase().includes(q) || view.name.includes(q);
-  const running = views.filter((v) => (!v.idle || v.isDefault) && matches(v));
-  const idle = views.filter((v) => v.idle && !v.isDefault && matches(v));
+  const running = views.filter((v) => (v.idle === false || v.isDefault) && matches(v));
+  const unknown = views.filter((v) => v.idle === undefined && !v.isDefault && matches(v));
+  const idle = views.filter((v) => v.idle === true && !v.isDefault && matches(v));
   const found = useMemo<Found[]>(() => {
     if (q.length < 2) return [];
     const out: Found[] = [];
@@ -165,6 +167,14 @@ export function ProjectPicker({
                 <ul className="variables-pick-list">{running.map(item)}</ul>
               </section>
             ) : null}
+            {unknown.length > 0 ? (
+              <section aria-label={t`Unknown`}>
+                <p className="variables-pick-head" aria-hidden="true">
+                  <Trans>Unknown</Trans>
+                </p>
+                <ul className="variables-pick-list">{unknown.map(item)}</ul>
+              </section>
+            ) : null}
             {idle.length > 0 ? (
               <section aria-label={t`Nothing running`}>
                 <p className="variables-pick-head" aria-hidden="true">
@@ -193,7 +203,7 @@ export function ProjectPicker({
                 </ul>
               </section>
             ) : null}
-            {!reading && running.length + idle.length + found.length === 0 ? (
+            {!reading && running.length + unknown.length + idle.length + found.length === 0 ? (
               <p className="variables-pick-none">
                 <Trans>No project or variable by that name.</Trans>
               </p>

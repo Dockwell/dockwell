@@ -235,4 +235,54 @@ describe("Table", () => {
     expect(screen.getByRole("row", { name: "web" })).toHaveClass("is-head");
     expect(screen.getByRole("row", { name: "api" })).not.toHaveClass("is-head");
   });
+
+  it("keeps a focused row's DOM identity and focus through a refresh, and returns focus to the list when it leaves", async () => {
+    const onRowClick = vi.fn();
+    const { rerender } = render(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={rows} onRowClick={onRowClick} />
+      </section>,
+    );
+    const workerRow = screen.getByRole("row", { name: /worker/ });
+    workerRow.focus();
+    expect(workerRow).toHaveFocus();
+
+    // Refresh with updated data and changed order: same DOM element keeps focus.
+    const [first, second] = rows;
+    if (!first || !second) throw new Error("expected two fixture rows");
+    const refreshed: App[] = [
+      { ...second, replicas: "2/4", status: "healthy" },
+      { ...first, replicas: "3/3" },
+    ];
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={refreshed} onRowClick={onRowClick} />
+      </section>,
+    );
+    const updatedRow = screen.getByRole("row", { name: /worker/ });
+    expect(updatedRow).toBe(workerRow);
+    expect(updatedRow).toHaveTextContent("2/4");
+    expect(updatedRow).toHaveFocus();
+
+    // Refresh where the focused row disappears: focus returns cleanly to the list.
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={refreshed.slice(1)} onRowClick={onRowClick} />
+      </section>,
+    );
+    expect(screen.queryByRole("row", { name: /worker/ })).toBeNull();
+    expect(screen.getByLabelText("Apps list")).toHaveFocus();
+
+    // Blurring intentionally to the page background must not let a later refresh steal focus back.
+    const apiRow = screen.getByRole("row", { name: /api/ });
+    apiRow.focus();
+    apiRow.blur();
+    await Promise.resolve();
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={[{ ...first, replicas: "4/4" }]} onRowClick={onRowClick} />
+      </section>,
+    );
+    expect(apiRow).not.toHaveFocus();
+  });
 });

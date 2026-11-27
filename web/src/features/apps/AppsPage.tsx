@@ -1108,7 +1108,11 @@ function AppsTable({
     return out;
   }, [rows]);
   const now = useAgoNow(newest);
-  const menu = useRowMenu<Row>();
+  const menu = useRowMenu<Row>(
+    (row) =>
+      row.service ? { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) } : undefined,
+    { rows, keyOf: (row) => row.id },
+  );
   const columns = useMemo<TableColumn<Row>[]>(() => {
     const render: Record<string, (row: Row) => ReactNode> = {
       app: (row) => {
@@ -1382,7 +1386,11 @@ function PhoneList({
   const runtimes = useRuntimes().data;
   const databases = useDatabaseIds();
   const now = useNow(UPDATES_TICK_MS);
-  const context = useRowMenu<Row>();
+  const context = useRowMenu<Row>(
+    (row) =>
+      row.service ? { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) } : undefined,
+    { rows, keyOf: (row) => row.id },
+  );
   const phoneOrder = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   return (
     <Panel flush className={cx("apps-phone", selection.any && "has-selection")}>

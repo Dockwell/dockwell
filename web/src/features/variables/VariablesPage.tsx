@@ -40,10 +40,11 @@ import { useTimeWords } from "../../lib/time";
 import { passkeysAvailable } from "../../lib/webauthn";
 import { nameOf } from "../apps/app";
 import { cantMakeSecret, cantShare, type EnvRow, envEdits, envRows } from "../apps/envEdit";
-import { DEFAULT_PROJECT, useServices } from "../apps/useServices";
+import { useServices } from "../apps/useServices";
 import { useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
+import { compareProjects, projectSummary } from "../projects/summary";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
@@ -281,11 +282,12 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   const environments = envs.data?.resources ?? [];
   const [readingIndex, setReadingIndex] = useState(false);
   const shared = useSharedValueResources(readingIndex);
-  const domains = useQuery(
+  const domainsQuery = useQuery(
     DomainService.method.listDomains,
     {},
     { enabled: projects.length > 1, staleTime: Number.POSITIVE_INFINITY },
-  ).data?.domains;
+  );
+  const domains = domainsQuery.isError ? undefined : domainsQuery.data?.domains;
   const installs = useInstalls().data?.installs;
   const [last] = useState(remembered);
   const services = useServices();
@@ -311,10 +313,10 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
   const views = useMemo(() => {
     if (!projectList.data || !envs.data) return [];
     const byEnvironment = new Map(envs.data.resources.map((env) => [env.id, env.resource?.scope]));
-    const running = new Set(
-      (domains ?? []).filter((domain) => domain.routes.length > 0).map((domain) => domain.environmentId),
-    );
-    for (const id of appsIn.keys()) running.add(id);
+    const routed = domains
+      ? new Set(domains.filter((domain) => domain.routes.length > 0).map((domain) => domain.environmentId))
+      : undefined;
+    const servicesKnown = services.data !== undefined && !services.isError;
     const inside = new Map<string, Resource[]>();
     for (const value of shared.resources ?? []) {
       const project = byEnvironment.get(value.resource?.scope ?? "");
@@ -323,26 +325,20 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
       values.push(value);
       inside.set(project, values);
     }
-    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
     return projectList.data.resources
       .map((project): VariablesProject => {
-        const name = project.resource?.name ?? project.id;
-        const install = installs?.some((item) => item.projectId === project.id);
+        const ownEnvs = envs.data.resources.filter((env) => env.resource?.scope === project.id);
         return {
-          project,
-          id: project.id,
-          name,
-          label: install ? name : project.displayName || name,
-          isDefault: name === DEFAULT_PROJECT,
-          idle:
-            domains !== undefined &&
-            !services.isPending &&
-            !envs.data.resources.some((env) => env.resource?.scope === project.id && running.has(env.id)),
+          ...projectSummary(project, {
+            installs,
+            hasService: servicesKnown ? ownEnvs.some((env) => (appsIn.get(env.id) ?? 0) > 0) : undefined,
+            hasRoute: routed ? ownEnvs.some((env) => routed.has(env.id)) : undefined,
+          }),
           inside: inside.get(project.id) ?? [],
         };
       })
-      .sort((a, b) => (a.isDefault !== b.isDefault ? (a.isDefault ? -1 : 1) : collator.compare(a.label, b.label)));
-  }, [projectList.data, envs.data, domains, appsIn, shared.resources, installs, services.isPending]);
+      .sort(compareProjects);
+  }, [projectList.data, envs.data, domains, appsIn, shared.resources, installs, services.data, services.isError]);
   const chosen =
     environments.find((e) => e.id === environment) ??
     environments.find((e) => e.id === last) ??
@@ -552,7 +548,7 @@ export function VariablesPage({ environment, query, app, from, sort, page, onEnv
               <ListSortField place={place} columns={{ name: t`Key`, updated: t`Updated` }} />
             ) : null}
           </div>
-          {view?.idle && !view.isDefault ? (
+          {view?.idle === true && !view.isDefault ? (
             // What a deleted app left: said as a state, with Delete beside it, as on Projects.
             <div className="variables-idle">
               <StatusBadge status="stopped" label={<Trans>Nothing running in {view.label}</Trans>} labelIsState />

@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ActorKind,
   ChangeSchema,
@@ -850,5 +850,29 @@ describe("the variables page, once there are several projects", () => {
   it("names the environment by its project in the form", async () => {
     renderAt("/variables?environment=env_blog", several());
     expect(await screen.findByRole("form", { name: "Add a variable or secret to Blog" })).toBeVisible();
+  });
+
+  it("treats a failed domains read as unknown instead of running or idle (#952)", async () => {
+    const user = userEvent.setup();
+    renderAt("/variables?environment=env_old", {
+      ...several(),
+      domains: {
+        listDomains: () => {
+          throw new ConnectError("domains unavailable", Code.Unavailable);
+        },
+      },
+    });
+    const picker = await screen.findByRole("button", { name: /Project old-shop/ });
+    // Without knowing whether routes exist, old-shop must not be marked Nothing running.
+    expect(screen.queryByText("Nothing running in old-shop")).toBeNull();
+    await user.click(picker);
+    const list = await screen.findByRole("dialog", { name: "Choose a project" });
+    // Blog still has a known service, so it stays under Projects; old-shop is Unknown.
+    const projectsRegion = within(list).getByRole("region", { name: "Projects" });
+    expect(within(projectsRegion).getByRole("button", { name: /Blog/ })).toBeVisible();
+    expect(within(projectsRegion).queryByRole("button", { name: /old-shop/ })).toBeNull();
+    const unknownRegion = within(list).getByRole("region", { name: "Unknown" });
+    expect(within(unknownRegion).getByRole("button", { name: /old-shop/ })).toBeVisible();
+    expect(within(list).queryByRole("region", { name: "Nothing running" })).toBeNull();
   });
 });

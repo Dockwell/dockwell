@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CSSProperties, isValidElement, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  type CSSProperties,
+  isValidElement,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+} from "react";
 
 import { cx } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
@@ -202,20 +210,41 @@ export function Table<Row extends object = Record<string, unknown>>({
   className,
 }: TableProps<Row>) {
   const strings = useUIStrings();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const focusedRef = useRef<HTMLElement | null>(null);
   const waiting = loading && rows.length === 0;
   const keyField = (rowKey ?? "id") as keyof Row;
   const clickable = onRowClick !== undefined;
   const scrolls = maxHeight !== undefined;
   const wrapStyle: CSSProperties | undefined = scrolls ? { maxHeight } : undefined;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Keeps focus on a refreshed or reordered row, and returns focus to the list when a focused row disappears.
+  useLayoutEffect(() => {
+    const focused = focusedRef.current;
+    if (!focused) return;
+    if (focused.isConnected) {
+      if (document.activeElement === document.body || document.activeElement === null) {
+        focused.focus({ preventScroll: true });
+      }
+      return;
+    }
+    focusedRef.current = null;
+    if (document.activeElement === document.body || document.activeElement === null) {
+      const list =
+        wrapRef.current?.closest<HTMLElement>('section[tabindex="-1"], [role="region"][tabindex]') ?? wrapRef.current;
+      list?.focus({ preventScroll: true });
+    }
+  }, [rows]);
   return (
     <>
       {waiting ? <LoadingStatus label={loadingLabel ?? strings.loading} /> : null}
       <div
+        ref={wrapRef}
         className={cx("dw-table-wrap", waiting && "is-loading", className)}
         style={wrapStyle}
         aria-busy={waiting || undefined}
-        // A scrolling region needs to be reachable by keyboard when nothing inside it is.
-        {...(scrolls && !clickable ? { tabIndex: 0, role: "region", "aria-label": caption } : {})}
+        // A scrolling region needs to be reachable by keyboard when nothing inside it is;
+        // otherwise keep the wrapper programmatically focusable for focus recovery when a row leaves.
+        {...(scrolls && !clickable ? { tabIndex: 0, role: "region", "aria-label": caption } : { tabIndex: -1 })}
       >
         {/* Its shapes are for the eye: assistive technology hears the label, then the rows once they land. */}
         <table className={cx("dw-table", `dw-table-${density}`)} aria-hidden={waiting || undefined}>
@@ -236,7 +265,24 @@ export function Table<Row extends object = Record<string, unknown>>({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            onFocus={(event) => {
+              focusedRef.current = event.target instanceof HTMLElement ? event.target : null;
+            }}
+            onBlur={(event) => {
+              const tbody = event.currentTarget;
+              const target = event.target;
+              if (event.relatedTarget instanceof Node) {
+                if (!tbody.contains(event.relatedTarget)) focusedRef.current = null;
+                return;
+              }
+              queueMicrotask(() => {
+                if (focusedRef.current === target && !tbody.contains(document.activeElement)) {
+                  focusedRef.current = null;
+                }
+              });
+            }}
+          >
             {waiting ? (
               <SkeletonBody columns={columns} rows={loadingRows} slow={slow} />
             ) : rows.length === 0 ? (

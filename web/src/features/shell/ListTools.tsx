@@ -30,7 +30,15 @@ import {
 } from "react";
 
 import type { Offer } from "../auth/may";
-import { ActionMenu, type MenuAction, menuItem } from "./ActionMenu";
+import {
+  ActionMenu,
+  focusList,
+  focusMenuItem,
+  isOutOfView,
+  listContainerOf,
+  type MenuAction,
+  menuItem,
+} from "./ActionMenu";
 import { EmptyState } from "./EmptyState";
 import {
   type ListPage,
@@ -380,12 +388,23 @@ export function useRowSelection(
     if (enabled) setPicked((was) => toggledIds(was, ids, on));
   };
   const clear = useCallback(() => {
+    const before = document.activeElement;
     setPicked(new Set());
     setAnchor(undefined);
-    // Focus goes back to the list, unless a menu took it meanwhile: a row menu
-    // opened right after Clear keeps its focus, or its blur would close it.
+    // Focus goes back to the list, unless a menu or a row inside the list took it meanwhile:
+    // a row focused for Shift+F10 or a menu opened right after Clear keeps its focus.
     requestAnimationFrame(() => {
-      if (document.activeElement?.closest('[role="menu"]')) return;
+      const active = document.activeElement;
+      if (active?.closest('[role="menu"]')) return;
+      if (
+        active &&
+        active !== before &&
+        list.current?.contains(active) &&
+        active !== list.current &&
+        !active.closest(".list-batch-bar")
+      ) {
+        return;
+      }
       (list.current ?? fallback?.current)?.focus({ preventScroll: true });
     });
   }, [fallback]);
@@ -681,22 +700,37 @@ export function cardContextMenu(
   open({ x: event.clientX, y: event.clientY }, anchor as HTMLElement);
 }
 
+type RowMenuClose = "back" | "list" | "none";
+
 interface RowMenuOpen<Row> {
   row: Row;
+  key: string | number | undefined;
   label: string;
   actions: readonly MenuAction[];
   x: number;
   y: number;
   /** The row it was asked from, which takes focus back when it closes from the keyboard. */
   back: HTMLElement | null;
+  /** The list container holding the row, which takes focus back when the row disappears. */
+  list: HTMLElement | null;
+}
+
+function defaultRowKey<Row>(row: Row): string | number | undefined {
+  const id = (row as { id?: unknown } | null | undefined)?.id;
+  return typeof id === "string" || typeof id === "number" ? id : undefined;
 }
 
 /**
  * A row's menu where it was asked for: on a right-click or Shift+F10, at that
  * point, with the same items its ⋯ button has. Open it from a Table's
- * onRowContextMenu, and put its element anywhere on the page.
+ * onRowContextMenu, and put its element anywhere on the page. When given live
+ * rows and a resolver, the open menu stays up to date across refreshes and
+ * closes cleanly with focus back to the list if its row goes away.
  */
-export function useRowMenu<Row>(resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions">): {
+export function useRowMenu<Row>(
+  resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions"> | undefined,
+  options?: { rows?: readonly Row[]; keyOf?: (row: Row) => string | number },
+): {
   open: (
     row: Row,
     at: { x: number; y: number },
@@ -706,26 +740,56 @@ export function useRowMenu<Row>(resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "
   element: ReactNode;
 } {
   const [showing, setShowing] = useState<RowMenuOpen<Row> | null>(null);
-  const close = useCallback(
-    (back: boolean) => {
-      setShowing(null);
-      if (back) showing?.back?.focus();
-    },
-    [showing],
-  );
+  const showingRef = useRef<RowMenuOpen<Row> | null>(null);
+  showingRef.current = showing;
+  const keyOf = options?.keyOf ?? defaultRowKey;
+
+  const close = useCallback((returnTo: RowMenuClose) => {
+    const current = showingRef.current;
+    setShowing(null);
+    if (returnTo === "back") {
+      if (current?.back?.isConnected) current.back.focus({ preventScroll: true });
+      else focusList(current?.list ?? null);
+    } else if (returnTo === "list") {
+      focusList(current?.list ?? null);
+    }
+  }, []);
+
   const open = (row: Row, at: { x: number; y: number }, rowElement: HTMLElement, menu = resolve?.(row)) => {
     if (!menu?.actions.length) return;
-    setShowing({ ...menu, row, x: at.x, y: at.y, back: rowElement });
+    setShowing({
+      ...menu,
+      row,
+      key: keyOf(row),
+      x: at.x,
+      y: at.y,
+      back: rowElement,
+      list: listContainerOf(rowElement),
+    });
   };
-  const menu = showing ? (resolve?.(showing.row) ?? showing) : undefined;
+
+  const liveRow =
+    showing && options?.rows && showing.key !== undefined
+      ? options.rows.find((candidate) => keyOf(candidate) === showing.key)
+      : showing?.row;
+  const missing = Boolean(showing && options?.rows && showing.key !== undefined && liveRow === undefined);
+  const menu = showing && liveRow !== undefined ? (resolve?.(liveRow) ?? showing) : undefined;
+  const gone = missing || (showing !== null && (!menu || menu.actions.length === 0));
+
+  useLayoutEffect(() => {
+    if (!showing || !gone) return;
+    close(missing ? "list" : "back");
+  }, [showing, gone, missing, close]);
+
   const element =
-    showing && menu ? (
+    showing && !gone && menu ? (
       <RowContextMenu
         label={menu.label}
         actions={menu.actions}
         x={showing.x}
         y={showing.y}
         anchor={showing.back}
+        list={showing.list}
         onClose={close}
       />
     ) : null;
@@ -739,6 +803,7 @@ function RowContextMenu({
   x,
   y,
   anchor,
+  list,
   onClose,
 }: {
   label: string;
@@ -746,59 +811,103 @@ function RowContextMenu({
   x: number;
   y: number;
   anchor: HTMLElement | null;
-  /** True from the keyboard, so focus goes back to the row; a click elsewhere keeps its own. */
-  onClose: (back: boolean) => void;
+  list: HTMLElement | null;
+  onClose: (returnTo: RowMenuClose) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const focusedAction = useRef<string | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const offset = useRef<{ dx: number; dy: number } | null>(null);
   const [at, setAt] = useState<CSSProperties>({ left: x, top: y });
-  // biome-ignore lint/correctness/useExhaustiveDependencies: A live eligibility reason changes the menu height.
-  useLayoutEffect(() => {
+
+  const place = useCallback(() => {
     const box = root.current?.getBoundingClientRect();
     if (!box) return;
+    let targetX = x;
+    let targetY = y;
+    if (anchor?.isConnected && offset.current) {
+      const rect = anchor.getBoundingClientRect();
+      targetX = rect.left + offset.current.dx;
+      targetY = rect.top + offset.current.dy;
+    }
     const gutter = 16;
-    setAt({
-      left: Math.max(gutter, Math.min(x, window.innerWidth - box.width - gutter)),
-      top: Math.max(gutter, Math.min(y, window.innerHeight - box.height - gutter)),
-    });
-  }, [actions, x, y]);
+    const left = Math.max(gutter, Math.min(targetX, window.innerWidth - box.width - gutter));
+    const top = Math.max(gutter, Math.min(targetY, window.innerHeight - box.height - gutter));
+    setAt((was) => (was.left === left && was.top === top ? was : { left, top }));
+  }, [anchor, x, y]);
+
+  useLayoutEffect(() => {
+    if (anchor?.isConnected) {
+      const rect = anchor.getBoundingClientRect();
+      offset.current = { dx: x - rect.left, dy: y - rect.top };
+    } else {
+      offset.current = null;
+    }
+  }, [anchor, x, y]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Re-measure and preserve focus when actions change during a refresh.
+  useLayoutEffect(() => {
+    if (anchor && !anchor.isConnected) {
+      onCloseRef.current("list");
+      return;
+    }
+    place();
+    const el = root.current;
+    if (
+      el &&
+      !el.contains(document.activeElement) &&
+      (document.activeElement === document.body || document.activeElement === null)
+    ) {
+      focusMenuItem(el, focusedAction.current);
+    }
+  }, [actions, anchor, place]);
+
   useEffect(() => {
-    const first =
-      root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ??
-      root.current?.querySelector<HTMLElement>('[role="menuitem"]');
-    first?.focus({ preventScroll: true });
+    focusedAction.current = null;
+    focusMenuItem(root.current, null);
     const away = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose(false);
+      if (!root.current?.contains(event.target as Node)) onCloseRef.current("none");
     };
-    const before = anchor?.getBoundingClientRect();
     const moved = () => {
-      const now = anchor?.getBoundingClientRect();
-      if (
-        !anchor?.isConnected ||
-        !before ||
-        !now ||
-        Math.abs(now.top - before.top) > 1 ||
-        Math.abs(now.left - before.left) > 1
-      ) {
-        onClose(false);
+      if (anchor && !anchor.isConnected) {
+        onCloseRef.current("list");
+        return;
       }
+      if (anchor && isOutOfView(anchor.getBoundingClientRect(), anchor)) {
+        onCloseRef.current("none");
+        return;
+      }
+      place();
     };
-    const resized = () => onClose(false);
+    let observer: MutationObserver | undefined;
+    if (anchor && typeof MutationObserver !== "undefined") {
+      const watchTarget = list?.isConnected ? list : anchor.parentElement;
+      if (watchTarget) {
+        observer = new MutationObserver(() => {
+          if (!anchor.isConnected) onCloseRef.current("list");
+        });
+        observer.observe(watchTarget, { childList: true, subtree: true });
+      }
+    }
     document.addEventListener("pointerdown", away);
     window.addEventListener("scroll", moved, true);
-    window.addEventListener("resize", resized);
+    window.addEventListener("resize", moved);
     return () => {
+      observer?.disconnect();
       document.removeEventListener("pointerdown", away);
       window.removeEventListener("scroll", moved, true);
-      window.removeEventListener("resize", resized);
+      window.removeEventListener("resize", moved);
     };
-  }, [anchor, onClose]);
+  }, [anchor, list, place]);
+
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
     const index = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      onClose(true);
+      onCloseRef.current("back");
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
@@ -808,8 +917,15 @@ function RowContextMenu({
       items[event.key === "Home" ? 0 : items.length - 1]?.focus();
     }
   };
+  const focused = (event: FocusEvent<HTMLDivElement>) => {
+    const actionId = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-action-id]")?.dataset[
+      "actionId"
+    ];
+    if (actionId) focusedAction.current = actionId;
+  };
   const left = (event: FocusEvent<HTMLDivElement>) => {
-    if (!root.current?.contains(event.relatedTarget as Node | null)) onClose(false);
+    if (!event.target.isConnected) return;
+    if (!root.current?.contains(event.relatedTarget as Node | null)) onCloseRef.current("none");
   };
   return (
     <div
@@ -819,10 +935,11 @@ function RowContextMenu({
       role="menu"
       aria-label={label}
       onKeyDown={keys}
+      onFocus={focused}
       onBlur={left}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {actions.map((action) => menuItem(action, () => onClose(false)))}
+      {actions.map((action) => menuItem(action, () => onCloseRef.current("none")))}
     </div>
   );
 }

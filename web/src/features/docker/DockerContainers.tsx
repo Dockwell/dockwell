@@ -663,7 +663,6 @@ export function DockerContainers({
       onSelect: () => setUpdatingApp(service),
     };
   };
-  const menu = useRowMenu<Row>();
   const lifecycle = useDockerLifecycle();
   const [pasting, setPasting] = useState(false);
   const actionsFor = useContainerActions(lifecycle);
@@ -770,6 +769,7 @@ export function DockerContainers({
       },
     ];
   });
+  const menu = useRowMenu<Row>((row) => rowActions(row), { rows: list, keyOf: (row) => row.id });
   const canAct =
     may(ChangeService.method.proposeChange).allowed || may(DockerService.method.planDockerMaintenance).allowed;
   const selection = useRowSelection(

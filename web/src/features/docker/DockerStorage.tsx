@@ -265,7 +265,7 @@ export function DockerStorage({
     ];
   };
   const rowMenu = (row: StorageRow) => ({ label: t`Actions for ${row.name}`, actions: actionsFor(row) });
-  const context = useRowMenu(rowMenu);
+  const context = useRowMenu(rowMenu, { rows, keyOf: (row) => row.id });
   const openContext = (row: StorageRow, at: { x: number; y: number }, el: HTMLElement) => {
     cleanup.checkMenu(row.key);
     context.open(row, at, el);
