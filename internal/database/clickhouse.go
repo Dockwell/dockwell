@@ -14,6 +14,16 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
+// ClickHouseHTTPPort is the image's default HTTP endpoint.
+const ClickHouseHTTPPort = 8123
+
+// ClickHouseAuthSetup hashes inside the container before running its entrypoint.
+// The read-only users config refers to the resulting hash.
+const ClickHouseAuthSetup = `test -n "$CLICKHOUSE_PASSWORD"; hash=$(printf %s "$CLICKHOUSE_PASSWORD" | sha256sum); export DOCKWELL_CLICKHOUSE_PASSWORD_SHA256="$(printf %s "$hash" | cut -d " " -f 1)"; exec "$@"`
+
+// ClickHouseAuthTarget is the users config kept outside the data volume.
+const ClickHouseAuthTarget = "/etc/clickhouse-server/users.d/zz-dockwell-password.xml"
+
 // ClickHouse reports whether this engine needs the ClickHouse client and endpoints.
 func (e *Engine) ClickHouse() bool {
 	return e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE
@@ -43,7 +53,11 @@ func clickHouseClient(port uint32, database string, args ...string) []string {
 	return append(cmd, args...)
 }
 
-func clickHousePasswordFile(cmd []string) []string {
+// WithPasswordFile has the ClickHouse client read the image's password file when set.
+func (e *Engine) WithPasswordFile(cmd, env []string) []string {
+	if !e.ClickHouse() || envMap(env)["CLICKHOUSE_PASSWORD_FILE"] == "" {
+		return cmd
+	}
 	return append([]string{
 		"sh", "-c",
 		`CLICKHOUSE_PASSWORD="$(cat "$CLICKHOUSE_PASSWORD_FILE")" || exit 1; export CLICKHOUSE_PASSWORD; exec "$@"`, "sh",
@@ -59,6 +73,8 @@ SELECT version() AS version, currentUser() AS user, uptime() AS uptime,
   (SELECT toUInt64OrZero(any(value)) FROM system.server_settings WHERE name = 'max_connections') AS max_connections,
   (SELECT sum(value) FROM system.events WHERE event = 'MarkCacheHits') AS hits,
   (SELECT sum(value) FROM system.events WHERE event = 'MarkCacheMisses') AS misses,
+  (SELECT toBool(countIf(toString(auth_type) LIKE '%no_password%') > 0) FROM system.users WHERE name = currentUser()) AS checks_no_one,
+  (SELECT toBool(countIf(toString(auth_type) LIKE '%plaintext_password%') > 0) FROM system.users WHERE name = currentUser()) AS plaintext_password,
   greatest((SELECT count() FROM system.databases), 200) - 200 AS unlisted
 FORMAT JSONEachRow SETTINGS output_format_json_quote_64bit_integers = 0;
 
@@ -76,15 +92,17 @@ func parseClickHouse(said []byte) (*dockwellv1.DatabaseReading, error) {
 		return nil, errors.New("no server facts")
 	}
 	var server struct {
-		Version        string `json:"version"`
-		User           string `json:"user"`
-		Uptime         int64  `json:"uptime"`
-		SizeBytes      int64  `json:"size_bytes"`
-		Connections    int64  `json:"connections"`
-		MaxConnections int64  `json:"max_connections"`
-		Hits           int64  `json:"hits"`
-		Misses         int64  `json:"misses"`
-		Unlisted       int32  `json:"unlisted"`
+		Version           string `json:"version"`
+		User              string `json:"user"`
+		Uptime            int64  `json:"uptime"`
+		SizeBytes         int64  `json:"size_bytes"`
+		Connections       int64  `json:"connections"`
+		MaxConnections    int64  `json:"max_connections"`
+		Hits              int64  `json:"hits"`
+		Misses            int64  `json:"misses"`
+		Unlisted          int32  `json:"unlisted"`
+		ChecksNoOne       bool   `json:"checks_no_one"`
+		PlaintextPassword bool   `json:"plaintext_password"`
 	}
 	if json.Unmarshal(rows.Bytes(), &server) != nil || server.Version == "" {
 		return nil, errors.New("invalid server facts")
@@ -93,6 +111,7 @@ func parseClickHouse(said []byte) (*dockwellv1.DatabaseReading, error) {
 		Version: server.Version, User: server.User, UptimeSeconds: server.Uptime,
 		SizeBytes: server.SizeBytes, Connections: server.Connections, MaxConnections: server.MaxConnections,
 		CacheHit: share(server.Hits, server.Misses), Unlisted: server.Unlisted,
+		ChecksNoOne: server.ChecksNoOne, ClickhousePlaintextPassword: server.PlaintextPassword,
 	}
 	for rows.Scan() {
 		var db struct {

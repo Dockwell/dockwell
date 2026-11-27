@@ -4882,6 +4882,10 @@ msgstr "{0} · An admin chooses this"
 msgid "A new one for {name}"
 msgstr "A new one for {name}"
 
+#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
+msgid "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+msgstr "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+
 msgid "Checked as the plan applies"
 msgstr "Checked as the plan applies"
 
@@ -4952,10 +4956,6 @@ msgstr "Signs in"
 
 msgid "Signs in as"
 msgstr "Signs in as"
-
-#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
-msgid "This link uses the database service’s password for <0>{0}</0>."
-msgstr "This link uses the database service’s password for <0>{0}</0>."
 
 msgid "Use a new database"
 msgstr "Use a new database"
@@ -9601,6 +9601,9 @@ msgstr "About {app}"
 msgid "App information"
 msgstr "App information"
 
+msgid "Built into Dockwell"
+msgstr "Built into Dockwell"
+
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
 
@@ -13171,6 +13174,12 @@ msgstr "Check that you have another way in, such as your provider's console, bef
 msgid "Checks {domain} every minute"
 msgstr "Checks {domain} every minute"
 
+msgid "ClickHouse restarts with a password hash"
+msgstr "ClickHouse restarts with a password hash"
+
+msgid "Clients with their own settings need the new password."
+msgstr "Clients with their own settings need the new password."
+
 msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 msgstr "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 
@@ -13282,6 +13291,9 @@ msgstr "It bans any other address that keeps failing to sign in, yours included.
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+
+msgid "It can read and change every database. Only one app can use this link."
+msgstr "It can read and change every database. Only one app can use this link."
 
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
@@ -13805,6 +13817,9 @@ msgstr "{0, plural, one {{list} stops while it loads, and what was made since go
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+
+msgid "{app} connects as administrator {user}"
+msgstr "{app} connects as administrator {user}"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app}'s data stays in {before}; {after} starts empty"
@@ -15653,6 +15668,9 @@ msgstr "A copy of its files, which stops {engine} a moment"
 msgid "A plan, which keeps what it replaces for 7 days"
 msgstr "A plan, which keeps what it replaces for 7 days"
 
+msgid "A volume copy can contain partial writes"
+msgstr "A volume copy can contain partial writes"
+
 msgid "Backups of {name}, newest first"
 msgstr "Backups of {name}, newest first"
 
@@ -15755,14 +15773,26 @@ msgstr "A copy of its files, which stops it a moment"
 msgid "All its backups"
 msgstr "All its backups"
 
+msgid "Anyone who can reach it can sign in."
+msgstr "Anyone who can reach it can sign in."
+
 msgid "Can do anything"
 msgstr "Can do anything"
 
 msgid "Change password"
 msgstr "Change password"
 
+msgid "ClickHouse stores a readable password in its data"
+msgstr "ClickHouse stores a readable password in its data"
+
+msgid "ClickHouse takes no password"
+msgstr "ClickHouse takes no password"
+
 msgid "Connection string"
 msgstr "Connection string"
+
+msgid "Copies of its data can contain the password."
+msgstr "Copies of its data can contain the password."
 
 msgid "Data at {features}'s features, which its next upgrade raises"
 msgstr "Data at {features}'s features, which its next upgrade raises"
@@ -15860,8 +15890,14 @@ msgstr "Replica set {set}: each backup is one moment, and can't be restored into
 msgid "Restore the newest"
 msgstr "Restore the newest"
 
+msgid "Rotate password"
+msgstr "Rotate password"
+
 msgid "Runs alone: a backup isn't one moment while something writes"
 msgstr "Runs alone: a backup isn't one moment while something writes"
+
+msgid "Set a password"
+msgstr "Set a password"
 
 msgid "Since"
 msgstr "Since"

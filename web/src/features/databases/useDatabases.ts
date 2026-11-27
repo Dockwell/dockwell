@@ -188,7 +188,7 @@ function buildConnectionURL(
   if (db.engine === DatabaseEngine.CLICKHOUSE) {
     const user = encodeURIComponent(firstUser(db, reading));
     const credentials = db.passwordSecret || password !== undefined ? `${user}${secret}@` : "";
-    return `${scheme}://${credentials}${where}/default`;
+    return `${scheme}://${credentials}${where}/${encodeURIComponent(firstDatabase(reading) || "default")}`;
   }
   if (db.engine === DatabaseEngine.MONGODB) {
     // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.

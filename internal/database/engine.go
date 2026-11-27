@@ -272,7 +272,7 @@ func FromSpec(svc *resourcev1.Service) (Found, bool) {
 	}
 	f := Found{Engine: e, Port: e.Port}
 	if e.ClickHouse() {
-		f.HTTPPort = clickHousePort(app.GetCommand(), "--http_port", 8123)
+		f.HTTPPort = clickHousePort(app.GetCommand(), "--http_port", ClickHouseHTTPPort)
 	}
 	major := Major(app.GetImage())
 	dir := e.Data(major)
@@ -374,6 +374,9 @@ func startsServer(e *Engine, app *resourcev1.Container) bool {
 	cmd := app.GetCommand()
 	if len(cmd) == 0 || strings.HasPrefix(cmd[0], "-") {
 		return true
+	}
+	if e.ClickHouse() && len(cmd) > 4 && cmd[0] == "sh" && cmd[1] == "-ec" && cmd[2] == ClickHouseAuthSetup {
+		return startsServer(e, &resourcev1.Container{Command: cmd[4:]})
 	}
 	if shell := path.Base(cmd[0]); (shell == "sh" || shell == "bash") && len(cmd) >= 3 && cmd[1] == "-c" {
 		// A script that starts the server, as sh -c 'exec redis-server --requirepass

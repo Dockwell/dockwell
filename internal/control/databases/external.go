@@ -16,6 +16,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -94,6 +95,16 @@ func (h *Handler) SetDatabaseExternalAccess(ctx context.Context, req *connect.Re
 	if len(db.servers) == 0 {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s runs on no server now, so nothing can reach it there. Run it first", ref.Name), "not_running")
+	}
+
+	if database.Of(db.db.GetEngine()).ClickHouse() {
+		h.read(ctx, []*placed{db})
+		if len(db.db.GetReadings()) == 0 || slices.ContainsFunc(db.db.GetReadings(), func(r *dockwellv1.DatabaseReading) bool {
+			return r.GetUnread() != "" || r.GetChecksNoOne()
+		}) {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("password protection for %s could not be verified. Set a password before you open external access", ref.Name), "password_required")
+		}
 	}
 
 	// The port: the one it's tagged on; or one it publishes beyond its server already,

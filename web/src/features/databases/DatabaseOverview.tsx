@@ -80,10 +80,15 @@ export function DatabaseOverview() {
   const reading = firstReading(db);
   const read = readOf(reading);
   const install = useOwnInstall(db);
+  const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
+  const unprotected = db.readings.some((r) => r.checksNoOne);
+  const plaintext = db.readings.some((r) => r.clickhousePlaintextPassword);
+  const passwordVerified = db.readings.length > 0 && db.readings.every((r) => !r.unread && !r.checksNoOne);
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
-      {read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
+      {clickHouse && (unprotected || plaintext) ? <ClickHousePasswordStatus db={db} unprotected={unprotected} /> : null}
+      {!clickHouse && read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
       <DatabaseUpdate db={db} />
@@ -93,7 +98,7 @@ export function DatabaseOverview() {
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
-      <ExternalAccess db={db} />
+      {!clickHouse || passwordVerified || db.externalAccess ? <ExternalAccess db={db} /> : null}
       <CompanionsPanel install={install} />
       {speaksSQL(db.engine) && db.engine !== DatabaseEngine.CLICKHOUSE && read ? <WhoIsIn db={db} read={read} /> : null}
       <DatabaseDanger db={db} />
@@ -178,6 +183,35 @@ function DatabaseDanger({ db }: { db: Database }) {
         }
       />
     </MayEdit>
+  );
+}
+
+function ClickHousePasswordStatus({ db, unprotected }: { db: Database; unprotected: boolean }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
+  return (
+    <Callout
+      tone="warning"
+      title={unprotected ? t`ClickHouse takes no password` : t`ClickHouse stores a readable password in its data`}
+      actions={
+        <Button
+          size="sm"
+          {...may.off}
+          onClick={() =>
+            sheet.open({
+              kind: "plan",
+              make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id }),
+            })
+          }
+        >
+          {unprotected ? t`Set a password` : t`Rotate password`}
+        </Button>
+      }
+    >
+      {unprotected ? t`Anyone who can reach it can sign in.` : t`Copies of its data can contain the password.`}
+    </Callout>
   );
 }
 
@@ -284,8 +318,13 @@ function UpgradeNote({ db }: { db: Database }) {
 }
 
 /** Whether Dockwell backs a database up: its data is in a volume Dockwell made. */
-export function backsUp(db: Database): boolean {
-  return db.engine !== DatabaseEngine.CLICKHOUSE && db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
+export function backsUp(db: Database, scheduled = false): boolean {
+  return (
+    db.volume !== "" &&
+    !db.volumeExternal &&
+    db.volumeId !== "" &&
+    (db.engine !== DatabaseEngine.CLICKHOUSE || scheduled || Boolean(db.newestBackup))
+  );
 }
 
 /** Why a database has no backups, and what to do about it. */
@@ -464,7 +503,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const latestError = latest?.error ?? "";
   const servers = db.readings.map((r) => r.serverName).join(", ");
   const destination = policy?.spec?.destination ?? "";
-  if (!backsUp(db)) return <NoBackups db={db} className="database-backups" />;
+  if (!backsUp(db, Boolean(policy))) return <NoBackups db={db} className="database-backups" />;
   const took =
     newest?.startedAt && newest.finishedAt
       ? time.span(timestampMs(newest.finishedAt) - timestampMs(newest.startedAt))
@@ -485,7 +524,9 @@ function BackupsPanel({ db }: { db: Database }) {
         <div className="databases-fact">
           <dt>{t`How`}</dt>
           <dd>
-            {!how.known ? (
+            {db.engine === DatabaseEngine.CLICKHOUSE ? (
+              t`A volume copy can contain partial writes`
+            ) : !how.known ? (
               how.failed ? (
                 t`Its server didn't say`
               ) : (

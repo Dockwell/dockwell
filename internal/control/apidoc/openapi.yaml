@@ -18558,6 +18558,11 @@ components:
                     description: |-
                         The container running this database on the server, by name, for opening a
                          console in it.
+                clickhousePlaintextPassword:
+                    type: boolean
+                    description: |-
+                        ClickHouse's active account uses plaintext authentication. Its XML config can
+                         persist that password inside the data volume.
             description: DatabaseReading is what a database said of itself on one server.
         DatabaseUser:
             type: object

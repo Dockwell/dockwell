@@ -1213,6 +1213,21 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           more: t`A rollback puts back its spec, not its data, so if a newer version changed that data, such as with a migration, the older one may not read it.`,
         };
       }
+      case "clickhouse_admin_link": {
+        const [app, user] = note.names;
+        return {
+          key,
+          amber: true,
+          title: t`${app} connects as administrator ${user}`,
+          detail: t`It can read and change every database. Only one app can use this link.`,
+        };
+      }
+      case "clickhouse_password":
+        return {
+          key,
+          title: t`ClickHouse restarts with a password hash`,
+          detail: t`Clients with their own settings need the new password.`,
+        };
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
       // An agent from before fleet upgrades is upgraded once by the install script on its server (ADR 0094).

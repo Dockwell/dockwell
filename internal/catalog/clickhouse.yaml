@@ -16,7 +16,7 @@ source:
   path: internal/catalog/clickhouse.yaml
 architectures: [amd64, arm64]
 notes:
-  - ClickHouse caps its tracked memory at 320 MiB.
+  - By default ClickHouse runs in a 512 MiB container with one CPU. Queries fail if tracked memory goes above 320 MiB.
 translations:
   zh-CN:
     summary: 用于分析的列式 SQL 数据库
@@ -34,8 +34,15 @@ compose: |
       restart: unless-stopped
       mem_limit: 512M
       cpus: 1
+      command:
+        - sh
+        - -ec
+        - 'test -n "$$CLICKHOUSE_PASSWORD"; hash=$$(printf %s "$$CLICKHOUSE_PASSWORD" | sha256sum); export DOCKWELL_CLICKHOUSE_PASSWORD_SHA256="$$(printf %s "$$hash" | cut -d " " -f 1)"; exec "$$@"'
+        - sh
+        - /entrypoint.sh
       environment:
         CLICKHOUSE_USER: default
+        CLICKHOUSE_SKIP_USER_SETUP: "1"
         CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       volumes:
         - data:/var/lib/clickhouse
@@ -44,8 +51,10 @@ compose: |
           target: /etc/clickhouse-server/config.d/dockwell-small-host.xml
         - source: small-queries
           target: /etc/clickhouse-server/users.d/dockwell-small-queries.xml
+        - source: password-auth
+          target: /etc/clickhouse-server/users.d/zz-dockwell-password.xml
       healthcheck:
-        test: ["CMD", "clickhouse-client", "--host=127.0.0.1", "--query=SELECT 1"]
+        test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8123/ping"]
         interval: 5s
         timeout: 5s
         retries: 12
@@ -59,6 +68,37 @@ compose: |
           <max_server_memory_usage>335544320</max_server_memory_usage>
           <mark_cache_size>33554432</mark_cache_size>
           <background_schedule_pool_size>16</background_schedule_pool_size>
+          <logger>
+            <level>warning</level>
+            <console>true</console>
+            <size>4M</size>
+            <count>2</count>
+          </logger>
+          <query_log remove="remove"/>
+          <query_thread_log remove="remove"/>
+          <query_views_log remove="remove"/>
+          <metric_log remove="remove"/>
+          <asynchronous_metric_log remove="remove"/>
+          <trace_log remove="remove"/>
+          <text_log remove="remove"/>
+          <part_log remove="remove"/>
+          <query_metric_log remove="remove"/>
+          <session_log remove="remove"/>
+          <error_log remove="remove"/>
+          <iceberg_metadata_log remove="remove"/>
+          <opentelemetry_span_log remove="remove"/>
+          <crash_log remove="remove"/>
+          <processors_profile_log remove="remove"/>
+          <asynchronous_insert_log remove="remove"/>
+          <backup_log remove="remove"/>
+          <blob_storage_log remove="remove"/>
+          <zookeeper_log remove="remove"/>
+          <zookeeper_connection_log remove="remove"/>
+          <s3queue_log remove="remove"/>
+          <azure_queue_log remove="remove"/>
+          <filesystem_cache_log remove="remove"/>
+          <latency_log remove="remove"/>
+          <transactions_info_log remove="remove"/>
         </clickhouse>
     small-queries:
       content: |
@@ -71,4 +111,15 @@ compose: |
               <input_format_parallel_parsing>0</input_format_parallel_parsing>
             </default>
           </profiles>
+        </clickhouse>
+    password-auth:
+      content: |
+        <clickhouse>
+          <users>
+            <default>
+              <password remove="remove"/>
+              <password_sha256_hex from_env="DOCKWELL_CLICKHOUSE_PASSWORD_SHA256"/>
+              <networks replace="replace"><ip>::/0</ip></networks>
+            </default>
+          </users>
         </clickhouse>

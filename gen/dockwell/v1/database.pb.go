@@ -421,9 +421,12 @@ type DatabaseReading struct {
 	ChecksNoOne bool `protobuf:"varint,18,opt,name=checks_no_one,json=checksNoOne,proto3" json:"checks_no_one,omitempty"`
 	// The container running this database on the server, by name, for opening a
 	// console in it.
-	Container     string `protobuf:"bytes,19,opt,name=container,proto3" json:"container,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Container string `protobuf:"bytes,19,opt,name=container,proto3" json:"container,omitempty"`
+	// ClickHouse's active account uses plaintext authentication. Its XML config can
+	// persist that password inside the data volume.
+	ClickhousePlaintextPassword bool `protobuf:"varint,20,opt,name=clickhouse_plaintext_password,json=clickhousePlaintextPassword,proto3" json:"clickhouse_plaintext_password,omitempty"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *DatabaseReading) Reset() {
@@ -587,6 +590,13 @@ func (x *DatabaseReading) GetContainer() string {
 		return x.Container
 	}
 	return ""
+}
+
+func (x *DatabaseReading) GetClickhousePlaintextPassword() bool {
+	if x != nil {
+		return x.ClickhousePlaintextPassword
+	}
+	return false
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -2737,7 +2747,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x16DatabaseExternalAccess\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1d\n" +
 	"\n" +
-	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\xc5\x05\n" +
+	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\x89\x06\n" +
 	"\x0fDatabaseReading\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -2761,7 +2771,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\vreplica_set\x18\x11 \x01(\tR\n" +
 	"replicaSet\x12\"\n" +
 	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOne\x12\x1c\n" +
-	"\tcontainer\x18\x13 \x01(\tR\tcontainerB\f\n" +
+	"\tcontainer\x18\x13 \x01(\tR\tcontainer\x12B\n" +
+	"\x1dclickhouse_plaintext_password\x18\x14 \x01(\bR\x1bclickhousePlaintextPasswordB\f\n" +
 	"\n" +
 	"_cache_hit\"\x8d\x02\n" +
 	"\rInnerDatabase\x12\x12\n" +

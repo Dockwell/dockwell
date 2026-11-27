@@ -1924,6 +1924,9 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 	listen := w.Port
 	if listen == 0 {
 		listen = port(w.Engine)
+		if w.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE {
+			listen = database.ClickHouseHTTPPort
+		}
 	}
 	p := strconv.FormatUint(uint64(listen), 10)
 	db := databaseOf(n)
@@ -1977,7 +1980,7 @@ var urls = map[catalogv1.Engine]string{
 	catalogv1.Engine_ENGINE_REDIS:      "redis://{user}:{password}@{host}:{port}/{database}",
 	catalogv1.Engine_ENGINE_VALKEY:     "redis://{user}:{password}@{host}:{port}/{database}",
 	catalogv1.Engine_ENGINE_MONGODB:    "mongodb://{user}:{password}@{host}:{port}/{database}",
-	catalogv1.Engine_ENGINE_CLICKHOUSE: "clickhouse://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_CLICKHOUSE: "http://{user}:{password}@{host}:{port}/{database}",
 }
 
 // partName is a name of the app's environment a URL's part is kept as: the need's

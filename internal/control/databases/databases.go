@@ -585,6 +585,13 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 	}
 	engine := database.Of(server.db.GetEngine())
 	name, env := server.ref.Name, server.ref.Scope
+	if engine.ClickHouse() {
+		change, err := h.changeClickHousePassword(ctx, server, m.GetUser())
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		return connect.NewResponse(&dockwellv1.ChangeDatabasePasswordResponse{Change: change}), nil
+	}
 	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		// Its root user's password is kept in its data from the first start on, so a
 		// new secret alone would no longer sign anyone in (ADR 0038).

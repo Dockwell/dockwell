@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { BackupPolicyInfo, Database } from "@dockwell/api";
-import { BackupPolicy_Drill, ChangeService } from "@dockwell/api";
+import { BackupPolicy_Drill, ChangeService, DatabaseEngine } from "@dockwell/api";
 import { Button, Callout, Loading, Panel, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -29,9 +29,10 @@ import { engineName, policiesOf, useBackupHow } from "./useDatabases";
  */
 export function DatabaseBackups() {
   const db = useThisDatabase();
+  const policies = policiesOf(db, usePolicies().data?.policies ?? []);
   // With no volume of Dockwell's there's nothing to list, and asking for no volume's
   // backups would list every volume's.
-  return backsUp(db) ? (
+  return backsUp(db, policies.length > 0) ? (
     <VolumeBackups db={db} />
   ) : (
     <div className="database-overview">
@@ -74,6 +75,11 @@ function VolumeBackups({ db }: { db: Database }) {
   );
   return (
     <div className="database-overview">
+      {db.engine === DatabaseEngine.CLICKHOUSE ? (
+        <Callout tone="warning">
+          <Trans>A volume copy can contain partial writes</Trans>
+        </Callout>
+      ) : null}
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read the backups of ${name}`}>
           {sentence(query.error)}

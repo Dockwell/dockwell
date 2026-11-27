@@ -258,11 +258,11 @@ export function ConnectDatabaseSheet({
                 setErrors({});
               }}
             />
-            {clickHouse && server.passwordSecret ? (
+            {clickHouse ? (
               <p className="settings-meta">
                 <Trans>
-                  This link uses the database service’s password for{" "}
-                  <code>{firstUser(server, readOf(firstReading(server)))}</code>.
+                  Administrator <code>{firstUser(server, readOf(firstReading(server)))}</code> can read and change every
+                  database. Only one app can use this link.
                 </Trans>
               </p>
             ) : null}

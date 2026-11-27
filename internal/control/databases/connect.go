@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -106,7 +107,7 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	if !database.Of(server.db.GetEngine()).ClickHouse() && c.AdministeredBy != "" && (c.EnvironmentID != app.id || c.AdministeredBy != m.GetApp()) {
+	if c.AdministeredBy != "" && (c.EnvironmentID != app.id || c.AdministeredBy != m.GetApp()) {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s signs in to %s as its administrator, so another app's user there could be reached through it. Give %s a user of its own first", c.AdministeredBy, c.Service, c.AdministeredBy), "administered")
 	}
@@ -131,7 +132,14 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 	if plan.takenOn && eng != catalogv1.Engine_ENGINE_CLICKHOUSE {
 		summary = fmt.Sprintf("Connect %s to %s, taking on %s on %s", m.GetApp(), c.Service, plan.user, plan.database)
 	}
-	change, err := h.changes.Propose(ctx, summary, plan.edits, nil, changes.Also{})
+	var also changes.Also
+	if eng == catalogv1.Engine_ENGINE_CLICKHOUSE {
+		also.Notes = []revision.Note{{
+			Reason: "clickhouse_admin_link", Ref: server.ref, Names: []string{m.GetApp(), plan.user},
+			Message: fmt.Sprintf("%s signs in to %s as administrator %s and can read or change every database there. Only one app can use this link until per-app users are available.", m.GetApp(), c.Service, plan.user),
+		}}
+	}
+	change, err := h.changes.Propose(ctx, summary, plan.edits, nil, also)
 	if err != nil {
 		return nil, err
 	}
@@ -278,8 +286,19 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return nil, invalidField("templates", fmt.Errorf("%s has a template, and the link doesn't set it", name))
 		}
 	}
+	if clickHouse && passwordSource != "" && !needsPassword {
+		return nil, invalidField("sets", errors.New("this ClickHouse requires a password. Set its password or a URL that includes it"))
+	}
 	if !clickHouse && password == "" && !slices.ContainsFunc(need.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }) {
 		return nil, invalidField("sets", errors.New("nothing the link sets holds the password, so the app couldn't sign in. Set its password or its URL"))
+	}
+	if clickHouse {
+		names := slices.Collect(maps.Keys(m.GetSets()))
+		for name, svc := range app.services {
+			if name != m.GetApp() && readsAny(svc, names) {
+				return nil, invalidField("sets", fmt.Errorf("%s also reads a value this link sets. A ClickHouse administrator link can serve one app", name))
+			}
+		}
 	}
 	// The name the app's password is kept in: the one set, or one named for the link,
 	// which a URL reads.
@@ -313,19 +332,25 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		switch {
 		case clickHouse:
 			out.database = cmp.Or(out.database, "default")
-			out.user = server.firstUser
-			for _, r := range server.db.GetReadings() {
-				if r.GetUnread() == "" {
-					out.user = cmp.Or(r.GetUser(), out.user)
-					break
+			readings := server.db.GetReadings()
+			i := slices.IndexFunc(readings, func(r *dockwellv1.DatabaseReading) bool { return r.GetUnread() == "" })
+			if i < 0 {
+				why := "no server reported its databases"
+				if len(readings) != 0 {
+					why = readings[0].GetUnread()
 				}
+				return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("ClickHouse couldn't be read: %s", why), "database_unread")
 			}
+			reading := readings[i]
+			out.user = cmp.Or(reading.GetUser(), server.firstUser)
 			switch {
 			case m.GetUser() != "" && m.GetUser() != out.user || m.GetPasswordSecret() != "":
 				return invalidField("user", errors.New("a ClickHouse link uses the database service's current credentials"))
 			case !slices.Contains(c.Databases, out.database) || strings.EqualFold(out.database, "system") || strings.EqualFold(out.database, "information_schema"):
 				return invalidField("database", fmt.Errorf("%s does not report an app database named %s", c.Service, out.database))
-			case passwordSource == "" && (across || !unpasswordedClickHouse(server.spec)):
+			case across && reading.GetChecksNoOne():
+				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this ClickHouse takes no password. Set a password before linking it to another environment"), "password_required")
+			case passwordSource == "" && (across || !reading.GetChecksNoOne() || !unpasswordedClickHouse(server.spec)):
 				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this ClickHouse service needs its password in a Dockwell secret before it can be linked"), "no_secret")
 			}
 		case out.takenOn:

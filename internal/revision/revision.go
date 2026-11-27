@@ -4867,6 +4867,17 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 				return err
 			}
 		}
+		// Two plans can each see a ClickHouse service without a link. Check
+		// again while committing so only one can give an app its administrator.
+		for i := range items {
+			it := &items[i]
+			link, ok := it.spec.(*resourcev1.Link)
+			if ok && link.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
+				if err := e.checkLinkUser(ctx, tx.Tx, items, it, link); err != nil {
+					return err
+				}
+			}
+		}
 		for i := range items {
 			it := &items[i]
 			if !it.changes() {

@@ -1126,7 +1126,9 @@ func (h *Handler) withSources(ctx context.Context, instead planned) (sourced, er
 	if err != nil {
 		return sourced{}, err
 	}
-
+	if _, fromSource := out.origins["clickhouse"]; !fromSource {
+		out.origins["clickhouse"] = origin{own: true}
+	}
 	return out, nil
 }
 

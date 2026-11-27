@@ -2148,7 +2148,8 @@ func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items [
 // checkLinkUser refuses a link that names a database user another link names, so
 // the user a link reads the password of is the one made for it, never another app's.
 func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
-	if l.GetUser() == "" || l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
+	clickHouse := l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE
+	if l.GetUser() == "" && !clickHouse {
 		return nil
 	}
 	if had, ok := it.current.(*resourcev1.Link); ok && had.GetUser() == l.GetUser() && had.GetService() == l.GetService() && had.GetMeetsEnvironment() == l.GetMeetsEnvironment() {
@@ -2160,7 +2161,13 @@ func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, 
 		return err
 	}
 	for _, o := range links {
-		if o.ref != it.ref && o.GetUser() == l.GetUser() && o.GetService() == l.GetService() && o.meets() == env {
+		if o.ref == it.ref || o.GetService() != l.GetService() || o.meets() != env {
+			continue
+		}
+		if clickHouse {
+			return fault.New(ErrInvalid, "ClickHouse %s already has an app link. Its administrator can access every database, so it can link to one app", l.GetService())
+		}
+		if o.GetUser() == l.GetUser() {
 			return fault.New(ErrInvalid, "link %s names %s's user %s, which another link reads already. A link reads only the user made for it", it.ref.Name, l.GetService(), l.GetUser())
 		}
 	}

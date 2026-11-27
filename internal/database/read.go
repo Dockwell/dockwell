@@ -72,7 +72,7 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return unread("This agent doesn't know that database. Update it to the control plane's version")
 	}
 	ref := resourcepb.FromRef(asked.GetService())
-	c, err := r.Client.ContainerOf(ctx, docker.Project(ref.Scope), ref.Name, 1)
+	c, err := r.Client.ServiceContainer(ctx, docker.Project(ref.Scope), ref.Name)
 	switch {
 	case docker.IsNotFound(err):
 		return unread("Its container isn't on this server")
@@ -91,9 +91,7 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return r
 	}
 	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
-	if e.ClickHouse() && envMap(c.Config.Env)["CLICKHOUSE_PASSWORD_FILE"] != "" {
-		cmd = clickHousePasswordFile(cmd)
-	}
+	cmd = e.WithPasswordFile(cmd, c.Config.Env)
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
 		r := unread(err.Error())
