@@ -181,8 +181,10 @@ func (c *calls) sendDockerArtifact(ctx context.Context, id, owner string, ask *a
 	ctx, closeStream := context.WithCancel(ctx)
 	defer closeStream()
 	stream := client.SendFile(ctx)
+	part := agentv1.SendFileRequest{Stream: ask.GetStream()}
 	w := artifactSender(func(p []byte) error {
-		return stream.Send(&agentv1.SendFileRequest{Stream: ask.GetStream(), Data: p})
+		part.Data = p
+		return stream.Send(&part)
 	})
 	if err := c.cfg.artifacts.Send(ctx, id, owner, ask.GetOffset(), ask.GetLength(), w); err != nil {
 		return err

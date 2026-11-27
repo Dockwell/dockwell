@@ -41,7 +41,7 @@ const (
 	// counts it, in steps of 1024.
 	MaxUploadBytes = 16 << 30
 	// FrameBytes is the most a part of a file sent either way holds.
-	FrameBytes = 128 << 10
+	FrameBytes = 31 << 10
 	// keepUploads is how long an upload has to finish.
 	keepUploads = 24 * time.Hour
 	// uploadPrefix names an upload's file while it arrives.

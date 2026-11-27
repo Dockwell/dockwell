@@ -875,7 +875,7 @@ func (s *Spool) Send(ctx context.Context, id, owner string, offset, length uint6
 	}
 	defer f.Close()
 	start, count := int64(offset), int64(length) //nolint:gosec // both are within the sealed export's 8 GiB limit
-	n, err := io.CopyBuffer(dst, checkedReader{ctx, io.NewSectionReader(f, start, count)}, make([]byte, Frame))
+	n, err := io.CopyBuffer(dst, checkedReader{ctx, io.NewSectionReader(f, start, count)}, make([]byte, 31<<10))
 	if err == nil && n != count {
 		return io.ErrUnexpectedEOF
 	}

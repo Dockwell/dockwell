@@ -110,9 +110,9 @@ type calls struct {
 	drained     chan struct{}
 	drainedOnce sync.Once
 
-	// transfers is what uploads and downloads go over: a connection of its own,
-	// as logs have, kept for this stream's calls, so a file's next part doesn't wait
-	// on a handshake. It goes with the stream, so a renewed certificate reaches it.
+	// Files and artifacts keep separate connections for this stream's calls so
+	// a stalled file write cannot use the artifacts' receive window. The
+	// connections go with the stream, so a renewed certificate reaches them.
 	transfers, artifactTransfers transferConnection
 }
 

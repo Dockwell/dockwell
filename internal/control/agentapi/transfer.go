@@ -28,7 +28,10 @@ const TransferTimeout = 12 * time.Hour
 
 // frameBytes is the most of an upload one message to an agent carries, as the
 // agent's own parts are (files.FrameBytes).
-const frameBytes = 128 << 10
+const frameBytes = 31 << 10
+
+// Keep accepting the larger frames older agents send.
+const maxArtifactFrame = 128 << 10
 
 // transfer is one upload's write or one download, on its way between a person and
 // an agent.
@@ -164,7 +167,7 @@ func (h *Handler) SendFile(ctx context.Context, stream *connect.ClientStream[age
 			}
 			if g := t.artifact; g != nil {
 				n := uint64(len(msg.GetData()))
-				if !h.agents.artifactCurrent(t) || msg.GetStream() != t.token || n == 0 || n > frameBytes || n > g.length-sent ||
+				if !h.agents.artifactCurrent(t) || msg.GetStream() != t.token || n == 0 || n > maxArtifactFrame || n > g.length-sent ||
 					msg.GetName() != "" || msg.GetPath() != "" || msg.GetSizeBytes() != 0 || msg.GetArchive() {
 					return connect.NewError(connect.CodeInvalidArgument, errors.New("invalid artifact frame"))
 				}
