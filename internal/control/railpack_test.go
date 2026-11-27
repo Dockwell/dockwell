@@ -157,15 +157,19 @@ func TestARepositorysBranchesAreListedForABuild(t *testing.T) {
 		if err != nil || got.GetDefaultBranch() != "main" || !slices.Equal(got.GetBranches(), []string{"main", "fix/cart", "next"}) || got.GetTotal() != 0 {
 			t.Errorf("the repository's branches read %v, %v", got, err)
 		}
-		// One that isn't there says so, for the field it was typed in.
-		if _, err := ask(g.repo.URL + "-gone"); connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "unreadable" {
-			t.Errorf("a repository that isn't there: %v, want it unreadable", err)
+		// One that isn't there may be private, so it offers a deploy key (ADR 0113).
+		if _, err := ask(g.repo.URL + "-gone"); connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "auth_required" {
+			t.Errorf("a repository that isn't there: %v, want it to ask for credentials", err)
 		}
-		// And what isn't a repository's URL asks nothing.
-		for _, bad := range []string{"", "file:///etc/passwd", "ssh://git@git.example.com/acme/web.git"} {
+		// What isn't a repository's URL asks nothing.
+		for _, bad := range []string{"", "file:///etc/passwd"} {
 			if _, err := ask(bad); connect.CodeOf(err) != connect.CodeInvalidArgument {
 				t.Errorf("listing the branches of %q: %v, want it refused as invalid", bad, err)
 			}
+		}
+		// An SSH address reads only through a project's deploy key, and this asks for no project.
+		if _, err := ask("ssh://git@git.example.com/acme/web.git"); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("listing the branches of an SSH address with no project: %v, want it refused", err)
 		}
 	})
 }
@@ -203,8 +207,8 @@ func TestDetectBuildSaysWhatItCantRead(t *testing.T) {
 		if err := detect(git(g.repo.URL, "mian")); connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "has no branch or tag mian. Its branches are main") {
 			t.Errorf("a branch that isn't there = %v", err)
 		}
-		if err := detect(git("git@example.com:acme/web.git", "main")); connect.CodeOf(err) != connect.CodeInvalidArgument {
-			t.Errorf("a URL Dockwell can't fetch = %v", err)
+		if err := detect(git("git@example.com:acme/web.git", "main")); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("an SSH address with no project's deploy key = %v", err)
 		}
 		b := git(g.repo.URL, "main")
 		b.Builder = resourcev1.ImageBuild_BUILDER_DOCKERFILE

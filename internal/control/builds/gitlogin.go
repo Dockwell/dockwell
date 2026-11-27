@@ -96,7 +96,8 @@ func (h *Handler) projectNamed(ctx context.Context, project, environment string)
 	return found, nil
 }
 
-// projectOfScope is the project environment env is in, or "" for none.
+// projectOfScope is the project environment env is in, or env itself when it
+// names a project, or "" for none.
 func (h *Handler) projectOfScope(ctx context.Context, env string) (string, error) {
 	found := ""
 	err := h.db.View(ctx, func(tx *store.Tx) error {
@@ -105,6 +106,9 @@ func (h *Handler) projectOfScope(ctx context.Context, env string) (string, error
 			return err
 		}
 		for _, p := range tree.Projects {
+			if p.ID == env {
+				found = p.ID
+			}
 			for _, e := range p.Environments {
 				if e.ID == env {
 					found = p.ID

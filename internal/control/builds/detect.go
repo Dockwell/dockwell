@@ -144,7 +144,16 @@ func (h *Handler) Detect(ctx context.Context, server string, b *resourcev1.Image
 	if err != nil {
 		return nil, err
 	}
-	k := fmt.Sprintf("%s\x00%t\x00%s\x00%s", server, ownCommand, revision.GitScopeOf(ctx), key)
+	// A reading through a project's SSH deploy key is that project's alone, so its
+	// result is kept under the project, whichever of its environments or the
+	// project itself asked. Every other reading is the same for everyone.
+	var keyScope string
+	if _, ok := service.DeployKeyOf(b.GetGitLogin()); ok {
+		if keyScope, err = h.projectOfScope(ctx, revision.GitScopeOf(ctx)); err != nil {
+			return nil, err
+		}
+	}
+	k := fmt.Sprintf("%s\x00%t\x00%s\x00%s", server, ownCommand, keyScope, key)
 	for {
 		h.mu.Lock()
 		if got, ok := h.detected[k]; ok && h.now().Sub(got.at) < detectedFor {
