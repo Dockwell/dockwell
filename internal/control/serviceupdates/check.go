@@ -249,7 +249,7 @@ func (k *Keeper) check(ctx context.Context, server string, list []subject) {
 			prev, row.CheckedAt, row.Found = decodeFound(s.row.Found), s.row.CheckedAt, s.row.Found
 		}
 		if g := s.Spec.GetBuild().GetGit(); g != nil {
-			k.checkCommit(ctx, g, s.Spec.GetBuild().GetGitLogin(), &row, prev, commits, failed, now)
+			k.checkCommit(revision.WithGitScope(ctx, s.Environment), g, s.Spec.GetBuild().GetGitLogin(), &row, prev, commits, failed, now)
 			rows = append(rows, row)
 			continue
 		}
@@ -559,8 +559,8 @@ func (k *Keeper) checkCommit(ctx context.Context, g *resourcev1.GitSource, login
 		row.State = int32(dockwellv1.UpdateCheck_UPDATE_CHECK_NOT_CHECKED)
 		return
 	}
-	// Another login reads the repository apart: what one may read, another may not.
-	key := g.GetUrl() + "#" + ref + "#" + login
+	// Another login or scope reads the repository apart: what one project's key may read, another may not.
+	key := g.GetUrl() + "#" + ref + "#" + login + "#" + revision.GitScopeOf(ctx)
 	commit, ok := commits[key]
 	if !ok {
 		if err, seen := failed[key]; seen {

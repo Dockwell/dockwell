@@ -260,6 +260,13 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FirewallService.banServerSshAddress": "may",
   "FirewallService.setFail2banAddressBan": "may",
 
+  "GitDeployKeyService.beginRotateGitDeployKey": "may",
+  "GitDeployKeyService.cancelRotateGitDeployKey": "may",
+  "GitDeployKeyService.createGitDeployKey": "may",
+  "GitDeployKeyService.deleteGitDeployKey": "may",
+  "GitDeployKeyService.listGitDeployKeys": "read",
+  "GitDeployKeyService.testGitDeployKey": "may",
+
   "GitHookService.createGitHook": "may",
   "GitHookService.deleteGitHook": "may",
   "GitHookService.getGitHook": "read",

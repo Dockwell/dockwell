@@ -48,6 +48,23 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return {
             title: name ? t`Retried reporting deploy status for ${name}` : t`Retried reporting deploy status`,
           };
+        case "git_deploy_key.created":
+          return { title: name ? t`Created deploy key ${name}` : t`Created a deploy key` };
+        case "git_deploy_key.deleted":
+          return { title: name ? t`Deleted deploy key ${name}` : t`Deleted a deploy key` };
+        case "git_deploy_key.host_key_pinned":
+          return { title: name ? t`Pinned the SSH host key for ${name}` : t`Pinned an SSH host key` };
+        case "git_deploy_key.host_key_changed_accepted":
+          return {
+            title: name ? t`Accepted a changed SSH host key for ${name}` : t`Accepted a changed SSH host key`,
+            tone: "warning",
+          };
+        case "git_deploy_key.rotate_started":
+          return { title: name ? t`Started rotating deploy key ${name}` : t`Started rotating a deploy key` };
+        case "git_deploy_key.rotated":
+          return { title: name ? t`Rotated deploy key ${name}` : t`Rotated a deploy key` };
+        case "git_deploy_key.rotate_cancelled":
+          return { title: name ? t`Cancelled rotation of deploy key ${name}` : t`Cancelled a deploy key rotation` };
         case "auth.sign_in_failed":
           return { title: t`Couldn't sign in`, tone: "warning" };
         case "auth.sign_out":

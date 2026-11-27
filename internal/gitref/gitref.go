@@ -36,6 +36,15 @@ const (
 
 var commitID = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 
+// ErrAuthRequired marks an unauthenticated HTTPS repository lookup that
+// answered 401, 403 or 404, where a deploy key or GitHub App may be needed.
+var ErrAuthRequired = errors.New("repository requires authentication or was not found")
+
+type authError struct{ msg string }
+
+func (e authError) Error() string        { return e.msg }
+func (e authError) Is(target error) bool { return target == ErrAuthRequired }
+
 // Resolver reads repositories' refs.
 type Resolver struct {
 	// Client asks; one with Timeout, the bounds above and Guard unless set.
@@ -188,9 +197,9 @@ func (r *Resolver) List(ctx context.Context, url string) (Refs, error) {
 	case (res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden) && auth != "":
 		return Refs{}, fmt.Errorf("%s refused the GitHub App's token, so the App's installation doesn't reach it now. Add it to the installation on GitHub", where)
 	case res.StatusCode == http.StatusUnauthorized, res.StatusCode == http.StatusForbidden:
-		return Refs{}, fmt.Errorf("%s wants credentials, so it's private, or isn't there. Check the URL, or connect GitHub in Settings, Integrations, and install its App on the repository", where)
+		return Refs{}, authError{msg: where + " wants credentials, so it's private, or isn't there. Check the URL, use a deploy key, or connect GitHub in Settings, Integrations"}
 	case res.StatusCode == http.StatusNotFound:
-		return Refs{}, fmt.Errorf("there's no repository at %s. Check the URL", where)
+		return Refs{}, authError{msg: "there's no repository at " + where + ", or it's private. Check the URL, or use a deploy key"}
 	case res.StatusCode != http.StatusOK:
 		return Refs{}, fmt.Errorf("%s answered %s when asked for its branches. Check the URL", where, res.Status)
 	}

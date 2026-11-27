@@ -138,9 +138,12 @@ message ListRepositoryBranchesRequest {
   // the CLI takes as --repository.
   string url = 1 [(dockwell.v1.flag) = "repository"];
   // The project whose app builds from it, by ID or name. A repository one of
-  // its GitHub App installations reaches is read through that installation,
-  // private or not, as the project's builds fetch it (ADR 0098).
+  // its GitHub App installations or deploy keys reaches is read through it,
+  // private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
   string project = 2;
+  // Optional git login to read through, such as "ssh:<key name>" for a deploy
+  // key in project (ADR 0113).
+  string git_login = 3;
 }
 
 // ListRepositoryBranchesResponse is a repository's branches, as it says them.

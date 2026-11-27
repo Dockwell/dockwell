@@ -28,6 +28,7 @@ export * from "./gen/dockwell/v1/event_pb";
 export * from "./gen/dockwell/v1/file_pb";
 export * from "./gen/dockwell/v1/firewall_pb";
 export * from "./gen/dockwell/v1/githook_pb";
+export * from "./gen/dockwell/v1/gitkey_pb";
 export * from "./gen/dockwell/v1/gitprovider_pb";
 export * from "./gen/dockwell/v1/health_pb";
 export * from "./gen/dockwell/v1/image_pb";

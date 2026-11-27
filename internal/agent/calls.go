@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"maps"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -770,6 +772,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			pullCtx = resource.WithBuildGitAuth(pullCtx, header)
 		}
+		// A verified Git pack fetched on the control plane with an SSH deploy key (ADR 0113).
+		if stream := call.GetApply().GetDesired().GetBuildGitBundleStream(); stream != 0 {
+			packDir, cleanupPack, err := c.receiveGitPack(ctx, stream)
+			if err != nil {
+				return fail(err)
+			}
+			defer cleanupPack()
+			pullCtx = resource.WithBuildGitPack(pullCtx, packDir)
+		}
 		if guard := step.DockerStorageGuard.GetAttachment(); guard != nil {
 			if err := c.checkDockerAttachmentApply(pullCtx, step, guard); err != nil {
 				resource.Report(ctx, resource.Outcome{Untouched: true})
@@ -1114,6 +1125,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				return fail(fmt.Errorf("can't open what fetches the repository: %w", err))
 			}
 			req.GitAuth = header
+		}
+		if stream := call.GetDetectBuild().GetGitBundleStream(); stream != 0 {
+			packDir, cleanupPack, err := c.receiveGitPack(ctx, stream)
+			if err != nil {
+				return fail(fmt.Errorf("can't receive the repository pack: %w", err))
+			}
+			defer cleanupPack()
+			req.GitPackPath = packDir
 		}
 		d, err := c.cfg.Builds.Detect(ctx, req)
 		if err != nil {
@@ -1987,6 +2006,65 @@ func (c *calls) openGitAuth(purpose resource.Ref, sealed []byte) (string, error)
 		return "", errors.New("what was sent to fetch this build's repository is empty")
 	}
 	return header, nil
+}
+
+// maxGitPackBytes caps a streamed Git pack received from the control plane.
+const maxGitPackBytes = 65 << 20
+
+// receiveGitPack streams a verified Git pack from the control plane over
+// ReceiveFile into a temporary folder containing source.pack (ADR 0113).
+func (c *calls) receiveGitPack(ctx context.Context, stream uint64) (string, func(), error) {
+	client, err := c.transferClient(false)
+	if err != nil {
+		return "", nil, err
+	}
+	parts, err := client.ReceiveParts(ctx, &agentv1.ReceiveFileRequest{Stream: stream})
+	if err != nil {
+		return "", nil, err
+	}
+	defer parts.Close()
+	dir, err := os.MkdirTemp("", "dockwell-git-pack-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	f, err := os.OpenFile(filepath.Join(dir, "source.pack"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // temp dir we just created
+	if err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	var total int64
+	for {
+		chunk, err := parts.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			_ = f.Close()
+			cleanup()
+			return "", nil, err
+		}
+		total += int64(len(chunk))
+		if total > maxGitPackBytes {
+			_ = f.Close()
+			cleanup()
+			return "", nil, errors.New("the repository pack exceeds Dockwell's size limit")
+		}
+		if _, err := f.Write(chunk); err != nil {
+			_ = f.Close()
+			cleanup()
+			return "", nil, err
+		}
+	}
+	if err := f.Close(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if total == 0 {
+		cleanup()
+		return "", nil, errors.New("the control plane sent an empty repository pack")
+	}
+	return dir, cleanup, nil
 }
 
 // checkBuildLogins is images.forBuild, with this agent's log. It runs as the step

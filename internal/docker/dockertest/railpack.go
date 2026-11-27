@@ -117,6 +117,7 @@ func (e *Engine) hasRailpack(c *container) bool {
 func (e *Engine) fakeDetect(c *container, stdout, stderr io.Writer) int {
 	envs := envOf(c)
 	envs[gitAuthEnv] = e.gitAuthOf(c)
+	envs[gitPackEnv] = e.gitPackOf(c)
 	say := func(s string) { _, _ = fmt.Fprintf(stdout, "dockwell:%s\n", s) }
 	co, code := checkout(envs, stderr, say)
 	if code != 0 {

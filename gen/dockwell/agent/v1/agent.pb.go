@@ -2132,6 +2132,10 @@ type Hello struct {
 	// and a reading's the same way (DetectBuildCall.git_auth) (ADR 0098). Numbered
 	// in the block GitHub Apps hold, 360 to 369.
 	BuildGitAuth bool `protobuf:"varint,361,opt,name=build_git_auth,json=buildGitAuth,proto3" json:"build_git_auth,omitempty"`
+	// True when the agent accepts a pre-fetched, verified Git pack streamed over
+	// ReceiveFile for builds and detections (ADR 0113). Numbered in the Git block,
+	// 360 to 369.
+	BuildGitBundle bool `protobuf:"varint,365,opt,name=build_git_bundle,json=buildGitBundle,proto3" json:"build_git_bundle,omitempty"`
 	// True when the agent reads what Coolify or Dokploy runs on the server, from
 	// Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
 	// to 339 in agent messages (ADR 0089).
@@ -2500,6 +2504,13 @@ func (x *Hello) GetBuildLogins() bool {
 func (x *Hello) GetBuildGitAuth() bool {
 	if x != nil {
 		return x.BuildGitAuth
+	}
+	return false
+}
+
+func (x *Hello) GetBuildGitBundle() bool {
+	if x != nil {
+		return x.BuildGitBundle
 	}
 	return false
 }
@@ -14138,6 +14149,10 @@ type DesiredResource struct {
 	// delivery key as a step's values are (ADR 0098). Numbered in the block GitHub
 	// Apps hold, 360 to 369.
 	BuildGitAuth []byte `protobuf:"bytes,360,opt,name=build_git_auth,json=buildGitAuth,proto3" json:"build_git_auth,omitempty"`
+	// ReceiveFile transfer token carrying a verified Git pack fetched on the
+	// control plane with an SSH deploy key (ADR 0113). 0 when the builder fetches
+	// over HTTP/HTTPS itself.
+	BuildGitBundleStream uint64 `protobuf:"varint,366,opt,name=build_git_bundle_stream,json=buildGitBundleStream,proto3" json:"build_git_bundle_stream,omitempty"`
 	// Stops or starts the own containers and services of the panel an import came
 	// from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
 	Panel *PanelAction `protobuf:"bytes,333,opt,name=panel,proto3" json:"panel,omitempty"`
@@ -14347,6 +14362,13 @@ func (x *DesiredResource) GetBuildGitAuth() []byte {
 		return x.BuildGitAuth
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetBuildGitBundleStream() uint64 {
+	if x != nil {
+		return x.BuildGitBundleStream
+	}
+	return 0
 }
 
 func (x *DesiredResource) GetPanel() *PanelAction {
@@ -14841,9 +14863,12 @@ type DetectBuildCall struct {
 	// where build names its git login: the Authorization, sealed to this stream's
 	// delivery key for resource.DetectGitRef, as a build's is (ADR 0098). An agent
 	// that says Hello.build_git_auth opens it.
-	GitAuth       []byte `protobuf:"bytes,362,opt,name=git_auth,json=gitAuth,proto3" json:"git_auth,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GitAuth []byte `protobuf:"bytes,362,opt,name=git_auth,json=gitAuth,proto3" json:"git_auth,omitempty"`
+	// ReceiveFile transfer token carrying a verified Git pack fetched on the
+	// control plane with an SSH deploy key (ADR 0113).
+	GitBundleStream uint64 `protobuf:"varint,367,opt,name=git_bundle_stream,json=gitBundleStream,proto3" json:"git_bundle_stream,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DetectBuildCall) Reset() {
@@ -14895,6 +14920,13 @@ func (x *DetectBuildCall) GetGitAuth() []byte {
 		return x.GitAuth
 	}
 	return nil
+}
+
+func (x *DetectBuildCall) GetGitBundleStream() uint64 {
+	if x != nil {
+		return x.GitBundleStream
+	}
+	return 0
 }
 
 // DetectBuildResult is what reading the commit found.
@@ -22128,7 +22160,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xed\x14\n" +
+	"\bDraining\"\x98\x15\n" +
 	"\x05Hello\x123\n" +
 	"\x15keeps_control_backups\x18\xbe\x01 \x01(\bR\x13keepsControlBackups\x12\"\n" +
 	"\fhost_toolbox\x18\xfe\x03 \x01(\bR\vhostToolbox\x12>\n" +
@@ -22161,7 +22193,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x12(\n" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12%\n" +
-	"\x0ebuild_git_auth\x18\xe9\x02 \x01(\bR\fbuildGitAuth\x12\"\n" +
+	"\x0ebuild_git_auth\x18\xe9\x02 \x01(\bR\fbuildGitAuth\x12)\n" +
+	"\x10build_git_bundle\x18\xed\x02 \x01(\bR\x0ebuildGitBundle\x12\"\n" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
 	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x121\n" +
 	"\x14checks_panel_domains\x18\xce\x02 \x01(\bR\x12checksPanelDomains\x12-\n" +
@@ -22937,7 +22970,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06script\x18\x03 \x01(\fR\x06script\x12#\n" +
 	"\rscript_sha256\x18\x04 \x01(\tR\fscriptSha256\x12\x16\n" +
 	"\x06mirror\x18\x05 \x01(\tR\x06mirror\x12#\n" +
-	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xd3\t\n" +
+	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\x8b\n" +
+	"\n" +
 	"\x0fDesiredResource\x12@\n" +
 	"\fhost_toolbox\x18\x80\x04 \x01(\v2\x1c.dockwell.v1.HostToolboxPlanR\vhostToolbox\x12N\n" +
 	"\x12docker_maintenance\x18\x90\x03 \x01(\v2\x1e.dockwell.v1.DockerMaintenanceR\x11dockerMaintenance\x121\n" +
@@ -22965,7 +22999,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x10move_volume_from\x18\xa8\x02 \x01(\tR\x0emoveVolumeFrom\x12$\n" +
 	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x12%\n" +
-	"\x0ebuild_git_auth\x18\xe8\x02 \x01(\fR\fbuildGitAuth\x125\n" +
+	"\x0ebuild_git_auth\x18\xe8\x02 \x01(\fR\fbuildGitAuth\x126\n" +
+	"\x17build_git_bundle_stream\x18\xee\x02 \x01(\x04R\x14buildGitBundleStream\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panel\x12E\n" +
 	"\rupgrade_agent\x18\xdf\x02 \x01(\v2\x1f.dockwell.agent.v1.UpgradeAgentR\fupgradeAgent\x12)\n" +
 	"\x10exact_restart_id\x18\x98\x03 \x01(\tR\x0eexactRestartIdB\a\n" +
@@ -23003,12 +23038,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fCancelBuildCall\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x0e\n" +
-	"\x02by\x18\x03 \x01(\tR\x02by\"\x8c\x01\n" +
+	"\x02by\x18\x03 \x01(\tR\x02by\"\xb9\x01\n" +
 	"\x0fDetectBuildCall\x12<\n" +
 	"\x05build\x18\x01 \x01(\v2&.dockwell.resource.v1alpha1.ImageBuildR\x05build\x12\x1f\n" +
 	"\vown_command\x18\x02 \x01(\bR\n" +
 	"ownCommand\x12\x1a\n" +
-	"\bgit_auth\x18\xea\x02 \x01(\fR\agitAuth\"N\n" +
+	"\bgit_auth\x18\xea\x02 \x01(\fR\agitAuth\x12+\n" +
+	"\x11git_bundle_stream\x18\xef\x02 \x01(\x04R\x0fgitBundleStream\"N\n" +
 	"\x11DetectBuildResult\x129\n" +
 	"\tdetection\x18\x01 \x01(\v2\x1b.dockwell.v1.BuildDetectionR\tdetection\"/\n" +
 	"\x11CancelBuildResult\x12\x1a\n" +

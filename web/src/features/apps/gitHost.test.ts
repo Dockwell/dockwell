@@ -1,20 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
-import { gitHost, hookOutOfReach } from "./gitHost";
+import { deployKeyNameOf, gitHost, hookOutOfReach, isSSHRepository } from "./gitHost";
 
 describe("gitHost", () => {
-  it("names each host and the page where its hooks are added", () => {
+  it("names each host and the pages where its hooks and deploy keys are added", () => {
     expect(gitHost("https://github.com/acme/web.git")).toEqual({
       kind: "github",
       name: "GitHub",
       path: "acme/web",
       hooksPage: "https://github.com/acme/web/settings/hooks/new",
+      deployKeysPage: "https://github.com/acme/web/settings/keys",
     });
     expect(gitHost("git@gitlab.com:acme/tools/web.git")?.hooksPage).toBe("https://gitlab.com/acme/tools/web/-/hooks");
+    expect(gitHost("git@gitlab.com:acme/tools/web.git")?.deployKeysPage).toBe(
+      "https://gitlab.com/acme/tools/web/-/settings/repository#js-deploy-keys-settings",
+    );
     expect(gitHost("https://gitlab.example.com/acme/web")?.kind).toBe("gitlab");
     expect(gitHost("https://bitbucket.org/acme/web")?.hooksPage).toBe("https://bitbucket.org/acme/web/admin/webhooks");
-    expect(gitHost("https://codeberg.org/acme/web.git")).toMatchObject({ kind: "gitea", name: "Codeberg" });
+    expect(gitHost("https://bitbucket.org/acme/web")?.deployKeysPage).toBe(
+      "https://bitbucket.org/acme/web/admin/access-keys",
+    );
+    expect(gitHost("https://codeberg.org/acme/web.git")).toMatchObject({
+      kind: "gitea",
+      name: "Codeberg",
+      deployKeysPage: "https://codeberg.org/acme/web/settings/keys",
+    });
+    expect(gitHost("ssh://git@gitea.example.com:2222/acme/web.git")).toMatchObject({
+      kind: "gitea",
+      name: "Gitea",
+      deployKeysPage: "https://gitea.example.com/acme/web/settings/keys",
+    });
     expect(gitHost("github.com/acme/web")?.path).toBe("acme/web");
   });
 
@@ -24,7 +40,17 @@ describe("gitHost", () => {
       name: "",
       path: "acme/web",
       hooksPage: "http://192.0.2.10:3000/acme/web/settings/hooks",
+      deployKeysPage: "",
     });
+  });
+
+  it("detects SSH repository addresses and ssh: deploy key logins", () => {
+    expect(isSSHRepository("git@github.com:acme/web.git")).toBe(true);
+    expect(isSSHRepository("ssh://git@example.com:2222/acme/web.git")).toBe(true);
+    expect(isSSHRepository("https://github.com/acme/web.git")).toBe(false);
+    expect(deployKeyNameOf("ssh:acme-web")).toBe("acme-web");
+    expect(deployKeyNameOf("github:7")).toBeUndefined();
+    expect(deployKeyNameOf("")).toBeUndefined();
   });
 
   it("never carries a login the URL had into the page it links", () => {

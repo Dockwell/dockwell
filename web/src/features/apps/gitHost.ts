@@ -3,7 +3,7 @@
 /** Which kind of Git host a repository is on, by what deploy on push can tell of it. */
 export type GitHostKind = "github" | "gitlab" | "bitbucket" | "gitea";
 
-/** A repository's host, as deploy on push needs it: what it's called, and where its hooks are set. */
+/** A repository's host, as deploy on push and deploy keys need it. */
 export interface GitHost {
   kind: GitHostKind;
   /** The host's name, such as GitHub, or "" for a host of a kind it can't tell, as a Gitea of your own. */
@@ -12,6 +12,26 @@ export interface GitHost {
   path: string;
   /** The page where the repository's webhooks are added. It never carries a login the URL had. */
   hooksPage: string;
+  /** The page where the repository's deploy keys are added, or "" for an unrecognized host. */
+  deployKeysPage: string;
+}
+
+/** Prefix on ImageBuild.gitLogin when a build fetches via a project SSH deploy key. */
+export const SSH_LOGIN_PREFIX = "ssh:";
+
+/** Returns the deploy key name if gitLogin names an SSH deploy key, or undefined otherwise. */
+export function deployKeyNameOf(gitLogin: string | undefined): string | undefined {
+  if (!gitLogin?.startsWith(SSH_LOGIN_PREFIX)) return undefined;
+  const name = gitLogin.slice(SSH_LOGIN_PREFIX.length);
+  return name || undefined;
+}
+
+/** Reports whether url uses SSH (ssh://... or SCP-style user@host:path). */
+export function isSSHRepository(url: string): boolean {
+  const raw = url.trim();
+  if (/^ssh:\/\//i.test(raw)) return true;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return false;
+  return /^[a-zA-Z0-9._-]+@[^:/\s]+:[^\s]+$/.test(raw);
 }
 
 /**
@@ -33,24 +53,71 @@ export function gitHost(url: string): GitHost | undefined {
   }
   const host = parsed.hostname.toLowerCase();
   const path = parsed.pathname
+    .replace(/^\/~\//, "")
     .replace(/^\/+/, "")
     .replace(/\/+$/, "")
     .replace(/\.git$/, "");
   if (!host || !path) return undefined;
   // A web page is https, or http where the repository itself is served so; never ssh's.
   const scheme = parsed.protocol === "http:" ? "http:" : "https:";
-  const origin = `${scheme}//${parsed.host.toLowerCase()}`;
+  const webHost = parsed.protocol === "ssh:" ? host : parsed.host.toLowerCase();
+  const origin = `${scheme}//${webHost}`;
   const base = `${origin}/${path}`;
   if (host === "github.com" || host.startsWith("github.")) {
-    return { kind: "github", name: "GitHub", path, hooksPage: `${base}/settings/hooks/new` };
+    return {
+      kind: "github",
+      name: "GitHub",
+      path,
+      hooksPage: `${base}/settings/hooks/new`,
+      deployKeysPage: `${base}/settings/keys`,
+    };
   }
   if (host === "gitlab.com" || host.split(".").includes("gitlab")) {
-    return { kind: "gitlab", name: "GitLab", path, hooksPage: `${base}/-/hooks` };
+    return {
+      kind: "gitlab",
+      name: "GitLab",
+      path,
+      hooksPage: `${base}/-/hooks`,
+      deployKeysPage: `${base}/-/settings/repository#js-deploy-keys-settings`,
+    };
   }
   if (host === "bitbucket.org") {
-    return { kind: "bitbucket", name: "Bitbucket", path, hooksPage: `${base}/admin/webhooks` };
+    return {
+      kind: "bitbucket",
+      name: "Bitbucket",
+      path,
+      hooksPage: `${base}/admin/webhooks`,
+      deployKeysPage: `${base}/admin/access-keys`,
+    };
   }
-  return { kind: "gitea", name: host === "codeberg.org" ? "Codeberg" : "", path, hooksPage: `${base}/settings/hooks` };
+  if (host === "codeberg.org") {
+    return {
+      kind: "gitea",
+      name: "Codeberg",
+      path,
+      hooksPage: `${base}/settings/hooks`,
+      deployKeysPage: `${base}/settings/keys`,
+    };
+  }
+  if (host.split(".").includes("gitea")) {
+    return {
+      kind: "gitea",
+      name: "Gitea",
+      path,
+      hooksPage: `${base}/settings/hooks`,
+      deployKeysPage: `${base}/settings/keys`,
+    };
+  }
+  if (host.split(".").includes("forgejo")) {
+    return {
+      kind: "gitea",
+      name: "Forgejo",
+      path,
+      hooksPage: `${base}/settings/hooks`,
+      deployKeysPage: `${base}/settings/keys`,
+    };
+  }
+  return { kind: "gitea", name: "", path, hooksPage: `${base}/settings/hooks`, deployKeysPage: "" };
 }
 
 /**

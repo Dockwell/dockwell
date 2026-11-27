@@ -63,6 +63,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/dockerdaemon"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/gitdeploykey"
 	"github.com/dockwell/dockwell/internal/resource/githubapp"
 	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
 	serverhost "github.com/dockwell/dockwell/internal/resource/host"
@@ -453,19 +454,20 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	srv, err := control.New(control.Config{
 		// A test's Git server is on this machine, which a control plane's lookups
 		// otherwise never reach.
-		Sources:     &gitref.Resolver{Local: isSet(stdio.Getenv(envTest))},
-		Logger:      logger,
-		Build:       build,
-		CatalogDir:  stdio.Getenv(catalog.DirEnv),
-		Identity:    authority,
-		Fleet:       hub,
-		Standings:   recorder,
-		AgentHosts:  hosts,
-		Auth:        people,
-		Public:      public,
-		PanelListen: ls.API.Addr().String(),
-		PanelURL:    panelURL(addr),
-		PanelCA:     certificateAuthority(f),
+		Sources:      &gitref.Resolver{Local: isSet(stdio.Getenv(envTest))},
+		GitKeysLocal: isSet(stdio.Getenv(envTest)),
+		Logger:       logger,
+		Build:        build,
+		CatalogDir:   stdio.Getenv(catalog.DirEnv),
+		Identity:     authority,
+		Fleet:        hub,
+		Standings:    recorder,
+		AgentHosts:   hosts,
+		Auth:         people,
+		Public:       public,
+		PanelListen:  ls.API.Addr().String(),
+		PanelURL:     panelURL(addr),
+		PanelCA:      certificateAuthority(f),
 		// The ingress takes the public ports at the server's first route, and gives them
 		// back at its last, so the settings ask which holds them on each request.
 		PanelHandsOver:       handsOver,
@@ -710,7 +712,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string, saved func() string) *resource.Registry {
-	return resource.NewRegistry(&dockerdaemon.Driver{}, &container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, gitlabconnection.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, link.Type{}, appowner.Type{}, &database.UserDriver{}, &database.LogicalDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
+	return resource.NewRegistry(&dockerdaemon.Driver{}, &container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved, Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, gitlabconnection.Type{}, gitdeploykey.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, link.Type{}, appowner.Type{}, &database.UserDriver{}, &database.LogicalDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,

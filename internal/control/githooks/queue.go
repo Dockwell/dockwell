@@ -130,7 +130,14 @@ func (h *Handler) deploy(l *lane, j *job) {
 			h.end(ctx, &d, svc, store.HookIgnored, name+" doesn't build from Git now, so a push deploys nothing")
 			return
 		}
-		commit, _, err := h.cfg.Sources.Resolve(revision.WithGitLogin(ctx, b.GetGitLogin()), g.GetUrl(), g.GetRef())
+		svcScope := ""
+		_ = h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			if r, rerr := tx.GetResourceByID(ctx, svc); rerr == nil {
+				svcScope = r.Scope
+			}
+			return nil
+		})
+		commit, _, err := h.cfg.Sources.Resolve(revision.WithGitScope(revision.WithGitLogin(ctx, b.GetGitLogin()), svcScope), g.GetUrl(), g.GetRef())
 		if err != nil {
 			h.end(ctx, &d, svc, store.HookFailed, fmt.Sprintf("Dockwell can't read %s: %s", refName(d.Ref), message(err)))
 			return

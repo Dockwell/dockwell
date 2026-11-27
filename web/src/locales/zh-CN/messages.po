@@ -4953,6 +4953,169 @@ msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先
 msgid "Takes {0} in one plan, to review first."
 msgstr "在一个计划中删除 {0}，你会先审查它。"
 
+msgid "Accept host key and test"
+msgstr "接受主机密钥并测试"
+
+msgid "Accept new host key"
+msgstr "接受新主机密钥"
+
+msgid "Active public key"
+msgstr "当前公钥"
+
+msgid "Add this key alongside the current one (read-only), then test."
+msgstr "将此密钥与当前密钥一并添加（只读），然后测试。"
+
+msgid "Add this public key to your Git host (read-only), then test."
+msgstr "将此公钥添加到您的 Git 托管平台（只读），然后测试。"
+
+msgid "Add this public key to {hostName} (read-only), then test."
+msgstr "将此公钥添加到 {hostName}（只读），然后测试。"
+
+msgid "Cancel rotation"
+msgstr "取消轮换"
+
+msgid "Choose a project first."
+msgstr "请先选择一个项目。"
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "Compare <0>{obsAlgo}</0> <1>{obsFP}</1> with {0}'s published key."
+msgstr "请将 <0>{obsAlgo}</0> <1>{obsFP}</1> 与 {0} 公布的密钥进行比对。"
+
+msgid "Connect over SSH"
+msgstr "通过 SSH 连接"
+
+msgid "Connection test failed"
+msgstr "连接测试失败"
+
+msgid "Connection works"
+msgstr "连接正常"
+
+msgid "Copy key"
+msgstr "复制密钥"
+
+msgid "Copy new key"
+msgstr "复制新密钥"
+
+msgid "Couldn't create the deploy key"
+msgstr "无法创建部署密钥"
+
+msgid "Create a read-only deploy key for this project."
+msgstr "为此项目创建一个只读部署密钥。"
+
+msgid "Create a read-only deploy key to fetch this repository."
+msgstr "创建一个只读部署密钥以拉取此仓库。"
+
+msgid "Delete key"
+msgstr "删除密钥"
+
+#. placeholder {0}: hostName || current.host
+msgid "Deleting this key can't be undone. Remove it on {0} too."
+msgstr "删除此密钥无法撤销，也请从 {0} 上移除它。"
+
+#. placeholder {0}: key.name
+msgid "Deploy key <0>{0}</0>"
+msgstr "部署密钥 <0>{0}</0>"
+
+msgid "Deploy key error"
+msgstr "部署密钥错误"
+
+msgid "Deploy key rotated"
+msgstr "部署密钥已轮换"
+
+#. placeholder {0}: current.name
+msgid "Deploy key {0}"
+msgstr "部署密钥 {0}"
+
+msgid "Dockwell now uses the new key. Delete the old key (<0>{rotatedOldFP}</0>) from your Git host."
+msgstr "Dockwell 现已使用新密钥。请从你的 Git 托管平台删除旧密钥（<0>{rotatedOldFP}</0>）。"
+
+#. placeholder {0}: key.hostKeyFingerprint
+msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1> (pinned: <2>{0}</2>)."
+msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>（已固定：<2>{0}</2>）。"
+
+msgid "Fetches are stopped until an admin verifies <0>{obsAlgo}</0> <1>{obsFP}</1>."
+msgstr "拉取已停止，直到管理员验证 <0>{obsAlgo}</0> <1>{obsFP}</1>。"
+
+msgid "Host key changed"
+msgstr "主机密钥已变更"
+
+#. placeholder {0}: key.hostKeyFingerprint
+msgid "Host key pinned (<0>{0}</0>)."
+msgstr "主机密钥已固定（<0>{0}</0>）。"
+
+msgid "Host pinned"
+msgstr "主机已固定"
+
+msgid "Key copied"
+msgstr "已复制密钥"
+
+msgid "Key fingerprint"
+msgstr "密钥指纹"
+
+msgid "Key type"
+msgstr "密钥类型"
+
+msgid "Last rotated"
+msgstr "上次轮换"
+
+msgid "New key copied"
+msgstr "已复制新密钥"
+
+msgid "Not pinned yet"
+msgstr "尚未固定"
+
+msgid "Not tested yet"
+msgstr "尚未测试"
+
+msgid "Open deploy keys"
+msgstr "打开部署密钥设置"
+
+msgid "Open {hostName} deploy keys"
+msgstr "打开 {hostName} 部署密钥设置"
+
+msgid "Private repository"
+msgstr "私有仓库"
+
+#. placeholder {0}: lastTest.branches.length
+#. placeholder {1}: current.host
+msgid "Read {0} branches from {1}."
+msgstr "已从 {1} 读取 {0} 个分支。"
+
+msgid "Ready"
+msgstr "就绪"
+
+msgid "Repository"
+msgstr "仓库"
+
+msgid "Rotate key"
+msgstr "轮换密钥"
+
+msgid "SSH host key"
+msgstr "SSH 主机密钥"
+
+msgid "Test"
+msgstr "测试"
+
+msgid "Test connection"
+msgstr "测试连接"
+
+msgid "Test new key"
+msgstr "测试新密钥"
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "The SSH host key for {0} changed"
+msgstr "{0} 的 SSH 主机密钥已变更"
+
+msgid "Use a deploy key"
+msgstr "使用部署密钥"
+
+#. placeholder {0}: current.host
+#. placeholder {0}: key.host
+msgid "Verify {0}'s SSH host key"
+msgstr "验证 {0} 的 SSH 主机密钥"
+
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计划。"
 
@@ -6216,6 +6379,9 @@ msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保�
 msgid "{count, plural, one {Private, through {account} · # branch} other {Private, through {account} · # branches}}"
 msgstr "{count, plural, other {私有，通过 {account} · # 个分支}}"
 
+msgid "{count, plural, one {Private, with deploy key {deployKey} · # branch} other {Private, with deploy key {deployKey} · # branches}}"
+msgstr "{count, plural, one {私有，使用部署密钥 {deployKey} · # 个分支} other {私有，使用部署密钥 {deployKey} · # 个分支}}"
+
 msgid "{count, plural, one {Public · # branch} other {Public · # branches}}"
 msgstr "{count, plural, other {公开 · # 个分支}}"
 
@@ -6544,9 +6710,6 @@ msgstr "私有"
 msgid "Repositories"
 msgstr "仓库"
 
-msgid "Repository"
-msgstr "仓库"
-
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
 
@@ -6671,6 +6834,9 @@ msgstr "最近一次推送（{ago}）不是推送到 {name} 构建的分支。"
 msgid "Last push {ago}: {name} runs {commit} already."
 msgstr "最近一次推送（{ago}）：{name} 已在运行 {commit}。"
 
+msgid "Manage deploy key"
+msgstr "管理部署密钥"
+
 msgid "No push has come yet."
 msgstr "还没有收到推送。"
 
@@ -6692,6 +6858,9 @@ msgstr "Payload URL"
 msgid "Pushes to {branch} don't deploy {name}."
 msgstr "推送到 {branch} 不会部署 {name}。"
 
+msgid "Review deploy key"
+msgstr "查看部署密钥"
+
 msgid "Secret copied"
 msgstr "已复制密钥"
 
@@ -6712,6 +6881,9 @@ msgstr "GitHub 应用已无法访问 {name}。"
 
 msgid "The GitHub App was deleted on GitHub."
 msgstr "GitHub 应用已在 GitHub 上删除。"
+
+msgid "The SSH host key changed, so fetches are stopped."
+msgstr "SSH 主机密钥已变更，拉取已停止。"
 
 msgid "The hook now refuses pushes. Remove it from the repository too."
 msgstr "这个 Webhook 现在会拒绝推送。也请把它从仓库中移除。"
@@ -6739,6 +6911,9 @@ msgstr "通过 GitHub 应用"
 
 msgid "through the GitHub App on {account}"
 msgstr "通过 {account} 上的 GitHub 应用"
+
+msgid "with deploy key {keyName}"
+msgstr "使用部署密钥 {keyName}"
 
 msgid "{who} can't reach this panel's address."
 msgstr "{who} 无法访问这个面板的地址。"
@@ -8513,9 +8688,6 @@ msgstr "每月"
 
 msgid "No backups yet"
 msgstr "还没有备份"
-
-msgid "Not tested yet"
-msgstr "尚未测试"
 
 msgid "Not tested: {why}"
 msgstr "未测试：{why}"
@@ -12703,6 +12875,10 @@ msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub 
 msgstr "先通过 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
+msgstr "先在 {0} 上使用部署密钥 {deployKey} 构建 {repository} 的 {commit}（{ref}）。如果构建失败，当前运行的服务保持不变。"
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
 
@@ -12713,6 +12889,10 @@ msgstr "先通过 {account} 上的 GitHub 应用，在 {0} 上构建 {repository
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first, through the GitHub App. If the build fails, what runs stays as it is."
 msgstr "先通过 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, with deploy key {deployKey}. If the build fails, what runs stays as it is."
+msgstr "先在 {0} 上使用部署密钥 {deployKey} 构建 {repository} 的 {commit}。如果构建失败，当前运行的服务保持不变。"
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
@@ -16611,9 +16791,6 @@ msgstr "这台服务器没有镜像传输。"
 
 msgid "Reading image transfers"
 msgstr "正在读取镜像传输"
-
-msgid "Ready"
-msgstr "就绪"
 
 msgid "Retry transfers"
 msgstr "重试读取"
@@ -25433,6 +25610,12 @@ msgstr "{soon, plural, other {# 个将在两周内过期}}"
 msgid "A passkey may have been copied"
 msgstr "某个通行密钥可能已被复制"
 
+msgid "Accepted a changed SSH host key"
+msgstr "接受了变更后的 SSH 主机密钥"
+
+msgid "Accepted a changed SSH host key for {name}"
+msgstr "接受了 {name} 变更后的 SSH 主机密钥"
+
 msgid "Applied a change"
 msgstr "应用了一项变更"
 
@@ -25444,6 +25627,12 @@ msgstr "请求取消构建"
 
 msgid "Asked to cancel a build on {name}"
 msgstr "请求取消 {name} 上的构建"
+
+msgid "Cancelled a deploy key rotation"
+msgstr "取消了部署密钥轮换"
+
+msgid "Cancelled rotation of deploy key {name}"
+msgstr "取消了部署密钥 {name} 的轮换"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "更改了通行密钥的验证频率"
@@ -25469,6 +25658,18 @@ msgstr "无法用通行密钥确认"
 msgid "Couldn't sign in"
 msgstr "登录失败"
 
+msgid "Created a deploy key"
+msgstr "创建了部署密钥"
+
+msgid "Created deploy key {name}"
+msgstr "创建了部署密钥 {name}"
+
+msgid "Deleted a deploy key"
+msgstr "删除了部署密钥"
+
+msgid "Deleted deploy key {name}"
+msgstr "删除了部署密钥 {name}"
+
 msgid "Discarded a change"
 msgstr "舍弃了一项变更"
 
@@ -25480,6 +25681,12 @@ msgstr "结束了 {app} 更新的推迟"
 
 msgid "Made {name} the owner"
 msgstr "已将 {name} 设为所有者"
+
+msgid "Pinned an SSH host key"
+msgstr "固定了 SSH 主机密钥"
+
+msgid "Pinned the SSH host key for {name}"
+msgstr "固定了 {name} 的 SSH 主机密钥"
 
 msgid "Planned a change"
 msgstr "规划了一项变更"
@@ -25510,6 +25717,12 @@ msgstr "拒绝续签某台服务器的证书"
 
 msgid "Refused to renew the certificate of {name}"
 msgstr "拒绝续签 {name} 的证书"
+
+msgid "Rotated a deploy key"
+msgstr "轮换了部署密钥"
+
+msgid "Rotated deploy key {name}"
+msgstr "轮换了部署密钥 {name}"
 
 msgid "Saving {path}"
 msgstr "正在保存 {path}"
@@ -25549,6 +25762,12 @@ msgstr "开始打开终端"
 
 msgid "Started opening a terminal on {name}"
 msgstr "开始在 {name} 上打开终端"
+
+msgid "Started rotating a deploy key"
+msgstr "开始轮换部署密钥"
+
+msgid "Started rotating deploy key {name}"
+msgstr "开始轮换部署密钥 {name}"
 
 msgid "Stopped sign-in with codes after too many wrong ones"
 msgstr "错误次数过多，已停止使用验证码登录"

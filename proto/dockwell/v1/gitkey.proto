@@ -1,0 +1,304 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// GitDeployKeyService manages project-scoped Ed25519 SSH deploy keys for
+// building private Git repositories over SSH (ADR 0113). Private keys are
+// generated and sealed on the control plane (ADR 0022) and are never returned
+// by any API, CLI output, plan, log or error.
+service GitDeployKeyService {
+  option (dockwell.v1.nouns) = {
+    name: "git-keys"
+    help: "Project-scoped Ed25519 SSH deploy keys for private Git repositories. Dockwell generates the key, pins the host's SSH key on acceptance, and fetches over SSH from the control plane without exposing the private key."
+  };
+
+  // ListGitDeployKeys lists the SSH deploy keys belonging to a project.
+  rpc ListGitDeployKeys(ListGitDeployKeysRequest) returns (ListGitDeployKeysResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (google.api.http) = {get: "/v1/projects/{project}/git-deploy-keys"};
+  }
+
+  // CreateGitDeployKey generates a new Ed25519 SSH deploy key for a repository
+  // in the project and stores it sealed in the revision store. Requires a
+  // signed-in session and passkey step-up.
+  rpc CreateGitDeployKey(CreateGitDeployKeyRequest) returns (CreateGitDeployKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/projects/{project}/git-deploy-keys"
+      body: "*"
+    };
+  }
+
+  // TestGitDeployKey connects to the repository's SSH host, verifies or reports
+  // the host key fingerprint, optionally pins the accepted host key, tests
+  // authentication and lists branches. When use_pending is true and the test
+  // succeeds, the pending rotation key replaces the active key.
+  rpc TestGitDeployKey(TestGitDeployKeyRequest) returns (TestGitDeployKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/git-deploy-keys/{id}:test"
+      body: "*"
+    };
+  }
+
+  // BeginRotateGitDeployKey generates a pending replacement Ed25519 key while
+  // keeping the active key in use until TestGitDeployKey succeeds with the new
+  // key. Requires a signed-in session and passkey step-up.
+  rpc BeginRotateGitDeployKey(BeginRotateGitDeployKeyRequest) returns (BeginRotateGitDeployKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-deploy-keys/{id}:begin-rotate"
+      body: "*"
+    };
+  }
+
+  // CancelRotateGitDeployKey discards a pending replacement key without
+  // affecting the active key.
+  rpc CancelRotateGitDeployKey(CancelRotateGitDeployKeyRequest) returns (CancelRotateGitDeployKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (google.api.http) = {
+      post: "/v1/git-deploy-keys/{id}:cancel-rotate"
+      body: "*"
+    };
+  }
+
+  // DeleteGitDeployKey deletes an unused deploy key from the project. Requires
+  // a signed-in session and passkey step-up.
+  rpc DeleteGitDeployKey(DeleteGitDeployKeyRequest) returns (DeleteGitDeployKeyResponse) {
+    option (dockwell.v1.command) = {noun: "git-keys"};
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/git-deploy-keys/{id}:delete"
+      body: "*"
+    };
+  }
+}
+
+// GitDeployKeyInfo is the public view of an SSH deploy key. Private keys are
+// never included.
+message GitDeployKeyInfo {
+  // Resource ID, gdk_….
+  string id = 1;
+  // Key name within the project, used in ImageBuild.git_login as "ssh:<name>".
+  string name = 2;
+  // Project ID that owns this key.
+  string project_id = 3;
+  // Normalized SSH repository URL.
+  string repository = 4;
+  // SSH host.
+  string host = 5;
+  // Effective SSH port.
+  uint32 port = 6;
+  // Effective SSH user.
+  string user = 7;
+  // Key type, such as "ssh-ed25519".
+  string key_type = 8;
+  // OpenSSH public key line to paste on the Git host.
+  string public_key = 9;
+  // SHA-256 fingerprint of the active deploy key.
+  string key_fingerprint = 10;
+  // Pinned host key type (empty until accepted).
+  string host_key_algorithm = 11;
+  // Pinned host key SHA-256 fingerprint (empty until accepted).
+  string host_key_fingerprint = 12;
+  // True once the host key has been pinned.
+  bool host_key_pinned = 13;
+  // True if a fetch observed a different host key than the pinned one.
+  bool host_key_changed = 14;
+  // Newly observed host key type when host_key_changed is true.
+  string observed_host_key_algorithm = 15;
+  // Newly observed host key fingerprint when host_key_changed is true.
+  string observed_host_key_fingerprint = 16;
+  // When the deploy key was created.
+  google.protobuf.Timestamp create_time = 17;
+  // When the deploy key was last rotated, if ever.
+  google.protobuf.Timestamp rotate_time = 18;
+  // Pending replacement public key during rotation (empty when not rotating).
+  string pending_public_key = 19;
+  // Key type of the pending replacement key.
+  string pending_key_type = 20;
+  // SHA-256 fingerprint of the pending replacement key.
+  string pending_key_fingerprint = 21;
+  // When the pending replacement key was generated.
+  google.protobuf.Timestamp pending_create_time = 22;
+  // Deploy-keys settings page URL for recognized Git hosts, or empty.
+  string deploy_keys_url = 23;
+  // Recognized Git host display name (for example "GitHub", "GitLab"), or empty.
+  string host_name = 24;
+  // Value for ImageBuild.git_login ("ssh:<name>").
+  string git_login = 25;
+  // Service names in this project that currently use this deploy key.
+  repeated string used_by = 26;
+  // Current resource revision.
+  int64 revision = 27;
+  // True once a connection test with this deploy key has succeeded and no host
+  // key change is pending.
+  bool verified = 28;
+  // When a connection test last succeeded, if ever.
+  google.protobuf.Timestamp verify_time = 29;
+}
+
+// GitDeployKeyTestStatus describes the outcome of TestGitDeployKey.
+enum GitDeployKeyTestStatus {
+  GIT_DEPLOY_KEY_TEST_STATUS_UNSPECIFIED = 0;
+  // Connection, host key verification, SSH authentication and ref listing all succeeded.
+  GIT_DEPLOY_KEY_TEST_STATUS_OK = 1;
+  // First connection: host key fingerprint must be inspected and accepted before signing in.
+  GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_UNVERIFIED = 2;
+  // The host presented a different key than the pinned fingerprint.
+  GIT_DEPLOY_KEY_TEST_STATUS_HOST_KEY_CHANGED = 3;
+  // SSH authentication failed (the public key has not been added to the host).
+  GIT_DEPLOY_KEY_TEST_STATUS_AUTH_FAILED = 4;
+  // SSH signed in, but the repository was not found or the key has no access to it.
+  GIT_DEPLOY_KEY_TEST_STATUS_REPOSITORY_UNAVAILABLE = 5;
+  // The host could not be reached or was refused by netguard.
+  GIT_DEPLOY_KEY_TEST_STATUS_UNREACHABLE = 6;
+}
+
+// ListGitDeployKeysRequest names the project whose deploy keys to list.
+message ListGitDeployKeysRequest {
+  // Project ID or name.
+  string project = 1;
+}
+
+// ListGitDeployKeysResponse lists the project's deploy keys.
+message ListGitDeployKeysResponse {
+  repeated GitDeployKeyInfo keys = 1;
+}
+
+// CreateGitDeployKeyRequest creates a deploy key for a repository in a project.
+message CreateGitDeployKeyRequest {
+  // Project ID or name.
+  string project = 1;
+  // Repository address (ssh://, git@host:path, or https:// which converts to SSH).
+  string repository = 2;
+  // Optional key name within the project; derived from repository when empty.
+  string name = 3;
+  // Passkey step-up proof for STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY.
+  string proof = 4;
+}
+
+// CreateGitDeployKeyResponse returns the created deploy key and its change ID.
+message CreateGitDeployKeyResponse {
+  GitDeployKeyInfo key = 1;
+  string change_id = 2;
+}
+
+// TestGitDeployKeyRequest tests an SSH deploy key and optionally pins a host
+// key or promotes a pending rotated key.
+message TestGitDeployKeyRequest {
+  // Deploy key ID (gdk_…).
+  string id = 1;
+  // Accept and pin the presented host key (matching host_key_fingerprint and
+  // host_key_algorithm). Accepting a changed host key requires an admin/owner
+  // and a passkey step-up proof.
+  bool accept_host_key = 2;
+  // Host key SHA-256 fingerprint being accepted.
+  string host_key_fingerprint = 3;
+  // Host key algorithm being accepted.
+  string host_key_algorithm = 4;
+  // Test the pending replacement key and switch to it if the test succeeds.
+  bool use_pending = 5;
+  // Passkey step-up proof for STEP_UP_ACTION_ACCEPT_GIT_HOST_KEY when accepting
+  // a changed host key.
+  string proof = 6;
+}
+
+// TestGitDeployKeyResponse reports the test outcome, observed host key and branches.
+message TestGitDeployKeyResponse {
+  GitDeployKeyTestStatus status = 1;
+  // Plain-language fact, consequence and fix when status is not OK.
+  string message = 2;
+  // Host key algorithm observed during this test.
+  string observed_host_key_algorithm = 3;
+  // Host key SHA-256 fingerprint observed during this test.
+  string observed_host_key_fingerprint = 4;
+  // Branches listed from the repository when status is OK (default first, up to 500).
+  repeated string branches = 5;
+  // Default branch name when status is OK.
+  string default_branch = 6;
+  // Total branch count when more than listed.
+  int32 total = 7;
+  // Updated deploy key view.
+  GitDeployKeyInfo key = 8;
+  // True when use_pending succeeded and replaced the active key.
+  bool promoted = 9;
+  // SHA-256 fingerprint of the retired key when promoted is true.
+  string old_key_fingerprint = 10;
+  // Change ID if this test persisted a pin or promoted a rotated key.
+  string change_id = 11;
+}
+
+// BeginRotateGitDeployKeyRequest starts rotating a deploy key.
+message BeginRotateGitDeployKeyRequest {
+  // Deploy key ID (gdk_…).
+  string id = 1;
+  // Passkey step-up proof for STEP_UP_ACTION_ROTATE_GIT_DEPLOY_KEY.
+  string proof = 2;
+}
+
+// BeginRotateGitDeployKeyResponse returns the key with its pending public key.
+message BeginRotateGitDeployKeyResponse {
+  GitDeployKeyInfo key = 1;
+  string change_id = 2;
+}
+
+// CancelRotateGitDeployKeyRequest cancels an in-progress rotation.
+message CancelRotateGitDeployKeyRequest {
+  // Deploy key ID (gdk_…).
+  string id = 1;
+}
+
+// CancelRotateGitDeployKeyResponse returns the updated key.
+message CancelRotateGitDeployKeyResponse {
+  GitDeployKeyInfo key = 1;
+  string change_id = 2;
+}
+
+// DeleteGitDeployKeyRequest deletes an unused deploy key.
+message DeleteGitDeployKeyRequest {
+  // Deploy key ID (gdk_…).
+  string id = 1;
+  // Passkey step-up proof for STEP_UP_ACTION_DELETE_GIT_DEPLOY_KEY.
+  string proof = 2;
+}
+
+// DeleteGitDeployKeyResponse reports the deleted key's fingerprint and host page.
+message DeleteGitDeployKeyResponse {
+  string old_key_fingerprint = 1;
+  string deploy_keys_url = 2;
+  string change_id = 3;
+}

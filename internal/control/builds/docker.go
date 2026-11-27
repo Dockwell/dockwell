@@ -33,6 +33,9 @@ func (h *Handler) ResolveDockerGit(ctx context.Context, input *v1.DockerImageGit
 	if err := service.CheckBuild(spec); err != nil {
 		return nil, "", authapi.Invalid(err)
 	}
+	if service.IsSSHRepository(spec.GetGit().GetUrl()) || strings.HasPrefix(g.GetGitLogin(), service.SSHLoginPrefix) {
+		return nil, "", authapi.Invalid(errors.New("standalone Docker image builds fetch HTTPS repositories, so an SSH repository or deploy key can't be used here. Build this repository as an app instead"))
+	}
 	if h.sources == nil {
 		return nil, "", connect.NewError(connect.CodeUnavailable, errors.New("repository sources are unavailable"))
 	}
@@ -45,7 +48,7 @@ func (h *Handler) ResolveDockerGit(ctx context.Context, input *v1.DockerImageGit
 	if err != nil {
 		return nil, "", err
 	}
-	commit, ref, err := h.sources.Resolve(revision.WithGitLogin(ctx, g.GetGitLogin()), g.GetRepository(), spec.GetGit().GetRef())
+	commit, ref, err := h.sources.Resolve(revision.WithGitScope(revision.WithGitLogin(ctx, g.GetGitLogin()), project), g.GetRepository(), spec.GetGit().GetRef())
 	if err != nil {
 		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("the selected Git ref could not be resolved"))
 	}

@@ -26,9 +26,16 @@ export function shortCommit(commit: string): string {
   return commit.slice(0, 7);
 }
 
-/** A repository as people read it: github.com/acme/web, with no scheme or .git. */
+/** A repository as people read it: github.com/acme/web, with no scheme, SSH user, or .git. */
 export function shownRepository(url: string): string {
-  return url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+  const trimmed = url.trim();
+  const scp = /^[\w.-]+@([^:/]+):(.+)$/.exec(trimmed);
+  if (scp) return `${scp[1]}/${scp[2]}`.replace(/\/+$/, "").replace(/\.git$/, "");
+  return trimmed
+    .replace(/^https?:\/\//, "")
+    .replace(/^ssh:\/\/(?:[^/@]+@)?/, "")
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "");
 }
 
 /** How a build stands, as a status and a word. */

@@ -29,7 +29,8 @@ import { CopyButton } from "../system/CopyCommand";
 import { useApp, useRevisions } from "./AppContext";
 import { environmentOf, nameOf } from "./app";
 import { shortCommit, shownRepository } from "./Build";
-import { type GitHost, gitHost, hookOutOfReach } from "./gitHost";
+import { DeployKeySheet, useGitDeployKeys } from "./DeployKeyPanel";
+import { deployKeyNameOf, type GitHost, gitHost, hookOutOfReach } from "./gitHost";
 import { sameRepository } from "./RepositoryField";
 import { usePlaces } from "./useServices";
 
@@ -60,13 +61,61 @@ export function SourcePanel() {
               <code>{shownRepository(source.url)}</code>
             )}
             <Tag icon="branch">{shownRef(source.ref) || t`default branch`}</Tag>
-            {build?.gitLogin ? <ThroughApp login={build.gitLogin} url={source.url} /> : null}
+            {build?.gitLogin ? (
+              deployKeyNameOf(build.gitLogin) ? (
+                <WithDeployKey login={build.gitLogin} />
+              ) : (
+                <ThroughApp login={build.gitLogin} url={source.url} />
+              )
+            ) : null}
           </dd>
           <LastCommit serviceId={service.id} source={source} />
         </dl>
         <DeployOnPush source={source} host={host} />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Which project SSH deploy key a private repository is fetched with, with a
+ * button to inspect, test or rotate it, and a warning when the host key changed
+ * (ADR 0113).
+ */
+function WithDeployKey({ login }: { login: string }) {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const places = usePlaces();
+  const keyName = deployKeyNameOf(login) ?? "";
+  const project = places.place(environmentOf(service))?.scope ?? "";
+  const keys = useGitDeployKeys(project);
+  const found = keys.data?.keys.find((k) => k.name === keyName);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {found?.hostKeyChanged ? (
+        <span className="app-source-line is-warning">
+          <Icon name="alert" size={14} />
+          <span>{t`The SSH host key changed, so fetches are stopped.`}</span>
+          <button type="button" className="app-panel-link" onClick={() => setOpen(true)}>
+            {t`Review deploy key`}
+          </button>
+        </span>
+      ) : (
+        <span className="app-source-line">
+          <span className="app-muted">{t`with deploy key ${keyName}`}</span>
+          {found ? (
+            <button type="button" className="app-panel-link" onClick={() => setOpen(true)}>
+              {t`Manage deploy key`}
+            </button>
+          ) : null}
+        </span>
+      )}
+      {open && found ? (
+        <DeployKeySheet deployKey={found} onChanged={() => void keys.refetch()} onClose={() => setOpen(false)} />
+      ) : null}
+    </>
   );
 }
 

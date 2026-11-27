@@ -3,6 +3,7 @@
 package gitref
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -57,11 +58,23 @@ func TestResolveSaysWhatIsWrongWithTheRepository(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "no repository at") && !strings.Contains(err.Error(), "wants credentials") {
 		t.Errorf("a repository that isn't there says %v", err)
 	}
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Errorf("404 error does not match ErrAuthRequired: %v", err)
+	}
+	if strings.Contains(err.Error(), ErrAuthRequired.Error()) {
+		t.Errorf("404 error leaks raw sentinel text: %v", err)
+	}
 	private := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) }))
 	defer private.Close()
 	_, _, err = (&Resolver{Local: true}).Resolve(t.Context(), private.URL+"/acme/secret", "main")
 	if err == nil || !strings.Contains(err.Error(), "wants credentials, so it's private") {
 		t.Errorf("a private repository says %v", err)
+	}
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Errorf("401 error does not match ErrAuthRequired: %v", err)
+	}
+	if strings.Contains(err.Error(), ErrAuthRequired.Error()) {
+		t.Errorf("401 error leaks raw sentinel text: %v", err)
 	}
 	notGit := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/x-git-upload-pack-advertisement")

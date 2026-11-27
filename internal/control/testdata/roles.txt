@@ -217,6 +217,12 @@ FirewallService.ListServerSshKeys                    read         admin      adm
 FirewallService.ListServerSshLogins                  read         admin      admin      install  session
 FirewallService.ListServerSshSessions                read         admin      admin      install  session
 FirewallService.SetFail2banAddressBan                destructive  admin      admin      install  session
+GitDeployKeyService.BeginRotateGitDeployKey          apply        developer  admin      project  session
+GitDeployKeyService.CancelRotateGitDeployKey         apply        developer  developer  project
+GitDeployKeyService.CreateGitDeployKey               apply        developer  admin      project  session
+GitDeployKeyService.DeleteGitDeployKey               destructive  developer  admin      project  session
+GitDeployKeyService.ListGitDeployKeys                read         viewer     viewer     project
+GitDeployKeyService.TestGitDeployKey                 apply        developer  developer  project
 GitHookService.CreateGitHook                         apply        developer  admin      project  session
 GitHookService.DeleteGitHook                         apply        developer  developer  project
 GitHookService.GetGitHook                            read         viewer     viewer     project
