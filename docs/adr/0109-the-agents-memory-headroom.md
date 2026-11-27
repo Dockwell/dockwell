@@ -84,6 +84,6 @@ In successive pilots, changing to 31 KiB payloads lowered the whole-run reading 
 | Main | 39.6, 39.3, 38.9 MB | 39.3 MB |
 | Transfer changes | 38.7, 38.7, 38.5 MB | 38.7 MB |
 
-The median dropped by 0.6 MB. The follow-up gate needs a 1.5 MB median reduction and a peak of 38.5 MB or less in each run. The branch remains local because the measured reduction and two peaks missed those targets.
+The original follow-up gate called for a 1.5 MB median reduction and a peak of 38.5 MB or less in each run. The measured reduction was 0.6 MB and two runs peaked at 38.7 MB, so the original gate was missed.
 
-The idle standalone median was 34.3 MB on the branch and 34.7 MB on main. Both builds reached 47.6 MB in the log search load and 37.8 MiB in the forwarding load.
+The changes are accepted for the measured improvement over main. Transfer peaks were lower in all three alternating pairs, with a 0.6 MB lower median. The idle standalone median was 34.3 MB on the branch and 34.7 MB on main, a reduction of 0.4 MB. Both builds reached 47.6 MB in the log search load and 37.8 MiB in the forwarding load.
