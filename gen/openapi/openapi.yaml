@@ -3381,6 +3381,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:boundLogs:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                BoundClickHouseLogs plans a restart with bounded server logging and system log
+                 writers disabled. Existing data, including old system log tables, stays.
+            operationId: DatabaseService_BoundClickHouseLogs
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BoundClickHouseLogsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BoundClickHouseLogsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/databases/{id}:changePassword:
         post:
             tags:
@@ -13950,6 +13983,22 @@ components:
                         - $ref: '#/components/schemas/Upload'
                     description: The upload.
             description: BeginUploadResponse is the upload begun, or as it stands.
+        BoundClickHouseLogsRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                project:
+                    type: string
+                environment:
+                    type: string
+            description: BoundClickHouseLogsRequest identifies the ClickHouse service.
+        BoundClickHouseLogsResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: BoundClickHouseLogsResponse holds the plan to bound logging.
         Build:
             type: object
             properties:
@@ -18563,6 +18612,12 @@ components:
                     description: |-
                         ClickHouse's active account uses plaintext authentication. Its XML config can
                          persist that password inside the data volume.
+                clickhousePasswordVerified:
+                    type: boolean
+                    description: A successful reading and an explicit refusal of an empty password.
+                clickhouseUnboundedLogs:
+                    type: boolean
+                    description: The running ClickHouse configuration writes unbounded system logs or verbose server logs.
             description: DatabaseReading is what a database said of itself on one server.
         DatabaseUser:
             type: object

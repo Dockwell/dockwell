@@ -100,7 +100,7 @@ func (h *Handler) SetDatabaseExternalAccess(ctx context.Context, req *connect.Re
 	if database.Of(db.db.GetEngine()).ClickHouse() {
 		h.read(ctx, []*placed{db})
 		if len(db.db.GetReadings()) == 0 || slices.ContainsFunc(db.db.GetReadings(), func(r *dockwellv1.DatabaseReading) bool {
-			return r.GetUnread() != "" || r.GetChecksNoOne()
+			return r.GetUnread() != "" || !r.GetClickhousePasswordVerified() || r.GetChecksNoOne()
 		}) {
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 				fmt.Errorf("password protection for %s could not be verified. Set a password before you open external access", ref.Name), "password_required")

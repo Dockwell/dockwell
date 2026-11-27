@@ -4,8 +4,8 @@ package control
 
 import (
 	"bytes"
-	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +16,7 @@ import (
 	spec "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -62,6 +63,9 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 		f.engine.Registry[image] = dockertest.Image{
 			Volumes: []string{"/var/lib/clickhouse"},
 			Exec: func(x dockertest.Exec) int {
+				if slices.Contains(x.Cmd, "--config-file=/dev/stdin") {
+					return clickHouseProbeResult(x, false)
+				}
 				_, _ = io.WriteString(x.Stdout, "{\"version\":\"25.8.33.6\",\"user\":\"default\"}\n{\"name\":\"default\",\"engine\":\"Atomic\"}\n")
 				return 0
 			},
@@ -262,8 +266,17 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		const image = "clickhouse/clickhouse-server:24.12.6.70-alpine"
 		f.engine.Registry[image] = dockertest.Image{
 			Exec: func(x dockertest.Exec) int {
-				open := !slices.ContainsFunc(x.Env, func(v string) bool { return strings.HasPrefix(v, "CLICKHOUSE_PASSWORD=") })
-				_, _ = fmt.Fprintf(x.Stdout, "{\"version\":\"24.12.6.70\",\"user\":\"default\",\"checks_no_one\":%t}\n{\"name\":\"analytics\",\"engine\":\"Atomic\"}\n", open)
+				_, protected := x.Volumes[database.ClickHouseAuthTarget]
+				if slices.Contains(x.Cmd, "--config-file=/dev/stdin") {
+					return clickHouseProbeResult(x, !protected)
+				}
+				if protected {
+					_, _ = io.WriteString(x.Stdout, `{"version":"25.8.33.6","user":"default","plaintext_password":false,"unbounded_logs":true}`+"\n")
+				} else {
+					// The pinned binary's inventory row on its stock users.xml.
+					_, _ = io.WriteString(x.Stdout, `{"version":"25.8.33.6","user":"default","uptime":2,"size_bytes":526528,"connections":1,"max_connections":4096,"hits":0,"misses":0,"plaintext_password":true,"unbounded_logs":true,"unlisted":0}`+"\n")
+				}
+				_, _ = io.WriteString(x.Stdout, `{"name":"analytics","engine":"Atomic"}`+"\n")
 				return 0
 			},
 		}
@@ -318,7 +331,9 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 			}
 			return out.Msg.GetDatabase()
 		}
-		if db := get(); db.GetEngine() != v1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE || !db.GetReadings()[0].GetChecksNoOne() {
+		if db := get(); db.GetEngine() != v1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE || !db.GetReadings()[0].GetChecksNoOne() ||
+			db.GetReadings()[0].GetClickhousePlaintextPassword() || db.GetReadings()[0].GetClickhousePasswordVerified() ||
+			!db.GetReadings()[0].GetClickhouseUnboundedLogs() {
 			t.Fatal("the catalog-shaped passwordless server was not recognized")
 		}
 		if _, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&v1.SetDatabaseExternalAccessRequest{
@@ -357,7 +372,7 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		))
 		across := proto.CloneOf(request)
 		across.AppProject, across.AppEnvironment = project, otherEnv
-		if _, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(across)); reasonOf(err) != "password_required" {
+		if _, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(across)); reasonOf(err) != "administered" {
 			t.Fatalf("linking passwordless ClickHouse across environments: %v", err)
 		}
 		openLink, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(request))
@@ -367,12 +382,18 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		second := proto.CloneOf(request)
 		second.App, second.Link = "worker", "another"
 		second.Sets = map[string]spec.LinkPart{"SECOND_URL": spec.LinkPart_LINK_PART_URL}
-		otherLink, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(second))
-		if err != nil {
-			t.Fatal(err)
+		if _, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(second)); reasonOf(err) != "administered" {
+			t.Fatalf("another app linked before the companion: %v", err)
 		}
+		otherPlan := propose(t, f.changes, "Plan a competing link", &v1.Edit{
+			Resource: &v1.ResourceRef{Kind: "link", Scope: appEnv, Name: "another"},
+			Spec: &spec.Spec{Kind: &spec.Spec_Link{Link: &spec.Link{
+				Label: "Database", Service: "events", Engine: spec.LinkEngine_LINK_ENGINE_CLICKHOUSE, User: "default",
+				Accepts: []*spec.LinkAccept{{Engine: spec.LinkEngine_LINK_ENGINE_CLICKHOUSE}},
+				Sets:    []*spec.LinkSet{{Name: "SECOND_URL", Part: spec.LinkPart_LINK_PART_URL, Template: "http://{host}:{port}/{database}"}},
+			}}},
+		})
 		applyConfirmed(t, f.changes, openLink.Msg.GetChange())
-		otherPlan := otherLink.Msg.GetChange()
 		if _, err := f.changes.ApplyChange(t.Context(), connect.NewRequest(&v1.ApplyChangeRequest{
 			Id: otherPlan.GetId(), Fingerprint: otherPlan.GetPlan().GetFingerprint(),
 		})); err == nil || !strings.Contains(err.Error(), "already has an app link") {
@@ -397,7 +418,7 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		storageScope(t, change, "secret", "EVENTS_CLICKHOUSE_PASSWORD")
 		storageScope(t, change, "service", "web")
 		applyConfirmed(t, f.changes, change)
-		if db := get(); db.GetPasswordSecret() == "" || db.GetReadings()[0].GetChecksNoOne() || db.GetReadings()[0].GetUnread() != "" {
+		if db := get(); db.GetPasswordSecret() == "" || db.GetReadings()[0].GetChecksNoOne() || !db.GetReadings()[0].GetClickhousePasswordVerified() {
 			t.Fatalf("the ClickHouse password was not set: %v", db.GetReadings())
 		}
 		if !slices.ContainsFunc(f.workload(t, appEnv).Config.Env, func(v string) bool {
@@ -407,11 +428,11 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		}
 		checkURL("http://default:")
 
-		if _, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(second)); err == nil || !strings.Contains(err.Error(), "already has an app link") {
-			t.Fatalf("a second administrator link: %v", err)
-		}
 		openResource := storageScope(t, openLink.Msg.GetChange(), "link", "events").GetResource()
 		applyConfirmed(t, f.changes, propose(t, f.changes, "Remove the original link", &v1.Edit{Resource: openResource, Delete: true}))
+		if _, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(second)); reasonOf(err) != "administered" {
+			t.Fatalf("another app linked despite the companion's password-backed URL: %v", err)
+		}
 		request.Link = "protected"
 		link, err := dc.ConnectDatabase(t.Context(), connect.NewRequest(request))
 		if err != nil {
@@ -419,5 +440,146 @@ func TestClickHouseTakeOnAndSetPassword(t *testing.T) {
 		}
 		applyConfirmed(t, f.changes, link.Msg.GetChange())
 		checkURL("http://default:")
+
+		logs, err := dc.BoundClickHouseLogs(t.Context(), connect.NewRequest(&v1.BoundClickHouseLogsRequest{Id: server.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		applyConfirmed(t, f.changes, logs.Msg.GetChange())
+		if reading := get().GetReadings()[0]; reading.GetClickhouseUnboundedLogs() || !reading.GetClickhousePasswordVerified() {
+			t.Fatalf("limiting logs did not preserve the protected database: %v", reading)
+		}
+
+		if _, err := f.changes.ProposeChange(t.Context(), connect.NewRequest(&v1.ProposeChangeRequest{
+			Summary: "Clear the password", Edits: []*v1.Edit{
+				{
+					Resource: &v1.ResourceRef{Kind: "variable", Scope: appEnv, Name: "EMPTY_SETTING"},
+					Spec:     &spec.Spec{Kind: &spec.Spec_Variable{Variable: &spec.Variable{}}},
+				},
+				{
+					Resource: &v1.ResourceRef{Kind: "secret", Scope: appEnv, Name: "EVENTS_CLICKHOUSE_PASSWORD"},
+					Spec: &spec.Spec{Kind: &spec.Spec_Secret{Secret: &spec.Secret{From: &spec.ValueFrom{
+						Source: &spec.ValueFrom_Template{Template: &spec.ValueTemplate{Text: "${EMPTY_SETTING}", Names: []*spec.TemplateName{{Name: "EMPTY_SETTING"}}}},
+					}}}},
+				},
+			},
+		})); err == nil || !strings.Contains(err.Error(), database.EmptyClickHouseCredential) {
+			t.Fatalf("planning an empty password: %v", err)
+		}
+	})
+}
+
+func clickHouseProbeResult(x dockertest.Exec, open bool) int {
+	config, _ := io.ReadAll(x.Stdin)
+	if string(config) != "<clickhouse/>" || !slices.Contains(x.Env, "CLICKHOUSE_PASSWORD=") {
+		return 1
+	}
+	if open {
+		_, _ = io.WriteString(x.Stdout, "1\n")
+		return 0
+	}
+	_, _ = io.WriteString(x.Stderr, "Code: 516. DB::Exception: Authentication failed. (AUTHENTICATION_FAILED)\n")
+	return 1
+}
+
+func TestClickHouseRotationKeepsImageUserSettings(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		f := storageControl(t, b, nil, "")
+		const image = "clickhouse/clickhouse-server:25.8.33.6-alpine"
+		f.engine.Registry[image] = dockertest.Image{
+			Exec: func(x dockertest.Exec) int {
+				if slices.Contains(x.Cmd, "--config-file=/dev/stdin") {
+					return clickHouseProbeResult(x, false)
+				}
+				_, _ = io.WriteString(x.Stdout, "{\"version\":\"25.8.33.6\",\"user\":\"analytics\",\"plaintext_password\":true}\n")
+				return 0
+			},
+		}
+		start := propose(t, f.changes, "Take on a database with a custom administrator", &v1.Edit{
+			Resource: &v1.ResourceRef{Kind: "service", Name: "events"},
+			Spec: &spec.Spec{Kind: &spec.Spec_Service{Service: &spec.Service{
+				Runs: &spec.Service_App{App: &spec.Container{Image: image, Env: map[string]string{
+					"CLICKHOUSE_USER": "analytics", "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1", "CLICKHOUSE_PASSWORD": "fixture-value",
+				}}},
+			}}},
+		})
+		applyConfirmed(t, f.changes, start)
+		server := storageScope(t, start, "service", "events")
+		dc := databaseClient(f.person, f.person.origin)
+		plan, err := dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&v1.ChangeDatabasePasswordRequest{Id: server.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		applyConfirmed(t, f.changes, plan.Msg.GetChange())
+		app := f.engine.Newest(docker.Project(server.GetResource().GetScope()), "events")
+		if app == nil || !slices.Contains(app.Config.Env, "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1") {
+			t.Fatal("rotation lost the administrator's access-management setting")
+		}
+		for _, m := range app.Mounts {
+			if m.Destination != database.ClickHouseAuthTarget || m.RW {
+				continue
+			}
+			body, err := os.ReadFile(m.Source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, fragment := range []string{
+				"<analytics>", "<profile>default</profile>", "<quota>default</quota>", "<ip>::/0</ip>",
+				`<access_management from_env="CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT"/>`,
+			} {
+				if !bytes.Contains(body, []byte(fragment)) {
+					t.Errorf("users config is missing %s", fragment)
+				}
+			}
+			return
+		}
+		t.Fatal("rotation did not mount a read-only users config")
+	})
+}
+
+func TestClickHouseCatalogUpgradeKeepsSetPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		const events = "clickhouse/clickhouse-server:25.8.33.6-alpine@sha256:" + digest1
+		entry := func(release int, version, web, command string) string {
+			compose := testEntry(release, version, web, "    events:\n      image: "+events+"\n"+
+				"      environment:\n        CLICKHOUSE_SKIP_USER_SETUP: '1'\n"+command)
+			return strings.Replace(compose, "        PASSWORD: ${PASSWORD}\n",
+				"        PASSWORD: ${PASSWORD}\n        CLICKHOUSE_DATABASE_URL: http://events:8123/analytics\n", 1)
+		}
+		u := startUpgrading(t, b, entry(1, "1.0", firstRelease, "      command: [\"sh\", \"-c\", \"printf ready && exec /entrypoint.sh\"]\n"))
+		dc := databaseClient(u.b, u.b.origin)
+		plan, err := dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&v1.ChangeDatabasePasswordRequest{
+			Id: "events", Project: "thing",
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		u.applied(plan.Msg.GetChange())
+		before := u.e.Newest(docker.Project(u.env), "events")
+		credentials := func(c *docker.Container, key string) string {
+			for _, v := range c.Config.Env {
+				if value, ok := strings.CutPrefix(v, key+"="); ok {
+					return value
+				}
+			}
+			return ""
+		}
+		password := credentials(before, "CLICKHOUSE_PASSWORD")
+		if password == "" || !database.ClickHouseAuthWrapped(before.Config.Cmd) {
+			t.Fatal("the password plan did not prepare the catalog database")
+		}
+		u.release(entry(2, "2.0", secondRelease, ""))
+		u.applied(u.upgrade())
+		after := u.e.Newest(docker.Project(u.env), "events")
+		if !database.ClickHouseAuthWrapped(after.Config.Cmd) || credentials(after, "CLICKHOUSE_PASSWORD") != password ||
+			credentials(after, "CLICKHOUSE_SKIP_USER_SETUP") != "1" ||
+			!slices.ContainsFunc(after.Mounts, func(m docker.MountPoint) bool {
+				return m.Destination == database.ClickHouseAuthTarget && !m.RW
+			}) {
+			t.Fatal("the upgrade dropped the local database authentication")
+		}
+		if got := credentials(u.web(), "CLICKHOUSE_DATABASE_URL"); !strings.HasPrefix(got, "http://default:"+password+"@events:8123/") {
+			t.Fatal("the upgraded companion lost its password-backed URL")
+		}
 	})
 }

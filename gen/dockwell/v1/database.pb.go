@@ -425,8 +425,12 @@ type DatabaseReading struct {
 	// ClickHouse's active account uses plaintext authentication. Its XML config can
 	// persist that password inside the data volume.
 	ClickhousePlaintextPassword bool `protobuf:"varint,20,opt,name=clickhouse_plaintext_password,json=clickhousePlaintextPassword,proto3" json:"clickhouse_plaintext_password,omitempty"`
-	unknownFields               protoimpl.UnknownFields
-	sizeCache                   protoimpl.SizeCache
+	// A successful reading and an explicit refusal of an empty password.
+	ClickhousePasswordVerified bool `protobuf:"varint,21,opt,name=clickhouse_password_verified,json=clickhousePasswordVerified,proto3" json:"clickhouse_password_verified,omitempty"`
+	// The running ClickHouse configuration writes unbounded system logs or verbose server logs.
+	ClickhouseUnboundedLogs bool `protobuf:"varint,22,opt,name=clickhouse_unbounded_logs,json=clickhouseUnboundedLogs,proto3" json:"clickhouse_unbounded_logs,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *DatabaseReading) Reset() {
@@ -595,6 +599,20 @@ func (x *DatabaseReading) GetContainer() string {
 func (x *DatabaseReading) GetClickhousePlaintextPassword() bool {
 	if x != nil {
 		return x.ClickhousePlaintextPassword
+	}
+	return false
+}
+
+func (x *DatabaseReading) GetClickhousePasswordVerified() bool {
+	if x != nil {
+		return x.ClickhousePasswordVerified
+	}
+	return false
+}
+
+func (x *DatabaseReading) GetClickhouseUnboundedLogs() bool {
+	if x != nil {
+		return x.ClickhouseUnboundedLogs
 	}
 	return false
 }
@@ -1665,6 +1683,112 @@ func (x *ChangeDatabasePasswordResponse) GetChange() *Change {
 	return nil
 }
 
+// BoundClickHouseLogsRequest identifies the ClickHouse service.
+type BoundClickHouseLogsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Project       string                 `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	Environment   string                 `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundClickHouseLogsRequest) Reset() {
+	*x = BoundClickHouseLogsRequest{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundClickHouseLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundClickHouseLogsRequest) ProtoMessage() {}
+
+func (x *BoundClickHouseLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundClickHouseLogsRequest.ProtoReflect.Descriptor instead.
+func (*BoundClickHouseLogsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *BoundClickHouseLogsRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BoundClickHouseLogsRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *BoundClickHouseLogsRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// BoundClickHouseLogsResponse holds the plan to bound logging.
+type BoundClickHouseLogsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundClickHouseLogsResponse) Reset() {
+	*x = BoundClickHouseLogsResponse{}
+	mi := &file_dockwell_v1_database_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundClickHouseLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundClickHouseLogsResponse) ProtoMessage() {}
+
+func (x *BoundClickHouseLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_database_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundClickHouseLogsResponse.ProtoReflect.Descriptor instead.
+func (*BoundClickHouseLogsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *BoundClickHouseLogsResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // SetDatabaseExternalAccessRequest names a database, and who reaches it from
 // beyond its server, or that nobody does.
 type SetDatabaseExternalAccessRequest struct {
@@ -1689,7 +1813,7 @@ type SetDatabaseExternalAccessRequest struct {
 
 func (x *SetDatabaseExternalAccessRequest) Reset() {
 	*x = SetDatabaseExternalAccessRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[16]
+	mi := &file_dockwell_v1_database_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1701,7 +1825,7 @@ func (x *SetDatabaseExternalAccessRequest) String() string {
 func (*SetDatabaseExternalAccessRequest) ProtoMessage() {}
 
 func (x *SetDatabaseExternalAccessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[16]
+	mi := &file_dockwell_v1_database_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1714,7 +1838,7 @@ func (x *SetDatabaseExternalAccessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetDatabaseExternalAccessRequest.ProtoReflect.Descriptor instead.
 func (*SetDatabaseExternalAccessRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SetDatabaseExternalAccessRequest) GetId() string {
@@ -1764,7 +1888,7 @@ type SetDatabaseExternalAccessResponse struct {
 
 func (x *SetDatabaseExternalAccessResponse) Reset() {
 	*x = SetDatabaseExternalAccessResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[17]
+	mi := &file_dockwell_v1_database_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1776,7 +1900,7 @@ func (x *SetDatabaseExternalAccessResponse) String() string {
 func (*SetDatabaseExternalAccessResponse) ProtoMessage() {}
 
 func (x *SetDatabaseExternalAccessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[17]
+	mi := &file_dockwell_v1_database_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1789,7 +1913,7 @@ func (x *SetDatabaseExternalAccessResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use SetDatabaseExternalAccessResponse.ProtoReflect.Descriptor instead.
 func (*SetDatabaseExternalAccessResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SetDatabaseExternalAccessResponse) GetChange() *Change {
@@ -1810,7 +1934,7 @@ type GetDatabaseResponse struct {
 
 func (x *GetDatabaseResponse) Reset() {
 	*x = GetDatabaseResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[18]
+	mi := &file_dockwell_v1_database_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1822,7 +1946,7 @@ func (x *GetDatabaseResponse) String() string {
 func (*GetDatabaseResponse) ProtoMessage() {}
 
 func (x *GetDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[18]
+	mi := &file_dockwell_v1_database_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1835,7 +1959,7 @@ func (x *GetDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*GetDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetDatabaseResponse) GetDatabase() *Database {
@@ -1872,7 +1996,7 @@ type CreateLogicalDatabaseRequest struct {
 
 func (x *CreateLogicalDatabaseRequest) Reset() {
 	*x = CreateLogicalDatabaseRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[19]
+	mi := &file_dockwell_v1_database_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1884,7 +2008,7 @@ func (x *CreateLogicalDatabaseRequest) String() string {
 func (*CreateLogicalDatabaseRequest) ProtoMessage() {}
 
 func (x *CreateLogicalDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[19]
+	mi := &file_dockwell_v1_database_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1897,7 +2021,7 @@ func (x *CreateLogicalDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLogicalDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*CreateLogicalDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateLogicalDatabaseRequest) GetId() string {
@@ -1960,7 +2084,7 @@ type CreateLogicalDatabaseResponse struct {
 
 func (x *CreateLogicalDatabaseResponse) Reset() {
 	*x = CreateLogicalDatabaseResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[20]
+	mi := &file_dockwell_v1_database_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1972,7 +2096,7 @@ func (x *CreateLogicalDatabaseResponse) String() string {
 func (*CreateLogicalDatabaseResponse) ProtoMessage() {}
 
 func (x *CreateLogicalDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[20]
+	mi := &file_dockwell_v1_database_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1985,7 +2109,7 @@ func (x *CreateLogicalDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateLogicalDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*CreateLogicalDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{20}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CreateLogicalDatabaseResponse) GetChange() *Change {
@@ -2013,7 +2137,7 @@ type DeleteLogicalDatabaseRequest struct {
 
 func (x *DeleteLogicalDatabaseRequest) Reset() {
 	*x = DeleteLogicalDatabaseRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[21]
+	mi := &file_dockwell_v1_database_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2025,7 +2149,7 @@ func (x *DeleteLogicalDatabaseRequest) String() string {
 func (*DeleteLogicalDatabaseRequest) ProtoMessage() {}
 
 func (x *DeleteLogicalDatabaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[21]
+	mi := &file_dockwell_v1_database_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2038,7 +2162,7 @@ func (x *DeleteLogicalDatabaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLogicalDatabaseRequest.ProtoReflect.Descriptor instead.
 func (*DeleteLogicalDatabaseRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{21}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DeleteLogicalDatabaseRequest) GetId() string {
@@ -2080,7 +2204,7 @@ type DeleteLogicalDatabaseResponse struct {
 
 func (x *DeleteLogicalDatabaseResponse) Reset() {
 	*x = DeleteLogicalDatabaseResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[22]
+	mi := &file_dockwell_v1_database_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2092,7 +2216,7 @@ func (x *DeleteLogicalDatabaseResponse) String() string {
 func (*DeleteLogicalDatabaseResponse) ProtoMessage() {}
 
 func (x *DeleteLogicalDatabaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[22]
+	mi := &file_dockwell_v1_database_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2105,7 +2229,7 @@ func (x *DeleteLogicalDatabaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteLogicalDatabaseResponse.ProtoReflect.Descriptor instead.
 func (*DeleteLogicalDatabaseResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DeleteLogicalDatabaseResponse) GetChange() *Change {
@@ -2142,7 +2266,7 @@ type BeginDatabaseImportRequest struct {
 
 func (x *BeginDatabaseImportRequest) Reset() {
 	*x = BeginDatabaseImportRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[23]
+	mi := &file_dockwell_v1_database_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2154,7 +2278,7 @@ func (x *BeginDatabaseImportRequest) String() string {
 func (*BeginDatabaseImportRequest) ProtoMessage() {}
 
 func (x *BeginDatabaseImportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[23]
+	mi := &file_dockwell_v1_database_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2167,7 +2291,7 @@ func (x *BeginDatabaseImportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginDatabaseImportRequest.ProtoReflect.Descriptor instead.
 func (*BeginDatabaseImportRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *BeginDatabaseImportRequest) GetId() string {
@@ -2247,7 +2371,7 @@ type BeginDatabaseImportResponse struct {
 
 func (x *BeginDatabaseImportResponse) Reset() {
 	*x = BeginDatabaseImportResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[24]
+	mi := &file_dockwell_v1_database_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2259,7 +2383,7 @@ func (x *BeginDatabaseImportResponse) String() string {
 func (*BeginDatabaseImportResponse) ProtoMessage() {}
 
 func (x *BeginDatabaseImportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[24]
+	mi := &file_dockwell_v1_database_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2272,7 +2396,7 @@ func (x *BeginDatabaseImportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginDatabaseImportResponse.ProtoReflect.Descriptor instead.
 func (*BeginDatabaseImportResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *BeginDatabaseImportResponse) GetImportId() string {
@@ -2338,7 +2462,7 @@ type UploadDatabaseImportRequest struct {
 
 func (x *UploadDatabaseImportRequest) Reset() {
 	*x = UploadDatabaseImportRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[25]
+	mi := &file_dockwell_v1_database_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2350,7 +2474,7 @@ func (x *UploadDatabaseImportRequest) String() string {
 func (*UploadDatabaseImportRequest) ProtoMessage() {}
 
 func (x *UploadDatabaseImportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[25]
+	mi := &file_dockwell_v1_database_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2363,7 +2487,7 @@ func (x *UploadDatabaseImportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadDatabaseImportRequest.ProtoReflect.Descriptor instead.
 func (*UploadDatabaseImportRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{25}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UploadDatabaseImportRequest) GetId() string {
@@ -2425,7 +2549,7 @@ type UploadDatabaseImportResponse struct {
 
 func (x *UploadDatabaseImportResponse) Reset() {
 	*x = UploadDatabaseImportResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[26]
+	mi := &file_dockwell_v1_database_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2437,7 +2561,7 @@ func (x *UploadDatabaseImportResponse) String() string {
 func (*UploadDatabaseImportResponse) ProtoMessage() {}
 
 func (x *UploadDatabaseImportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[26]
+	mi := &file_dockwell_v1_database_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2450,7 +2574,7 @@ func (x *UploadDatabaseImportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadDatabaseImportResponse.ProtoReflect.Descriptor instead.
 func (*UploadDatabaseImportResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{26}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UploadDatabaseImportResponse) GetImportId() string {
@@ -2500,7 +2624,7 @@ type PlanDatabaseImportRequest struct {
 
 func (x *PlanDatabaseImportRequest) Reset() {
 	*x = PlanDatabaseImportRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[27]
+	mi := &file_dockwell_v1_database_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2512,7 +2636,7 @@ func (x *PlanDatabaseImportRequest) String() string {
 func (*PlanDatabaseImportRequest) ProtoMessage() {}
 
 func (x *PlanDatabaseImportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[27]
+	mi := &file_dockwell_v1_database_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2525,7 +2649,7 @@ func (x *PlanDatabaseImportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanDatabaseImportRequest.ProtoReflect.Descriptor instead.
 func (*PlanDatabaseImportRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PlanDatabaseImportRequest) GetId() string {
@@ -2574,7 +2698,7 @@ type PlanDatabaseImportResponse struct {
 
 func (x *PlanDatabaseImportResponse) Reset() {
 	*x = PlanDatabaseImportResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[28]
+	mi := &file_dockwell_v1_database_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2586,7 +2710,7 @@ func (x *PlanDatabaseImportResponse) String() string {
 func (*PlanDatabaseImportResponse) ProtoMessage() {}
 
 func (x *PlanDatabaseImportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[28]
+	mi := &file_dockwell_v1_database_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2599,7 +2723,7 @@ func (x *PlanDatabaseImportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanDatabaseImportResponse.ProtoReflect.Descriptor instead.
 func (*PlanDatabaseImportResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PlanDatabaseImportResponse) GetChange() *Change {
@@ -2626,7 +2750,7 @@ type CancelDatabaseImportRequest struct {
 
 func (x *CancelDatabaseImportRequest) Reset() {
 	*x = CancelDatabaseImportRequest{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[29]
+	mi := &file_dockwell_v1_database_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2638,7 +2762,7 @@ func (x *CancelDatabaseImportRequest) String() string {
 func (*CancelDatabaseImportRequest) ProtoMessage() {}
 
 func (x *CancelDatabaseImportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[29]
+	mi := &file_dockwell_v1_database_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2651,7 +2775,7 @@ func (x *CancelDatabaseImportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelDatabaseImportRequest.ProtoReflect.Descriptor instead.
 func (*CancelDatabaseImportRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CancelDatabaseImportRequest) GetId() string {
@@ -2691,7 +2815,7 @@ type CancelDatabaseImportResponse struct {
 
 func (x *CancelDatabaseImportResponse) Reset() {
 	*x = CancelDatabaseImportResponse{}
-	mi := &file_dockwell_v1_database_proto_msgTypes[30]
+	mi := &file_dockwell_v1_database_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2703,7 +2827,7 @@ func (x *CancelDatabaseImportResponse) String() string {
 func (*CancelDatabaseImportResponse) ProtoMessage() {}
 
 func (x *CancelDatabaseImportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_database_proto_msgTypes[30]
+	mi := &file_dockwell_v1_database_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2716,7 +2840,7 @@ func (x *CancelDatabaseImportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelDatabaseImportResponse.ProtoReflect.Descriptor instead.
 func (*CancelDatabaseImportResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_database_proto_rawDescGZIP(), []int{32}
 }
 
 var File_dockwell_v1_database_proto protoreflect.FileDescriptor
@@ -2747,7 +2871,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x16DatabaseExternalAccess\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1d\n" +
 	"\n" +
-	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\x89\x06\n" +
+	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\x87\a\n" +
 	"\x0fDatabaseReading\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -2772,7 +2896,9 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"replicaSet\x12\"\n" +
 	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOne\x12\x1c\n" +
 	"\tcontainer\x18\x13 \x01(\tR\tcontainer\x12B\n" +
-	"\x1dclickhouse_plaintext_password\x18\x14 \x01(\bR\x1bclickhousePlaintextPasswordB\f\n" +
+	"\x1dclickhouse_plaintext_password\x18\x14 \x01(\bR\x1bclickhousePlaintextPassword\x12@\n" +
+	"\x1cclickhouse_password_verified\x18\x15 \x01(\bR\x1aclickhousePasswordVerified\x12:\n" +
+	"\x19clickhouse_unbounded_logs\x18\x16 \x01(\bR\x17clickhouseUnboundedLogsB\f\n" +
 	"\n" +
 	"_cache_hit\"\x8d\x02\n" +
 	"\rInnerDatabase\x12\x12\n" +
@@ -2862,6 +2988,12 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\"M\n" +
 	"\x1eChangeDatabasePasswordResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"h\n" +
+	"\x1aBoundClickHouseLogsRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\"J\n" +
+	"\x1bBoundClickHouseLogsResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9f\x01\n" +
 	" SetDatabaseExternalAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
@@ -2947,13 +3079,15 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\xa2\xbb\x18\x06Valkey\x12(\n" +
 	"\x17DATABASE_ENGINE_MONGODB\x10\x06\x1a\v\xa2\xbb\x18\aMongoDB\x12.\n" +
 	"\x1aDATABASE_ENGINE_CLICKHOUSE\x10\a\x1a\x0e\xa2\xbb\x18\n" +
-	"ClickHouse2\xd2\x12\n" +
+	"ClickHouse2\x86\x14\n" +
 	"\x0fDatabaseService\x12\x80\x01\n" +
 	"\rListDatabases\x12!.dockwell.v1.ListDatabasesRequest\x1a\".dockwell.v1.ListDatabasesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/databases\x90\x02\x01\x12\x7f\n" +
 	"\vGetDatabase\x12\x1f.dockwell.v1.GetDatabaseRequest\x1a .dockwell.v1.GetDatabaseResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/databases/{id}\x90\x02\x01\x12\xa8\x01\n" +
 	"\x12CreateDatabaseUser\x12&.dockwell.v1.CreateDatabaseUserRequest\x1a'.dockwell.v1.CreateDatabaseUserResponse\"A\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
 	"\x12\badd-user\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/databases/{id}/users\x12\xc4\x01\n" +
-	"\x16ChangeDatabasePassword\x12*.dockwell.v1.ChangeDatabasePasswordRequest\x1a+.dockwell.v1.ChangeDatabasePasswordResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fchange-password\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:changePassword\x12\xcd\x01\n" +
+	"\x16ChangeDatabasePassword\x12*.dockwell.v1.ChangeDatabasePasswordRequest\x1a+.dockwell.v1.ChangeDatabasePasswordResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fchange-password\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:changePassword\x12\xb1\x01\n" +
+	"\x13BoundClickHouseLogs\x12'.dockwell.v1.BoundClickHouseLogsRequest\x1a(.dockwell.v1.BoundClickHouseLogsResponse\"G\xa0\xbb\x18\x02\xaa\xbb\x18\f\x12\n" +
+	"bound-logs\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/databases/{id}:boundLogs\x12\xcd\x01\n" +
 	"\x19SetDatabaseExternalAccess\x12-.dockwell.v1.SetDatabaseExternalAccessRequest\x1a..dockwell.v1.SetDatabaseExternalAccessResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fexternal-access\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:externalAccess\x12\xb6\x01\n" +
 	"\x13CheckDatabaseSignIn\x12'.dockwell.v1.CheckDatabaseSignInRequest\x1a(.dockwell.v1.CheckDatabaseSignInResponse\"L\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\x12\rcheck-sign-in\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02 \x12\x1e/v1/databases/{id}:checkSignIn\x90\x02\x01\x12\xa0\x01\n" +
 	"\x0fConnectDatabase\x12#.dockwell.v1.ConnectDatabaseRequest\x1a$.dockwell.v1.ConnectDatabaseResponse\"B\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\aconnect\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/databases/{id}:connect\x12\xb9\x01\n" +
@@ -2978,7 +3112,7 @@ func file_dockwell_v1_database_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_database_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_dockwell_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_dockwell_v1_database_proto_goTypes = []any{
 	(DatabaseEngine)(0),                       // 0: dockwell.v1.DatabaseEngine
 	(*Database)(nil),                          // 1: dockwell.v1.Database
@@ -2997,84 +3131,89 @@ var file_dockwell_v1_database_proto_goTypes = []any{
 	(*CreateDatabaseUserResponse)(nil),        // 14: dockwell.v1.CreateDatabaseUserResponse
 	(*ChangeDatabasePasswordRequest)(nil),     // 15: dockwell.v1.ChangeDatabasePasswordRequest
 	(*ChangeDatabasePasswordResponse)(nil),    // 16: dockwell.v1.ChangeDatabasePasswordResponse
-	(*SetDatabaseExternalAccessRequest)(nil),  // 17: dockwell.v1.SetDatabaseExternalAccessRequest
-	(*SetDatabaseExternalAccessResponse)(nil), // 18: dockwell.v1.SetDatabaseExternalAccessResponse
-	(*GetDatabaseResponse)(nil),               // 19: dockwell.v1.GetDatabaseResponse
-	(*CreateLogicalDatabaseRequest)(nil),      // 20: dockwell.v1.CreateLogicalDatabaseRequest
-	(*CreateLogicalDatabaseResponse)(nil),     // 21: dockwell.v1.CreateLogicalDatabaseResponse
-	(*DeleteLogicalDatabaseRequest)(nil),      // 22: dockwell.v1.DeleteLogicalDatabaseRequest
-	(*DeleteLogicalDatabaseResponse)(nil),     // 23: dockwell.v1.DeleteLogicalDatabaseResponse
-	(*BeginDatabaseImportRequest)(nil),        // 24: dockwell.v1.BeginDatabaseImportRequest
-	(*BeginDatabaseImportResponse)(nil),       // 25: dockwell.v1.BeginDatabaseImportResponse
-	(*UploadDatabaseImportRequest)(nil),       // 26: dockwell.v1.UploadDatabaseImportRequest
-	(*UploadDatabaseImportResponse)(nil),      // 27: dockwell.v1.UploadDatabaseImportResponse
-	(*PlanDatabaseImportRequest)(nil),         // 28: dockwell.v1.PlanDatabaseImportRequest
-	(*PlanDatabaseImportResponse)(nil),        // 29: dockwell.v1.PlanDatabaseImportResponse
-	(*CancelDatabaseImportRequest)(nil),       // 30: dockwell.v1.CancelDatabaseImportRequest
-	(*CancelDatabaseImportResponse)(nil),      // 31: dockwell.v1.CancelDatabaseImportResponse
-	nil,                                       // 32: dockwell.v1.ConnectDatabaseRequest.SetsEntry
-	nil,                                       // 33: dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
-	(*ResourceRef)(nil),                       // 34: dockwell.v1.ResourceRef
-	(*Backup)(nil),                            // 35: dockwell.v1.Backup
-	(*timestamppb.Timestamp)(nil),             // 36: google.protobuf.Timestamp
-	(*Change)(nil),                            // 37: dockwell.v1.Change
-	(*httpbody.HttpBody)(nil),                 // 38: google.api.HttpBody
-	(v1alpha1.LinkPart)(0),                    // 39: dockwell.resource.v1alpha1.LinkPart
+	(*BoundClickHouseLogsRequest)(nil),        // 17: dockwell.v1.BoundClickHouseLogsRequest
+	(*BoundClickHouseLogsResponse)(nil),       // 18: dockwell.v1.BoundClickHouseLogsResponse
+	(*SetDatabaseExternalAccessRequest)(nil),  // 19: dockwell.v1.SetDatabaseExternalAccessRequest
+	(*SetDatabaseExternalAccessResponse)(nil), // 20: dockwell.v1.SetDatabaseExternalAccessResponse
+	(*GetDatabaseResponse)(nil),               // 21: dockwell.v1.GetDatabaseResponse
+	(*CreateLogicalDatabaseRequest)(nil),      // 22: dockwell.v1.CreateLogicalDatabaseRequest
+	(*CreateLogicalDatabaseResponse)(nil),     // 23: dockwell.v1.CreateLogicalDatabaseResponse
+	(*DeleteLogicalDatabaseRequest)(nil),      // 24: dockwell.v1.DeleteLogicalDatabaseRequest
+	(*DeleteLogicalDatabaseResponse)(nil),     // 25: dockwell.v1.DeleteLogicalDatabaseResponse
+	(*BeginDatabaseImportRequest)(nil),        // 26: dockwell.v1.BeginDatabaseImportRequest
+	(*BeginDatabaseImportResponse)(nil),       // 27: dockwell.v1.BeginDatabaseImportResponse
+	(*UploadDatabaseImportRequest)(nil),       // 28: dockwell.v1.UploadDatabaseImportRequest
+	(*UploadDatabaseImportResponse)(nil),      // 29: dockwell.v1.UploadDatabaseImportResponse
+	(*PlanDatabaseImportRequest)(nil),         // 30: dockwell.v1.PlanDatabaseImportRequest
+	(*PlanDatabaseImportResponse)(nil),        // 31: dockwell.v1.PlanDatabaseImportResponse
+	(*CancelDatabaseImportRequest)(nil),       // 32: dockwell.v1.CancelDatabaseImportRequest
+	(*CancelDatabaseImportResponse)(nil),      // 33: dockwell.v1.CancelDatabaseImportResponse
+	nil,                                       // 34: dockwell.v1.ConnectDatabaseRequest.SetsEntry
+	nil,                                       // 35: dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
+	(*ResourceRef)(nil),                       // 36: dockwell.v1.ResourceRef
+	(*Backup)(nil),                            // 37: dockwell.v1.Backup
+	(*timestamppb.Timestamp)(nil),             // 38: google.protobuf.Timestamp
+	(*Change)(nil),                            // 39: dockwell.v1.Change
+	(*httpbody.HttpBody)(nil),                 // 40: google.api.HttpBody
+	(v1alpha1.LinkPart)(0),                    // 41: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_database_proto_depIdxs = []int32{
-	34, // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
+	36, // 0: dockwell.v1.Database.resource:type_name -> dockwell.v1.ResourceRef
 	0,  // 1: dockwell.v1.Database.engine:type_name -> dockwell.v1.DatabaseEngine
 	3,  // 2: dockwell.v1.Database.readings:type_name -> dockwell.v1.DatabaseReading
-	35, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
-	35, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
+	37, // 3: dockwell.v1.Database.newest_backup:type_name -> dockwell.v1.Backup
+	37, // 4: dockwell.v1.Database.latest_backup:type_name -> dockwell.v1.Backup
 	2,  // 5: dockwell.v1.Database.external_access:type_name -> dockwell.v1.DatabaseExternalAccess
-	36, // 6: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
+	38, // 6: dockwell.v1.DatabaseReading.read_time:type_name -> google.protobuf.Timestamp
 	4,  // 7: dockwell.v1.DatabaseReading.databases:type_name -> dockwell.v1.InnerDatabase
 	5,  // 8: dockwell.v1.DatabaseReading.users:type_name -> dockwell.v1.DatabaseAccount
 	1,  // 9: dockwell.v1.ListDatabasesResponse.databases:type_name -> dockwell.v1.Database
-	32, // 10: dockwell.v1.ConnectDatabaseRequest.sets:type_name -> dockwell.v1.ConnectDatabaseRequest.SetsEntry
-	33, // 11: dockwell.v1.ConnectDatabaseRequest.templates:type_name -> dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
-	37, // 12: dockwell.v1.ConnectDatabaseResponse.change:type_name -> dockwell.v1.Change
-	37, // 13: dockwell.v1.CreateDatabaseUserResponse.change:type_name -> dockwell.v1.Change
-	37, // 14: dockwell.v1.ChangeDatabasePasswordResponse.change:type_name -> dockwell.v1.Change
-	37, // 15: dockwell.v1.SetDatabaseExternalAccessResponse.change:type_name -> dockwell.v1.Change
-	1,  // 16: dockwell.v1.GetDatabaseResponse.database:type_name -> dockwell.v1.Database
-	37, // 17: dockwell.v1.CreateLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
-	37, // 18: dockwell.v1.DeleteLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
-	38, // 19: dockwell.v1.UploadDatabaseImportRequest.content:type_name -> google.api.HttpBody
-	37, // 20: dockwell.v1.PlanDatabaseImportResponse.change:type_name -> dockwell.v1.Change
-	39, // 21: dockwell.v1.ConnectDatabaseRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	6,  // 22: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
-	8,  // 23: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
-	13, // 24: dockwell.v1.DatabaseService.CreateDatabaseUser:input_type -> dockwell.v1.CreateDatabaseUserRequest
-	15, // 25: dockwell.v1.DatabaseService.ChangeDatabasePassword:input_type -> dockwell.v1.ChangeDatabasePasswordRequest
-	17, // 26: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:input_type -> dockwell.v1.SetDatabaseExternalAccessRequest
-	9,  // 27: dockwell.v1.DatabaseService.CheckDatabaseSignIn:input_type -> dockwell.v1.CheckDatabaseSignInRequest
-	11, // 28: dockwell.v1.DatabaseService.ConnectDatabase:input_type -> dockwell.v1.ConnectDatabaseRequest
-	20, // 29: dockwell.v1.DatabaseService.CreateLogicalDatabase:input_type -> dockwell.v1.CreateLogicalDatabaseRequest
-	22, // 30: dockwell.v1.DatabaseService.DeleteLogicalDatabase:input_type -> dockwell.v1.DeleteLogicalDatabaseRequest
-	24, // 31: dockwell.v1.DatabaseService.BeginDatabaseImport:input_type -> dockwell.v1.BeginDatabaseImportRequest
-	26, // 32: dockwell.v1.DatabaseService.UploadDatabaseImport:input_type -> dockwell.v1.UploadDatabaseImportRequest
-	28, // 33: dockwell.v1.DatabaseService.PlanDatabaseImport:input_type -> dockwell.v1.PlanDatabaseImportRequest
-	30, // 34: dockwell.v1.DatabaseService.CancelDatabaseImport:input_type -> dockwell.v1.CancelDatabaseImportRequest
-	7,  // 35: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
-	19, // 36: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
-	14, // 37: dockwell.v1.DatabaseService.CreateDatabaseUser:output_type -> dockwell.v1.CreateDatabaseUserResponse
-	16, // 38: dockwell.v1.DatabaseService.ChangeDatabasePassword:output_type -> dockwell.v1.ChangeDatabasePasswordResponse
-	18, // 39: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:output_type -> dockwell.v1.SetDatabaseExternalAccessResponse
-	10, // 40: dockwell.v1.DatabaseService.CheckDatabaseSignIn:output_type -> dockwell.v1.CheckDatabaseSignInResponse
-	12, // 41: dockwell.v1.DatabaseService.ConnectDatabase:output_type -> dockwell.v1.ConnectDatabaseResponse
-	21, // 42: dockwell.v1.DatabaseService.CreateLogicalDatabase:output_type -> dockwell.v1.CreateLogicalDatabaseResponse
-	23, // 43: dockwell.v1.DatabaseService.DeleteLogicalDatabase:output_type -> dockwell.v1.DeleteLogicalDatabaseResponse
-	25, // 44: dockwell.v1.DatabaseService.BeginDatabaseImport:output_type -> dockwell.v1.BeginDatabaseImportResponse
-	27, // 45: dockwell.v1.DatabaseService.UploadDatabaseImport:output_type -> dockwell.v1.UploadDatabaseImportResponse
-	29, // 46: dockwell.v1.DatabaseService.PlanDatabaseImport:output_type -> dockwell.v1.PlanDatabaseImportResponse
-	31, // 47: dockwell.v1.DatabaseService.CancelDatabaseImport:output_type -> dockwell.v1.CancelDatabaseImportResponse
-	35, // [35:48] is the sub-list for method output_type
-	22, // [22:35] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	34, // 10: dockwell.v1.ConnectDatabaseRequest.sets:type_name -> dockwell.v1.ConnectDatabaseRequest.SetsEntry
+	35, // 11: dockwell.v1.ConnectDatabaseRequest.templates:type_name -> dockwell.v1.ConnectDatabaseRequest.TemplatesEntry
+	39, // 12: dockwell.v1.ConnectDatabaseResponse.change:type_name -> dockwell.v1.Change
+	39, // 13: dockwell.v1.CreateDatabaseUserResponse.change:type_name -> dockwell.v1.Change
+	39, // 14: dockwell.v1.ChangeDatabasePasswordResponse.change:type_name -> dockwell.v1.Change
+	39, // 15: dockwell.v1.BoundClickHouseLogsResponse.change:type_name -> dockwell.v1.Change
+	39, // 16: dockwell.v1.SetDatabaseExternalAccessResponse.change:type_name -> dockwell.v1.Change
+	1,  // 17: dockwell.v1.GetDatabaseResponse.database:type_name -> dockwell.v1.Database
+	39, // 18: dockwell.v1.CreateLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
+	39, // 19: dockwell.v1.DeleteLogicalDatabaseResponse.change:type_name -> dockwell.v1.Change
+	40, // 20: dockwell.v1.UploadDatabaseImportRequest.content:type_name -> google.api.HttpBody
+	39, // 21: dockwell.v1.PlanDatabaseImportResponse.change:type_name -> dockwell.v1.Change
+	41, // 22: dockwell.v1.ConnectDatabaseRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	6,  // 23: dockwell.v1.DatabaseService.ListDatabases:input_type -> dockwell.v1.ListDatabasesRequest
+	8,  // 24: dockwell.v1.DatabaseService.GetDatabase:input_type -> dockwell.v1.GetDatabaseRequest
+	13, // 25: dockwell.v1.DatabaseService.CreateDatabaseUser:input_type -> dockwell.v1.CreateDatabaseUserRequest
+	15, // 26: dockwell.v1.DatabaseService.ChangeDatabasePassword:input_type -> dockwell.v1.ChangeDatabasePasswordRequest
+	17, // 27: dockwell.v1.DatabaseService.BoundClickHouseLogs:input_type -> dockwell.v1.BoundClickHouseLogsRequest
+	19, // 28: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:input_type -> dockwell.v1.SetDatabaseExternalAccessRequest
+	9,  // 29: dockwell.v1.DatabaseService.CheckDatabaseSignIn:input_type -> dockwell.v1.CheckDatabaseSignInRequest
+	11, // 30: dockwell.v1.DatabaseService.ConnectDatabase:input_type -> dockwell.v1.ConnectDatabaseRequest
+	22, // 31: dockwell.v1.DatabaseService.CreateLogicalDatabase:input_type -> dockwell.v1.CreateLogicalDatabaseRequest
+	24, // 32: dockwell.v1.DatabaseService.DeleteLogicalDatabase:input_type -> dockwell.v1.DeleteLogicalDatabaseRequest
+	26, // 33: dockwell.v1.DatabaseService.BeginDatabaseImport:input_type -> dockwell.v1.BeginDatabaseImportRequest
+	28, // 34: dockwell.v1.DatabaseService.UploadDatabaseImport:input_type -> dockwell.v1.UploadDatabaseImportRequest
+	30, // 35: dockwell.v1.DatabaseService.PlanDatabaseImport:input_type -> dockwell.v1.PlanDatabaseImportRequest
+	32, // 36: dockwell.v1.DatabaseService.CancelDatabaseImport:input_type -> dockwell.v1.CancelDatabaseImportRequest
+	7,  // 37: dockwell.v1.DatabaseService.ListDatabases:output_type -> dockwell.v1.ListDatabasesResponse
+	21, // 38: dockwell.v1.DatabaseService.GetDatabase:output_type -> dockwell.v1.GetDatabaseResponse
+	14, // 39: dockwell.v1.DatabaseService.CreateDatabaseUser:output_type -> dockwell.v1.CreateDatabaseUserResponse
+	16, // 40: dockwell.v1.DatabaseService.ChangeDatabasePassword:output_type -> dockwell.v1.ChangeDatabasePasswordResponse
+	18, // 41: dockwell.v1.DatabaseService.BoundClickHouseLogs:output_type -> dockwell.v1.BoundClickHouseLogsResponse
+	20, // 42: dockwell.v1.DatabaseService.SetDatabaseExternalAccess:output_type -> dockwell.v1.SetDatabaseExternalAccessResponse
+	10, // 43: dockwell.v1.DatabaseService.CheckDatabaseSignIn:output_type -> dockwell.v1.CheckDatabaseSignInResponse
+	12, // 44: dockwell.v1.DatabaseService.ConnectDatabase:output_type -> dockwell.v1.ConnectDatabaseResponse
+	23, // 45: dockwell.v1.DatabaseService.CreateLogicalDatabase:output_type -> dockwell.v1.CreateLogicalDatabaseResponse
+	25, // 46: dockwell.v1.DatabaseService.DeleteLogicalDatabase:output_type -> dockwell.v1.DeleteLogicalDatabaseResponse
+	27, // 47: dockwell.v1.DatabaseService.BeginDatabaseImport:output_type -> dockwell.v1.BeginDatabaseImportResponse
+	29, // 48: dockwell.v1.DatabaseService.UploadDatabaseImport:output_type -> dockwell.v1.UploadDatabaseImportResponse
+	31, // 49: dockwell.v1.DatabaseService.PlanDatabaseImport:output_type -> dockwell.v1.PlanDatabaseImportResponse
+	33, // 50: dockwell.v1.DatabaseService.CancelDatabaseImport:output_type -> dockwell.v1.CancelDatabaseImportResponse
+	37, // [37:51] is the sub-list for method output_type
+	23, // [23:37] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_database_proto_init() }
@@ -3092,7 +3231,7 @@ func file_dockwell_v1_database_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_database_proto_rawDesc), len(file_dockwell_v1_database_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   33,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

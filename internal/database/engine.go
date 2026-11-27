@@ -375,7 +375,7 @@ func startsServer(e *Engine, app *resourcev1.Container) bool {
 	if len(cmd) == 0 || strings.HasPrefix(cmd[0], "-") {
 		return true
 	}
-	if e.ClickHouse() && len(cmd) > 4 && cmd[0] == "sh" && cmd[1] == "-ec" && cmd[2] == ClickHouseAuthSetup {
+	if e.ClickHouse() && ClickHouseAuthWrapped(cmd) {
 		return startsServer(e, &resourcev1.Container{Command: cmd[4:]})
 	}
 	if shell := path.Base(cmd[0]); (shell == "sh" || shell == "bash") && len(cmd) >= 3 && cmd[1] == "-c" {

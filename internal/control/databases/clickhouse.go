@@ -3,6 +3,7 @@
 package databases
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/database"
@@ -87,15 +89,10 @@ func (h *Handler) changeClickHousePassword(ctx context.Context, db *placed, user
 func prepareClickHousePassword(svc *resourcev1.Service, user, secret string) bool {
 	app := svc.GetApp()
 	cmd := app.GetCommand()
-	if len(cmd) > 4 && cmd[2] == database.ClickHouseAuthSetup && svc.GetSecrets()["CLICKHOUSE_PASSWORD"] == secret {
+	if database.ClickHouseAuthWrapped(cmd) && cmd[2] == database.ClickHouseAuthSetup && svc.GetSecrets()["CLICKHOUSE_PASSWORD"] == secret {
 		return false
 	}
-	if len(cmd) == 0 || strings.HasPrefix(cmd[0], "-") {
-		cmd = append([]string{"/entrypoint.sh"}, cmd...)
-	}
-	if len(cmd) <= 4 || cmd[2] != database.ClickHouseAuthSetup {
-		app.Command = append([]string{"sh", "-ec", database.ClickHouseAuthSetup, "sh"}, cmd...)
-	}
+	app.Command = database.WrapClickHouseAuth(cmd)
 	if app.Env == nil {
 		app.Env = map[string]string{}
 	}
@@ -107,6 +104,16 @@ func prepareClickHousePassword(svc *resourcev1.Service, user, secret string) boo
 		delete(svc.Secrets, name)
 		delete(svc.Variables, name)
 	}
+	// Recreate the settings normally written by the entrypoint. With setup
+	// already skipped, any existing users XML keeps its own authorization settings.
+	var imageSettings string
+	if app.Env["CLICKHOUSE_SKIP_USER_SETUP"] != "1" {
+		const management = "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT"
+		if app.Env[management] == "" && svc.GetSecrets()[management] == "" && svc.GetVariables()[management] == "" {
+			app.Env[management] = "0"
+		}
+		imageSettings = `<profile>default</profile><quota>default</quota><networks replace="replace"><ip>::/0</ip></networks><access_management from_env="CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT"/>`
+	}
 	app.Env["CLICKHOUSE_SKIP_USER_SETUP"], app.Env["CLICKHOUSE_USER"] = "1", user
 	svc.Secrets["CLICKHOUSE_PASSWORD"] = secret
 	app.Mounts = slices.DeleteFunc(app.Mounts, func(m *resourcev1.Mount) bool { return m.GetTarget() == database.ClickHouseAuthTarget })
@@ -114,12 +121,51 @@ func prepareClickHousePassword(svc *resourcev1.Service, user, secret string) boo
 	if user != "default" {
 		removeDefault = `<default remove="remove"/>`
 	}
-	auth := fmt.Sprintf(`<clickhouse><users>%s<%s><password remove="remove"/><password_sha256_hex from_env="DOCKWELL_CLICKHOUSE_PASSWORD_SHA256"/></%s></users></clickhouse>`, removeDefault, user, user)
+	auth := fmt.Sprintf(`<clickhouse><users>%s<%s><password remove="remove"/><password_sha256_hex from_env="DOCKWELL_CLICKHOUSE_PASSWORD_SHA256"/>%s</%s></users></clickhouse>`, removeDefault, user, imageSettings, user)
 	app.Mounts = append(app.Mounts, &resourcev1.Mount{
 		Target: database.ClickHouseAuthTarget, ReadOnly: true,
 		Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: auth}},
 	})
 	return true
+}
+
+// BoundClickHouseLogs mounts the bundled logging config while retaining the
+// taken-on service's existing query settings and data.
+func (h *Handler) BoundClickHouseLogs(ctx context.Context, req *connect.Request[dockwellv1.BoundClickHouseLogsRequest]) (*connect.Response[dockwellv1.BoundClickHouseLogsResponse], error) {
+	m := req.Msg
+	if m.GetId() == "" {
+		return nil, invalidField("id", errors.New("pass the ClickHouse service's ID or name"))
+	}
+	list, err := h.list(ctx)
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	db, err := h.pick(ctx, list, m.GetId(), m.GetProject(), m.GetEnvironment())
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	if !database.Of(db.db.GetEngine()).ClickHouse() {
+		return nil, authapi.Invalid(errors.New("this logging plan is for ClickHouse"))
+	}
+	config, err := catalog.ClickHouseLogConfig()
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	spec := proto.CloneOf(db.spec)
+	app := spec.GetApp()
+	app.Mounts = slices.DeleteFunc(app.GetMounts(), func(m *resourcev1.Mount) bool { return m.GetTarget() == database.ClickHouseLogsTarget })
+	app.Mounts = append(app.Mounts, &resourcev1.Mount{
+		Target: database.ClickHouseLogsTarget, ReadOnly: true,
+		Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: config}},
+	})
+	change, err := h.changes.Propose(ctx, "Bound ClickHouse logs for "+db.ref.Name, []*dockwellv1.Edit{serviceEdit(db.ref, spec, db.revision)}, nil, changes.Also{Notes: []revision.Note{{
+		Reason: "clickhouse_logs", Ref: db.ref,
+		Message: "ClickHouse restarts with rotating warning logs and stops writing system log tables. Existing logs stay on disk.",
+	}}})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.BoundClickHouseLogsResponse{Change: change}), nil
 }
 
 // clickHouseLinkPasswords updates managed URLs in same-environment links that
@@ -198,6 +244,93 @@ func clickHouseURLCredential(password string) *resourcev1.TemplateName {
 	return &resourcev1.TemplateName{Name: password, Secret: true, Encoding: resourcev1.Encoding_ENCODING_USERINFO}
 }
 
+var clickHouseURLKeys = []string{"CLICKHOUSE_DATABASE_URL", "CLICKHOUSE_URL"}
+
+func clickHouseClientURL(raw, host string) *url.URL {
+	at, err := url.Parse(raw)
+	if err == nil && at.Hostname() == host && (at.Scheme == "http" || at.Scheme == "https" || at.Scheme == "clickhouse") {
+		return at
+	}
+	return nil
+}
+
+// clickHouseLiteralClient finds a companion that signs in with its own URL,
+// before there is a Dockwell link or a password secret to follow.
+func (h *Handler) clickHouseLiteralClient(ctx context.Context, tx *store.Tx, db *placed) (string, error) {
+	rows, err := tx.ListResources(ctx, db.ref.Scope, string(service.Kind))
+	if err != nil {
+		return "", err
+	}
+	var stored []store.StoredSpec
+	var names []string
+	for _, row := range rows {
+		if row.Name != db.ref.Name && row.Spec != nil {
+			stored = append(stored, store.StoredSpec{At: store.InRevision(row.ID, row.Kind, row.Revision), Spec: row.Spec})
+			names = append(names, row.Name)
+		}
+	}
+	decoded, failures, err := h.keeper.DecodeEach(ctx, tx, stored)
+	if err != nil {
+		return "", err
+	}
+	for i, spec := range decoded {
+		if failures[i] != nil {
+			return "", failures[i]
+		}
+		svc, _ := spec.(*resourcev1.Service)
+		for _, key := range []string{"CLICKHOUSE_DATABASE_URL", "CLICKHOUSE_URL", "CLICKHOUSE_HOST", "CLICKHOUSE_ADDRESS"} {
+			value, err := h.clickHouseClientSetting(ctx, tx, db.ref.Scope, key, svc)
+			if err != nil {
+				return "", err
+			}
+			if clickHouseClientURL(value, db.ref.Name) != nil {
+				return names[i], nil
+			}
+			if key == "CLICKHOUSE_HOST" || key == "CLICKHOUSE_ADDRESS" {
+				if endpoint, err := url.Parse("//" + value); err == nil && endpoint.Hostname() == db.ref.Name {
+					return names[i], nil
+				}
+			}
+		}
+	}
+	return "", nil
+}
+
+func (h *Handler) clickHouseClientSetting(ctx context.Context, tx *store.Tx, env, key string, svc *resourcev1.Service) (string, error) {
+	kind := variable.VariableKind
+	name, bound := svc.GetVariables()[key]
+	if secret, ok := svc.GetSecrets()[key]; ok {
+		kind, name, bound = variable.SecretKind, secret, true
+	}
+	if !bound {
+		return svc.GetApp().GetEnv()[key], nil
+	}
+	row, err := tx.GetResource(ctx, string(kind), env, cmp.Or(name, key))
+	if errors.Is(err, store.ErrNotFound) || err == nil && row.Spec == nil {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	decoded, unreadable, err := h.keeper.DecodeEach(ctx, tx, []store.StoredSpec{{
+		At: store.InRevision(row.ID, row.Kind, row.Revision), Spec: row.Spec,
+	}})
+	if err != nil {
+		return "", err
+	}
+	if unreadable[0] != nil {
+		return "", unreadable[0]
+	}
+	switch value := decoded[0].(type) {
+	case *resourcev1.Secret:
+		return value.GetValue(), nil
+	case *resourcev1.Variable:
+		return value.GetValue(), nil
+	default:
+		return "", nil
+	}
+}
+
 // clickHouseClientEdits keeps app companions using a literal ClickHouse URL on
 // their own network signed in. Linked credentials already follow the secret.
 func (h *Handler) clickHouseClientEdits(ctx context.Context, tx *store.Tx, db *placed, password string) ([]*dockwellv1.Edit, error) {
@@ -222,10 +355,9 @@ func (h *Handler) clickHouseClientEdits(ctx context.Context, tx *store.Tx, db *p
 		}
 		svc, _ := decoded[0].(*resourcev1.Service)
 		changed := false
-		for _, key := range []string{"CLICKHOUSE_DATABASE_URL", "CLICKHOUSE_URL"} {
-			at, err := url.Parse(svc.GetApp().GetEnv()[key])
-			if err != nil || at == nil || at.Hostname() != db.ref.Name || (at.Scheme != "http" && at.Scheme != "https") ||
-				at.User.Username() != "" && at.User.Username() != db.firstUser {
+		for _, key := range clickHouseURLKeys {
+			at := clickHouseClientURL(svc.GetApp().GetEnv()[key], db.ref.Name)
+			if at == nil || at.User.Username() != "" && at.User.Username() != db.firstUser {
 				continue
 			}
 			dest, err := freeSecret(ctx, tx, db.ref.Scope, strings.ToUpper(strings.ReplaceAll(row.Name, "-", "_"))+"_"+key)

@@ -1228,6 +1228,12 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`ClickHouse restarts with a password hash`,
           detail: t`Clients with their own settings need the new password.`,
         };
+      case "clickhouse_logs":
+        return {
+          key,
+          title: t`ClickHouse restarts with bounded logging`,
+          detail: t`Existing logs stay on disk.`,
+        };
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
       // An agent from before fleet upgrades is upgraded once by the install script on its server (ADR 0094).

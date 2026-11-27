@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/linked"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -384,6 +385,44 @@ func mergeService(base, ours, next *resourcev1.Service) (*resourcev1.Service, []
 	clashes = append(clashes, c...)
 	secrets, c := mergeStrings("secret ", base.GetSecrets(), ours.GetSecrets(), next.GetSecrets())
 	clashes = append(clashes, c...)
+	if found, ok := database.FromSpec(next); ok && found.Engine.ClickHouse() && database.ClickHouseAuthWrapped(ours.GetApp().GetCommand()) {
+		// The wrapper is coupled to the local secret and users file. Even a
+		// release that removes its command must still start with the hash.
+		if !database.ClickHouseAuthWrapped(app.GetCommand()) {
+			app.Command = database.WrapClickHouseAuth(app.GetCommand())
+		}
+		if i := slices.IndexFunc(ours.GetApp().GetMounts(), func(m *resourcev1.Mount) bool {
+			return m.GetTarget() == database.ClickHouseAuthTarget
+		}); i >= 0 {
+			app.Mounts = slices.DeleteFunc(app.GetMounts(), func(m *resourcev1.Mount) bool {
+				return m.GetTarget() == database.ClickHouseAuthTarget
+			})
+			app.Mounts = append(app.Mounts, proto.CloneOf(ours.GetApp().GetMounts()[i]))
+		}
+		for _, key := range []string{"CLICKHOUSE_USER", "CLICKHOUSE_SKIP_USER_SETUP", "CLICKHOUSE_PASSWORD", "CLICKHOUSE_PASSWORD_FILE", "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT"} {
+			delete(variables, key)
+			delete(secrets, key)
+			delete(app.Env, key)
+			if v, ok := ours.GetApp().GetEnv()[key]; ok {
+				if app.Env == nil {
+					app.Env = map[string]string{}
+				}
+				app.Env[key] = v
+			}
+			if v, ok := ours.GetSecrets()[key]; ok {
+				if secrets == nil {
+					secrets = map[string]string{}
+				}
+				secrets[key] = v
+			}
+			if v, ok := ours.GetVariables()[key]; ok {
+				if variables == nil {
+					variables = map[string]string{}
+				}
+				variables[key] = v
+			}
+		}
+	}
 	// Where it runs is the release's, set on next before the merge (keepArchitectures).
 	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}, Variables: variables, Secrets: secrets, ShownEnv: mergeShown(app, ours, next), Architectures: slices.Clone(next.GetArchitectures())}, clashes
 }

@@ -59,6 +59,25 @@ var clickHouseYAML []byte
 
 var clickHouseEntry = sync.OnceValues(func() (*catalogv1.Entry, error) { return Parse(clickHouseYAML) })
 
+// ClickHouseLogConfig returns the bundled recipe's log settings for adoption plans.
+func ClickHouseLogConfig() (string, error) {
+	e, err := clickHouseEntry()
+	if err != nil {
+		return "", err
+	}
+	var stack struct {
+		Configs map[string]struct{ Content string } `yaml:"configs"`
+	}
+	if err := yaml.Unmarshal([]byte(e.GetCompose()), &stack); err != nil {
+		return "", err
+	}
+	content := stack.Configs["bounded-logs"].Content
+	if content == "" {
+		return "", errors.New("the ClickHouse recipe has no bounded log config")
+	}
+	return content, nil
+}
+
 // WithNativeDatabase fills in the database entry supplied by this build when the
 // configured catalogs do not carry it.
 func (c *Catalog) WithNativeDatabase() (*Catalog, error) {

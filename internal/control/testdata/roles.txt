@@ -134,6 +134,7 @@ ControlBackupService.SetControlBackupServers         apply        owner      own
 ControlBackupService.ShowControlBackupPassphrase     read         owner      owner      install  session
 ControlBackupService.TakeControlBackup               apply        admin      admin      install
 DatabaseService.BeginDatabaseImport                  apply        admin      admin      project  session
+DatabaseService.BoundClickHouseLogs                  plan         developer  developer  project
 DatabaseService.CancelDatabaseImport                 destructive  admin      admin      project  session
 DatabaseService.ChangeDatabasePassword               plan         developer  developer  project
 DatabaseService.CheckDatabaseSignIn                  read         developer  admin      project

@@ -11,6 +11,8 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
+	"github.com/dockwell/dockwell/internal/compose"
+	"github.com/dockwell/dockwell/internal/database"
 )
 
 func TestBuiltInClickHousePassesCatalogChecks(t *testing.T) {
@@ -21,6 +23,20 @@ func TestBuiltInClickHousePassesCatalogChecks(t *testing.T) {
 	got := folder.Check(t.Context(), "Built into Dockwell", map[string][]byte{"clickhouse.yaml": raw}, nil, map[string]folder.Taken{}, folder.Options{})
 	if len(got.Refused) != 0 || len(got.Entries) != 1 {
 		t.Fatalf("the built-in ClickHouse entry failed the catalog check: %+v", got.Refused)
+	}
+	entry, err := catalog.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{
+		File: []byte(entry.GetCompose()), Variables: map[string]string{"CLICKHOUSE_PASSWORD": "fixture-value"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := stack.Services[0].Spec.GetApp().GetCommand()
+	if !slices.Equal(command, database.WrapClickHouseAuth(nil)) {
+		t.Fatal("the recipe and the managed auth wrapper don't agree after Compose interpolation")
 	}
 }
 

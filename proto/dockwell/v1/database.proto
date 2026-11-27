@@ -83,6 +83,20 @@ service DatabaseService {
     };
   }
 
+  // BoundClickHouseLogs plans a restart with bounded server logging and system log
+  // writers disabled. Existing data, including old system log tables, stays.
+  rpc BoundClickHouseLogs(BoundClickHouseLogsRequest) returns (BoundClickHouseLogsResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "bound-logs"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}:boundLogs"
+      body: "*"
+    };
+  }
+
   // SetDatabaseExternalAccess plans letting apps and people beyond a database's
   // server reach it, from the addresses listed and nowhere else, or taking that
   // away. It's three edits that go together: the database publishes its engine's
@@ -374,6 +388,10 @@ message DatabaseReading {
   // ClickHouse's active account uses plaintext authentication. Its XML config can
   // persist that password inside the data volume.
   bool clickhouse_plaintext_password = 20;
+  // A successful reading and an explicit refusal of an empty password.
+  bool clickhouse_password_verified = 21;
+  // The running ClickHouse configuration writes unbounded system logs or verbose server logs.
+  bool clickhouse_unbounded_logs = 22;
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -582,6 +600,18 @@ message ChangeDatabasePasswordRequest {
 // ChangeDatabasePasswordResponse is the change that gives the user a new password.
 message ChangeDatabasePasswordResponse {
   // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// BoundClickHouseLogsRequest identifies the ClickHouse service.
+message BoundClickHouseLogsRequest {
+  string id = 1;
+  string project = 2;
+  string environment = 3;
+}
+
+// BoundClickHouseLogsResponse holds the plan to bound logging.
+message BoundClickHouseLogsResponse {
   Change change = 1;
 }
 

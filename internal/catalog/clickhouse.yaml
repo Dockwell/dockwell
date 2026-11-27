@@ -37,7 +37,7 @@ compose: |
       command:
         - sh
         - -ec
-        - 'test -n "$$CLICKHOUSE_PASSWORD"; hash=$$(printf %s "$$CLICKHOUSE_PASSWORD" | sha256sum); export DOCKWELL_CLICKHOUSE_PASSWORD_SHA256="$$(printf %s "$$hash" | cut -d " " -f 1)"; exec "$$@"'
+        - 'test -n "$$CLICKHOUSE_PASSWORD" || { echo "CLICKHOUSE_PASSWORD is empty. Set it in the service''s secret" >&2; exit 1; }; hash=$$(printf %s "$$CLICKHOUSE_PASSWORD" | sha256sum); export DOCKWELL_CLICKHOUSE_PASSWORD_SHA256="$$(printf %s "$$hash" | cut -d " " -f 1)"; exec "$$@"'
         - sh
         - /entrypoint.sh
       environment:
@@ -49,6 +49,8 @@ compose: |
       configs:
         - source: small-host
           target: /etc/clickhouse-server/config.d/dockwell-small-host.xml
+        - source: bounded-logs
+          target: /etc/clickhouse-server/config.d/zz-dockwell-logs.xml
         - source: small-queries
           target: /etc/clickhouse-server/users.d/dockwell-small-queries.xml
         - source: password-auth
@@ -68,6 +70,10 @@ compose: |
           <max_server_memory_usage>335544320</max_server_memory_usage>
           <mark_cache_size>33554432</mark_cache_size>
           <background_schedule_pool_size>16</background_schedule_pool_size>
+        </clickhouse>
+    bounded-logs:
+      content: |
+        <clickhouse>
           <logger>
             <level>warning</level>
             <console>true</console>

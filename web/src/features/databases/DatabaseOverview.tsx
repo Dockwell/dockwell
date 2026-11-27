@@ -82,12 +82,15 @@ export function DatabaseOverview() {
   const install = useOwnInstall(db);
   const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
   const unprotected = db.readings.some((r) => r.checksNoOne);
-  const plaintext = db.readings.some((r) => r.clickhousePlaintextPassword);
-  const passwordVerified = db.readings.length > 0 && db.readings.every((r) => !r.unread && !r.checksNoOne);
+  const plaintext = db.readings.some((r) => r.clickhousePasswordVerified && r.clickhousePlaintextPassword);
+  const passwordVerified =
+    db.readings.length > 0 && db.readings.every((r) => !r.unread && r.clickhousePasswordVerified && !r.checksNoOne);
+  const unboundedLogs = db.readings.some((r) => r.clickhouseUnboundedLogs);
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
       {clickHouse && (unprotected || plaintext) ? <ClickHousePasswordStatus db={db} unprotected={unprotected} /> : null}
+      {clickHouse && unboundedLogs ? <ClickHouseLogsStatus db={db} /> : null}
       {!clickHouse && read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
@@ -211,6 +214,35 @@ function ClickHousePasswordStatus({ db, unprotected }: { db: Database; unprotect
       }
     >
       {unprotected ? t`Anyone who can reach it can sign in.` : t`Copies of its data can contain the password.`}
+    </Callout>
+  );
+}
+
+function ClickHouseLogsStatus({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(DatabaseService.method.boundClickHouseLogs, { environment: db.resource?.scope ?? "" });
+  return (
+    <Callout
+      tone="warning"
+      title={t`ClickHouse logs can fill its disk`}
+      actions={
+        <Button
+          size="sm"
+          {...may.off}
+          onClick={() =>
+            sheet.open({
+              kind: "plan",
+              make: () => createClient(DatabaseService, transport).boundClickHouseLogs({ id: db.id }),
+            })
+          }
+        >
+          {t`Limit log growth`}
+        </Button>
+      }
+    >
+      {t`The plan restarts ClickHouse with rotating warning logs and stops writing system log tables.`}
     </Callout>
   );
 }

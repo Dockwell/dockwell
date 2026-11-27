@@ -47,6 +47,9 @@ const (
 	// DatabaseServiceChangeDatabasePasswordProcedure is the fully-qualified name of the
 	// DatabaseService's ChangeDatabasePassword RPC.
 	DatabaseServiceChangeDatabasePasswordProcedure = "/dockwell.v1.DatabaseService/ChangeDatabasePassword"
+	// DatabaseServiceBoundClickHouseLogsProcedure is the fully-qualified name of the DatabaseService's
+	// BoundClickHouseLogs RPC.
+	DatabaseServiceBoundClickHouseLogsProcedure = "/dockwell.v1.DatabaseService/BoundClickHouseLogs"
 	// DatabaseServiceSetDatabaseExternalAccessProcedure is the fully-qualified name of the
 	// DatabaseService's SetDatabaseExternalAccess RPC.
 	DatabaseServiceSetDatabaseExternalAccessProcedure = "/dockwell.v1.DatabaseService/SetDatabaseExternalAccess"
@@ -102,6 +105,9 @@ type DatabaseServiceClient interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// BoundClickHouseLogs plans a restart with bounded server logging and system log
+	// writers disabled. Existing data, including old system log tables, stays.
+	BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error)
 	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
 	// server reach it, from the addresses listed and nowhere else, or taking that
 	// away. It's three edits that go together: the database publishes its engine's
@@ -196,6 +202,12 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 			connect.WithClientOptions(opts...),
 		),
+		boundClickHouseLogs: connect.NewClient[v1.BoundClickHouseLogsRequest, v1.BoundClickHouseLogsResponse](
+			httpClient,
+			baseURL+DatabaseServiceBoundClickHouseLogsProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("BoundClickHouseLogs")),
+			connect.WithClientOptions(opts...),
+		),
 		setDatabaseExternalAccess: connect.NewClient[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse](
 			httpClient,
 			baseURL+DatabaseServiceSetDatabaseExternalAccessProcedure,
@@ -260,6 +272,7 @@ type databaseServiceClient struct {
 	getDatabase               *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
 	createDatabaseUser        *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
 	changeDatabasePassword    *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
+	boundClickHouseLogs       *connect.Client[v1.BoundClickHouseLogsRequest, v1.BoundClickHouseLogsResponse]
 	setDatabaseExternalAccess *connect.Client[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse]
 	checkDatabaseSignIn       *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
 	connectDatabase           *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
@@ -289,6 +302,11 @@ func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *con
 // ChangeDatabasePassword calls dockwell.v1.DatabaseService.ChangeDatabasePassword.
 func (c *databaseServiceClient) ChangeDatabasePassword(ctx context.Context, req *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return c.changeDatabasePassword.CallUnary(ctx, req)
+}
+
+// BoundClickHouseLogs calls dockwell.v1.DatabaseService.BoundClickHouseLogs.
+func (c *databaseServiceClient) BoundClickHouseLogs(ctx context.Context, req *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error) {
+	return c.boundClickHouseLogs.CallUnary(ctx, req)
 }
 
 // SetDatabaseExternalAccess calls dockwell.v1.DatabaseService.SetDatabaseExternalAccess.
@@ -362,6 +380,9 @@ type DatabaseServiceHandler interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// BoundClickHouseLogs plans a restart with bounded server logging and system log
+	// writers disabled. Existing data, including old system log tables, stays.
+	BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error)
 	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
 	// server reach it, from the addresses listed and nowhere else, or taking that
 	// away. It's three edits that go together: the database publishes its engine's
@@ -452,6 +473,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceBoundClickHouseLogsHandler := connect.NewUnaryHandler(
+		DatabaseServiceBoundClickHouseLogsProcedure,
+		svc.BoundClickHouseLogs,
+		connect.WithSchema(databaseServiceMethods.ByName("BoundClickHouseLogs")),
+		connect.WithHandlerOptions(opts...),
+	)
 	databaseServiceSetDatabaseExternalAccessHandler := connect.NewUnaryHandler(
 		DatabaseServiceSetDatabaseExternalAccessProcedure,
 		svc.SetDatabaseExternalAccess,
@@ -517,6 +544,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
 		case DatabaseServiceChangeDatabasePasswordProcedure:
 			databaseServiceChangeDatabasePasswordHandler.ServeHTTP(w, r)
+		case DatabaseServiceBoundClickHouseLogsProcedure:
+			databaseServiceBoundClickHouseLogsHandler.ServeHTTP(w, r)
 		case DatabaseServiceSetDatabaseExternalAccessProcedure:
 			databaseServiceSetDatabaseExternalAccessHandler.ServeHTTP(w, r)
 		case DatabaseServiceCheckDatabaseSignInProcedure:
@@ -558,6 +587,10 @@ func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *
 
 func (UnimplementedDatabaseServiceHandler) ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ChangeDatabasePassword is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.BoundClickHouseLogs is not implemented"))
 }
 
 func (UnimplementedDatabaseServiceHandler) SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error) {

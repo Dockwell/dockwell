@@ -13177,6 +13177,9 @@ msgstr "Checks {domain} every minute"
 msgid "ClickHouse restarts with a password hash"
 msgstr "ClickHouse restarts with a password hash"
 
+msgid "ClickHouse restarts with bounded logging"
+msgstr "ClickHouse restarts with bounded logging"
+
 msgid "Clients with their own settings need the new password."
 msgstr "Clients with their own settings need the new password."
 
@@ -13227,6 +13230,9 @@ msgstr "Each keeps running as it is."
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
+
+msgid "Existing logs stay on disk."
+msgstr "Existing logs stay on disk."
 
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
@@ -15782,6 +15788,9 @@ msgstr "Can do anything"
 msgid "Change password"
 msgstr "Change password"
 
+msgid "ClickHouse logs can fill its disk"
+msgstr "ClickHouse logs can fill its disk"
+
 msgid "ClickHouse stores a readable password in its data"
 msgstr "ClickHouse stores a readable password in its data"
 
@@ -15854,6 +15863,9 @@ msgstr "Kept in the secret <0>{secret}</0>"
 msgid "Keys asked for that were there"
 msgstr "Keys asked for that were there"
 
+msgid "Limit log growth"
+msgstr "Limit log growth"
+
 msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 
@@ -15917,6 +15929,9 @@ msgstr "The last one failed: {latestError}"
 
 msgid "The most it takes is {mostWords}"
 msgstr "The most it takes is {mostWords}"
+
+msgid "The plan restarts ClickHouse with rotating warning logs and stops writing system log tables."
+msgstr "The plan restarts ClickHouse with rotating warning logs and stops writing system log tables."
 
 msgid "This server's disk, unencrypted"
 msgstr "This server's disk, unencrypted"

@@ -90,7 +90,8 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		r.Container = containerName
 		return r
 	}
-	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
+	port := PortOf(e, c.Config.Cmd)
+	cmd, input := e.reading(port)
 	cmd = e.WithPasswordFile(cmd, c.Config.Env)
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
@@ -105,6 +106,9 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return r
 	}
 	reading.Container = containerName
+	if e.ClickHouse() {
+		r.checkClickHouse(ctx, c, port, reading)
+	}
 	return reading
 }
 

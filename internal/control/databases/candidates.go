@@ -194,6 +194,24 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 						c.AdministeredBy = u.Name
 						break
 					}
+					if c.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE && u.Kind == string(variable.SecretKind) {
+						readers, err := tx.UsersOf(ctx, u.Scope, u.Kind, u.Name)
+						if err != nil {
+							return err
+						}
+						if j := slices.IndexFunc(readers, func(a store.Using) bool {
+							return a.Kind == "service" && (a.Scope != env || a.Name != p.ref.Name)
+						}); j >= 0 {
+							c.AdministeredBy = readers[j].Name
+							break
+						}
+					}
+				}
+			}
+			if c.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE && c.AdministeredBy == "" {
+				c.AdministeredBy, err = h.clickHouseLiteralClient(ctx, tx, p)
+				if err != nil {
+					return err
 				}
 			}
 			out = append(out, c)

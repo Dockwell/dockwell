@@ -178,7 +178,11 @@ const maxWritten = 4
 // writtenNow is what the variable or secret ref holds now, written out: what it
 // holds, or what what it comes from holds, read the same way.
 func (e *Engine) writtenNow(ctx context.Context, tx *store.Tx, ref resource.Ref, depth int) (string, error) {
-	it, err := e.load(ctx, tx, ref)
+	return e.writtenAfter(ctx, tx, nil, ref, depth)
+}
+
+func (e *Engine) writtenAfter(ctx context.Context, tx *store.Tx, items []item, ref resource.Ref, depth int) (string, error) {
+	spec, err := e.specAfter(ctx, tx, items, ref)
 	if err != nil {
 		return "", err
 	}
@@ -187,19 +191,19 @@ func (e *Engine) writtenNow(ctx context.Context, tx *store.Tx, ref resource.Ref,
 		return "", err
 	}
 	valuer, ok := t.(resource.Valuer)
-	if !ok || it.current == nil {
+	if !ok || spec == nil {
 		return "", fault.New(ErrInvalid, "%s has no value to hold", ref)
 	}
-	from := variable.FromOf(it.current)
+	from := variable.FromOf(spec)
 	if from == nil {
-		return valuer.Value(it.current), nil
+		return valuer.Value(spec), nil
 	}
 	if depth >= maxWritten {
 		return "", fault.New(ErrInvalid, "%s is written from others more than %d deep, as one names itself through another. Write one of them out as a value of its own", ref, maxWritten)
 	}
-	uses := resource.Uses(t, it.current)
+	uses := resource.Uses(t, spec)
 	read := func(u resource.Use) (string, error) {
-		return e.writtenNow(ctx, tx, resource.Ref{Kind: u.Kind, Scope: cmp.Or(u.Scope, ref.Scope), Name: u.Name}, depth+1)
+		return e.writtenAfter(ctx, tx, items, resource.Ref{Kind: u.Kind, Scope: cmp.Or(u.Scope, ref.Scope), Name: u.Name}, depth+1)
 	}
 	switch src := from.GetSource().(type) {
 	case *resourcev1.ValueFrom_Template:

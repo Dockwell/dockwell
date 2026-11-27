@@ -287,6 +287,24 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 		}
 		return e.checkTakenOn(ctx, tx, items, it, s)
 	case *resourcev1.Service:
+		if database.ClickHouseAuthWrapped(s.GetApp().GetCommand()) {
+			const name = "CLICKHOUSE_PASSWORD"
+			password := s.GetApp().GetEnv()[name]
+			for _, binding := range e.usesOf(it, s) {
+				if binding.As != name {
+					continue
+				}
+				var err error
+				password, err = e.writtenAfter(ctx, tx, items, resource.Ref{Kind: binding.Kind, Scope: cmp.Or(binding.Scope, it.ref.Scope), Name: binding.Name}, 0)
+				if err != nil {
+					return err
+				}
+				break
+			}
+			if password == "" {
+				return fault.New(ErrInvalid, "%s", database.EmptyClickHouseCredential)
+			}
+		}
 		return e.checkServiceSecrets(ctx, tx, items, it, s)
 	}
 	return nil

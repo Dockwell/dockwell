@@ -167,6 +167,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   // Dump import requires project admin role (and a browser session) because it replaces a database's contents.
   "DatabaseService.beginDatabaseImport": "may",
+  "DatabaseService.boundClickHouseLogs": "may",
   "DatabaseService.cancelDatabaseImport": "may",
   "DatabaseService.changeDatabasePassword": "may",
   "DatabaseService.checkDatabaseSignIn": "may",

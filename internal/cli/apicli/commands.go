@@ -309,6 +309,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.DatabaseService.DeleteLogicalDatabase":     true,
 	"dockwell.v1.DatabaseService.PlanDatabaseImport":        true,
 	"dockwell.v1.DatabaseService.ChangeDatabasePassword":    true,
+	"dockwell.v1.DatabaseService.BoundClickHouseLogs":       true,
 	"dockwell.v1.DatabaseService.ConnectDatabase":           true,
 	"dockwell.v1.DatabaseService.SetDatabaseExternalAccess": true,
 	"dockwell.v1.ConnectionService.ConnectStorage":          true,
