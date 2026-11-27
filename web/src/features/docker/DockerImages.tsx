@@ -250,7 +250,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     label: actions.labelFor(selection(row)),
     actions: actions.withActions(selection(row), false, verbs(row)),
   });
-  const context = useRowMenu(menuFor);
+  const context = useRowMenu(menuFor, { rows, keyOf: (row) => row.id });
   const openContext = (row: ImageRow, at: { x: number; y: number }, el: HTMLElement) => {
     cleanup.checkMenu(row);
     context.open(row, at, el);

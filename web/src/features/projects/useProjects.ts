@@ -16,11 +16,12 @@ import {
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { environmentOf } from "../apps/app";
-import { DEFAULT_PROJECT, useServices } from "../apps/useServices";
+import { useServices } from "../apps/useServices";
 import { useInstalls } from "../catalog/useCatalog";
 import { useDatabases } from "../databases/useDatabases";
 import { readListPages } from "../shell/list";
 import { useWebsites } from "../websites/website";
+import { compareProjects, projectSummary } from "./summary";
 
 /** One project, as the Projects list and its page show it: what's in it, by kind. */
 export interface ProjectView {
@@ -121,16 +122,10 @@ export function useProjects(): {
         const inside = byProject.get(project.id) ?? [];
         const own = services.filter((s) => envIds.has(environmentOf(s)));
         const website = websites?.find((w) => envIds.has(w.environmentId));
-        const name = project.resource?.name ?? project.id;
         const install = installs?.find((i) => i.projectId === project.id);
+        const summary = projectSummary(project, { installs, resources: inside });
         return {
-          project,
-          id: project.id,
-          name,
-          // An install goes by the name the person gave it; its display name is the
-          // catalog app's, which its sub says (#796).
-          label: install ? name : project.displayName || name,
-          isDefault: name === DEFAULT_PROJECT,
+          ...summary,
           environments: envs,
           inside,
           apps: website ? [] : own.filter((s) => !dbIds.has(s.id)),
@@ -138,13 +133,9 @@ export function useProjects(): {
           website,
           install,
           domains: (domains ?? []).filter((d) => envIds.has(d.environmentId)),
-          idle: !inside.some((r) => r.resource?.kind === "service" || r.resource?.kind === "route"),
         };
       });
-    const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
-    return out.sort((a, b) =>
-      a.isDefault !== b.isDefault ? (a.isDefault ? -1 : 1) : collator.compare(a.label, b.label),
-    );
+    return out.sort(compareProjects);
   }, [resources, services, databases, websites, installs, domains]);
 
   return {

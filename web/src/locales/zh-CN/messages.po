@@ -4528,6 +4528,9 @@ msgstr "所有环境"
 msgid "All servers"
 msgstr "所有服务器"
 
+msgid "Already paused"
+msgstr "已暂停"
+
 msgid "Already running"
 msgstr "已在运行"
 
@@ -4540,6 +4543,12 @@ msgstr "无法读取应用详情"
 msgid "App state is changing or unavailable"
 msgstr "应用状态正在变化或暂不可用"
 
+msgid "Busy: deploying"
+msgstr "忙碌中：正在部署"
+
+msgid "Busy: waiting for server"
+msgstr "忙碌中：等待服务器"
+
 msgid "Can't load the apps"
 msgstr "无法加载应用"
 
@@ -4548,6 +4557,9 @@ msgstr "清除筛选词"
 
 msgid "Clear the filters"
 msgstr "清除筛选"
+
+msgid "Configuration couldn't be read"
+msgstr "无法读取配置"
 
 msgid "Database"
 msgstr "数据库"
@@ -4587,6 +4599,12 @@ msgstr "{server} 上没有应用"
 
 msgid "No apps yet"
 msgstr "还没有应用"
+
+msgid "Not paused"
+msgstr "未暂停"
+
+msgid "Not placed on a server"
+msgstr "未部署到服务器"
 
 msgid "Nothing matches"
 msgstr "没有匹配项"
@@ -17444,6 +17462,9 @@ msgstr "地址"
 msgid "All ownership"
 msgstr "所有归属"
 
+msgid "Being removed"
+msgstr "正在移除"
+
 msgid "Clear Compose project filter"
 msgstr "清除 Compose 项目筛选"
 
@@ -17484,6 +17505,9 @@ msgstr "正在加载容器"
 msgid "Logs for {0}"
 msgstr "{0} 的日志"
 
+msgid "Managed or system container"
+msgstr "受管理的容器或系统容器"
+
 msgid "Move in"
 msgstr "迁入"
 
@@ -17501,9 +17525,6 @@ msgstr "没有符合条件的容器"
 
 msgid "No sample"
 msgstr "暂无采样"
-
-msgid "Not paused"
-msgstr "未暂停"
 
 msgid "Not running or already paused"
 msgstr "未运行或已暂停"
@@ -17532,11 +17553,17 @@ msgstr "副本处于不同状态"
 msgid "Restart this container"
 msgstr "重启此容器"
 
+msgid "Restarting"
+msgstr "正在重启"
+
 msgid "Search containers"
 msgstr "搜索容器"
 
 msgid "Start {name} on all {workloadServers} servers"
 msgstr "在全部 {workloadServers} 台服务器上启动 {name}"
+
+msgid "Stop the container first"
+msgstr "请先停止容器"
 
 msgid "Stop {name} on all {workloadServers} servers"
 msgstr "在全部 {workloadServers} 台服务器上停止 {name}"
@@ -17836,9 +17863,6 @@ msgstr "已在运行或不可用"
 msgid "Anonymous volumes"
 msgstr "匿名卷"
 
-msgid "Being removed"
-msgstr "正在移除"
-
 msgid "Container name prefix"
 msgstr "容器名称前缀"
 
@@ -17847,9 +17871,6 @@ msgstr "保留匿名卷"
 
 msgid "Kill"
 msgstr "终止"
-
-msgid "Managed or system container"
-msgstr "受管理的容器或系统容器"
 
 msgid "New container name"
 msgstr "新容器名称"
@@ -17871,9 +17892,6 @@ msgstr "发送 SIGKILL 前等待的秒数"
 
 msgid "Signal"
 msgstr "信号"
-
-msgid "Stop the container first"
-msgstr "请先停止容器"
 
 msgid "Address pools"
 msgstr "地址池"
@@ -24057,9 +24075,6 @@ msgstr "已失效"
 msgid "Not started"
 msgstr "未启动"
 
-msgid "Restarting"
-msgstr "正在重启"
-
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
@@ -25993,6 +26008,9 @@ msgstr "GitHub 的 Webhook 密钥与 Dockwell 的不一致，因此 Dockwell 自
 msgid "Pushes come through the GitHub App."
 msgstr "推送通过 GitHub 应用送达。"
 
+msgid "No longer available"
+msgstr "不再可用"
+
 msgid "Activity on {name}"
 msgstr "{name} 上的动态"
 
@@ -26592,9 +26610,6 @@ msgstr "全部任务"
 
 msgid "Already active"
 msgstr "已启用"
-
-msgid "Already paused"
-msgstr "已暂停"
 
 msgid "Couldn't run the task"
 msgstr "无法运行任务"
@@ -27806,6 +27821,10 @@ msgstr "{name} 的代理还不读取更新"
 
 msgid "{name}'s agent isn't connected"
 msgstr "{name} 的代理未连接"
+
+msgctxt "project running state"
+msgid "Can't tell what runs"
+msgstr "无法确认运行状态"
 
 msgid "Choose a project"
 msgstr "选择项目"

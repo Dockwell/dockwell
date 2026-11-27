@@ -577,6 +577,68 @@ describe("an app's frame", () => {
     await waitFor(() => expect(restarted[0]).toMatchObject({ id: app.id, summary: "Start web" }));
   });
 
+  it("keeps Open, Pause and Restart in the header when one server of a multi-server app is down (#952)", async () => {
+    const user = userEvent.setup();
+    const hz2 = aServer({ id: "srv_2", name: "hz-2", inventory: { addresses: ["203.0.113.8"] } });
+    const app = anApp(
+      "web",
+      "nginx",
+      { desiredRunState: DesiredRunState.RUNNING },
+      {
+        deployments: [
+          { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE },
+          { serverId: "srv_2", serverName: "hz-2", state: DeploymentState.LIVE },
+        ],
+      },
+    );
+    renderAt(
+      "/apps/svc_web",
+      api(
+        [app],
+        {
+          health: {
+            listHealth: () => ({
+              services: [
+                aHealth(
+                  app.id,
+                  { server: SERVER, serverName: "hz-1", state: HealthState.HEALTHY },
+                  { server: "srv_2", serverName: "hz-2", state: HealthState.NOT_RUNNING },
+                ),
+              ],
+            }),
+          },
+          domains: {
+            listDomains: () => ({
+              domains: [
+                {
+                  name: "web.example.com",
+                  url: "https://web.example.com",
+                  routes: [{ id: "res_1", name: "web-example-com", service: "web", port: 80 }],
+                  servers: [
+                    {
+                      serverId: SERVER,
+                      serverName: "hz-1",
+                      status: { domain: "web.example.com", certificate: { state: CertificateState.ISSUED } },
+                    },
+                  ],
+                },
+              ],
+            }),
+          },
+        },
+        hz1,
+        hz2,
+      ),
+    );
+    const open = await screen.findByRole("link", { name: "Open" });
+    expect(open).toHaveAttribute("href", "https://web.example.com");
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Actions for web" }));
+    const menu = screen.getByRole("menu", { name: "Actions for web" });
+    expect(within(menu).getByRole("menuitem", { name: "Pause" })).toBeVisible();
+    expect(within(menu).getByRole("menuitem", { name: "Restart" })).toBeVisible();
+  });
+
   it("keeps workload controls out of a moving app's header", async () => {
     const moving = anApp(
       "web",

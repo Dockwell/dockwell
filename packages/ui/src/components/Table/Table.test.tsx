@@ -235,4 +235,103 @@ describe("Table", () => {
     expect(screen.getByRole("row", { name: "web" })).toHaveClass("is-head");
     expect(screen.getByRole("row", { name: "api" })).not.toHaveClass("is-head");
   });
+
+  it("keeps a focused row's DOM identity and focus through a refresh, and returns focus to the list when it leaves", async () => {
+    const onRowClick = vi.fn();
+    const { rerender } = render(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={rows} onRowClick={onRowClick} />
+      </section>,
+    );
+    const workerRow = screen.getByRole("row", { name: /worker/ });
+    workerRow.focus();
+    expect(workerRow).toHaveFocus();
+
+    // Refresh with updated data and changed order: same DOM element keeps focus.
+    const [first, second] = rows;
+    if (!first || !second) throw new Error("expected two fixture rows");
+    const refreshed: App[] = [
+      { ...second, replicas: "2/4", status: "healthy" },
+      { ...first, replicas: "3/3" },
+    ];
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={refreshed} onRowClick={onRowClick} />
+      </section>,
+    );
+    const updatedRow = screen.getByRole("row", { name: /worker/ });
+    expect(updatedRow).toBe(workerRow);
+    expect(updatedRow).toHaveTextContent("2/4");
+    expect(updatedRow).toHaveFocus();
+
+    // Refresh where the focused row disappears: focus returns cleanly to the list.
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={refreshed.slice(1)} onRowClick={onRowClick} />
+      </section>,
+    );
+    expect(screen.queryByRole("row", { name: /worker/ })).toBeNull();
+    expect(screen.getByLabelText("Apps list")).toHaveFocus();
+
+    // Blurring intentionally to the page background must not let a later refresh steal focus back.
+    const apiRow = screen.getByRole("row", { name: /api/ });
+    apiRow.focus();
+    apiRow.blur();
+    await Promise.resolve();
+    rerender(
+      <section tabIndex={-1} aria-label="Apps list">
+        <Table caption="Apps" columns={columns} rows={[{ ...first, replicas: "4/4" }]} onRowClick={onRowClick} />
+      </section>,
+    );
+    expect(apiRow).not.toHaveFocus();
+  });
+
+  it("does not make a non-scrolling wrapper click-focusable, cleans up fallback tabindex, and never steals focus from an outside input", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const { container, rerender } = render(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={rows} onRowClick={onRowClick} />
+      </>,
+    );
+    const wrap = container.querySelector(".dw-table-wrap") as HTMLElement;
+    expect(wrap).not.toHaveAttribute("tabindex");
+
+    // Clicking a non-interactive table without onRowClick or a cell does not focus the wrapper.
+    await user.click(screen.getByText("3/3"));
+    expect(wrap).not.toHaveFocus();
+
+    // Moving focus to an outside input before a refresh must keep focus in the input.
+    const workerRow = screen.getByRole("row", { name: /worker/ });
+    const filter = screen.getByRole("textbox", { name: "Filter apps" });
+    workerRow.focus();
+    filter.focus();
+    rerender(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={rows.slice(0, 1)} onRowClick={onRowClick} />
+      </>,
+    );
+    expect(filter).toHaveFocus();
+
+    // When a focused row disappears with no list section above the table, the wrapper takes focus
+    // temporarily and drops its fallback tabindex once focus leaves it.
+    const apiRow = screen.getByRole("row", { name: /api/ });
+    apiRow.focus();
+    rerender(
+      <>
+        <input aria-label="Filter apps" />
+        <Table caption="Apps" columns={columns} rows={[]} onRowClick={onRowClick} />
+      </>,
+    );
+    expect(wrap).toHaveFocus();
+    expect(wrap).toHaveAttribute("tabindex", "-1");
+    expect(wrap).toHaveAttribute("role", "group");
+    expect(wrap).toHaveAttribute("aria-label", "Apps");
+    filter.focus();
+    expect(wrap).not.toHaveAttribute("tabindex");
+    expect(wrap).not.toHaveAttribute("role");
+    expect(wrap).not.toHaveAttribute("aria-label");
+  });
 });

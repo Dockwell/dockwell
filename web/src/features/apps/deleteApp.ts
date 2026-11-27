@@ -3,7 +3,6 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
-  type CatalogInstall,
   CatalogService,
   type Change,
   ChangeService,
@@ -30,14 +29,10 @@ import {
   useResourcesIn,
   useResourceWords,
 } from "../projects/contents";
+import { projectLabel } from "../projects/summary";
 import { environmentOf, nameOf } from "./app";
 import { useAppDomains } from "./domains";
 import { DEFAULT_PROJECT, usePlaces } from "./useServices";
-
-function projectLabel(project: Resource, installs: readonly CatalogInstall[] | undefined) {
-  const name = project.resource?.name || project.id;
-  return installs?.some((install) => install.projectId === project.id) ? name : project.displayName || name;
-}
 
 const appOrRoute = (kind: string | undefined) => kind === "service" || kind === "route";
 const refKey = ({ kind, scope, name }: Pick<ResourceRef, "kind" | "scope" | "name">) =>

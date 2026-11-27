@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import {
+  ContainerState,
   DockerCleanupKind,
   DockerCleanupReason,
   DockerObjectKind,
@@ -131,4 +132,73 @@ it("keeps matching selected volumes while searching and hides checkboxes for vie
   });
   expect(await screen.findByText("alpha")).toBeVisible();
   expect(screen.queryByRole("checkbox")).toBeNull();
+});
+
+it("shows a network detail page before container choices land and opens one live watch (#956)", async () => {
+  const server = aServer({ id: "srv_1" });
+  const servers = feed<WatchServersResponse>();
+  servers.push(changed(server), snapshotComplete);
+  let resolveContainers!: (value: { objects: unknown[]; nextPageToken: string }) => void;
+  const containersPending = new Promise<{ objects: unknown[]; nextPageToken: string }>((resolve) => {
+    resolveContainers = resolve;
+  });
+  let watchCount = 0;
+  renderAt("/servers/srv_1/docker/networks/net_1", {
+    servers: { watchServers: servers.stream },
+    docker: {
+      watchDockerObjects: async function* () {
+        watchCount += 1;
+        await new Promise(() => {});
+      },
+      getDockerObject: () => ({
+        object: {
+          key: { serverId: server.id, engineId: "net_1", kind: DockerObjectKind.NETWORK },
+          name: "app-net",
+          ownership: DockerOwnership.EXTERNAL,
+          detail: {
+            case: "network" as const,
+            value: {
+              driver: "bridge",
+              scope: "local",
+              attachmentCount: 1,
+              attachments: [
+                {
+                  containerId: "ctr_1",
+                  name: "web-1",
+                  state: ContainerState.RUNNING,
+                  ipv4: "172.20.0.2",
+                },
+              ],
+            },
+          },
+        },
+      }),
+      listDockerObjects: () => containersPending as never,
+    },
+  });
+
+  // Network heading and attached row land immediately before the container list resolves.
+  expect(await screen.findByRole("heading", { name: "app-net" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "web-1" })).toBeVisible();
+  const menuButton = screen.getByRole("button", { name: "Actions for web-1" });
+  expect(menuButton).toBeDisabled();
+  expect(menuButton).toHaveAttribute("aria-busy", "true");
+  expect(watchCount).toBe(1);
+
+  resolveContainers({
+    objects: [
+      {
+        key: { serverId: server.id, engineId: "ctr_1", kind: DockerObjectKind.CONTAINER },
+        name: "web-1",
+        ownership: DockerOwnership.EXTERNAL,
+        state: ContainerState.RUNNING,
+      },
+    ],
+    nextPageToken: "",
+  });
+
+  const user = userEvent.setup();
+  await waitFor(() => expect(menuButton).toBeEnabled());
+  await user.click(menuButton);
+  expect(screen.getByRole("menuitem", { name: "Take on" })).toBeVisible();
 });

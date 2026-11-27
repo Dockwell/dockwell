@@ -537,6 +537,134 @@ describe("Alerts and rules", () => {
     expect(screen.getByText(/1 open · 2 rules · sent to 1 channel/)).toBeVisible();
   });
 
+  it("shows each rule's own title on open and resolved alerts for the same condition, and falls back to the kind label when untitled (#952)", async () => {
+    const diskRules = [
+      create(AlertRuleInfoSchema, {
+        id: "alr_disk_warn",
+        name: "disk-warn",
+        title: "Disk above 85%",
+        expression: "disk.percent > 85",
+        spec: { condition: Condition.DISK_FULL, threshold: 85, severity: Severity.WARNING },
+      }),
+      create(AlertRuleInfoSchema, {
+        id: "alr_disk_crit",
+        name: "disk-crit",
+        title: "Disk above 95%",
+        expression: "disk.percent > 95",
+        spec: { condition: Condition.DISK_FULL, threshold: 95, severity: Severity.CRITICAL },
+      }),
+      create(AlertRuleInfoSchema, {
+        id: "alr_disk_untitled",
+        name: "disk-plain",
+        title: "",
+        expression: "disk.percent > 90",
+        spec: { condition: Condition.DISK_FULL, threshold: 90, severity: Severity.WARNING },
+      }),
+    ];
+    renderAt(
+      "/alerts",
+      api([ops], {
+        alerts: {
+          listAlertRules: () => ({ rules: diskRules }),
+          listAlerts: () => ({
+            firing: 3,
+            alerts: [
+              {
+                id: "alt_open_warn",
+                ruleId: "alr_disk_warn",
+                ruleName: "disk-warn",
+                condition: Condition.DISK_FULL,
+                severity: Severity.WARNING,
+                state: AlertState.FIRING,
+                serverName: "hz-1",
+                mount: "/data",
+                value: 87,
+                openTime: timestampFromDate(NOW),
+              },
+              {
+                id: "alt_open_crit",
+                ruleId: "alr_disk_crit",
+                ruleName: "disk-crit",
+                condition: Condition.DISK_FULL,
+                severity: Severity.CRITICAL,
+                state: AlertState.FIRING,
+                serverName: "hz-2",
+                mount: "/",
+                value: 96,
+                openTime: timestampFromDate(NOW),
+              },
+              {
+                id: "alt_open_plain",
+                ruleId: "alr_disk_untitled",
+                ruleName: "disk-plain",
+                condition: Condition.DISK_FULL,
+                severity: Severity.WARNING,
+                state: AlertState.FIRING,
+                serverName: "hz-3",
+                mount: "/var",
+                value: 91,
+                openTime: timestampFromDate(NOW),
+              },
+              {
+                id: "alt_res_warn",
+                ruleId: "alr_disk_warn",
+                ruleName: "disk-warn",
+                condition: Condition.DISK_FULL,
+                severity: Severity.WARNING,
+                state: AlertState.RESOLVED,
+                serverName: "hz-1",
+                mount: "/data",
+                value: 86,
+                openTime: timestampFromDate(new Date(NOW.getTime() - 600_000)),
+                resolveTime: timestampFromDate(NOW),
+              },
+              {
+                id: "alt_res_crit",
+                ruleId: "alr_disk_crit",
+                ruleName: "disk-crit",
+                condition: Condition.DISK_FULL,
+                severity: Severity.CRITICAL,
+                state: AlertState.RESOLVED,
+                serverName: "hz-2",
+                mount: "/",
+                value: 97,
+                openTime: timestampFromDate(new Date(NOW.getTime() - 600_000)),
+                resolveTime: timestampFromDate(NOW),
+              },
+              {
+                id: "alt_res_plain",
+                ruleId: "alr_disk_untitled",
+                ruleName: "disk-plain",
+                condition: Condition.DISK_FULL,
+                severity: Severity.WARNING,
+                state: AlertState.RESOLVED,
+                serverName: "hz-3",
+                mount: "/var",
+                value: 92,
+                openTime: timestampFromDate(new Date(NOW.getTime() - 600_000)),
+                resolveTime: timestampFromDate(NOW),
+              },
+            ],
+          }),
+        },
+      }),
+    );
+
+    const open = await screen.findByRole("region", { name: "Open" });
+    const cards = within(open).getAllByRole("article");
+    expect(cards).toHaveLength(3);
+    expect(cards.find((c) => c.textContent?.includes("hz-2"))).toHaveTextContent("Disk above 95%");
+    expect(cards.find((c) => c.textContent?.includes("hz-1"))).toHaveTextContent("Disk above 85%");
+    expect(cards.find((c) => c.textContent?.includes("hz-3"))).toHaveTextContent("Disk full");
+
+    const resolved = screen.getByRole("complementary", { name: "Resolved" });
+    const rows = within(resolved).getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    expect(rows.find((r) => r.textContent?.includes("hz-1"))).toHaveTextContent("Disk above 85%");
+    expect(rows.find((r) => r.textContent?.includes("hz-2"))).toHaveTextContent("Disk above 95%");
+    expect(rows.find((r) => r.textContent?.includes("hz-3"))).toHaveTextContent("Disk full");
+  });
+
   it("draws a server's memory beside the alert that's about it, most severe first, and says what was sent", async () => {
     const hz1 = aServer({ id: "srv_1", name: "hz-1", history: [sample(20, 7.2), sample(20, 7.4), sample(20, 7.5)] });
     const watch = feed<WatchServersResponse>();

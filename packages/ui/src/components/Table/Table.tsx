@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CSSProperties, isValidElement, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import {
+  type CSSProperties,
+  isValidElement,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useLayoutEffect,
+  useRef,
+} from "react";
 
 import { cx } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
@@ -202,15 +210,52 @@ export function Table<Row extends object = Record<string, unknown>>({
   className,
 }: TableProps<Row>) {
   const strings = useUIStrings();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const focusedRef = useRef<HTMLElement | null>(null);
   const waiting = loading && rows.length === 0;
   const keyField = (rowKey ?? "id") as keyof Row;
   const clickable = onRowClick !== undefined;
   const scrolls = maxHeight !== undefined;
   const wrapStyle: CSSProperties | undefined = scrolls ? { maxHeight } : undefined;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Keeps focus on a refreshed or reordered row, and returns focus to the list when a focused row disappears.
+  useLayoutEffect(() => {
+    const focused = focusedRef.current;
+    if (!focused) return;
+    if (focused.isConnected) {
+      if (document.activeElement === document.body || document.activeElement === null) {
+        focused.focus({ preventScroll: true });
+      }
+      return;
+    }
+    focusedRef.current = null;
+    if (document.activeElement === document.body || document.activeElement === null) {
+      const wrap = wrapRef.current;
+      const list = wrap?.closest<HTMLElement>('section[tabindex="-1"], [role="region"][tabindex]') ?? wrap;
+      if (!list) return;
+      if (list === wrap && !list.hasAttribute("tabindex")) {
+        const addedRole = !list.hasAttribute("role");
+        const addedLabel = Boolean(caption) && !list.hasAttribute("aria-label");
+        list.setAttribute("tabindex", "-1");
+        if (addedRole) list.setAttribute("role", "group");
+        if (addedLabel && caption) list.setAttribute("aria-label", caption);
+        list.addEventListener(
+          "blur",
+          () => {
+            if (list.getAttribute("tabindex") === "-1") list.removeAttribute("tabindex");
+            if (addedRole && list.getAttribute("role") === "group") list.removeAttribute("role");
+            if (addedLabel) list.removeAttribute("aria-label");
+          },
+          { once: true },
+        );
+      }
+      list.focus({ preventScroll: true });
+    }
+  }, [rows]);
   return (
     <>
       {waiting ? <LoadingStatus label={loadingLabel ?? strings.loading} /> : null}
       <div
+        ref={wrapRef}
         className={cx("dw-table-wrap", waiting && "is-loading", className)}
         style={wrapStyle}
         aria-busy={waiting || undefined}
@@ -236,7 +281,24 @@ export function Table<Row extends object = Record<string, unknown>>({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            onFocus={(event) => {
+              focusedRef.current = event.target instanceof HTMLElement ? event.target : null;
+            }}
+            onBlur={(event) => {
+              const tbody = event.currentTarget;
+              const target = event.target;
+              if (event.relatedTarget instanceof Node) {
+                if (!tbody.contains(event.relatedTarget)) focusedRef.current = null;
+                return;
+              }
+              queueMicrotask(() => {
+                if (focusedRef.current === target && !tbody.contains(document.activeElement)) {
+                  focusedRef.current = null;
+                }
+              });
+            }}
+          >
             {waiting ? (
               <SkeletonBody columns={columns} rows={loadingRows} slow={slow} />
             ) : rows.length === 0 ? (
