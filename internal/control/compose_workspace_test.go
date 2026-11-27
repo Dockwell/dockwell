@@ -370,6 +370,7 @@ func TestComposeInventoryCursorSurvivesHealthChanges(t *testing.T) {
 }
 
 func TestComposeWorkspaceProtocolAllocations(t *testing.T) {
+	t.Parallel()
 	request := (&v1.PlanComposeWorkspaceRequest{}).ProtoReflect().Descriptor()
 	if !request.ReservedRanges().Has(4) || !request.ReservedNames().Has("kept_values") ||
 		request.Fields().ByName("server_id").Number() != 6 {

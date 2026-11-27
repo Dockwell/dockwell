@@ -25,12 +25,11 @@ import (
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestDockerArtifactImportAndExportOnBothStores(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		f.addDockerServer(t)
@@ -132,13 +131,13 @@ func TestDockerArtifactImportAndExportOnBothStores(t *testing.T) {
 		})); err != nil {
 			t.Fatal(err)
 		}
-		// The File lane gave up after 20 seconds. An archive apply must still
-		// be waiting, with the lease pinned, and finish when a slot opens.
-		time.Sleep(21 * time.Second)
+		// The apply stays in progress with the lease pinned and finishes when
+		// a slot opens. The agent's clock-based test covers the file deadline.
 		waiting, err := changes.GetChange(ctx, connect.NewRequest(&v1.GetChangeRequest{Id: review.GetId()}))
 		if err != nil || waiting.Msg.GetChange().GetState() != v1.ChangeState_CHANGE_STATE_APPLYING {
 			t.Fatalf("archive apply didn't wait for a transfer slot: %v %v", waiting, err)
 		}
+		pinStatus(review.GetId(), upload, 0)
 		release()
 		waitApplied(t, changes, review.GetId())
 		pinStatus(review.GetId(), upload, 1)

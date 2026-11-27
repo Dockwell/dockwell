@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	neturl "net/url"
@@ -578,8 +579,10 @@ func (g *gitBench) stored(t *testing.T, hookURL, deliveryID, want string) store.
 // any more, or who has left, deploys nothing.
 func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
-		g := newGitBench(t, backend)
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
+		logs := &syncBuffer{}
+		logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		g := gitBenchOn(t, benchOn(t, startFullLogging(t, backend, nil, logger)))
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
 		made := g.done(t, g.propose(t, g.buildEdit("main", nil)))
 		production := made.GetPlan().GetResources()[0].GetResource().GetScope()
@@ -666,10 +669,11 @@ func TestAHookDeploysOnlyWhatItsMakerMayNow(t *testing.T) {
 		hold(onInstall(store.RoleDeveloper))
 		push("c-2")
 		g.stored(t, url, "c-2", store.HookQueued)
-		for until := time.Now().Add(2 * time.Second); time.Now().Before(until); time.Sleep(100 * time.Millisecond) {
-			if b := buildOf(c1.ChangeID); b.GetState() != dockwellv1.BuildState_BUILD_STATE_QUEUED {
-				t.Fatalf("a developer's newer push left the waiting build %v, by %q", b.GetState(), b.GetCancelledBy())
-			}
+		eventually(t, "the newer push's cancel attempt to be refused", func() bool {
+			return strings.Contains(logs.String(), "didn't cancel a build for a newer push, as the hook's maker may not")
+		})
+		if b := buildOf(c1.ChangeID); b.GetState() != dockwellv1.BuildState_BUILD_STATE_QUEUED {
+			t.Fatalf("a developer's newer push left the waiting build %v, by %q", b.GetState(), b.GetCancelledBy())
 		}
 		hold(onInstall(store.RoleAdmin))
 		if _, err := g.builds.CancelBuild(t.Context(), connect.NewRequest(&dockwellv1.CancelBuildRequest{Id: held.GetId()})); err != nil {

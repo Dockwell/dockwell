@@ -1370,6 +1370,7 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 // links by such a name can't be taken on before what it links to is, and a link on
 // Docker's default bridge still refuses.
 func TestAComposeProjectsLinksComeAlong(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1449,6 +1450,7 @@ func TestAComposeProjectsLinksComeAlong(t *testing.T) {
 // container on its network answers to as well refuses: which one the name reaches
 // there is Docker's to pick.
 func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -1515,6 +1517,7 @@ func TestALinksNameHoldsOnItsNetworkAlone(t *testing.T) {
 // is a whole part of its network's name, which the plan shows anyway. A password
 // with that value still isn't taken on unasked (the gaps survey of #604).
 func TestAValueNamedAsTheProjectComesOver(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

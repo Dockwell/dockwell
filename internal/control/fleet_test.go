@@ -795,6 +795,7 @@ func TestAServerGoneBeforeItsTurnIsAFailureThatKeepsGoing(t *testing.T) {
 // the one whose step failed and that has gone since, and the change fails with its
 // error, naming it.
 func TestAResumeWaitsOnlyForServersWithStepsLeft(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
@@ -948,6 +949,7 @@ func TestALostServerLeavesNoStepWaitingBesideIt(t *testing.T) {
 // or a restart of what runs it, takes the control plane down, so no step runs beside
 // it, nor after it (ADR 0094, the review of slice 2, M1).
 func TestTheControlServerHasAWaveOfItsOwn(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)

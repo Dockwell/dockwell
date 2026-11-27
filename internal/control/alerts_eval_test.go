@@ -145,23 +145,22 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 		{"it has no check, so it reads running while it's up", dockwellv1.HealthState_HEALTH_STATE_NO_CHECK, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			h := newHook(t)
 			f, _, _ := evalStand(t, h.srv.URL+"/hook")
 			at := &clock{now: time.Now()}
 			rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
 			e := evaluatorOn(f, at)
 			e.Health, e.Standings = placedApps{"api"}, rec
-			// 30 minutes of a loop: up for 2 seconds, restarting for a minute.
-			for s := range 30 * 60 {
-				state := tc.down
-				if (s % 62) < 2 {
-					state = tc.up
-				}
-				rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", State: state}})
-				if s%15 == 0 {
-					tickOn(t, e)
-				}
-				at.add(time.Second)
+			// Sample both states in each cycle for 30 minutes. Look while up
+			// too, so a brief restart can't resolve the alert.
+			for elapsed := time.Duration(0); elapsed < 30*time.Minute; elapsed += 62 * time.Second {
+				rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", State: tc.up}})
+				tickOn(t, e)
+				at.add(2 * time.Second)
+				rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", State: tc.down}})
+				tickOn(t, e)
+				at.add(time.Minute)
 			}
 			got := h.of("app-down")
 			if len(got) != tc.want || (len(got) > 0 && !strings.HasPrefix(got[0], "firing: api ")) {
@@ -171,57 +170,57 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 	}
 
 	t.Run("an app that starts slowly once isn't down", func(t *testing.T) {
+		t.Parallel()
 		h := newHook(t)
 		f, _, _ := evalStand(t, h.srv.URL+"/hook")
 		at := &clock{now: time.Now()}
 		rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
 		e := evaluatorOn(f, at)
 		e.Health, e.Standings = placedApps{"api"}, rec
-		for s := range 10 * 60 {
-			state := dockwellv1.HealthState_HEALTH_STATE_HEALTHY
-			if s < 3*60 {
-				state = dockwellv1.HealthState_HEALTH_STATE_STARTING
-			}
+		report := func(state dockwellv1.HealthState) {
 			rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", State: state}})
-			if s%15 == 0 {
-				tickOn(t, e)
-			}
-			at.add(time.Second)
+			tickOn(t, e)
 		}
+		report(dockwellv1.HealthState_HEALTH_STATE_STARTING)
+		at.add(2 * time.Minute) // the app-down duration
+		tickOn(t, e)
+		at.add(alerts.GroupWait) // a due alert would now be sent
+		tickOn(t, e)
+		at.add(30 * time.Second)
+		report(dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+		at.add(7 * time.Minute)
+		tickOn(t, e)
 		if got := h.of("app-down"); len(got) != 0 {
 			t.Errorf("an app that took 3 minutes to start sent %q", got)
 		}
 	})
 
 	t.Run("an app that starts slowly after a stop-first deploy isn't down", func(t *testing.T) {
+		t.Parallel()
 		h := newHook(t)
 		f, _, _ := evalStand(t, h.srv.URL+"/hook")
 		at := &clock{now: time.Now()}
 		rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
 		e := evaluatorOn(f, at)
 		e.Health, e.Standings = placedApps{"api"}, rec
-		in := func(id string, state dockwellv1.HealthState) []*dockwellv1.InstanceHealth {
-			return []*dockwellv1.InstanceHealth{{Project: project, Service: "api", ContainerId: id, State: state}}
+		report := func(id string, state dockwellv1.HealthState) {
+			rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", ContainerId: id, State: state}})
+			tickOn(t, e)
 		}
 		// Up for 5 minutes, stopped for 5 seconds, then 3 minutes starting in a new container.
-		for s := range 20 * 60 {
-			var list []*dockwellv1.InstanceHealth
-			switch {
-			case s < 300:
-				list = in("old", dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
-			case s < 305:
-				list = in("old", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
-			case s < 485:
-				list = in("new", dockwellv1.HealthState_HEALTH_STATE_STARTING)
-			default:
-				list = in("new", dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
-			}
-			rec.Heard("srv_zz", list)
-			if s%15 == 0 {
-				tickOn(t, e)
-			}
-			at.add(time.Second)
-		}
+		report("old", dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+		at.add(5 * time.Minute)
+		report("old", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING)
+		at.add(5 * time.Second)
+		report("new", dockwellv1.HealthState_HEALTH_STATE_STARTING)
+		at.add(2 * time.Minute)
+		tickOn(t, e)
+		at.add(alerts.GroupWait)
+		tickOn(t, e)
+		at.add(30 * time.Second)
+		report("new", dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
+		at.add(12*time.Minute - 5*time.Second)
+		tickOn(t, e)
 		if got := h.of("app-down"); len(got) != 0 {
 			t.Errorf("a deploy whose new container took 3 minutes to start sent %q", got)
 		}
@@ -266,6 +265,7 @@ func TestAFinishedJobThatsRunAgain(t *testing.T) {
 		{"run again, failing at once", []*dockwellv1.InstanceHealth{{ContainerId: "c2", State: dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING}}, "firing: migrate isn't running on web-1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			h := newHook(t)
 			f, _, _ := evalStand(t, h.srv.URL+"/hook")
 			at := &clock{now: time.Now()}
@@ -273,18 +273,26 @@ func TestAFinishedJobThatsRunAgain(t *testing.T) {
 			e := evaluatorOn(f, at)
 			e.Health, e.Standings = placedApps{"migrate"}, rec
 			project := docker.Project("env_zz")
-			for i := range 80 { // 20 minutes: it finishes at once, and at 5 minutes this
-				list := []*dockwellv1.InstanceHealth{{ContainerId: "c1", State: dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, Finished: true}}
-				if i >= 20 {
-					list = tc.again
-				}
-				for _, in := range list {
-					in.Project, in.Service = project, "migrate"
-				}
-				rec.Heard("srv_zz", list)
-				tickOn(t, e)
-				at.add(alerts.Every)
+			rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{
+				Project: project, Service: "migrate", ContainerId: "c1", State: dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, Finished: true,
+			}})
+			tickOn(t, e)
+			at.add(2 * time.Minute)
+			tickOn(t, e)
+			at.add(alerts.GroupWait)
+			tickOn(t, e)
+			at.add(2*time.Minute + 30*time.Second)
+			for _, in := range tc.again {
+				in.Project, in.Service = project, "migrate"
 			}
+			rec.Heard("srv_zz", tc.again)
+			tickOn(t, e)
+			at.add(2 * time.Minute)
+			tickOn(t, e)
+			at.add(alerts.GroupWait)
+			tickOn(t, e)
+			at.add(12*time.Minute + 30*time.Second)
+			tickOn(t, e)
 			got := h.of("app-down")
 			if tc.want == "" && len(got) != 0 || tc.want != "" && (len(got) != 1 || !strings.HasPrefix(got[0], tc.want)) {
 				t.Errorf("a finished job %s sent %q, want %q", tc.name, got, tc.want)
@@ -315,7 +323,15 @@ func TestMemoryThatDipsStaysOneAlert(t *testing.T) {
 		return connectedAt(at.Now(), pct)
 	}}
 	for tick = range 480 { // 2 hours
-		tickOn(t, e)
+		switch {
+		case tick == 0, tick == 40, tick == 42, tick == 479:
+			// Start the high reading, cross its duration and group wait,
+			// and check again at the end of the two hours.
+			tickOn(t, e)
+		case tick >= 60 && (tick%44 == 21 || tick%44 == 22 || tick%44 == 43 || tick%44 == 0):
+			// Evaluate both the dip and the return to high.
+			tickOn(t, e)
+		}
 		at.add(alerts.Every)
 	}
 	if got := h.of("memory-high"); len(got) != 1 || !strings.HasPrefix(got[0], "firing:") {
@@ -340,8 +356,14 @@ func TestMemoryInTheBandIsntOver(t *testing.T) {
 		}
 		return connectedAt(at.Now(), pct)
 	}}
-	for tick = range 300 { // 75 minutes
-		tickOn(t, e)
+	for sample := range 300 { // 75 minutes
+		tick = sample
+		switch tick {
+		case 0, 1, 40, 42, 240, 241, 280, 282, 299:
+			// Look at each spike and return to the band, then after
+			// enough time for a wrongly pending alert to be sent.
+			tickOn(t, e)
+		}
 		at.add(alerts.Every)
 	}
 	if got := h.of("memory-high"); len(got) != 0 {
@@ -443,18 +465,33 @@ func TestAChannelThatStaysDownIsTriedForADay(t *testing.T) {
 	e.Fleet = evalFleet{func() []*dockwellv1.Server {
 		return []*dockwellv1.Server{{Id: "srv_zz", Name: "web-1", Connection: dockwellv1.Connection_CONNECTION_UNREACHABLE, LastSeenTime: timestamppb.New(at.Now().Add(-time.Hour))}}
 	}}
-	for range 11 {
-		tickOn(t, e)
-		at.add(alerts.Every)
+	tickOn(t, e)
+	at.add(2 * time.Minute)
+	tickOn(t, e)
+	at.add(alerts.GroupWait)
+	tickOn(t, e)
+	if got := len(h.of("server-unreachable")); got != 1 {
+		t.Fatalf("the first delivery made %d attempts", got)
 	}
 	began := at.Now()
-	for at.Now().Sub(began) < 25*time.Hour {
+	waits := []time.Duration{10 * time.Second, 30 * time.Second, time.Minute, 2 * time.Minute, 5 * time.Minute, 10 * time.Minute, 15 * time.Minute}
+	for i, wait := range waits {
+		at.add(wait - time.Second)
 		tickOn(t, e)
-		step := time.Minute
-		if at.Now().Sub(began) > time.Hour {
-			step = 5 * time.Minute // tries are 15 minutes apart by then
+		if got := len(h.of("server-unreachable")); got != i+1 {
+			t.Fatalf("before retry %d was due, the channel had %d attempts, want %d", i+1, got, i+1)
 		}
-		at.add(step)
+		at.add(time.Second)
+		tickOn(t, e)
+		if got := len(h.of("server-unreachable")); got != i+2 {
+			t.Fatalf("at retry %d, the channel had %d attempts, want %d", i+1, got, i+2)
+		}
+	}
+	// Once the backoff reaches its cap, keep exercising the actual sends
+	// across the day without evaluating the unchanged signal between them.
+	for at.Now().Sub(began) < 25*time.Hour {
+		at.add(15 * time.Minute)
+		tickOn(t, e)
 	}
 	tries := len(h.of("server-unreachable"))
 	if tries < 90 || tries > 120 {

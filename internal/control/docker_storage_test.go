@@ -40,7 +40,6 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 type storageFixture struct {
@@ -159,7 +158,8 @@ const (
 )
 
 func TestDockerAttachmentKeepsThePanelAndCatalogWorkloadsOnBridge(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, b store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, b store.Backend) {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(testEntry(1, "1.0", firstRelease, "      network_mode: bridge\n")), 0o600); err != nil {
 			t.Fatal(err)
@@ -210,7 +210,8 @@ func TestDockerAttachmentKeepsThePanelAndCatalogWorkloadsOnBridge(t *testing.T) 
 }
 
 func TestDockerStorageControlGuards(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, b store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, b store.Backend) {
 		s := storageControl(t, b, nil, "")
 		made := apply(t, s.changes, propose(t, s.changes, "Run workload", runImage("ghcr.io/acme/shop:1.4")))
 		scope := storageScope(t, made, "service", "web").GetResource().GetScope()
@@ -254,7 +255,8 @@ func TestDockerStorageControlGuards(t *testing.T) {
 }
 
 func TestDockerAttachmentResumesAfterItsContainerWasReplaced(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, b store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, b store.Backend) {
 		s := storageControl(t, b, nil, "")
 		made := apply(t, s.changes, propose(t, s.changes, "Run workload", runImage("ghcr.io/acme/shop:1.4")))
 		scope := storageScope(t, made, "service", "web").GetResource().GetScope()
@@ -352,7 +354,8 @@ func TestDockerNetworkAttachmentRevisionOnRealDocker(t *testing.T) {
 }
 
 func TestDockerNetworkAttachmentRevisionKeepsStoppedIntent(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, b store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, b store.Backend) {
 		s := storageControl(t, b, nil, "")
 		s.engine.AddLocalImage("busybox:1.37", dockertest.Image{})
 		testDockerNetworkAttachmentRevision(t, s)
@@ -501,7 +504,8 @@ func TestDockerVolumeInventoryMountsAndBackupOnRealDocker(t *testing.T) {
 }
 
 func TestDockerDisconnectReviewSurvivesRestart(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, b store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, b store.Backend) {
 		s := storageControl(t, b, nil, "")
 		made := apply(t, s.changes, propose(t, s.changes, "Run workload", runImage("ghcr.io/acme/shop:1.4")))
 		scope := storageScope(t, made, "service", "web").GetResource().GetScope()
@@ -533,6 +537,7 @@ func TestDockerDisconnectReviewSurvivesRestart(t *testing.T) {
 }
 
 func TestDockerMaintenanceRejectsUnreviewedVolumeSelections(t *testing.T) {
+	t.Parallel()
 	s := storageControl(t, store.SQLite, nil, "")
 	id := s.server.id.ServerID
 	_, err := s.api.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{

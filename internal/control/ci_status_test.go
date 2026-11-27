@@ -34,7 +34,6 @@ import (
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func connectFakeGitHubApp(t *testing.T, gp dockwellv1connect.GitProviderServiceClient, c dockwellv1connect.ChangeServiceClient, b *browser) *v1.GitHubAppInfo {
@@ -131,7 +130,8 @@ func setupStagingWeb(t *testing.T, c dockwellv1connect.ChangeServiceClient, cc d
 // refused; failing deploy reports rolled_back; discarded and superseded planned
 // deploys report cancelled; repo-local 403 does not poison the installation.
 func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		gh, err := ghtest.New()
 		if err != nil {
 			t.Fatal(err)
@@ -440,7 +440,8 @@ func TestCIStatusEndToEndGitHubAndRollback(t *testing.T) {
 // nothing until SetTokenDeployRepository sets it; token_repository is visible only
 // to the token's owner and hidden from other project members.
 func TestCIStatusH1TokenRepositoryBindingAndPrivacy(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		gh, err := ghtest.New()
 		if err != nil {
 			t.Fatal(err)
@@ -612,7 +613,8 @@ func TestCIStatusH1TokenRepositoryBindingAndPrivacy(t *testing.T) {
 // CheckGitLabConnection verification, ListGitLabProjects, protojson secret-leak
 // checks (L8), foreign-repo block (H1), and commit status delivery.
 func TestCIStatusEndToEndGitLabConnection(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		gl := gltest.New()
 		gl.SetProjects([]gltest.Project{
 			{PathWithNamespace: "acme/web", WebURL: "https://gitlab.example.com/acme/web"},
@@ -902,7 +904,8 @@ func doneChange(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *v1.Ch
 // and change without revealing whether a repository exists. Changing a token's
 // repository requires step-up and developer access on the token's app.
 func TestCIStatusN6N7TokenRepoOwnershipReachAndStepUp(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		gh, err := ghtest.New()
 		if err != nil {
 			t.Fatal(err)

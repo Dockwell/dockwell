@@ -113,6 +113,8 @@ type Options struct {
 	AuditEvery time.Duration
 	// WriteStall replaces how long a write to a reader can make no progress.
 	WriteStall time.Duration
+	// MoveGrace replaces how long a read waits for an agent moving streams.
+	MoveGrace time.Duration
 	// Now replaces the time.
 	Now func() time.Time
 	// TellEvery replaces tellEvery.
@@ -199,6 +201,9 @@ func New(agents *agentapi.Agents, ch *changes.Handler, db *store.DB, logger *slo
 	}
 	if options.WriteStall <= 0 {
 		options.WriteStall = writeStall
+	}
+	if options.MoveGrace <= 0 {
+		options.MoveGrace = MoveGrace
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -519,7 +524,7 @@ func (h *Handler) ListLogSources(ctx context.Context, req *connect.Request[dockw
 }
 
 func (h *Handler) sourcesOn(ctx context.Context, t *target, s server) ([]*dockwellv1.LogSource, *dockwellv1.ServerLogStatus) {
-	session, ok := h.agents.SessionPastMove(ctx, s.id, MoveGrace)
+	session, ok := h.agents.SessionPastMove(ctx, s.id, h.options.MoveGrace)
 	if !ok {
 		return nil, offline(s)
 	}
@@ -682,7 +687,7 @@ func (h *Handler) ReadLogs(ctx context.Context, req *connect.Request[dockwellv1.
 		wg.Go(func() {
 			// A move cuts a read short, so it starts again over the next stream,
 			// all within the one grace.
-			until := time.Now().Add(MoveGrace)
+			until := time.Now().Add(h.options.MoveGrace)
 			for {
 				session, ok := h.agents.SessionPastMove(ctx, s.id, time.Until(until))
 				if !ok {
@@ -1458,7 +1463,7 @@ func (w *watch) relay(s server, place *serverPlace) {
 		return send(event{status: status})
 	}
 	for {
-		session, ok := w.h.agents.SessionPastMove(w.ctx, s.id, MoveGrace)
+		session, ok := w.h.agents.SessionPastMove(w.ctx, s.id, w.h.options.MoveGrace)
 		if !ok {
 			if !w.base.GetFollow() {
 				report(offline(s))

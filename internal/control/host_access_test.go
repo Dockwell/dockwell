@@ -37,6 +37,7 @@ func deviceEdit(env, image string, devices ...string) *dockwellv1.Edit {
 // needs nothing more, as a new image from a developer, and one that widens it goes
 // through the same gate, so a developer can't apply it (ADR 0097).
 func TestChosenHostAccessIsWidenedOnlyThroughTheGate(t *testing.T) {
+	t.Parallel()
 	s := newReachStand(t, store.SQLite)
 	ctx := t.Context()
 	applyConfirmed(t, s.c, propose(t, s.c, "Give api the fuse device", deviceEdit(s.staging, "ghcr.io/acme/shop:1.4", "/dev/fuse")))
@@ -63,6 +64,7 @@ func TestChosenHostAccessIsWidenedOnlyThroughTheGate(t *testing.T) {
 // it on with that where it's chosen; a container taken on alone is refused the
 // same way, and comes with it chosen. Either way it reads back as it runs.
 func TestHostAccessIsAChoicePerApp(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -127,6 +129,7 @@ func TestHostAccessIsAChoicePerApp(t *testing.T) {
 // needs, with no words of its own under it, and takes it on with that once it's
 // chosen, by its ID.
 func TestAnImportTakesOnHostAccessWhereChosen(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -161,6 +164,7 @@ func TestAnImportTakesOnHostAccessWhereChosen(t *testing.T) {
 // for anything as good as root (ADR 0048), and one that wasn't a disk when it was
 // approved and is now counts as new access, however little else changes.
 func TestADeviceThatIsADiskIsRootThroughout(t *testing.T) {
+	t.Parallel()
 	root := map[string]bool{"/dev/sdb": true}
 	s := newReachStandWith(t, store.SQLite, func(f *fullServer) {
 		f.devices = func(p string) (bool, error) { return root[p], nil }
@@ -207,6 +211,7 @@ func TestADeviceThatIsADiskIsRootThroughout(t *testing.T) {
 // task's container of the server is left, as a state, until the app is chosen, by
 // its ID (the review's L1).
 func TestASwarmAppsHostAccessIsAChoiceToo(t *testing.T) {
+	t.Parallel()
 	d := dokployShop(t)
 	d.e.Edit(d.task, func(c *docker.Container) { c.HostConfig.SecurityOpt = []string{"seccomp=unconfined"} })
 	read := func(chosen ...string) *dockwellv1.ImportStep {
@@ -230,6 +235,7 @@ func TestASwarmAppsHostAccessIsAChoiceToo(t *testing.T) {
 // 1Panel's import has no host access to choose, so an app that needs some is left
 // with the take-on that chooses it (the review of ADR 0097, L9).
 func TestA1PanelAppWithHostAccessIsLeftWithTheFix(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	f.onePanelRoot = onepaneltest.Make(t, "/opt", false)
@@ -262,6 +268,7 @@ func TestA1PanelAppWithHostAccessIsLeftWithTheFix(t *testing.T) {
 // doesn't hold that beside privileged, so a plan that turns privileged off says the
 // app runs under the labels again, in one line (the narrow check of ADR 0097, L-a).
 func TestTurningPrivilegedOffSaysTheLabelsComeBack(t *testing.T) {
+	t.Parallel()
 	s := newReachStand(t, store.SQLite)
 	edit := func(privileged bool, image string) *dockwellv1.Edit {
 		e := deviceEdit(s.staging, image)
@@ -303,6 +310,7 @@ func TestTurningPrivilegedOffSaysTheLabelsComeBack(t *testing.T) {
 // of it, Activity says who chose it, and the app's page keeps the state until the
 // password changes (ADR 0096, "A database password that's one of its own names").
 func TestAGuessablePasswordIsAChoice(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -394,6 +402,7 @@ func TestAGuessablePasswordIsAChoice(t *testing.T) {
 // when it's taken on as it is, and Activity says who chose it (ADR 0096). With host
 // access needed too, both are asked, and it comes once both are chosen.
 func TestAnImportTakesOnAGuessablePasswordWhereChosen(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -443,6 +452,7 @@ func TestAnImportTakesOnAGuessablePasswordWhereChosen(t *testing.T) {
 // choice, as they're no host access. A Compose file a person imports asks for them in
 // its plan, as a catalog app does (ADR 0097, "Server paths a person chooses").
 func TestServerPathsAreAChoice(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -511,6 +521,7 @@ func TestServerPathsAreAChoice(t *testing.T) {
 // database's: the refusal and the app's state say what kind it is, a password or
 // a key, and never which (ADR 0096, "A secret that's one of its own names").
 func TestAGuessablePasswordOrKeyIsAChoice(t *testing.T) {
+	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

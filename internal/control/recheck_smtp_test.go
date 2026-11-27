@@ -18,6 +18,7 @@ import (
 
 // A sender release 1 gave by default, which no one typed, isn't a typed setting.
 func TestRecheckSMTPADefaultSenderIsNotTyped(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	useCatalogDir(t, dir)
 	raw, err := os.ReadFile(filepath.Join("testdata", "notes-mail-1.yaml"))
@@ -72,6 +73,7 @@ func TestRecheckSMTPADefaultSenderIsNotTyped(t *testing.T) {
 
 // What a person typed in parts a release also gives by default stays, alone too.
 func TestRecheckSMTPTypedTransportAndPortAlone(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	useCatalogDir(t, dir)
 	first, err := os.ReadFile(filepath.Join("testdata", "notes-mail-1.yaml"))

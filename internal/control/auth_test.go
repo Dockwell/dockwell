@@ -259,6 +259,16 @@ func (h *heldAsks) miss() {
 // what's open on it. Zero keeps auth's own. A test that sets it puts it back.
 var testRecheck time.Duration
 
+// eachStoreParallel runs the two backends side by side for tests whose fixtures
+// and inputs are independent on each backend.
+func eachStoreParallel(t *testing.T, fn func(*testing.T, store.Backend)) {
+	t.Helper()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Parallel()
+		fn(t, backend)
+	})
+}
+
 func startFull(t *testing.T, backend store.Backend, public https.Source) *fullServer {
 	t.Helper()
 	return startFullLogging(t, backend, public, slog.New(slog.DiscardHandler))
@@ -325,7 +335,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		DNSLookup: names.lookup,
 		Logger:    logger, Build: testBuild, Panel: testPanel, Identity: ident, Fleet: hub, Auth: people, Public: public,
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
-		EventPoll: 200 * time.Millisecond, Logs: logs,
+		StreamGrace: 50 * time.Millisecond, EventPoll: 200 * time.Millisecond, Logs: logs,
 		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
 		// As the system service has it with a data directory of its own, for Profile's Last resort (#801).
 		RecoverCommand: "sudo dockwell recover --data-dir /srv/dockwell",
@@ -346,12 +356,21 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	}
 	// Cloudflare's stand-in, the one DNS provider a test reaches (ADR 0088).
 	cloudflare := cftest.New(dnsToken, "example.com", "example.org")
-	cfSrv := httptest.NewServer(cloudflare)
-	t.Cleanup(cfSrv.Close)
+	var cfSrv *httptest.Server
+	startCloudflare := sync.OnceValue(func() *httptest.Server {
+		cfSrv = httptest.NewServer(cloudflare)
+		return cfSrv
+	})
+	t.Cleanup(func() {
+		if cfSrv != nil {
+			cfSrv.Close()
+		}
+	})
 	// Certificates by DNS come from a CA on a port nothing answers, so a test reaches
 	// no real one (ADR 0088).
 	config.CertificateCA = "https://127.0.0.1:1/directory"
 	config.DNSAPI = func(token string) dnsproviders.API {
+		cfSrv := startCloudflare()
 		return &dnsproviders.Cloudflare{Token: token, Base: cfSrv.URL + "/client/v4", Client: cfSrv.Client()}
 	}
 	if public != nil {
@@ -434,6 +453,7 @@ func newBrowser(t *testing.T, origin, dialAddr string, roots *x509.CertPool) *br
 		},
 		TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12},
 	}
+	t.Cleanup(tr.CloseIdleConnections)
 	return &browser{origin: origin, client: &http.Client{Jar: jar, Transport: tr}, auth: &authtest.Authenticator{}}
 }
 

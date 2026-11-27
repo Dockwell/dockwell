@@ -16,11 +16,11 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestCIDeployKeySurvivesAnApplyingControlPlaneRestart(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		first := b.file(t, &v1.ImportComposeRequest{Compose: shopFile})
 		b.done(t, first)
@@ -155,7 +155,8 @@ func TestCIDeployKeySurvivesAnApplyingControlPlaneRestart(t *testing.T) {
 // Two different pushes can plan from one revision. Retrying the older push
 // after the newer one deploys is a new plan to put the older image back.
 func TestCIDeployRetriesOnlyReusableAttempts(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
 		b.done(t, b.file(t, &v1.ImportComposeRequest{Compose: shopFile}))
 		app := onlyService(t, b.s).GetId()

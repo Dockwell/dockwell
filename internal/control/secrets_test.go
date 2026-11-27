@@ -697,7 +697,7 @@ func testANameWithNoValueOverAnImagesIsDrift(t *testing.T, backend store.Backend
 // they say has changed too.
 func TestDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testDriftSeesThatAValueIsThereAndNeverWhatItIs)
+	eachStoreParallel(t, testDriftSeesThatAValueIsThereAndNeverWhatItIs)
 }
 
 func testDriftSeesThatAValueIsThereAndNeverWhatItIs(t *testing.T, backend store.Backend) {

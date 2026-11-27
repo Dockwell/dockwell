@@ -27,11 +27,11 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
-	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 func TestSFTPBackupsUseTheAgentAndExistingRetention(t *testing.T) {
-	storetest.Each(t, testSFTPBackupsUseTheAgentAndExistingRetention)
+	t.Parallel()
+	eachStoreParallel(t, testSFTPBackupsUseTheAgentAndExistingRetention)
 }
 
 func testSFTPBackupsUseTheAgentAndExistingRetention(t *testing.T, backend store.Backend) {

@@ -641,6 +641,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 	}
 
 	t.Run("re-importing a file that changes nothing", func(t *testing.T) {
+		t.Parallel()
 		b, name, id := setUp(t)
 		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: two})
 		wantLeft(t, b, name, id, plan)
@@ -649,6 +650,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 	})
 
 	t.Run("a change to another service", func(t *testing.T) {
+		t.Parallel()
 		b, name, id := setUp(t)
 		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "api:\n    image: ghcr.io/acme/shop:1.4", "api:\n    image: ghcr.io/acme/shop:1.5", 1)})
 		b.done(t, plan)
@@ -656,6 +658,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 	})
 
 	t.Run("a change to another service that fails, and its rollback", func(t *testing.T) {
+		t.Parallel()
 		b, name, id := setUp(t)
 		b.e.Registry[shopBroken] = dockertest.Image{Exits: true, Config: docker.Config{Cmd: []string{"shop"}}}
 		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "api:\n    image: ghcr.io/acme/shop:1.4", "api:\n    image: "+shopBroken, 1)})
@@ -677,6 +680,7 @@ func TestWhatSomeoneStoppedStaysStopped(t *testing.T) {
 	})
 
 	t.Run("a change it can make in place", func(t *testing.T) {
+		t.Parallel()
 		b, name, id := setUp(t)
 		plan := b.file(t, &dockwellv1.ImportComposeRequest{Compose: strings.Replace(two, "web:\n    image: ghcr.io/acme/shop:1.4", "web:\n    image: ghcr.io/acme/shop:1.4\n    restart: always", 1)})
 		b.done(t, plan)
@@ -737,6 +741,7 @@ func TestAskingToRunWhatSomeoneStoppedStartsIt(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			b, container, web := setUp(t)
 			before := b.e.Serving(container).ID
 			c := plan(t, b, web.GetId())

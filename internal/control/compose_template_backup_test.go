@@ -18,7 +18,8 @@ import (
 )
 
 func TestComposeTemplatesSurviveStoreBackup(t *testing.T) {
-	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+	t.Parallel()
+	eachStoreParallel(t, func(t *testing.T, backend store.Backend) {
 		f := startFull(t, backend, nil)
 		b := signedIn(t, f)
 		changes := changeClient(b, b.origin)
