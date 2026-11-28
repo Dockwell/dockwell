@@ -1574,6 +1574,9 @@ func setsRows(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1
 		return " from " + s.GetConnectionLabel()
 	}
 	reads := func(set *resourcev1.LinkSet, s *dockwellv1.LinkStorage) string {
+		if set.GetCustomField() != "" {
+			return "reads " + set.GetCustomField()
+		}
 		if set.GetPart() == resourcev1.LinkPart_LINK_PART_UNSPECIFIED {
 			return "reads" + from(s)
 		}
@@ -1583,11 +1586,13 @@ func setsRows(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1
 		was, now := p.was, p.now
 		switch {
 		case was == nil:
-			row(tw, indent+"+ "+now.GetName(), reads(now, r.GetStorage()))
+			row(tw, indent+"+ "+cmp.Or(now.GetCustomEnv(), now.GetName()), reads(now, r.GetStorage()))
 		case now == nil:
-			row(tw, indent+"- "+was.GetName(), reads(was, r.GetStorageBefore()))
+			row(tw, indent+"- "+cmp.Or(was.GetCustomEnv(), was.GetName()), reads(was, r.GetStorageBefore()))
 		case was.GetName() != now.GetName():
 			row(tw, indent+"~ "+now.GetName(), reads(now, r.GetStorage())+", in place of "+was.GetName())
+		case was.GetCustomField() != now.GetCustomField():
+			row(tw, indent+"~ "+now.GetCustomEnv(), reads(now, r.GetStorage())+", in place of "+was.GetCustomField())
 		case was.GetPart() != now.GetPart():
 			// A part change reads as one (the slice 3 review, L1).
 			row(tw, indent+"~ "+now.GetName(), reads(now, r.GetStorage())+", in place of "+partWord(was.GetPart().String()))
@@ -1677,20 +1682,20 @@ func readsRow(tw io.Writer, r *dockwellv1.PlannedResource, changes []*dockwellv1
 		if other != nil {
 			them = other
 		}
-		return partWord(c.GetPart().String()) + " from " + connectionName(c, them)
+		return cmp.Or(c.GetCustomField(), partWord(c.GetPart().String())) + " from " + connectionName(c, them)
 	}
 	switch {
 	case before == nil:
 		row(tw, indent+"+ reads", words(after, nil))
 	case after == nil:
 		row(tw, indent+"- reads", words(before, nil))
-	case before.GetConnection() != after.GetConnection() || before.GetPart() != after.GetPart() || before.GetLink() != after.GetLink():
+	case before.GetConnection() != after.GetConnection() || before.GetPart() != after.GetPart() || before.GetCustomField() != after.GetCustomField() || before.GetLink() != after.GetLink():
 		// Say what differs: the part, the connection, or both (the slice 3 review, L1).
 		was := connectionName(before, named(after))
 		switch {
 		case before.GetConnection() == after.GetConnection():
-			was = partWord(before.GetPart().String())
-		case before.GetPart() != after.GetPart():
+			was = cmp.Or(before.GetCustomField(), partWord(before.GetPart().String()))
+		case before.GetPart() != after.GetPart() || before.GetCustomField() != after.GetCustomField():
 			was = words(before, after)
 		}
 		row(tw, indent+"~ reads", words(after, before)+", in place of "+was)

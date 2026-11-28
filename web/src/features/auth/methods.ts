@@ -159,7 +159,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ComposeService.planComposeWorkspace": "may",
 
   "ConnectionService.checkConnection": "may",
+  "ConnectionService.connectCustom": "may",
   "ConnectionService.connectStorage": "may",
+  "ConnectionService.createCustomConnection": "may",
+  "ConnectionService.disconnectCustom": "may",
   "ConnectionService.disconnectStorage": "may",
   "ConnectionService.listConnections": "read",
   "ContainerService.adoptContainer": { within: "ContainerService.listContainers" },

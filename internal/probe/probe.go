@@ -36,8 +36,9 @@ const maxRequest = 64 << 10
 
 // Kinds of connection a probe checks.
 const (
-	KindS3   = "s3"
-	KindSMTP = "smtp"
+	KindS3     = "s3"
+	KindSMTP   = "smtp"
+	KindCustom = "custom"
 	// KindS3Read reads a bucket and writes nothing, for a check on a schedule
 	// (ADR 0099): an agent from before it refuses the kind, rather than write.
 	KindS3Read = "s3-read"
@@ -51,6 +52,8 @@ type Request struct {
 	S3 *S3 `json:"s3,omitempty"`
 	// SMTP is a mail server to check, for KindSMTP.
 	SMTP *SMTP `json:"smtp,omitempty"`
+	// Custom is an HTTPS or TCP check, for KindCustom.
+	Custom *Custom `json:"custom,omitempty"`
 	// Allow are the networks the app is on, which the probe reaches though
 	// they're private, as the app does. Refuse are the server's own addresses,
 	// which it never reaches.
@@ -119,6 +122,14 @@ func Check(ctx context.Context, req *Request) (Result, error) {
 			return Result{}, errors.New("the probe was asked of S3 with no bucket")
 		}
 		return readS3(ctx, req.S3, guard), nil
+	case KindCustom:
+		if req.Custom == nil {
+			return Result{}, errors.New("the probe needs a Custom check target")
+		}
+		if err := req.Custom.Validate(); err != nil {
+			return Result{}, err
+		}
+		return checkCustom(ctx, *req.Custom, guard), nil
 	case KindSMTP:
 		if err := req.SMTP.valid(); err != nil {
 			return Result{}, err

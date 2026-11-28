@@ -282,3 +282,23 @@ func TestAnAgentFromBeforeTheTagSeesNoDrift(t *testing.T) {
 		t.Error("this build doesn't see the tag")
 	}
 }
+
+func TestDiffNamesCustomFieldsAndIgnoresTheirOrder(t *testing.T) {
+	t.Parallel()
+	before := &resourcev1.ConnectionSpec{Custom: &resourcev1.ConnectionCustom{Fields: []*resourcev1.ConnectionCustomField{
+		{Name: "api_key", Type: resourcev1.ConnectionCustomType_CONNECTION_CUSTOM_TYPE_SECRET, SecretValue: proto.String("before")},
+		{Name: "endpoint", Type: resourcev1.ConnectionCustomType_CONNECTION_CUSTOM_TYPE_URL, Value: "https://api.example.com"},
+	}}}
+	after := proto.CloneOf(before)
+	after.Custom.Fields[0], after.Custom.Fields[1] = after.Custom.Fields[1], after.Custom.Fields[0]
+	if diff := resource.Diff(before, after); len(diff) != 0 {
+		t.Fatalf("reordering fields changed the plan: %v", diff)
+	}
+	after.Custom.Fields[1].SecretValue = proto.String("after")
+	changes := resource.Diff(before, after)
+	if len(changes) != 1 || changes[0] != (resource.Change{
+		Path: "custom.fields[api_key].secret_value", Op: resource.OpModified, Sensitive: true,
+	}) {
+		t.Fatalf("a secret update should be named and redacted: %v", changes)
+	}
+}

@@ -6,6 +6,7 @@ import {
   ConnectionService,
   LinkPart,
   Connection as ServerConnection,
+  type ServiceInfo,
 } from "@dockwell/api";
 import { StatusBadge } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
@@ -67,6 +68,25 @@ export function useCheckWords() {
   const { t } = useLingui();
   const mailWords = useMailCheckWords();
   return (c: CheckConnectionResponse, mail?: MailCheck): { passed: boolean; state: string; line: string } => {
+    if (c.step === "custom") {
+      if (c.passed)
+        return {
+          passed: true,
+          state: t({ message: "Reached", context: "a Custom connection check" }),
+          line: t`The check reached its target.`,
+        };
+      const status = c.status;
+      const line = status
+        ? t`The HTTPS target returned HTTP ${status}. Use a URL that returns a successful response.`
+        : c.code === "refused"
+          ? t`Dockwell refused the address. Use an address the selected server may reach.`
+          : c.code === "tls"
+            ? t`The TLS certificate failed verification. Check the URL and its certificate.`
+            : c.code === "timeout"
+              ? t`The target didn't answer within 5 seconds. Check the address and try again.`
+              : t`The check couldn't reach its target. Check the address and try again.`;
+      return { passed: false, state: t({ message: "Check failed", context: "a Custom connection check" }), line };
+    }
     if (mail || MAIL_STEPS.includes(c.step)) return mailWords(c, mail ?? {});
     if (c.passed && c.step === "list") {
       // A check on a schedule read the bucket and wrote nothing: the keys work, and
@@ -305,13 +325,14 @@ export interface LinkedName {
   connection: string;
   link: string;
   part: LinkPart;
+  customField?: string;
 }
 
 /**
  * The names an environment's links to connections set, by name: each reads its
  * connection through the link, so it changes there, not as a value of its own.
  */
-export function useLinkedNames(environment: string): ReadonlyMap<string, LinkedName> {
+export function useLinkedNames(environment: string, service: ServiceInfo): ReadonlyMap<string, LinkedName> {
   const query = useConnections(environment);
   return useMemo(() => {
     const out = new Map<string, LinkedName>();
@@ -319,8 +340,14 @@ export function useLinkedNames(environment: string): ReadonlyMap<string, LinkedN
       for (const u of c.uses) {
         if (u.environment !== environment) continue;
         for (const [name, part] of Object.entries(u.sets)) out.set(name, { connection: c.name, link: u.link, part });
+        if (u.appIds.includes(service.id)) {
+          for (const [alias, customField] of Object.entries(u.customSets)) {
+            const name = service.spec?.variables[alias] ?? service.spec?.secrets[alias];
+            if (name) out.set(name, { connection: c.name, link: u.link, part: LinkPart.UNSPECIFIED, customField });
+          }
+        }
       }
     }
     return out;
-  }, [query.data, environment]);
+  }, [query.data, environment, service]);
 }

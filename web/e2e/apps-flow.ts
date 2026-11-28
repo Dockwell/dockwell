@@ -775,7 +775,7 @@ export async function appsFlow(
       await page.getByRole("button", { name: "Import or connect" }).click();
       const ways = page.getByRole("menu", { name: "Import or connect" });
       const items = await ways.getByRole("menuitem").allInnerTexts();
-      if (items.join() !== "Import .env,Connect a database,Connect storage")
+      if (items.join() !== "Import .env,Connect a database,Add from a connection,Connect storage")
         fail(`on a phone the header's menu offers ${items.join()}`);
       const past = await ways.evaluate((menu) => menu.getBoundingClientRect().right - window.innerWidth);
       if (past > 0) fail(`on a phone the header's menu runs ${past} px past the screen`);

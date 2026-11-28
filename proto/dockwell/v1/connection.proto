@@ -51,6 +51,43 @@ service ConnectionService {
       body: "*"
     };
   }
+  // CreateCustomConnection plans a new Custom connection. Apply the returned
+  // change to save it.
+  rpc CreateCustomConnection(CreateCustomConnectionRequest) returns (CreateCustomConnectionResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {verb: "create-custom"};
+    option (google.api.http) = {
+      post: "/v1/connections:createCustom"
+      body: "*"
+    };
+  }
+  // ConnectCustom plans a mapping of named fields into an app's environment.
+  rpc ConnectCustom(ConnectCustomRequest) returns (ConnectCustomResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "connect-custom"};
+    option (google.api.http) = {
+      post: "/v1/connections:connectCustom"
+      body: "*"
+    };
+  }
+  // DisconnectCustom plans removal of the mapping and its values from the app.
+  rpc DisconnectCustom(DisconnectCustomRequest) returns (DisconnectCustomResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "disconnect-custom"};
+    option (google.api.http) = {
+      post: "/v1/connections:disconnectCustom"
+      body: "*"
+    };
+  }
   // ConnectStorage connects an app to a connection's bucket: it checks the bucket
   // from the app's network on its server, as the app will reach it, and plans one
   // change, a link to the connection and the app's names reading it through the link,
@@ -82,6 +119,55 @@ service ConnectionService {
       body: "*"
     };
   }
+}
+
+// CreateCustomConnectionRequest supplies the fields and reach of a new Custom connection.
+message CreateCustomConnectionRequest {
+  // The connection's unique name, such as example-api.
+  string name = 1;
+  string display_name = 2;
+  // The fields and optional check. Read JSON from @file or stdin to set secrets.
+  dockwell.resource.v1alpha1.ConnectionCustom custom = 3;
+  dockwell.resource.v1alpha1.ConnectionReach reach = 4;
+  // Projects that may use it, by ID, for REACH_PROJECTS.
+  repeated string projects = 5;
+  // Allow more than one app to use these values.
+  bool shared = 6;
+}
+
+// CreateCustomConnectionResponse contains the proposed creation.
+message CreateCustomConnectionResponse {
+  Change change = 1;
+}
+
+// ConnectCustomRequest maps a Custom connection into one app.
+message ConnectCustomRequest {
+  string project = 1;
+  string environment = 2;
+  // The app's service name.
+  string app = 3;
+  string connection = 4;
+  // The environment name for each named field. Omitted fields use their default,
+  // a prefix from the connection's name followed by the field's name.
+  map<string, string> fields = 5;
+}
+
+// DisconnectCustomRequest names the app and connection whose mapping will be removed.
+message DisconnectCustomRequest {
+  string project = 1;
+  string environment = 2;
+  string app = 3;
+  string connection = 4;
+}
+
+// ConnectCustomResponse contains the proposed mapping.
+message ConnectCustomResponse {
+  Change change = 1;
+}
+
+// DisconnectCustomResponse contains the proposed removal of the mapping.
+message DisconnectCustomResponse {
+  Change change = 1;
 }
 
 // ConnectStorageRequest names an app, and the connection it reads its storage from.
@@ -190,6 +276,32 @@ message ConnectionInfo {
   // admin, whether each passed and when, and of one neither passed nor failed, which:
   // step "list" with code "unconfirmed" or "agent-update", and nothing else.
   repeated CheckConnectionResponse checks = 20;
+  ConnectionCustomInfo custom = 21;
+  // The revision an administrator can edit.
+  int64 revision = 22;
+}
+
+// ConnectionCustomInfo describes a Custom connection without its secret values.
+message ConnectionCustomInfo {
+  string initial = 1;
+  repeated ConnectionCustomFieldInfo fields = 2;
+  // The check configuration is visible to install administrators.
+  dockwell.resource.v1alpha1.ConnectionCustomCheck check = 3;
+  bool has_check = 4;
+  // Whether the connection already serves an app. No project or app is named.
+  bool in_use = 5;
+}
+
+// ConnectionCustomFieldInfo describes a named field and its default mapping.
+message ConnectionCustomFieldInfo {
+  string name = 1;
+  dockwell.resource.v1alpha1.ConnectionCustomType type = 2;
+  // For a plain field, visible to install administrators.
+  string value = 3;
+  // Whether a secret field has a value.
+  bool set = 4;
+  // Suggested environment name for this field.
+  string default_env = 5;
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.
@@ -206,6 +318,8 @@ message ConnectionUse {
   // The apps that read those names, by their services' IDs and names.
   repeated string app_ids = 7;
   repeated string apps = 8;
+  // Environment name to named field, for Custom connections.
+  map<string, string> custom_sets = 9;
 }
 
 // CheckConnectionRequest is a connection to check, as typed, or a saved one again.
@@ -231,6 +345,8 @@ message CheckConnectionRequest {
   // connection's user and password are kept where this leaves the password out,
   // while its host, port, security and user stay.
   dockwell.resource.v1alpha1.ConnectionSmtp smtp = 8 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // A Custom check as typed, with no connection values sent to it.
+  dockwell.resource.v1alpha1.ConnectionCustomCheck custom = 9;
 }
 
 // CheckConnectionResponse is what a check found: codes, never a body.

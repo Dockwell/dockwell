@@ -1345,6 +1345,8 @@ message ConnectionRef {
   LinkPart part = 3;
   // The link in this environment that writes it, by name.
   string link = 4;
+  // Which named field it reads from a Custom connection.
+  string custom_field = 5;
 }
 
 // ValueTemplate is a value written from the environment's other values, such as
@@ -2204,6 +2206,54 @@ message ConnectionSpec {
   bool shared = 7;
   // A mail server, for LINK_KIND_SMTP.
   ConnectionSmtp smtp = 8;
+  // Named fields supplied by the person creating the connection.
+  ConnectionCustom custom = 9;
+}
+
+// ConnectionCustom holds the source values of a Custom connection.
+message ConnectionCustom {
+  // A short initial or mark chosen by the person creating the connection.
+  string initial = 1;
+  repeated ConnectionCustomField fields = 2;
+  ConnectionCustomCheck check = 3;
+}
+
+// ConnectionCustomType is the format or secrecy of a named field.
+enum ConnectionCustomType {
+  CONNECTION_CUSTOM_TYPE_UNSPECIFIED = 0;
+  CONNECTION_CUSTOM_TYPE_TEXT = 1;
+  CONNECTION_CUSTOM_TYPE_SECRET = 2;
+  CONNECTION_CUSTOM_TYPE_URL = 3;
+  CONNECTION_CUSTOM_TYPE_PORT = 4;
+  CONNECTION_CUSTOM_TYPE_NUMBER = 5;
+}
+
+// ConnectionCustomField is one named value in a Custom connection.
+message ConnectionCustomField {
+  // The field's stable name, such as api_key.
+  string name = 1;
+  ConnectionCustomType type = 2;
+  // A plain value, written as it will be given to the app.
+  string value = 3;
+  // A secret is supplied here, separately from the plain value. Omit it in an
+  // edit to retain the saved value for the same field. Set it empty to clear it.
+  optional string secret_value = 4 [(sensitive) = true];
+}
+
+// ConnectionCustomCheck is a credential-free reachability check.
+message ConnectionCustomCheck {
+  oneof target {
+    // Make one HTTPS GET. Only a 2xx response passes.
+    string https_url = 1;
+    // Open and close a TCP connection without transferring data.
+    ConnectionCustomTCP tcp = 2;
+  }
+}
+
+// ConnectionCustomTCP is the host and port of a TCP check.
+message ConnectionCustomTCP {
+  string host = 1;
+  uint32 port = 2;
 }
 
 // ConnectionReach says which projects may use a connection, said, never implied.
@@ -2772,6 +2822,8 @@ message Link {
   // connection, in place of the connection's own. Empty takes the connection's.
   string sender = 94;
   string sender_name = 95;
+  // The app whose environment receives a Custom mapping, by service name.
+  string custom_app = 96;
 }
 
 // LinkKind is what a link reaches beyond a database, numbered as the catalog
@@ -2781,6 +2833,7 @@ enum LinkKind {
   LINK_KIND_UNSPECIFIED = 0;
   LINK_KIND_S3 = 1;
   LINK_KIND_SMTP = 2;
+  LINK_KIND_CUSTOM = 3;
 }
 
 // LinkFeature is what an app needs of what a link reaches, numbered as the catalog
@@ -2819,6 +2872,11 @@ message LinkSet {
   // The app's words for TLS on and off, for a TLS part or {tls}.
   string tls_on = 4;
   string tls_off = 5;
+  // For a Custom mapping, the named field and the environment name seen by the
+  // app. The link set's name is the environment-scoped backing resource.
+  string custom_field = 6;
+  string custom_env = 7;
+  bool custom_secret = 8;
 }
 
 // LinkEngine is what runs a database, as Dockwell knows it (ADR 0038). Its numbers

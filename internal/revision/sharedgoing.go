@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -216,6 +217,24 @@ func (e *Engine) writtenAfter(ctx context.Context, tx *store.Tx, items []item, r
 			values[u.Name] = v
 		}
 		return variable.Write(src.Template, values)
+	case *resourcev1.ValueFrom_Connection:
+		ref := src.Connection
+		if ref.GetCustomField() == "" {
+			break
+		}
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: connection.Kind, Scope: ref.GetScope(), Name: ref.GetName()})
+		if err != nil {
+			return "", err
+		}
+		c, _ := spec.(*resourcev1.ConnectionSpec)
+		field := connection.CustomField(c, ref.GetCustomField())
+		if field == nil {
+			return "", fault.New(ErrInvalid, "the Custom connection %s has no field %s", ref.GetName(), ref.GetCustomField())
+		}
+		if connection.CustomSecret(field) {
+			return field.GetSecretValue(), nil
+		}
+		return field.GetValue(), nil
 	case *resourcev1.ValueFrom_Value:
 		if len(uses) != 1 {
 			return "", fault.New(ErrInvalid, "%s's value from another environment names none", ref)

@@ -10,6 +10,7 @@ import {
   ChangeService,
   ChangeState,
   type CheckConnectionResponse,
+  ConnectionCustomType,
   type ConnectionInfo,
   ConnectionInfoSchema,
   ConnectionReach,
@@ -53,9 +54,11 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { ConnectCustomSheet } from "./ConnectCustomSheet";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { seesWhere, where } from "./ConnectionsPage";
 import { ConnectStorageSheet, useConnectableApps } from "./ConnectStorageSheet";
+import { useCustomTypeLabels } from "./CustomConnectionSheet";
 import { mailCheckOf, useLastCheck } from "./LastCheck";
 import { appsOn } from "./storage";
 import {
@@ -102,6 +105,9 @@ export function ConnectionPage({ name }: { name: string }) {
   const connectable = useConnectableApps(connection).length > 0;
   const mail = connection?.kind === LinkKind.SMTP;
   const canUse = connectable && !mail;
+  const custom = connection?.kind === LinkKind.CUSTOM;
+  const hasCheck = !custom || connection?.custom?.hasCheck;
+  const canCheck = mayCheck.allowed && hasCheck;
 
   if (!connection) {
     return (
@@ -139,7 +145,7 @@ export function ConnectionPage({ name }: { name: string }) {
   // keep working, and sharing it is one step away (the review's M2). A connection
   // backups use serves no app (ADR 0099).
   const apps = appsOn(connection);
-  const servesOne = !connection.shared && apps > 0;
+  const servesOne = !connection.shared && (apps > 0 || connection.custom?.inUse === true);
   // Where the callout says it, with Share it, Use in an app says nothing more, so a
   // phone, which says an off control's reason at the top, says it once (the
   // re-check's N4).
@@ -163,9 +169,9 @@ export function ConnectionPage({ name }: { name: string }) {
           <CheckState answer={check.answer} connection={connection} />
         ) : last ? (
           <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />
-        ) : (
+        ) : hasCheck ? (
           <Unchecked />
-        )
+        ) : undefined
       }
       lead={lead}
       phoneSub={lead}
@@ -183,7 +189,7 @@ export function ConnectionPage({ name }: { name: string }) {
       }
       actions={
         <>
-          {mayCheck.allowed ? (
+          {canCheck ? (
             <Button icon="refresh" loading={check.busy} onClick={() => void check.run()}>
               <Trans>Check</Trans>
             </Button>
@@ -213,7 +219,7 @@ export function ConnectionPage({ name }: { name: string }) {
         <CheckLine
           answer={last.failing}
           connection={connection}
-          onCheck={mayCheck.allowed ? () => void check.run() : undefined}
+          onCheck={canCheck ? () => void check.run() : undefined}
         />
       ) : null}
       {unsharedMany ? (
@@ -239,7 +245,9 @@ export function ConnectionPage({ name }: { name: string }) {
         admin={admin}
         onDisconnected={() => void query.refetch()}
       />
-      {admin ? (
+      {custom ? (
+        <CustomFields connection={connection} admin={admin} />
+      ) : admin ? (
         <Details
           connection={connection}
           usedByBackups={usedByBackups}
@@ -256,11 +264,11 @@ export function ConnectionPage({ name }: { name: string }) {
             <CheckState answer={check.answer} connection={connection} />
           ) : last ? (
             <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />
-          ) : (
+          ) : hasCheck ? (
             <Unchecked />
-          )}
+          ) : undefined}
           <div className="connection-phone-buttons">
-            {mayCheck.allowed ? (
+            {canCheck ? (
               <Button size="lg" icon="refresh" loading={check.busy} onClick={() => void check.run()}>
                 <Trans>Check</Trans>
               </Button>
@@ -276,8 +284,74 @@ export function ConnectionPage({ name }: { name: string }) {
       {editing ? (
         <ConnectionSheet onClose={() => setEditing(false)} existing={connections} editing={connection} />
       ) : null}
-      {using ? <ConnectStorageSheet connection={connection} onClose={() => setUsing(false)} /> : null}
+      {using ? (
+        custom ? (
+          <ConnectCustomSheet connection={connection} onClose={() => setUsing(false)} />
+        ) : (
+          <ConnectStorageSheet connection={connection} onClose={() => setUsing(false)} />
+        )
+      ) : null}
     </Page>
+  );
+}
+
+function CustomFields({ connection, admin }: { connection: ConnectionInfo; admin: boolean }) {
+  const { t } = useLingui();
+  const types = useCustomTypeLabels();
+  const projectName = useProjectLabel();
+  const check = connection.custom?.check?.target;
+  const projects =
+    connection.reach === ConnectionReach.EVERY
+      ? t`Every project`
+      : connection.projects.map(projectName).join(", ") || t`No project yet`;
+  return (
+    <Panel title={t`Fields`}>
+      <dl className="connection-details">
+        {connection.custom?.fields.map((field) => (
+          <div key={field.name}>
+            <dt className="connections-mono">{field.name}</dt>
+            <dd>
+              {field.type === ConnectionCustomType.SECRET ? (
+                field.set ? (
+                  t`Secret is set`
+                ) : (
+                  t`Secret is unset`
+                )
+              ) : admin && field.value ? (
+                <code>{field.value}</code>
+              ) : (
+                types[field.type]
+              )}
+            </dd>
+          </div>
+        ))}
+        {admin ? (
+          <div>
+            <dt>
+              <Trans>Projects</Trans>
+            </dt>
+            <dd>{projects}</dd>
+          </div>
+        ) : null}
+        {check?.case === "httpsUrl" ? (
+          <div>
+            <dt>
+              <Trans>HTTPS GET</Trans>
+            </dt>
+            <dd className="connections-mono">{check.value}</dd>
+          </div>
+        ) : check?.case === "tcp" ? (
+          <div>
+            <dt>
+              <Trans>TCP connection</Trans>
+            </dt>
+            <dd className="connections-mono">
+              {check.value.host}:{check.value.port}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
+    </Panel>
   );
 }
 
@@ -412,6 +486,7 @@ function UsedBy({
   const partWord = usePartWords();
   // A mail server keeps no files, so no link says where they go.
   const mail = connection.kind === LinkKind.SMTP;
+  const custom = connection.kind === LinkKind.CUSTOM;
   const phone = useMediaQuery(PHONE_QUERY);
   const may = useMay();
   const sheet = useChangeSheet();
@@ -420,7 +495,15 @@ function UsedBy({
   const disconnect = (u: ConnectionUse) =>
     sheet.open({
       kind: "plan",
-      make: () => client.disconnectStorage({ project: u.project, environment: u.environment, link: u.link }),
+      make: () =>
+        custom
+          ? client.disconnectCustom({
+              project: u.project,
+              environment: u.environment,
+              app: u.apps[0] ?? "",
+              connection: connection.name,
+            })
+          : client.disconnectStorage({ project: u.project, environment: u.environment, link: u.link }),
       onClose: (after) => {
         if (after && after.state !== ChangeState.PLANNED && after.state !== ChangeState.FAILED) onDisconnected();
       },
@@ -435,15 +518,17 @@ function UsedBy({
     installs.some((i) => i.projectId === u.project && i.pin?.needs[u.link]?.connection === connection.name);
   const disconnectButton = (u: ConnectionUse) => {
     const allowed =
-      !admin && listed.isPending
+      !custom && !admin && listed.isPending
         ? { allowed: false, off: { disabled: true as const } }
-        : pinned(u) && !admin
+        : !custom && pinned(u) && !admin
           ? {
               allowed: false,
               off: { disabled: true as const, off: t`An admin or the owner disconnects an install's storage` },
             }
-          : may(ConnectionService.method.disconnectStorage, { environment: u.environment });
-    const link = u.link;
+          : custom
+            ? may(ConnectionService.method.disconnectCustom, { environment: u.environment })
+            : may(ConnectionService.method.disconnectStorage, { environment: u.environment });
+    const link = custom ? (u.apps[0] ?? u.link) : u.link;
     // Below an install admin, a connection's keys aren't theirs to keep: the names
     // that hold one go with the link, and the app runs without them.
     const keysGo =
@@ -454,6 +539,7 @@ function UsedBy({
         variant="secondary"
         aria-label={t`Disconnect ${link}`}
         onClick={() => disconnect(u)}
+        disabled={custom && u.apps.length === 0}
         {...allowed.off}
       >
         <Trans>Disconnect</Trans>
@@ -649,13 +735,16 @@ function UsedBy({
     );
   const sets = (u: ConnectionUse) => (
     <ul className="connection-sets">
-      {Object.entries(u.sets)
+      {(custom
+        ? Object.entries(u.customSets)
+        : Object.entries(u.sets).map(([n, part]) => [n, partWord[part] ?? ""] as const)
+      )
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([n, part]) => (
           <li key={n} className="connection-set">
             <span className="connections-mono">{n}</span>
             <Icon name="arrow-left" size={12} className="connection-sets-arrow" />
-            <span className="connection-part">{partWord[part] ?? ""}</span>
+            <span className="connection-part">{part}</span>
           </li>
         ))}
     </ul>
@@ -670,7 +759,7 @@ function UsedBy({
               <div className="dw-cell">
                 {apps(u)}
                 <span className="connections-meta">
-                  {mail
+                  {mail || custom
                     ? places.label(u.environment)
                     : [places.label(u.environment), t`objects under ${u.prefix || "/"}`].join(" · ")}
                 </span>
@@ -695,7 +784,7 @@ function UsedBy({
       ),
     },
     { key: "sets", header: t`Names it sets`, render: sets },
-    ...(mail
+    ...(mail || custom
       ? []
       : [
           {
@@ -706,7 +795,9 @@ function UsedBy({
             render: (u: ConnectionUse) => u.prefix || "/",
           },
         ]),
-    { key: "link", header: t`Link`, width: 140, mono: true, muted: true, render: (u) => u.link },
+    ...(!custom
+      ? [{ key: "link", header: t`Link`, width: 140, mono: true, muted: true, render: (u: ConnectionUse) => u.link }]
+      : []),
     {
       key: "more",
       header: <span className="dw-sr">{t`Actions`}</span>,
@@ -881,19 +972,27 @@ function useShare(connection: ConnectionInfo, onSaved: () => void) {
  */
 export function specOf(c: ConnectionInfo) {
   const at =
-    c.kind === LinkKind.SMTP
+    c.kind === LinkKind.CUSTOM
       ? {
-          smtp: { host: c.host, port: c.port, security: c.security, sender: c.sender, senderName: c.senderName },
-        }
-      : {
-          s3: {
-            endpoint: c.endpoint,
-            region: c.region,
-            bucket: c.bucket,
-            pathStyle: c.pathStyle,
-            publicUrl: c.publicUrl,
+          custom: {
+            initial: c.custom?.initial ?? "",
+            check: c.custom?.check,
+            fields: c.custom?.fields.map(({ name, type, value }) => ({ name, type, value })) ?? [],
           },
-        };
+        }
+      : c.kind === LinkKind.SMTP
+        ? {
+            smtp: { host: c.host, port: c.port, security: c.security, sender: c.sender, senderName: c.senderName },
+          }
+        : {
+            s3: {
+              endpoint: c.endpoint,
+              region: c.region,
+              bucket: c.bucket,
+              pathStyle: c.pathStyle,
+              publicUrl: c.publicUrl,
+            },
+          };
   return {
     displayName: c.displayName,
     kind: c.kind,

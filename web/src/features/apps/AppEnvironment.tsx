@@ -45,6 +45,7 @@ import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectCustomSheet } from "../connections/ConnectCustomSheet";
 import { ConnectStorageSheet } from "../connections/ConnectStorageSheet";
 import { type LinkedName, useLinkedNames, usePartWords } from "../connections/useConnections";
 import { useControlPlaneNow } from "../servers/useFleet";
@@ -103,6 +104,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
   const mayConnect = useMay()(DatabaseService.method.connectDatabase, { environment });
   const [storing, setStoring] = useState(false);
   const mayStore = useMay()(ConnectionService.method.connectStorage, { environment });
+  const [mapping, setMapping] = useState(false);
+  const mayMap = useMay()(ConnectionService.method.connectCustom, { environment });
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
   const readable = service.spec !== undefined;
@@ -186,7 +189,7 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
     ...others.filter((o) => asRoot(apps?.find((s) => s.id === o.id))).map((o) => o.name),
   ];
   // Names a link sets read from a connection: they change there, not here.
-  const linked = useLinkedNames(environment);
+  const linked = useLinkedNames(environment, service);
   const columns = useColumns(phone, service.id, store.isPending, store.data?.variables, linked, {
     change: (row) => setChanging(row.name),
     remove: (row) => put({ op: "remove", name: row.name }),
@@ -233,6 +236,14 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
                     onSelect: () => setConnecting(true),
                   },
                   {
+                    id: "custom",
+                    icon: "link",
+                    label: t`Add from a connection`,
+                    disabled: moving,
+                    off: mayMap.allowed ? undefined : mayMap.reason || undefined,
+                    onSelect: () => setMapping(true),
+                  },
+                  {
                     id: "storage",
                     icon: "archive",
                     label: t`Connect storage`,
@@ -260,6 +271,15 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
                   onClick={() => setConnecting(true)}
                 >
                   <Trans>Connect a database</Trans>
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon="link"
+                  disabled={moving}
+                  off={mayMap.allowed ? undefined : mayMap.reason || undefined}
+                  onClick={() => setMapping(true)}
+                >
+                  <Trans>Add from a connection</Trans>
                 </Button>
                 <Button
                   variant="secondary"
@@ -371,6 +391,8 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             }}
           />
         ) : null}
+
+        {mapping ? <ConnectCustomSheet service={service} onClose={() => setMapping(false)} /> : null}
 
         {storing ? <ConnectStorageSheet service={service} onClose={() => setStoring(false)} /> : null}
 
@@ -486,9 +508,9 @@ function useColumns(
     // A value read through a link has none of its own here: it's the connection's part.
     if (from && !row.stored?.value) {
       return row.now?.kind === "secret" ? (
-        <Masked label={partWord[from.part]} />
+        <Masked label={from.customField || partWord[from.part]} />
       ) : (
-        <span className="app-muted">{partWord[from.part]}</span>
+        <span className="app-muted">{from.customField || partWord[from.part]}</span>
       );
     }
     return <Value row={row} loading={loading} service={service} onShow={(v) => on.show(row, v)} />;

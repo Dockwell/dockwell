@@ -25,6 +25,7 @@ import { destinationsOn } from "../backups/storage";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
+import { CustomConnectionSheet } from "./CustomConnectionSheet";
 import { MailConnectionSheet } from "./MailConnectionSheet";
 import { isMailProvider, type MailProviderId, mailPlaceOf } from "./mail";
 import { BUCKET, freeConnectionName, type ProviderId, placeOf, provider, R2_ACCOUNT } from "./providers";
@@ -74,18 +75,20 @@ interface SheetProps {
 export function ConnectionSheet({
   start,
   kind,
+  showCustom = false,
   ...props
 }: SheetProps & {
   /** The service a new one starts at, as a tile picked on Connections. */
-  start?: ProviderId | MailProviderId | undefined;
+  start?: ProviderId | MailProviderId | "custom" | undefined;
   /** What it reaches, where that's settled, as for an app's mail. */
   kind?: ConnectionKindPick | undefined;
+  showCustom?: boolean;
 }) {
   const first: MailProviderId | undefined = props.editing
     ? props.editing.kind === LinkKind.SMTP
       ? mailPlaceOf(props.editing.host).provider
       : undefined
-    : start !== undefined && isMailProvider(start)
+    : start !== undefined && start !== "custom" && isMailProvider(start)
       ? start
       : props.mailPrefill
         ? mailPlaceOf(props.mailPrefill.host).provider
@@ -94,14 +97,20 @@ export function ConnectionSheet({
           : undefined;
   const [mail, setMail] = useState<MailProviderId | undefined>(first);
   const [store, setStore] = useState<ProviderId | undefined>(
-    start !== undefined && !isMailProvider(start) ? start : undefined,
+    start !== undefined && start !== "custom" && !isMailProvider(start) ? start : undefined,
   );
+  const [custom, setCustom] = useState(start === "custom");
+  const onCustom = showCustom ? () => setCustom(true) : undefined;
+  if (custom || props.editing?.kind === LinkKind.CUSTOM) {
+    return <CustomConnectionSheet {...props} existing={props.existing ?? []} />;
+  }
   if (mail) {
     return (
       <MailConnectionSheet
         {...props}
         start={mail}
         only={kind === "mail" ? "mail" : undefined}
+        onCustom={onCustom}
         onPickStore={(id) => {
           setStore(id);
           setMail(undefined);
@@ -109,7 +118,7 @@ export function ConnectionSheet({
       />
     );
   }
-  return <StorageSheet {...props} start={store} only={kind} onPickMail={setMail} />;
+  return <StorageSheet {...props} start={store} only={kind} onPickMail={setMail} onCustom={onCustom} />;
 }
 
 /**
@@ -132,6 +141,7 @@ function StorageSheet({
   rotateForBackups,
   only,
   onPickMail,
+  onCustom,
 }: SheetProps & {
   /** The store a new one starts at, as a tile picked on Connections. */
   start?: ProviderId | undefined;
@@ -139,6 +149,7 @@ function StorageSheet({
   only?: ConnectionKindPick | undefined;
   /** Picking a mail tile goes to a mail server's form. */
   onPickMail: (id: MailProviderId) => void;
+  onCustom?: (() => void) | undefined;
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
@@ -414,6 +425,7 @@ function StorageSheet({
       <div className="connection-sheet">
         <ServiceTiles
           picked={store}
+          onCustom={onCustom}
           onPick={(id) => (isMailProvider(id) ? onPickMail(id) : pick(id))}
           only={editing ? "storage" : only}
           disabled={editing !== undefined}

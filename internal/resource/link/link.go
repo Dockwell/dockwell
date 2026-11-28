@@ -67,6 +67,14 @@ var (
 // Validate refuses a link that can't say what it sets.
 func (Type) Validate(spec proto.Message) error {
 	l := spec.(*resourcev1.Link)
+	if l.GetKind() != resourcev1.LinkKind_LINK_KIND_CUSTOM {
+		usesCustom := l.GetCustomApp() != "" || slices.ContainsFunc(l.GetSets(), func(s *resourcev1.LinkSet) bool {
+			return s.GetCustomField() != "" || s.GetCustomEnv() != "" || s.GetCustomSecret()
+		})
+		if usesCustom {
+			return errors.New("only a Custom link holds Custom field mappings")
+		}
+	}
 	if l.GetConnection() != "" || l.GetKind() != resourcev1.LinkKind_LINK_KIND_UNSPECIFIED {
 		return validateToConnection(l)
 	}
@@ -184,6 +192,8 @@ func validateToConnection(l *resourcev1.Link) error {
 		return errors.New("a link to storage or a mail server names the connection that meets it")
 	case l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP:
 		return validateToMail(l)
+	case l.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM:
+		return validateToCustom(l)
 	case l.GetKind() != resourcev1.LinkKind_LINK_KIND_S3:
 		return errors.New("a link to a connection reaches S3 storage or a mail server. Set its kind to LINK_KIND_S3 or LINK_KIND_SMTP")
 	case l.GetSender() != "" || l.GetSenderName() != "":
@@ -271,7 +281,7 @@ func Secret(s *resourcev1.LinkSet) bool {
 // SecretIn is Secret for a set of the link l: a mail server's user is one of its
 // keys too, as a provider's key ID often is, so it goes only as a secret.
 func SecretIn(l *resourcev1.Link, s *resourcev1.LinkSet) bool {
-	return Secret(s) || l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && s.GetPart() == resourcev1.LinkPart_LINK_PART_USER
+	return s.GetCustomSecret() || Secret(s) || l.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && s.GetPart() == resourcev1.LinkPart_LINK_PART_USER
 }
 
 // validateToMail refuses a link to a mail server that says what only a link to a

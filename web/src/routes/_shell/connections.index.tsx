@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_shell/connections/")({
     const kind = search["kind"];
     return {
       ...readListSearch(search),
-      ...(kind === "mail" || kind === "storage" || kind === "destination" ? { kind } : {}),
+      ...(kind === "mail" || kind === "storage" || kind === "destination" || kind === "custom" ? { kind } : {}),
     };
   },
   component: function Connections() {

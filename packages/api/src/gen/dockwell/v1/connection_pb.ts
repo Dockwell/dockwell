@@ -6,7 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { ConnectionReach, ConnectionS3, ConnectionSmtp, LinkKind, LinkPart, SmtpSecurity } from "../resource/v1alpha1/specs_pb";
+import type { ConnectionCustom, ConnectionCustomCheck, ConnectionCustomType, ConnectionReach, ConnectionS3, ConnectionSmtp, LinkKind, LinkPart, SmtpSecurity } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
@@ -20,7 +20,194 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/connection.proto.
  */
 export const file_dockwell_v1_connection: GenFile = /*@__PURE__*/
-  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSKjAgoVQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSCwoDYXBwGAMgASgJEhIKCmNvbm5lY3Rpb24YBCABKAkSDAoEbGluaxgFIAEoCRIOCgZwcmVmaXgYBiABKAkSOgoEc2V0cxgHIAMoCzIsLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdC5TZXRzRW50cnkSFgoOcHJlc2lnbmVkX3VybHMYCCABKAgaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ASJyChZDb25uZWN0U3RvcmFnZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRIzCgVjaGVjaxgCIAEoCzIkLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIk4KGERpc2Nvbm5lY3RTdG9yYWdlUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEgwKBGxpbmsYAyABKAkiQAoZRGlzY29ubmVjdFN0b3JhZ2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiPgoWTGlzdENvbm5lY3Rpb25zUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJIksKF0xpc3RDb25uZWN0aW9uc1Jlc3BvbnNlEjAKC2Nvbm5lY3Rpb25zGAEgAygLMhsuZG9ja3dlbGwudjEuQ29ubmVjdGlvbkluZm8ilwQKDkNvbm5lY3Rpb25JbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMZGlzcGxheV9uYW1lGAMgASgJEjIKBGtpbmQYBCABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5MaW5rS2luZBIQCghlbmRwb2ludBgFIAEoCRIOCgZyZWdpb24YBiABKAkSDgoGYnVja2V0GAcgASgJEhIKCnBhdGhfc3R5bGUYCCABKAgSEgoKcHVibGljX3VybBgJIAEoCRI6CgVyZWFjaBgKIAEoDjIrLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25SZWFjaBIQCghwcm9qZWN0cxgLIAMoCRIoCgR1c2VzGAwgAygLMhouZG9ja3dlbGwudjEuQ29ubmVjdGlvblVzZRIMCgRoZWxkGA0gASgIEg4KBnNoYXJlZBgOIAEoCBIMCgRob3N0GA8gASgJEgwKBHBvcnQYECABKA0SOgoIc2VjdXJpdHkYESABKA4yKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5TbXRwU2VjdXJpdHkSDgoGc2VuZGVyGBIgASgJEhMKC3NlbmRlcl9uYW1lGBMgASgJEjQKBmNoZWNrcxgUIAMoCzIkLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlc3BvbnNlIooCCg1Db25uZWN0aW9uVXNlEg8KB2xpbmtfaWQYASABKAkSDAoEbGluaxgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEg4KBnByZWZpeBgFIAEoCRIyCgRzZXRzGAYgAygLMiQuZG9ja3dlbGwudjEuQ29ubmVjdGlvblVzZS5TZXRzRW50cnkSDwoHYXBwX2lkcxgHIAMoCRIMCgRhcHBzGAggAygJGlEKCVNldHNFbnRyeRILCgNrZXkYASABKAkSMwoFdmFsdWUYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5MaW5rUGFydDoCOAEi9QEKFkNoZWNrQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRI6CgJzMxgCIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25TM0IEyPMYARIOCgZzZXJ2ZXIYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSCwoDYXBwGAUgASgJEg8KB3ByZXNpZ24YBiABKAgSDgoGcHJlZml4GAcgASgJEj4KBHNtdHAYCCABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uU210cEIEyPMYASK/AQoXQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2USDgoGcGFzc2VkGAEgASgIEgwKBHN0ZXAYAiABKAkSDAoEY29kZRgDIAEoCRIOCgZzdGF0dXMYBCABKAUSDwoHbWVzc2FnZRgFIAEoCRINCgV3b3JkcxgGIAEoCRIOCgZyZWdpb24YByABKAkSDgoGc2VydmVyGAggASgJEigKBHRpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wMrcIChFDb25uZWN0aW9uU2VydmljZRKIAQoPTGlzdENvbm5lY3Rpb25zEiMuZG9ja3dlbGwudjEuTGlzdENvbm5lY3Rpb25zUmVxdWVzdBokLmRvY2t3ZWxsLnYxLkxpc3RDb25uZWN0aW9uc1Jlc3BvbnNlIiqQAgGguxgBwLsYAsi7GALQuxgFgtPkkwIREg8vdjEvY29ubmVjdGlvbnMSkgEKD0NoZWNrQ29ubmVjdGlvbhIjLmRvY2t3ZWxsLnYxLkNoZWNrQ29ubmVjdGlvblJlcXVlc3QaJC5kb2Nrd2VsbC52MS5DaGVja0Nvbm5lY3Rpb25SZXNwb25zZSI0oLsYAbC7GAHAuxgEyLsYBNC7GAaC0+STAho6ASoiFS92MS9jb25uZWN0aW9uczpjaGVjaxKpAQoOQ29ubmVjdFN0b3JhZ2USIi5kb2Nrd2VsbC52MS5Db25uZWN0U3RvcmFnZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5Db25uZWN0U3RvcmFnZVJlc3BvbnNlIk6guxgCqrsYERIPY29ubmVjdC1zdG9yYWdlwLsYA8i7GAPQuxgEgtPkkwIjOgEqIh4vdjEvY29ubmVjdGlvbnM6Y29ubmVjdFN0b3JhZ2USuAEKEURpc2Nvbm5lY3RTdG9yYWdlEiUuZG9ja3dlbGwudjEuRGlzY29ubmVjdFN0b3JhZ2VSZXF1ZXN0GiYuZG9ja3dlbGwudjEuRGlzY29ubmVjdFN0b3JhZ2VSZXNwb25zZSJUoLsYAqq7GBQSEmRpc2Nvbm5lY3Qtc3RvcmFnZcC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2Nvbm5lY3Rpb25zOmRpc2Nvbm5lY3RTdG9yYWdlGpoDorsYlQMKC2Nvbm5lY3Rpb25zEoUDQ29ubmVjdGlvbnMgYXBwcyB1c2UsIHN1Y2ggYXMgYSBidWNrZXQgb2YgUzMtY29tcGF0aWJsZSBzdG9yYWdlIGFuZCB0aGUga2V5cyB0aGF0IHJlYWNoIGl0LiBBIGNvbm5lY3Rpb24gaXMgaW5zdGFsbC13aWRlOiBhbiBhZG1pbiBzYXZlcyBpdCBhcyBhIGNoYW5nZSwgd2l0aCBhIHBsYW4sIGFuZCBzYXlzIHdoaWNoIHByb2plY3RzIG1heSB1c2UgaXQuIENoZWNrQ29ubmVjdGlvbiBjaGVja3Mgb25lIGZyb20gYSBzZXJ2ZXIsIGluIGEgY29udGFpbmVyIG9mIHRoZSBhZ2VudCdzIG93biBiaW5hcnksIHdpdGhvdXQgc2F2aW5nIGFueXRoaW5nLiBTZWUgZG9jcy9hZHIvMDA5OS1ldmVyeS1raW5kLW9mLXRoaW5nLWFuLWFwcC1uZWVkcy1tZXQtdGhlLXNhbWUtdGhyZWUtd2F5cy5tZC5CqAEKD2NvbS5kb2Nrd2VsbC52MUIPQ29ubmVjdGlvblByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chxkb2Nrd2VsbC92MS9jb25uZWN0aW9uLnByb3RvEgtkb2Nrd2VsbC52MSLfAQodQ3JlYXRlQ3VzdG9tQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSPAoGY3VzdG9tGAMgASgLMiwuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29ubmVjdGlvbkN1c3RvbRI6CgVyZWFjaBgEIAEoDjIrLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25SZWFjaBIQCghwcm9qZWN0cxgFIAMoCRIOCgZzaGFyZWQYBiABKAgiRQoeQ3JlYXRlQ3VzdG9tQ29ubmVjdGlvblJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSLLAQoUQ29ubmVjdEN1c3RvbVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRILCgNhcHAYAyABKAkSEgoKY29ubmVjdGlvbhgEIAEoCRI9CgZmaWVsZHMYBSADKAsyLS5kb2Nrd2VsbC52MS5Db25uZWN0Q3VzdG9tUmVxdWVzdC5GaWVsZHNFbnRyeRotCgtGaWVsZHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBImAKF0Rpc2Nvbm5lY3RDdXN0b21SZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSCwoDYXBwGAMgASgJEhIKCmNvbm5lY3Rpb24YBCABKAkiPAoVQ29ubmVjdEN1c3RvbVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI/ChhEaXNjb25uZWN0Q3VzdG9tUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIqMCChVDb25uZWN0U3RvcmFnZVJlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRILCgNhcHAYAyABKAkSEgoKY29ubmVjdGlvbhgEIAEoCRIMCgRsaW5rGAUgASgJEg4KBnByZWZpeBgGIAEoCRI6CgRzZXRzGAcgAygLMiwuZG9ja3dlbGwudjEuQ29ubmVjdFN0b3JhZ2VSZXF1ZXN0LlNldHNFbnRyeRIWCg5wcmVzaWduZWRfdXJscxgIIAEoCBpRCglTZXRzRW50cnkSCwoDa2V5GAEgASgJEjMKBXZhbHVlGAIgASgOMiQuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuTGlua1BhcnQ6AjgBInIKFkNvbm5lY3RTdG9yYWdlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEjMKBWNoZWNrGAIgASgLMiQuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2UiTgoYRGlzY29ubmVjdFN0b3JhZ2VSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSDAoEbGluaxgDIAEoCSJAChlEaXNjb25uZWN0U3RvcmFnZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSI+ChZMaXN0Q29ubmVjdGlvbnNSZXF1ZXN0Eg8KB3Byb2plY3QYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkiSwoXTGlzdENvbm5lY3Rpb25zUmVzcG9uc2USMAoLY29ubmVjdGlvbnMYASADKAsyGy5kb2Nrd2VsbC52MS5Db25uZWN0aW9uSW5mbyLcBAoOQ29ubmVjdGlvbkluZm8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSMgoEa2luZBgEIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtLaW5kEhAKCGVuZHBvaW50GAUgASgJEg4KBnJlZ2lvbhgGIAEoCRIOCgZidWNrZXQYByABKAkSEgoKcGF0aF9zdHlsZRgIIAEoCBISCgpwdWJsaWNfdXJsGAkgASgJEjoKBXJlYWNoGAogASgOMisuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29ubmVjdGlvblJlYWNoEhAKCHByb2plY3RzGAsgAygJEigKBHVzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Db25uZWN0aW9uVXNlEgwKBGhlbGQYDSABKAgSDgoGc2hhcmVkGA4gASgIEgwKBGhvc3QYDyABKAkSDAoEcG9ydBgQIAEoDRI6CghzZWN1cml0eRgRIAEoDjIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNtdHBTZWN1cml0eRIOCgZzZW5kZXIYEiABKAkSEwoLc2VuZGVyX25hbWUYEyABKAkSNAoGY2hlY2tzGBQgAygLMiQuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2USMQoGY3VzdG9tGBUgASgLMiEuZG9ja3dlbGwudjEuQ29ubmVjdGlvbkN1c3RvbUluZm8SEAoIcmV2aXNpb24YFiABKAMixAEKFENvbm5lY3Rpb25DdXN0b21JbmZvEg8KB2luaXRpYWwYASABKAkSNgoGZmllbGRzGAIgAygLMiYuZG9ja3dlbGwudjEuQ29ubmVjdGlvbkN1c3RvbUZpZWxkSW5mbxJACgVjaGVjaxgDIAEoCzIxLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25DdXN0b21DaGVjaxIRCgloYXNfY2hlY2sYBCABKAgSDgoGaW5fdXNlGAUgASgIIpoBChlDb25uZWN0aW9uQ3VzdG9tRmllbGRJbmZvEgwKBG5hbWUYASABKAkSPgoEdHlwZRgCIAEoDjIwLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25DdXN0b21UeXBlEg0KBXZhbHVlGAMgASgJEgsKA3NldBgEIAEoCBITCgtkZWZhdWx0X2VudhgFIAEoCSL+AgoNQ29ubmVjdGlvblVzZRIPCgdsaW5rX2lkGAEgASgJEgwKBGxpbmsYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSDwoHcHJvamVjdBgEIAEoCRIOCgZwcmVmaXgYBSABKAkSMgoEc2V0cxgGIAMoCzIkLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25Vc2UuU2V0c0VudHJ5Eg8KB2FwcF9pZHMYByADKAkSDAoEYXBwcxgIIAMoCRI/CgtjdXN0b21fc2V0cxgJIAMoCzIqLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb25Vc2UuQ3VzdG9tU2V0c0VudHJ5GlEKCVNldHNFbnRyeRILCgNrZXkYASABKAkSMwoFdmFsdWUYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5MaW5rUGFydDoCOAEaMQoPQ3VzdG9tU2V0c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiuAIKFkNoZWNrQ29ubmVjdGlvblJlcXVlc3QSDAoEbmFtZRgBIAEoCRI6CgJzMxgCIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNvbm5lY3Rpb25TM0IEyPMYARIOCgZzZXJ2ZXIYAyABKAkSEwoLZW52aXJvbm1lbnQYBCABKAkSCwoDYXBwGAUgASgJEg8KB3ByZXNpZ24YBiABKAgSDgoGcHJlZml4GAcgASgJEj4KBHNtdHAYCCABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uU210cEIEyPMYARJBCgZjdXN0b20YCSABKAsyMS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db25uZWN0aW9uQ3VzdG9tQ2hlY2sivwEKF0NoZWNrQ29ubmVjdGlvblJlc3BvbnNlEg4KBnBhc3NlZBgBIAEoCBIMCgRzdGVwGAIgASgJEgwKBGNvZGUYAyABKAkSDgoGc3RhdHVzGAQgASgFEg8KB21lc3NhZ2UYBSABKAkSDQoFd29yZHMYBiABKAkSDgoGcmVnaW9uGAcgASgJEg4KBnNlcnZlchgIIAEoCRIoCgR0aW1lGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcDLUDAoRQ29ubmVjdGlvblNlcnZpY2USiAEKD0xpc3RDb25uZWN0aW9ucxIjLmRvY2t3ZWxsLnYxLkxpc3RDb25uZWN0aW9uc1JlcXVlc3QaJC5kb2Nrd2VsbC52MS5MaXN0Q29ubmVjdGlvbnNSZXNwb25zZSIqkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCERIPL3YxL2Nvbm5lY3Rpb25zEpIBCg9DaGVja0Nvbm5lY3Rpb24SIy5kb2Nrd2VsbC52MS5DaGVja0Nvbm5lY3Rpb25SZXF1ZXN0GiQuZG9ja3dlbGwudjEuQ2hlY2tDb25uZWN0aW9uUmVzcG9uc2UiNKC7GAGwuxgBwLsYBMi7GATQuxgGgtPkkwIaOgEqIhUvdjEvY29ubmVjdGlvbnM6Y2hlY2sSvQEKFkNyZWF0ZUN1c3RvbUNvbm5lY3Rpb24SKi5kb2Nrd2VsbC52MS5DcmVhdGVDdXN0b21Db25uZWN0aW9uUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkNyZWF0ZUN1c3RvbUNvbm5lY3Rpb25SZXNwb25zZSJKoLsYAqq7GA8SDWNyZWF0ZS1jdXN0b23AuxgEyLsYBNC7GAaC0+STAiE6ASoiHC92MS9jb25uZWN0aW9uczpjcmVhdGVDdXN0b20SpAEKDUNvbm5lY3RDdXN0b20SIS5kb2Nrd2VsbC52MS5Db25uZWN0Q3VzdG9tUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkNvbm5lY3RDdXN0b21SZXNwb25zZSJMoLsYAqq7GBASDmNvbm5lY3QtY3VzdG9twLsYA8i7GAPQuxgEgtPkkwIiOgEqIh0vdjEvY29ubmVjdGlvbnM6Y29ubmVjdEN1c3RvbRKzAQoQRGlzY29ubmVjdEN1c3RvbRIkLmRvY2t3ZWxsLnYxLkRpc2Nvbm5lY3RDdXN0b21SZXF1ZXN0GiUuZG9ja3dlbGwudjEuRGlzY29ubmVjdEN1c3RvbVJlc3BvbnNlIlKguxgCqrsYExIRZGlzY29ubmVjdC1jdXN0b23AuxgDyLsYA9C7GASC0+STAiU6ASoiIC92MS9jb25uZWN0aW9uczpkaXNjb25uZWN0Q3VzdG9tEqkBCg5Db25uZWN0U3RvcmFnZRIiLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLkNvbm5lY3RTdG9yYWdlUmVzcG9uc2UiTqC7GAKquxgREg9jb25uZWN0LXN0b3JhZ2XAuxgDyLsYA9C7GASC0+STAiM6ASoiHi92MS9jb25uZWN0aW9uczpjb25uZWN0U3RvcmFnZRK4AQoRRGlzY29ubmVjdFN0b3JhZ2USJS5kb2Nrd2VsbC52MS5EaXNjb25uZWN0U3RvcmFnZVJlcXVlc3QaJi5kb2Nrd2VsbC52MS5EaXNjb25uZWN0U3RvcmFnZVJlc3BvbnNlIlSguxgCqrsYFBISZGlzY29ubmVjdC1zdG9yYWdlwLsYA8i7GAPQuxgEgtPkkwImOgEqIiEvdjEvY29ubmVjdGlvbnM6ZGlzY29ubmVjdFN0b3JhZ2UamgOiuxiVAwoLY29ubmVjdGlvbnMShQNDb25uZWN0aW9ucyBhcHBzIHVzZSwgc3VjaCBhcyBhIGJ1Y2tldCBvZiBTMy1jb21wYXRpYmxlIHN0b3JhZ2UgYW5kIHRoZSBrZXlzIHRoYXQgcmVhY2ggaXQuIEEgY29ubmVjdGlvbiBpcyBpbnN0YWxsLXdpZGU6IGFuIGFkbWluIHNhdmVzIGl0IGFzIGEgY2hhbmdlLCB3aXRoIGEgcGxhbiwgYW5kIHNheXMgd2hpY2ggcHJvamVjdHMgbWF5IHVzZSBpdC4gQ2hlY2tDb25uZWN0aW9uIGNoZWNrcyBvbmUgZnJvbSBhIHNlcnZlciwgaW4gYSBjb250YWluZXIgb2YgdGhlIGFnZW50J3Mgb3duIGJpbmFyeSwgd2l0aG91dCBzYXZpbmcgYW55dGhpbmcuIFNlZSBkb2NzL2Fkci8wMDk5LWV2ZXJ5LWtpbmQtb2YtdGhpbmctYW4tYXBwLW5lZWRzLW1ldC10aGUtc2FtZS10aHJlZS13YXlzLm1kLkKoAQoPY29tLmRvY2t3ZWxsLnYxQg9Db25uZWN0aW9uUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * CreateCustomConnectionRequest supplies the fields and reach of a new Custom connection.
+ *
+ * @generated from message dockwell.v1.CreateCustomConnectionRequest
+ */
+export type CreateCustomConnectionRequest = Message<"dockwell.v1.CreateCustomConnectionRequest"> & {
+  /**
+   * The connection's unique name, such as example-api.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+
+  /**
+   * The fields and optional check. Read JSON from @file or stdin to set secrets.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.ConnectionCustom custom = 3;
+   */
+  custom?: ConnectionCustom | undefined;
+
+  /**
+   * @generated from field: dockwell.resource.v1alpha1.ConnectionReach reach = 4;
+   */
+  reach: ConnectionReach;
+
+  /**
+   * Projects that may use it, by ID, for REACH_PROJECTS.
+   *
+   * @generated from field: repeated string projects = 5;
+   */
+  projects: string[];
+
+  /**
+   * Allow more than one app to use these values.
+   *
+   * @generated from field: bool shared = 6;
+   */
+  shared: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateCustomConnectionRequest.
+ * Use `create(CreateCustomConnectionRequestSchema)` to create a new message.
+ */
+export const CreateCustomConnectionRequestSchema: GenMessage<CreateCustomConnectionRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 0);
+
+/**
+ * CreateCustomConnectionResponse contains the proposed creation.
+ *
+ * @generated from message dockwell.v1.CreateCustomConnectionResponse
+ */
+export type CreateCustomConnectionResponse = Message<"dockwell.v1.CreateCustomConnectionResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CreateCustomConnectionResponse.
+ * Use `create(CreateCustomConnectionResponseSchema)` to create a new message.
+ */
+export const CreateCustomConnectionResponseSchema: GenMessage<CreateCustomConnectionResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 1);
+
+/**
+ * ConnectCustomRequest maps a Custom connection into one app.
+ *
+ * @generated from message dockwell.v1.ConnectCustomRequest
+ */
+export type ConnectCustomRequest = Message<"dockwell.v1.ConnectCustomRequest"> & {
+  /**
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * @generated from field: string environment = 2;
+   */
+  environment: string;
+
+  /**
+   * The app's service name.
+   *
+   * @generated from field: string app = 3;
+   */
+  app: string;
+
+  /**
+   * @generated from field: string connection = 4;
+   */
+  connection: string;
+
+  /**
+   * The environment name for each named field. Omitted fields use their default,
+   * a prefix from the connection's name followed by the field's name.
+   *
+   * @generated from field: map<string, string> fields = 5;
+   */
+  fields: { [key: string]: string };
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectCustomRequest.
+ * Use `create(ConnectCustomRequestSchema)` to create a new message.
+ */
+export const ConnectCustomRequestSchema: GenMessage<ConnectCustomRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 2);
+
+/**
+ * DisconnectCustomRequest names the app and connection whose mapping will be removed.
+ *
+ * @generated from message dockwell.v1.DisconnectCustomRequest
+ */
+export type DisconnectCustomRequest = Message<"dockwell.v1.DisconnectCustomRequest"> & {
+  /**
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * @generated from field: string environment = 2;
+   */
+  environment: string;
+
+  /**
+   * @generated from field: string app = 3;
+   */
+  app: string;
+
+  /**
+   * @generated from field: string connection = 4;
+   */
+  connection: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DisconnectCustomRequest.
+ * Use `create(DisconnectCustomRequestSchema)` to create a new message.
+ */
+export const DisconnectCustomRequestSchema: GenMessage<DisconnectCustomRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 3);
+
+/**
+ * ConnectCustomResponse contains the proposed mapping.
+ *
+ * @generated from message dockwell.v1.ConnectCustomResponse
+ */
+export type ConnectCustomResponse = Message<"dockwell.v1.ConnectCustomResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectCustomResponse.
+ * Use `create(ConnectCustomResponseSchema)` to create a new message.
+ */
+export const ConnectCustomResponseSchema: GenMessage<ConnectCustomResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 4);
+
+/**
+ * DisconnectCustomResponse contains the proposed removal of the mapping.
+ *
+ * @generated from message dockwell.v1.DisconnectCustomResponse
+ */
+export type DisconnectCustomResponse = Message<"dockwell.v1.DisconnectCustomResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DisconnectCustomResponse.
+ * Use `create(DisconnectCustomResponseSchema)` to create a new message.
+ */
+export const DisconnectCustomResponseSchema: GenMessage<DisconnectCustomResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 5);
 
 /**
  * ConnectStorageRequest names an app, and the connection it reads its storage from.
@@ -92,7 +279,7 @@ export type ConnectStorageRequest = Message<"dockwell.v1.ConnectStorageRequest">
  * Use `create(ConnectStorageRequestSchema)` to create a new message.
  */
 export const ConnectStorageRequestSchema: GenMessage<ConnectStorageRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 0);
+  messageDesc(file_dockwell_v1_connection, 6);
 
 /**
  * ConnectStorageResponse is the change, planned, and the check it was planned on.
@@ -116,7 +303,7 @@ export type ConnectStorageResponse = Message<"dockwell.v1.ConnectStorageResponse
  * Use `create(ConnectStorageResponseSchema)` to create a new message.
  */
 export const ConnectStorageResponseSchema: GenMessage<ConnectStorageResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 1);
+  messageDesc(file_dockwell_v1_connection, 7);
 
 /**
  * DisconnectStorageRequest names a link to a connection in an environment.
@@ -150,7 +337,7 @@ export type DisconnectStorageRequest = Message<"dockwell.v1.DisconnectStorageReq
  * Use `create(DisconnectStorageRequestSchema)` to create a new message.
  */
 export const DisconnectStorageRequestSchema: GenMessage<DisconnectStorageRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 2);
+  messageDesc(file_dockwell_v1_connection, 8);
 
 /**
  * DisconnectStorageResponse is the change, planned.
@@ -169,7 +356,7 @@ export type DisconnectStorageResponse = Message<"dockwell.v1.DisconnectStorageRe
  * Use `create(DisconnectStorageResponseSchema)` to create a new message.
  */
 export const DisconnectStorageResponseSchema: GenMessage<DisconnectStorageResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 3);
+  messageDesc(file_dockwell_v1_connection, 9);
 
 /**
  * ListConnectionsRequest asks for the connections the caller may see.
@@ -198,7 +385,7 @@ export type ListConnectionsRequest = Message<"dockwell.v1.ListConnectionsRequest
  * Use `create(ListConnectionsRequestSchema)` to create a new message.
  */
 export const ListConnectionsRequestSchema: GenMessage<ListConnectionsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 4);
+  messageDesc(file_dockwell_v1_connection, 10);
 
 /**
  * ListConnectionsResponse lists connections.
@@ -217,7 +404,7 @@ export type ListConnectionsResponse = Message<"dockwell.v1.ListConnectionsRespon
  * Use `create(ListConnectionsResponseSchema)` to create a new message.
  */
 export const ListConnectionsResponseSchema: GenMessage<ListConnectionsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 5);
+  messageDesc(file_dockwell_v1_connection, 11);
 
 /**
  * ConnectionInfo is a connection as a caller may see it: never its keys. Below an
@@ -360,6 +547,18 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
    * @generated from field: repeated dockwell.v1.CheckConnectionResponse checks = 20;
    */
   checks: CheckConnectionResponse[];
+
+  /**
+   * @generated from field: dockwell.v1.ConnectionCustomInfo custom = 21;
+   */
+  custom?: ConnectionCustomInfo | undefined;
+
+  /**
+   * The revision an administrator can edit.
+   *
+   * @generated from field: int64 revision = 22;
+   */
+  revision: bigint;
 };
 
 /**
@@ -367,7 +566,95 @@ export type ConnectionInfo = Message<"dockwell.v1.ConnectionInfo"> & {
  * Use `create(ConnectionInfoSchema)` to create a new message.
  */
 export const ConnectionInfoSchema: GenMessage<ConnectionInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 6);
+  messageDesc(file_dockwell_v1_connection, 12);
+
+/**
+ * ConnectionCustomInfo describes a Custom connection without its secret values.
+ *
+ * @generated from message dockwell.v1.ConnectionCustomInfo
+ */
+export type ConnectionCustomInfo = Message<"dockwell.v1.ConnectionCustomInfo"> & {
+  /**
+   * @generated from field: string initial = 1;
+   */
+  initial: string;
+
+  /**
+   * @generated from field: repeated dockwell.v1.ConnectionCustomFieldInfo fields = 2;
+   */
+  fields: ConnectionCustomFieldInfo[];
+
+  /**
+   * The check configuration is visible to install administrators.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.ConnectionCustomCheck check = 3;
+   */
+  check?: ConnectionCustomCheck | undefined;
+
+  /**
+   * @generated from field: bool has_check = 4;
+   */
+  hasCheck: boolean;
+
+  /**
+   * Whether the connection already serves an app. No project or app is named.
+   *
+   * @generated from field: bool in_use = 5;
+   */
+  inUse: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectionCustomInfo.
+ * Use `create(ConnectionCustomInfoSchema)` to create a new message.
+ */
+export const ConnectionCustomInfoSchema: GenMessage<ConnectionCustomInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 13);
+
+/**
+ * ConnectionCustomFieldInfo describes a named field and its default mapping.
+ *
+ * @generated from message dockwell.v1.ConnectionCustomFieldInfo
+ */
+export type ConnectionCustomFieldInfo = Message<"dockwell.v1.ConnectionCustomFieldInfo"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: dockwell.resource.v1alpha1.ConnectionCustomType type = 2;
+   */
+  type: ConnectionCustomType;
+
+  /**
+   * For a plain field, visible to install administrators.
+   *
+   * @generated from field: string value = 3;
+   */
+  value: string;
+
+  /**
+   * Whether a secret field has a value.
+   *
+   * @generated from field: bool set = 4;
+   */
+  set: boolean;
+
+  /**
+   * Suggested environment name for this field.
+   *
+   * @generated from field: string default_env = 5;
+   */
+  defaultEnv: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ConnectionCustomFieldInfo.
+ * Use `create(ConnectionCustomFieldInfoSchema)` to create a new message.
+ */
+export const ConnectionCustomFieldInfoSchema: GenMessage<ConnectionCustomFieldInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_connection, 14);
 
 /**
  * ConnectionUse is one link to a connection, and the apps that read it.
@@ -422,6 +709,13 @@ export type ConnectionUse = Message<"dockwell.v1.ConnectionUse"> & {
    * @generated from field: repeated string apps = 8;
    */
   apps: string[];
+
+  /**
+   * Environment name to named field, for Custom connections.
+   *
+   * @generated from field: map<string, string> custom_sets = 9;
+   */
+  customSets: { [key: string]: string };
 };
 
 /**
@@ -429,7 +723,7 @@ export type ConnectionUse = Message<"dockwell.v1.ConnectionUse"> & {
  * Use `create(ConnectionUseSchema)` to create a new message.
  */
 export const ConnectionUseSchema: GenMessage<ConnectionUse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 7);
+  messageDesc(file_dockwell_v1_connection, 15);
 
 /**
  * CheckConnectionRequest is a connection to check, as typed, or a saved one again.
@@ -496,6 +790,13 @@ export type CheckConnectionRequest = Message<"dockwell.v1.CheckConnectionRequest
    * @generated from field: dockwell.resource.v1alpha1.ConnectionSmtp smtp = 8;
    */
   smtp?: ConnectionSmtp | undefined;
+
+  /**
+   * A Custom check as typed, with no connection values sent to it.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.ConnectionCustomCheck custom = 9;
+   */
+  custom?: ConnectionCustomCheck | undefined;
 };
 
 /**
@@ -503,7 +804,7 @@ export type CheckConnectionRequest = Message<"dockwell.v1.CheckConnectionRequest
  * Use `create(CheckConnectionRequestSchema)` to create a new message.
  */
 export const CheckConnectionRequestSchema: GenMessage<CheckConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 8);
+  messageDesc(file_dockwell_v1_connection, 16);
 
 /**
  * CheckConnectionResponse is what a check found: codes, never a body.
@@ -585,7 +886,7 @@ export type CheckConnectionResponse = Message<"dockwell.v1.CheckConnectionRespon
  * Use `create(CheckConnectionResponseSchema)` to create a new message.
  */
 export const CheckConnectionResponseSchema: GenMessage<CheckConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_connection, 9);
+  messageDesc(file_dockwell_v1_connection, 17);
 
 /**
  * ConnectionService reads the connections apps use, and checks one from where an
@@ -626,6 +927,37 @@ export const ConnectionService: GenService<{
     methodKind: "unary";
     input: typeof CheckConnectionRequestSchema;
     output: typeof CheckConnectionResponseSchema;
+  },
+  /**
+   * CreateCustomConnection plans a new Custom connection. Apply the returned
+   * change to save it.
+   *
+   * @generated from rpc dockwell.v1.ConnectionService.CreateCustomConnection
+   */
+  createCustomConnection: {
+    methodKind: "unary";
+    input: typeof CreateCustomConnectionRequestSchema;
+    output: typeof CreateCustomConnectionResponseSchema;
+  },
+  /**
+   * ConnectCustom plans a mapping of named fields into an app's environment.
+   *
+   * @generated from rpc dockwell.v1.ConnectionService.ConnectCustom
+   */
+  connectCustom: {
+    methodKind: "unary";
+    input: typeof ConnectCustomRequestSchema;
+    output: typeof ConnectCustomResponseSchema;
+  },
+  /**
+   * DisconnectCustom plans removal of the mapping and its values from the app.
+   *
+   * @generated from rpc dockwell.v1.ConnectionService.DisconnectCustom
+   */
+  disconnectCustom: {
+    methodKind: "unary";
+    input: typeof DisconnectCustomRequestSchema;
+    output: typeof DisconnectCustomResponseSchema;
   },
   /**
    * ConnectStorage connects an app to a connection's bucket: it checks the bucket

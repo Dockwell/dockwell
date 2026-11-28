@@ -66,7 +66,11 @@ func (e *Engine) checkUnsharing(ctx context.Context, tx *store.Tx, items []item,
 	if n < 2 {
 		return nil
 	}
-	if spec, _ := it.spec.(*resourcev1.ConnectionSpec); spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+	spec, _ := it.spec.(*resourcev1.ConnectionSpec)
+	if spec.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+		return fault.New(ErrInvalid, "the connection %s serves %d apps. Disconnect all but one before turning off sharing", it.ref.Name, n)
+	}
+	if spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
 		return fault.New(ErrInvalid, "the connection %s serves %d apps, which each send mail through it, so it stays shared while more than one does. Disconnect all but one on its page first, or keep it shared",
 			it.ref.Name, n)
 	}
@@ -105,6 +109,14 @@ func (e *Engine) sharingNotes(ctx context.Context, items []item) ([]Note, error)
 			_, is, _ := sharing(it)
 			spec, _ := it.spec.(*resourcev1.ConnectionSpec)
 			label := cmp.Or(spec.GetDisplayName(), it.ref.Name)
+			if spec.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+				message, reason := "Only one app may use "+label+" from now on", ConnectionUnsharedNote
+				if is {
+					message, reason = "More than one app may use the saved fields in "+label, ConnectionSharedNote
+				}
+				out = append(out, Note{Ref: it.ref, Reason: reason, Message: message})
+				continue
+			}
 			if spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
 				// A mail server keeps no files: each app it serves sends as any sender.
 				message := "Only one app may send mail through " + label + " from now on, so no other app is offered it"

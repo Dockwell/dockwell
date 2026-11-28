@@ -41,6 +41,15 @@ const (
 	// ConnectionServiceCheckConnectionProcedure is the fully-qualified name of the ConnectionService's
 	// CheckConnection RPC.
 	ConnectionServiceCheckConnectionProcedure = "/dockwell.v1.ConnectionService/CheckConnection"
+	// ConnectionServiceCreateCustomConnectionProcedure is the fully-qualified name of the
+	// ConnectionService's CreateCustomConnection RPC.
+	ConnectionServiceCreateCustomConnectionProcedure = "/dockwell.v1.ConnectionService/CreateCustomConnection"
+	// ConnectionServiceConnectCustomProcedure is the fully-qualified name of the ConnectionService's
+	// ConnectCustom RPC.
+	ConnectionServiceConnectCustomProcedure = "/dockwell.v1.ConnectionService/ConnectCustom"
+	// ConnectionServiceDisconnectCustomProcedure is the fully-qualified name of the ConnectionService's
+	// DisconnectCustom RPC.
+	ConnectionServiceDisconnectCustomProcedure = "/dockwell.v1.ConnectionService/DisconnectCustom"
 	// ConnectionServiceConnectStorageProcedure is the fully-qualified name of the ConnectionService's
 	// ConnectStorage RPC.
 	ConnectionServiceConnectStorageProcedure = "/dockwell.v1.ConnectionService/ConnectStorage"
@@ -63,6 +72,13 @@ type ConnectionServiceClient interface {
 	// nothing: with a connection as typed, or a saved one again. An admin's, signed
 	// in, as a connection is install-wide.
 	CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error)
+	// CreateCustomConnection plans a new Custom connection. Apply the returned
+	// change to save it.
+	CreateCustomConnection(context.Context, *connect.Request[v1.CreateCustomConnectionRequest]) (*connect.Response[v1.CreateCustomConnectionResponse], error)
+	// ConnectCustom plans a mapping of named fields into an app's environment.
+	ConnectCustom(context.Context, *connect.Request[v1.ConnectCustomRequest]) (*connect.Response[v1.ConnectCustomResponse], error)
+	// DisconnectCustom plans removal of the mapping and its values from the app.
+	DisconnectCustom(context.Context, *connect.Request[v1.DisconnectCustomRequest]) (*connect.Response[v1.DisconnectCustomResponse], error)
 	// ConnectStorage connects an app to a connection's bucket: it checks the bucket
 	// from the app's network on its server, as the app will reach it, and plans one
 	// change, a link to the connection and the app's names reading it through the link,
@@ -100,6 +116,24 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(connectionServiceMethods.ByName("CheckConnection")),
 			connect.WithClientOptions(opts...),
 		),
+		createCustomConnection: connect.NewClient[v1.CreateCustomConnectionRequest, v1.CreateCustomConnectionResponse](
+			httpClient,
+			baseURL+ConnectionServiceCreateCustomConnectionProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("CreateCustomConnection")),
+			connect.WithClientOptions(opts...),
+		),
+		connectCustom: connect.NewClient[v1.ConnectCustomRequest, v1.ConnectCustomResponse](
+			httpClient,
+			baseURL+ConnectionServiceConnectCustomProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("ConnectCustom")),
+			connect.WithClientOptions(opts...),
+		),
+		disconnectCustom: connect.NewClient[v1.DisconnectCustomRequest, v1.DisconnectCustomResponse](
+			httpClient,
+			baseURL+ConnectionServiceDisconnectCustomProcedure,
+			connect.WithSchema(connectionServiceMethods.ByName("DisconnectCustom")),
+			connect.WithClientOptions(opts...),
+		),
 		connectStorage: connect.NewClient[v1.ConnectStorageRequest, v1.ConnectStorageResponse](
 			httpClient,
 			baseURL+ConnectionServiceConnectStorageProcedure,
@@ -117,10 +151,13 @@ func NewConnectionServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // connectionServiceClient implements ConnectionServiceClient.
 type connectionServiceClient struct {
-	listConnections   *connect.Client[v1.ListConnectionsRequest, v1.ListConnectionsResponse]
-	checkConnection   *connect.Client[v1.CheckConnectionRequest, v1.CheckConnectionResponse]
-	connectStorage    *connect.Client[v1.ConnectStorageRequest, v1.ConnectStorageResponse]
-	disconnectStorage *connect.Client[v1.DisconnectStorageRequest, v1.DisconnectStorageResponse]
+	listConnections        *connect.Client[v1.ListConnectionsRequest, v1.ListConnectionsResponse]
+	checkConnection        *connect.Client[v1.CheckConnectionRequest, v1.CheckConnectionResponse]
+	createCustomConnection *connect.Client[v1.CreateCustomConnectionRequest, v1.CreateCustomConnectionResponse]
+	connectCustom          *connect.Client[v1.ConnectCustomRequest, v1.ConnectCustomResponse]
+	disconnectCustom       *connect.Client[v1.DisconnectCustomRequest, v1.DisconnectCustomResponse]
+	connectStorage         *connect.Client[v1.ConnectStorageRequest, v1.ConnectStorageResponse]
+	disconnectStorage      *connect.Client[v1.DisconnectStorageRequest, v1.DisconnectStorageResponse]
 }
 
 // ListConnections calls dockwell.v1.ConnectionService.ListConnections.
@@ -131,6 +168,21 @@ func (c *connectionServiceClient) ListConnections(ctx context.Context, req *conn
 // CheckConnection calls dockwell.v1.ConnectionService.CheckConnection.
 func (c *connectionServiceClient) CheckConnection(ctx context.Context, req *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error) {
 	return c.checkConnection.CallUnary(ctx, req)
+}
+
+// CreateCustomConnection calls dockwell.v1.ConnectionService.CreateCustomConnection.
+func (c *connectionServiceClient) CreateCustomConnection(ctx context.Context, req *connect.Request[v1.CreateCustomConnectionRequest]) (*connect.Response[v1.CreateCustomConnectionResponse], error) {
+	return c.createCustomConnection.CallUnary(ctx, req)
+}
+
+// ConnectCustom calls dockwell.v1.ConnectionService.ConnectCustom.
+func (c *connectionServiceClient) ConnectCustom(ctx context.Context, req *connect.Request[v1.ConnectCustomRequest]) (*connect.Response[v1.ConnectCustomResponse], error) {
+	return c.connectCustom.CallUnary(ctx, req)
+}
+
+// DisconnectCustom calls dockwell.v1.ConnectionService.DisconnectCustom.
+func (c *connectionServiceClient) DisconnectCustom(ctx context.Context, req *connect.Request[v1.DisconnectCustomRequest]) (*connect.Response[v1.DisconnectCustomResponse], error) {
+	return c.disconnectCustom.CallUnary(ctx, req)
 }
 
 // ConnectStorage calls dockwell.v1.ConnectionService.ConnectStorage.
@@ -157,6 +209,13 @@ type ConnectionServiceHandler interface {
 	// nothing: with a connection as typed, or a saved one again. An admin's, signed
 	// in, as a connection is install-wide.
 	CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error)
+	// CreateCustomConnection plans a new Custom connection. Apply the returned
+	// change to save it.
+	CreateCustomConnection(context.Context, *connect.Request[v1.CreateCustomConnectionRequest]) (*connect.Response[v1.CreateCustomConnectionResponse], error)
+	// ConnectCustom plans a mapping of named fields into an app's environment.
+	ConnectCustom(context.Context, *connect.Request[v1.ConnectCustomRequest]) (*connect.Response[v1.ConnectCustomResponse], error)
+	// DisconnectCustom plans removal of the mapping and its values from the app.
+	DisconnectCustom(context.Context, *connect.Request[v1.DisconnectCustomRequest]) (*connect.Response[v1.DisconnectCustomResponse], error)
 	// ConnectStorage connects an app to a connection's bucket: it checks the bucket
 	// from the app's network on its server, as the app will reach it, and plans one
 	// change, a link to the connection and the app's names reading it through the link,
@@ -190,6 +249,24 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 		connect.WithSchema(connectionServiceMethods.ByName("CheckConnection")),
 		connect.WithHandlerOptions(opts...),
 	)
+	connectionServiceCreateCustomConnectionHandler := connect.NewUnaryHandler(
+		ConnectionServiceCreateCustomConnectionProcedure,
+		svc.CreateCustomConnection,
+		connect.WithSchema(connectionServiceMethods.ByName("CreateCustomConnection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	connectionServiceConnectCustomHandler := connect.NewUnaryHandler(
+		ConnectionServiceConnectCustomProcedure,
+		svc.ConnectCustom,
+		connect.WithSchema(connectionServiceMethods.ByName("ConnectCustom")),
+		connect.WithHandlerOptions(opts...),
+	)
+	connectionServiceDisconnectCustomHandler := connect.NewUnaryHandler(
+		ConnectionServiceDisconnectCustomProcedure,
+		svc.DisconnectCustom,
+		connect.WithSchema(connectionServiceMethods.ByName("DisconnectCustom")),
+		connect.WithHandlerOptions(opts...),
+	)
 	connectionServiceConnectStorageHandler := connect.NewUnaryHandler(
 		ConnectionServiceConnectStorageProcedure,
 		svc.ConnectStorage,
@@ -208,6 +285,12 @@ func NewConnectionServiceHandler(svc ConnectionServiceHandler, opts ...connect.H
 			connectionServiceListConnectionsHandler.ServeHTTP(w, r)
 		case ConnectionServiceCheckConnectionProcedure:
 			connectionServiceCheckConnectionHandler.ServeHTTP(w, r)
+		case ConnectionServiceCreateCustomConnectionProcedure:
+			connectionServiceCreateCustomConnectionHandler.ServeHTTP(w, r)
+		case ConnectionServiceConnectCustomProcedure:
+			connectionServiceConnectCustomHandler.ServeHTTP(w, r)
+		case ConnectionServiceDisconnectCustomProcedure:
+			connectionServiceDisconnectCustomHandler.ServeHTTP(w, r)
 		case ConnectionServiceConnectStorageProcedure:
 			connectionServiceConnectStorageHandler.ServeHTTP(w, r)
 		case ConnectionServiceDisconnectStorageProcedure:
@@ -227,6 +310,18 @@ func (UnimplementedConnectionServiceHandler) ListConnections(context.Context, *c
 
 func (UnimplementedConnectionServiceHandler) CheckConnection(context.Context, *connect.Request[v1.CheckConnectionRequest]) (*connect.Response[v1.CheckConnectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.CheckConnection is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) CreateCustomConnection(context.Context, *connect.Request[v1.CreateCustomConnectionRequest]) (*connect.Response[v1.CreateCustomConnectionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.CreateCustomConnection is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) ConnectCustom(context.Context, *connect.Request[v1.ConnectCustomRequest]) (*connect.Response[v1.ConnectCustomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.ConnectCustom is not implemented"))
+}
+
+func (UnimplementedConnectionServiceHandler) DisconnectCustom(context.Context, *connect.Request[v1.DisconnectCustomRequest]) (*connect.Response[v1.DisconnectCustomResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ConnectionService.DisconnectCustom is not implemented"))
 }
 
 func (UnimplementedConnectionServiceHandler) ConnectStorage(context.Context, *connect.Request[v1.ConnectStorageRequest]) (*connect.Response[v1.ConnectStorageResponse], error) {

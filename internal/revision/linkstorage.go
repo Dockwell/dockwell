@@ -30,6 +30,7 @@ type LinkStorage struct {
 type ConnectionRead struct {
 	Connection, Label, Link string
 	Part                    resourcev1.LinkPart
+	CustomField             string `json:",omitempty"`
 }
 
 // LinkSetWords is one of a link's sets, whole: the name, the part it reads, and a
@@ -38,6 +39,8 @@ type LinkSetWords struct {
 	Name                    string
 	Part                    resourcev1.LinkPart
 	Template, TLSOn, TLSOff string `json:",omitempty"`
+	CustomField, CustomEnv  string `json:",omitempty"`
+	CustomSecret            bool   `json:",omitempty"`
 }
 
 // NeedStorage is where a catalog install's need comes from: a connection, with the
@@ -67,7 +70,7 @@ func (w *connectionWords) empty() bool {
 func setWords(l *resourcev1.Link) []LinkSetWords {
 	var out []LinkSetWords
 	for _, s := range l.GetSets() {
-		out = append(out, LinkSetWords{Name: s.GetName(), Part: s.GetPart(), Template: s.GetTemplate(), TLSOn: s.GetTlsOn(), TLSOff: s.GetTlsOff()})
+		out = append(out, LinkSetWords{Name: s.GetName(), Part: s.GetPart(), Template: s.GetTemplate(), TLSOn: s.GetTlsOn(), TLSOff: s.GetTlsOff(), CustomField: s.GetCustomField(), CustomEnv: s.GetCustomEnv(), CustomSecret: s.GetCustomSecret()})
 	}
 	return out
 }
@@ -118,7 +121,7 @@ func (e *Engine) linkStorages(ctx context.Context, items []item) (map[string]con
 			it := &items[i]
 			var w connectionWords
 			for side, spec := range [2]any{it.current, it.spec} {
-				if l, ok := spec.(*resourcev1.Link); ok && l.GetConnection() != "" {
+				if l, ok := spec.(*resourcev1.Link); ok && l.GetConnection() != "" && l.GetKind() != resourcev1.LinkKind_LINK_KIND_CUSTOM {
 					named, err := label(l.GetConnection(), side == 1)
 					if err != nil {
 						return err
@@ -131,7 +134,7 @@ func (e *Engine) linkStorages(ctx context.Context, items []item) (map[string]con
 						if err != nil {
 							return err
 						}
-						w.reads[side] = &ConnectionRead{Connection: c.GetName(), Label: named, Link: c.GetLink(), Part: c.GetPart()}
+						w.reads[side] = &ConnectionRead{Connection: c.GetName(), Label: named, Link: c.GetLink(), Part: c.GetPart(), CustomField: c.GetCustomField()}
 					}
 				}
 			}

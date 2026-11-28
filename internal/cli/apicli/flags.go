@@ -472,6 +472,7 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 // destination's key or password.
 var sealedMessages = []protoreflect.FullName{
 	(&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName(),
+	(&resourcev1.ConnectionCustomField{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.BackupDestinationSftp{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLogin{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLoginEcr{}).ProtoReflect().Descriptor().FullName(),
@@ -484,7 +485,7 @@ var sealedMessages = []protoreflect.FullName{
 var (
 	errInlineSecret   = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
 	errInlinePassword = errors.New("the JSON gives a volume a password in its options, so it would stay in your shell history and the process list")
-	errInlineSealed   = errors.New("the JSON holds what signs in, such as an alert channel's token or a registry login's key, so it would stay in your shell history and the process list")
+	errInlineSealed   = errors.New("the JSON holds what signs in, such as an alert channel's token, a registry login's key or a Custom connection's secret, so it would stay in your shell history and the process list")
 )
 
 // volumeOptions is the field that holds a volume's options.

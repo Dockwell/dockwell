@@ -179,7 +179,14 @@ func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.Connec
 			}
 			names := make([]string, 0, len(l.GetSets()))
 			for _, set := range l.GetSets() {
-				use.Sets[set.GetName()] = set.GetPart()
+				if set.GetCustomField() != "" {
+					if use.CustomSets == nil {
+						use.CustomSets = map[string]string{}
+					}
+					use.CustomSets[set.GetCustomEnv()] = set.GetCustomField()
+				} else {
+					use.Sets[set.GetName()] = set.GetPart()
+				}
 				names = append(names, set.GetName())
 			}
 			if len(names) > 0 {
@@ -540,10 +547,11 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		}
 		info := &dockwellv1.ConnectionInfo{
 			Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(),
-			Held: held, Shared: c.Spec.GetShared(),
+			Held: held, Shared: c.Spec.GetShared(), Custom: customInfo(c, admin, len(uses[c.Name]) > 0),
 		}
 		switch {
 		case admin:
+			info.Revision = int64(c.Revision)
 			s3 := c.Spec.GetS3()
 			info.Endpoint, info.Region, info.Bucket, info.PathStyle, info.PublicUrl = s3.GetEndpoint(), s3.GetRegion(), s3.GetBucket(), s3.GetPathStyle(), s3.GetPublicUrl()
 			if m := c.Spec.GetSmtp(); m != nil {
@@ -637,7 +645,7 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 	// A check of a saved connection as it's saved, from a network of its own, is the
 	// one the schedule makes, so it's kept as its last from that server (#799).
 	m := req.Msg
-	if m.GetName() != "" && m.GetS3() == nil && m.GetSmtp() == nil && m.GetEnvironment() == "" && m.GetPrefix() == "" && !m.GetPresign() {
+	if m.GetName() != "" && m.GetS3() == nil && m.GetSmtp() == nil && m.GetCustom() == nil && m.GetEnvironment() == "" && m.GetPrefix() == "" && !m.GetPresign() {
 		s.checks.record(ref, srv.GetId(), got)
 	}
 	return connect.NewResponse(got), nil
@@ -648,9 +656,11 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 func (s *Service) check(ctx context.Context, msg *dockwellv1.CheckConnectionRequest) (*dockwellv1.CheckConnectionResponse, *dockwellv1.Server, Saved, error) {
 	// Read before the check, so a change saved while it runs leaves it an older
 	// revision's, which is never shown as the newer's.
-	savedID, revision := s.savedRef(ctx, msg.GetName())
-	ref := Saved{ID: savedID, Name: msg.GetName(), Revision: revision}
-	spec, err := s.toCheck(ctx, msg)
+	ref, err := s.savedRef(ctx, msg.GetName())
+	if err != nil {
+		return nil, nil, Saved{}, err
+	}
+	spec, err := toCheck(msg, ref.Spec)
 	if err != nil {
 		return nil, nil, Saved{}, err
 	}
@@ -664,8 +674,10 @@ func (s *Service) check(ctx context.Context, msg *dockwellv1.CheckConnectionRequ
 	if err != nil {
 		return nil, nil, Saved{}, err
 	}
-	if err := s.mayHoldKeys(ctx, msg, srv); err != nil {
-		return nil, nil, Saved{}, err
+	if spec.GetCustom() == nil {
+		if err := s.mayHoldKeys(ctx, msg, srv); err != nil {
+			return nil, nil, Saved{}, err
+		}
 	}
 	got, err := s.probe(ctx, session, srv, msg.GetEnvironment(), msg.GetApp(), probeOf(spec, msg.GetPrefix(), msg.GetPresign()))
 	if err != nil {
@@ -804,6 +816,10 @@ func (s *Service) mayHoldKeys(ctx context.Context, req *dockwellv1.CheckConnecti
 // URL where asked. It reaches a private address beyond the app's own networks only
 // where an install admin saved the connection (ADR 0099, #710).
 func probeOf(c *resourcev1.ConnectionSpec, prefix string, presign bool) probe.Request {
+	if c.GetCustom() != nil {
+		target := connection.CustomProbe(c.GetCustom().GetCheck())
+		return probe.Request{Kind: probe.KindCustom, Custom: &target, Private: connection.Private(c)}
+	}
 	if m := c.GetSmtp(); m != nil {
 		// A mail server's check signs in and sends nothing (ADR 0099).
 		return probe.Request{
@@ -826,12 +842,18 @@ func probeOf(c *resourcev1.ConnectionSpec, prefix string, presign bool) probe.Re
 
 // toCheck is the connection a check reaches: as typed, or a saved one with what's
 // typed in its place, whose keys go only where they were saved to go.
-func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRequest) (*resourcev1.ConnectionSpec, error) {
+func toCheck(req *dockwellv1.CheckConnectionRequest, saved *resourcev1.ConnectionSpec) (*resourcev1.ConnectionSpec, error) {
+	if req.GetCustom() != nil || saved.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+		if req.GetS3() != nil || req.GetSmtp() != nil || req.GetPresign() || req.GetPrefix() != "" {
+			return nil, authapi.Invalid(errors.New("a Custom check takes only an HTTPS URL or a TCP host and port"))
+		}
+		return toCheckCustom(req, saved)
+	}
 	if req.GetS3() != nil && req.GetSmtp() != nil {
 		return nil, authapi.Invalid(errors.New("a check reaches S3 storage or a mail server, and this names both. Give one"))
 	}
-	if req.GetSmtp() != nil || req.GetName() != "" && req.GetS3() == nil && s.savedKind(ctx, req.GetName()) == resourcev1.LinkKind_LINK_KIND_SMTP {
-		return s.toCheckMail(ctx, req)
+	if req.GetSmtp() != nil || req.GetS3() == nil && saved.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+		return toCheckMail(req, saved)
 	}
 	typed := &resourcev1.ConnectionSpec{Kind: resourcev1.LinkKind_LINK_KIND_S3, S3: req.GetS3()}
 	if typed.GetS3() == nil {
@@ -846,79 +868,66 @@ func (s *Service) toCheck(ctx context.Context, req *dockwellv1.CheckConnectionRe
 		}
 		return typed, nil
 	}
-	all, err := s.connections.All(ctx)
-	if err != nil {
-		return nil, err
+	was := saved.GetS3()
+	to := typed.GetS3()
+	if to.GetEndpoint() == "" {
+		to.Endpoint = was.GetEndpoint()
 	}
-	for _, c := range all {
-		if c.Name != req.GetName() {
-			continue
-		}
-		was := c.Spec.GetS3()
-		to := typed.GetS3()
-		if to.GetEndpoint() == "" {
-			to.Endpoint = was.GetEndpoint()
-		}
-		if to.GetBucket() == "" {
-			to.Bucket = was.GetBucket()
-		}
-		if to.GetRegion() == "" {
-			to.Region = was.GetRegion()
-		}
-		if req.GetS3() == nil {
-			to.PathStyle = was.GetPathStyle()
-		}
-		// Checked as it's saved: where someone below an admin saved it, it reaches no
-		// private address (#710).
-		typed.SavedBelowAdmin = c.Spec.GetSavedBelowAdmin()
-		if err := (connection.Type{}).Validate(typed); err != nil {
-			return nil, authapi.Invalid(err)
-		}
-		// What's kept goes only where it was saved to go, as an update keeps it.
-		if _, err := (connection.Type{}).Keep(c.Spec, typed); err != nil {
-			return nil, authapi.Invalid(err)
-		}
-		return typed, nil
+	if to.GetBucket() == "" {
+		to.Bucket = was.GetBucket()
 	}
-	return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", req.GetName()), "not_found")
+	if to.GetRegion() == "" {
+		to.Region = was.GetRegion()
+	}
+	if req.GetS3() == nil {
+		to.PathStyle = was.GetPathStyle()
+	}
+	typed.SavedBelowAdmin = saved.GetSavedBelowAdmin()
+	if err := (connection.Type{}).Validate(typed); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if _, err := (connection.Type{}).Keep(saved, typed); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	return typed, nil
 }
 
-// savedRef is the ID and revision of the saved connection named, or none where
-// there's none: from the names and revisions alone, which opens no secret, so a Check
-// decodes the connections once, in toCheck (#799's review, L7).
-func (s *Service) savedRef(ctx context.Context, name string) (string, int) {
+// savedRef reads the named spec and its revision together. A check only opens
+// the connection it uses, and records the outcome for the revision it checked.
+func (s *Service) savedRef(ctx context.Context, name string) (Saved, error) {
 	if name == "" {
-		return "", 0
+		return Saved{}, nil
 	}
-	all, err := s.connections.Revisions(ctx)
-	if err != nil {
-		return "", 0
-	}
-	for _, c := range all {
-		if c.Name == name {
-			return c.ID, c.Revision
+	var saved Saved
+	err := s.connections.db.View(ctx, func(tx *store.Tx) error {
+		org, err := tx.Organization(ctx)
+		if err != nil {
+			return err
 		}
-	}
-	return "", 0
-}
-
-// savedKind is the kind of the saved connection named, or none where there's none.
-func (s *Service) savedKind(ctx context.Context, name string) resourcev1.LinkKind {
-	all, err := s.connections.All(ctx)
-	if err != nil {
-		return resourcev1.LinkKind_LINK_KIND_UNSPECIFIED
-	}
-	for _, c := range all {
-		if c.Name == name {
-			return c.Spec.GetKind()
+		r, err := tx.GetResource(ctx, string(connection.Kind), org.ID, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", name), "not_found")
 		}
-	}
-	return resourcev1.LinkKind_LINK_KIND_UNSPECIFIED
+		if err != nil {
+			return err
+		}
+		spec, err := s.connections.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the connection %s: %w", name, err)
+		}
+		conn, ok := spec.(*resourcev1.ConnectionSpec)
+		if !ok {
+			return fmt.Errorf("%s isn't a connection", name)
+		}
+		saved = Saved{ID: r.ID, Name: r.Name, Revision: r.Revision, Spec: conn}
+		return nil
+	})
+	return saved, err
 }
 
 // toCheckMail is toCheck for a mail server: as typed, or a saved one with what's
 // typed in its place, whose user and password go only where they were saved to go.
-func (s *Service) toCheckMail(ctx context.Context, req *dockwellv1.CheckConnectionRequest) (*resourcev1.ConnectionSpec, error) {
+func toCheckMail(req *dockwellv1.CheckConnectionRequest, saved *resourcev1.ConnectionSpec) (*resourcev1.ConnectionSpec, error) {
 	typed := &resourcev1.ConnectionSpec{Kind: resourcev1.LinkKind_LINK_KIND_SMTP, Smtp: proto.CloneOf(req.GetSmtp())}
 	if typed.GetSmtp() == nil {
 		typed.Smtp = &resourcev1.ConnectionSmtp{}
@@ -935,15 +944,6 @@ func (s *Service) toCheckMail(ctx context.Context, req *dockwellv1.CheckConnecti
 		}
 		return typed, nil
 	}
-	all, err := s.connections.All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == req.GetName() })
-	if i < 0 {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s. List them with ListConnections", req.GetName()), "not_found")
-	}
-	saved := all[i].Spec
 	if saved.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP {
 		return nil, authapi.Invalid(fmt.Errorf("the connection %s reaches S3 storage, and this checks a mail server. Give its bucket instead", req.GetName()))
 	}

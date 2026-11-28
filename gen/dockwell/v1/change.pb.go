@@ -11484,7 +11484,9 @@ type ConnectionRead struct {
 	// The part it reads, such as the bucket.
 	Part v1alpha1.LinkPart `protobuf:"varint,3,opt,name=part,proto3,enum=dockwell.resource.v1alpha1.LinkPart" json:"part,omitempty"`
 	// The link it reads through, by name.
-	Link          string `protobuf:"bytes,4,opt,name=link,proto3" json:"link,omitempty"`
+	Link string `protobuf:"bytes,4,opt,name=link,proto3" json:"link,omitempty"`
+	// The field it reads from a Custom connection.
+	CustomField   string `protobuf:"bytes,5,opt,name=custom_field,json=customField,proto3" json:"custom_field,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11543,6 +11545,13 @@ func (x *ConnectionRead) GetPart() v1alpha1.LinkPart {
 func (x *ConnectionRead) GetLink() string {
 	if x != nil {
 		return x.Link
+	}
+	return ""
+}
+
+func (x *ConnectionRead) GetCustomField() string {
+	if x != nil {
+		return x.CustomField
 	}
 	return ""
 }
@@ -15973,14 +15982,15 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\vcarrier_nat\x18\a \x01(\bR\n" +
 	"carrierNat\x127\n" +
 	"\tread_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\breadTime\x12\x18\n" +
-	"\aproxied\x18\t \x01(\bR\aproxied\"\xa9\x01\n" +
+	"\aproxied\x18\t \x01(\bR\aproxied\"\xcc\x01\n" +
 	"\x0eConnectionRead\x12\x1e\n" +
 	"\n" +
 	"connection\x18\x01 \x01(\tR\n" +
 	"connection\x12)\n" +
 	"\x10connection_label\x18\x02 \x01(\tR\x0fconnectionLabel\x128\n" +
 	"\x04part\x18\x03 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x04part\x12\x12\n" +
-	"\x04link\x18\x04 \x01(\tR\x04link\"g\n" +
+	"\x04link\x18\x04 \x01(\tR\x04link\x12!\n" +
+	"\fcustom_field\x18\x05 \x01(\tR\vcustomField\"g\n" +
 	"\vNeedStorage\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x122\n" +
 	"\astorage\x18\x02 \x01(\v2\x18.dockwell.v1.LinkStorageR\astorage\x12\x10\n" +

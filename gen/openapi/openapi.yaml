@@ -2695,6 +2695,31 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/connections:connectCustom:
+        post:
+            tags:
+                - ConnectionService
+            description: ConnectCustom plans a mapping of named fields into an app's environment.
+            operationId: ConnectionService_ConnectCustom
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ConnectCustomRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ConnectCustomResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/connections:connectStorage:
         post:
             tags:
@@ -2719,6 +2744,58 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ConnectStorageResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/connections:createCustom:
+        post:
+            tags:
+                - ConnectionService
+            description: |-
+                CreateCustomConnection plans a new Custom connection. Apply the returned
+                 change to save it.
+            operationId: ConnectionService_CreateCustomConnection
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateCustomConnectionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateCustomConnectionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/connections:disconnectCustom:
+        post:
+            tags:
+                - ConnectionService
+            description: DisconnectCustom plans removal of the mapping and its values from the app.
+            operationId: ConnectionService_DisconnectCustom
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DisconnectCustomRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisconnectCustomResponse'
                 default:
                     description: Default error response
                     content:
@@ -15728,6 +15805,10 @@ components:
                         A mail server as typed, checked by signing in, never by sending. A saved
                          connection's user and password are kept where this leaves the password out,
                          while its host, port, security and user stay.
+                custom:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionCustomCheck'
+                    description: A Custom check as typed, with no connection values sent to it.
             description: CheckConnectionRequest is a connection to check, as typed, or a saved one again.
         CheckConnectionResponse:
             type: object
@@ -16784,6 +16865,32 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now; store them safely.
             description: ConfirmTotpSetupResponse carries the recovery codes.
+        ConnectCustomRequest:
+            type: object
+            properties:
+                project:
+                    type: string
+                environment:
+                    type: string
+                app:
+                    type: string
+                    description: The app's service name.
+                connection:
+                    type: string
+                fields:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment name for each named field. Omitted fields use their default,
+                         a prefix from the connection's name followed by the field's name.
+            description: ConnectCustomRequest maps a Custom connection into one app.
+        ConnectCustomResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: ConnectCustomResponse contains the proposed mapping.
         ConnectDatabaseRequest:
             type: object
             properties:
@@ -16955,6 +17062,108 @@ components:
                 check:
                     $ref: '#/components/schemas/CheckConnectionResponse'
             description: ConnectStorageResponse is the change, planned, and the check it was planned on.
+        ConnectionCustom:
+            type: object
+            properties:
+                initial:
+                    type: string
+                    description: A short initial or mark chosen by the person creating the connection.
+                fields:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ConnectionCustomField'
+                check:
+                    $ref: '#/components/schemas/ConnectionCustomCheck'
+            description: ConnectionCustom holds the source values of a Custom connection.
+        ConnectionCustomCheck:
+            type: object
+            properties:
+                httpsUrl:
+                    type: string
+                    description: Make one HTTPS GET. Only a 2xx response passes.
+                tcp:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionCustomTCP'
+                    description: Open and close a TCP connection without transferring data.
+            description: ConnectionCustomCheck is a credential-free reachability check.
+        ConnectionCustomField:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The field's stable name, such as api_key.
+                type:
+                    enum:
+                        - CONNECTION_CUSTOM_TYPE_UNSPECIFIED
+                        - CONNECTION_CUSTOM_TYPE_TEXT
+                        - CONNECTION_CUSTOM_TYPE_SECRET
+                        - CONNECTION_CUSTOM_TYPE_URL
+                        - CONNECTION_CUSTOM_TYPE_PORT
+                        - CONNECTION_CUSTOM_TYPE_NUMBER
+                    type: string
+                    format: enum
+                value:
+                    type: string
+                    description: A plain value, written as it will be given to the app.
+                secretValue:
+                    type: string
+                    description: |-
+                        A secret is supplied here, separately from the plain value. Omit it in an
+                         edit to retain the saved value for the same field. Set it empty to clear it.
+            description: ConnectionCustomField is one named value in a Custom connection.
+        ConnectionCustomFieldInfo:
+            type: object
+            properties:
+                name:
+                    type: string
+                type:
+                    enum:
+                        - CONNECTION_CUSTOM_TYPE_UNSPECIFIED
+                        - CONNECTION_CUSTOM_TYPE_TEXT
+                        - CONNECTION_CUSTOM_TYPE_SECRET
+                        - CONNECTION_CUSTOM_TYPE_URL
+                        - CONNECTION_CUSTOM_TYPE_PORT
+                        - CONNECTION_CUSTOM_TYPE_NUMBER
+                    type: string
+                    format: enum
+                value:
+                    type: string
+                    description: For a plain field, visible to install administrators.
+                set:
+                    type: boolean
+                    description: Whether a secret field has a value.
+                defaultEnv:
+                    type: string
+                    description: Suggested environment name for this field.
+            description: ConnectionCustomFieldInfo describes a named field and its default mapping.
+        ConnectionCustomInfo:
+            type: object
+            properties:
+                initial:
+                    type: string
+                fields:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ConnectionCustomFieldInfo'
+                check:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionCustomCheck'
+                    description: The check configuration is visible to install administrators.
+                hasCheck:
+                    type: boolean
+                inUse:
+                    type: boolean
+                    description: Whether the connection already serves an app. No project or app is named.
+            description: ConnectionCustomInfo describes a Custom connection without its secret values.
+        ConnectionCustomTCP:
+            type: object
+            properties:
+                host:
+                    type: string
+                port:
+                    type: integer
+                    format: uint32
+            description: ConnectionCustomTCP is the host and port of a TCP check.
         ConnectionInfo:
             type: object
             properties:
@@ -16971,6 +17180,7 @@ components:
                         - LINK_KIND_UNSPECIFIED
                         - LINK_KIND_S3
                         - LINK_KIND_SMTP
+                        - LINK_KIND_CUSTOM
                     type: string
                     description: What kind of thing it reaches.
                     format: enum
@@ -17053,6 +17263,11 @@ components:
                          newest first, kept in memory, so none until the first after a start. Below an
                          admin, whether each passed and when, and of one neither passed nor failed, which:
                          step "list" with code "unconfirmed" or "agent-update", and nothing else.
+                custom:
+                    $ref: '#/components/schemas/ConnectionCustomInfo'
+                revision:
+                    type: string
+                    description: The revision an administrator can edit.
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.
@@ -17095,6 +17310,9 @@ components:
                 link:
                     type: string
                     description: The link it reads through, by name.
+                customField:
+                    type: string
+                    description: The field it reads from a Custom connection.
             description: |-
                 ConnectionRead is what a variable or a secret reads from a connection, through a
                  link (ADR 0099).
@@ -17137,6 +17355,9 @@ components:
                 link:
                     type: string
                     description: The link in this environment that writes it, by name.
+                customField:
+                    type: string
+                    description: Which named field it reads from a Custom connection.
             description: |-
                 ConnectionRef is a part of a connection's values, read through the link in this
                  environment that names the connection.
@@ -17215,6 +17436,7 @@ components:
                         - LINK_KIND_UNSPECIFIED
                         - LINK_KIND_S3
                         - LINK_KIND_SMTP
+                        - LINK_KIND_CUSTOM
                     type: string
                     description: What kind of thing it reaches.
                     format: enum
@@ -17254,6 +17476,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/ConnectionSmtp'
                     description: A mail server, for LINK_KIND_SMTP.
+                custom:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionCustom'
+                    description: Named fields supplied by the person creating the connection.
             description: |-
                 ConnectionSpec is one set of values of one kind that something uses, kind
                  "connection": an app through a link, or Dockwell itself (ADR 0099). It lives in the
@@ -17317,6 +17543,11 @@ components:
                     type: array
                     items:
                         type: string
+                customSets:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Environment name to named field, for Custom connections.
             description: ConnectionUse is one link to a connection, and the apps that read it.
         Container:
             type: object
@@ -17911,6 +18142,40 @@ components:
                         - $ref: '#/components/schemas/Backup'
                     description: The backup.
             description: CreateBackupResponse is the backup, running.
+        CreateCustomConnectionRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The connection's unique name, such as example-api.
+                displayName:
+                    type: string
+                custom:
+                    allOf:
+                        - $ref: '#/components/schemas/ConnectionCustom'
+                    description: The fields and optional check. Read JSON from @file or stdin to set secrets.
+                reach:
+                    enum:
+                        - CONNECTION_REACH_UNSPECIFIED
+                        - CONNECTION_REACH_PROJECTS
+                        - CONNECTION_REACH_EVERY
+                    type: string
+                    format: enum
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: Projects that may use it, by ID, for REACH_PROJECTS.
+                shared:
+                    type: boolean
+                    description: Allow more than one app to use these values.
+            description: CreateCustomConnectionRequest supplies the fields and reach of a new Custom connection.
+        CreateCustomConnectionResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: CreateCustomConnectionResponse contains the proposed creation.
         CreateDatabaseUserRequest:
             type: object
             properties:
@@ -19168,6 +19433,24 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, discarded.
             description: DiscardChangeResponse carries the discarded change.
+        DisconnectCustomRequest:
+            type: object
+            properties:
+                project:
+                    type: string
+                environment:
+                    type: string
+                app:
+                    type: string
+                connection:
+                    type: string
+            description: DisconnectCustomRequest names the app and connection whose mapping will be removed.
+        DisconnectCustomResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: DisconnectCustomResponse contains the proposed removal of the mapping.
         DisconnectServerSshSessionRequest:
             type: object
             properties:
@@ -26596,6 +26879,7 @@ components:
                         - LINK_KIND_UNSPECIFIED
                         - LINK_KIND_S3
                         - LINK_KIND_SMTP
+                        - LINK_KIND_CUSTOM
                     type: string
                     description: What kind of thing it reaches. Unset is a database, of its engine.
                     format: enum
@@ -26631,6 +26915,9 @@ components:
                          connection, in place of the connection's own. Empty takes the connection's.
                 senderName:
                     type: string
+                customApp:
+                    type: string
+                    description: The app whose environment receives a Custom mapping, by service name.
             description: |-
                 Link is how one of an app's needs is met, such as its database: what meets it,
                  and the variables and secrets it sets in its environment, which the app's
@@ -26701,6 +26988,15 @@ components:
                     description: The app's words for TLS on and off, for a TLS part or {tls}.
                 tlsOff:
                     type: string
+                customField:
+                    type: string
+                    description: |-
+                        For a Custom mapping, the named field and the environment name seen by the
+                         app. The link set's name is the environment-scoped backing resource.
+                customEnv:
+                    type: string
+                customSecret:
+                    type: boolean
             description: LinkSet is a name a link sets in its environment, and what it holds.
         LinkStorage:
             type: object

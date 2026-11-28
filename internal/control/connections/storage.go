@@ -50,6 +50,7 @@ type app struct {
 	project, env, envName, orgID string
 	service, serviceID           string
 	revision                     int
+	spec                         *resourcev1.Service
 	// reads are the names of its environment the app's service reads, each with
 	// whether it's a secret's.
 	reads map[string]bool
@@ -77,7 +78,7 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s this project may use. Ask an admin to add one, or let this project use it", m.GetConnection()), "not_found")
 	}
 	if conn.Spec.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
-		return nil, authapi.Invalid(fmt.Errorf("the connection %s is a mail server, and Connect storage links S3 storage. Set up the app's mail on its page instead", conn.Name))
+		return nil, authapi.Invalid(fmt.Errorf("the app needs an S3 connection for storage. Pick one on Connections instead of %s", conn.Name))
 	}
 	if backupUsed {
 		return nil, authapi.Invalid(fmt.Errorf("the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app", conn.Name))
@@ -209,6 +210,7 @@ func (s *Service) appOf(ctx context.Context, projectRef, envRef, name string) (*
 		if !ok {
 			return fmt.Errorf("%s isn't an app", name)
 		}
+		out.spec = svc
 		for _, n := range svc.GetVariables() {
 			out.reads[n] = false
 		}
@@ -310,7 +312,7 @@ func (s *Service) DisconnectStorage(ctx context.Context, req *connect.Request[do
 			return fmt.Errorf("can't read the link %s: %w", m.GetLink(), err)
 		}
 		got, ok := spec.(*resourcev1.Link)
-		if !ok || got.GetConnection() == "" {
+		if !ok || got.GetConnection() == "" || got.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
 			return notThere
 		}
 		l = got
