@@ -228,6 +228,9 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 		return nil, h.fail(ctx, err)
 	}
 	engine := database.Of(server.db.GetEngine())
+	if engine.ClickHouse() {
+		return nil, authapi.Invalid(errors.New("creating ClickHouse users is not available yet"))
+	}
 	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		// Its users are read, and making them comes after (ADR 0038).
 		return nil, authapi.Invalid(fmt.Errorf("%s runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh, in the database they sign in to", server.ref.Name))
@@ -582,6 +585,13 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 	}
 	engine := database.Of(server.db.GetEngine())
 	name, env := server.ref.Name, server.ref.Scope
+	if engine.ClickHouse() {
+		change, err := h.changeClickHousePassword(ctx, server, m.GetUser())
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		return connect.NewResponse(&dockwellv1.ChangeDatabasePasswordResponse{Change: change}), nil
+	}
 	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		// Its root user's password is kept in its data from the first start on, so a
 		// new secret alone would no longer sign anyone in (ADR 0038).
@@ -646,6 +656,8 @@ func firstUserOf(e *database.Engine, env map[string]string) string {
 		return cmp.Or(env["POSTGRES_USER"], "postgres")
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		return "root"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return cmp.Or(env[e.User], "default")
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 	}
@@ -848,6 +860,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 				Volume:         f.Volume,
 				VolumeExternal: f.External,
 				Port:           f.Port,
+				HttpPort:       f.HTTPPort,
 				Host:           r.Name,
 				PasswordSecret: f.PasswordSecret,
 			}

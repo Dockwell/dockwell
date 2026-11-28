@@ -80,10 +80,18 @@ export function DatabaseOverview() {
   const reading = firstReading(db);
   const read = readOf(reading);
   const install = useOwnInstall(db);
+  const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
+  const unprotected = db.readings.some((r) => r.checksNoOne);
+  const plaintext = db.readings.some((r) => r.clickhousePasswordVerified && r.clickhousePlaintextPassword);
+  const passwordVerified =
+    db.readings.length > 0 && db.readings.every((r) => !r.unread && r.clickhousePasswordVerified && !r.checksNoOne);
+  const unboundedLogs = db.readings.some((r) => r.clickhouseUnboundedLogs);
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
-      {read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
+      {clickHouse && (unprotected || plaintext) ? <ClickHousePasswordStatus db={db} unprotected={unprotected} /> : null}
+      {clickHouse && unboundedLogs ? <ClickHouseLogsStatus db={db} /> : null}
+      {!clickHouse && read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
       <DatabaseUpdate db={db} />
@@ -93,9 +101,9 @@ export function DatabaseOverview() {
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
-      <ExternalAccess db={db} />
+      {!clickHouse || passwordVerified || db.externalAccess ? <ExternalAccess db={db} /> : null}
       <CompanionsPanel install={install} />
-      {speaksSQL(db.engine) && read ? <WhoIsIn db={db} read={read} /> : null}
+      {speaksSQL(db.engine) && db.engine !== DatabaseEngine.CLICKHOUSE && read ? <WhoIsIn db={db} read={read} /> : null}
       <DatabaseDanger db={db} />
     </div>
   );
@@ -178,6 +186,64 @@ function DatabaseDanger({ db }: { db: Database }) {
         }
       />
     </MayEdit>
+  );
+}
+
+function ClickHousePasswordStatus({ db, unprotected }: { db: Database; unprotected: boolean }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
+  return (
+    <Callout
+      tone="warning"
+      title={unprotected ? t`ClickHouse takes no password` : t`ClickHouse stores a readable password in its data`}
+      actions={
+        <Button
+          size="sm"
+          {...may.off}
+          onClick={() =>
+            sheet.open({
+              kind: "plan",
+              make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id }),
+            })
+          }
+        >
+          {unprotected ? t`Set a password` : t`Rotate password`}
+        </Button>
+      }
+    >
+      {unprotected ? t`Anyone who can reach it can sign in.` : t`Copies of its data can contain the password.`}
+    </Callout>
+  );
+}
+
+function ClickHouseLogsStatus({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const may = useMay()(DatabaseService.method.boundClickHouseLogs, { environment: db.resource?.scope ?? "" });
+  return (
+    <Callout
+      tone="warning"
+      title={t`ClickHouse logs can fill its disk`}
+      actions={
+        <Button
+          size="sm"
+          {...may.off}
+          onClick={() =>
+            sheet.open({
+              kind: "plan",
+              make: () => createClient(DatabaseService, transport).boundClickHouseLogs({ id: db.id }),
+            })
+          }
+        >
+          {t`Limit log growth`}
+        </Button>
+      }
+    >
+      {t`The plan restarts ClickHouse with rotating warning logs and stops writing system log tables.`}
+    </Callout>
   );
 }
 
@@ -284,14 +350,28 @@ function UpgradeNote({ db }: { db: Database }) {
 }
 
 /** Whether Dockwell backs a database up: its data is in a volume Dockwell made. */
-export function backsUp(db: Database): boolean {
-  return db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
+export function backsUp(db: Database, scheduled = false): boolean {
+  return (
+    db.volume !== "" &&
+    !db.volumeExternal &&
+    db.volumeId !== "" &&
+    (db.engine !== DatabaseEngine.CLICKHOUSE || scheduled || Boolean(db.newestBackup))
+  );
 }
 
 /** Why a database has no backups, and what to do about it. */
 export function NoBackups({ db, className }: { db: Database; className?: string }) {
   const { t } = useLingui();
   const volume = db.volume;
+  if (db.engine === DatabaseEngine.CLICKHOUSE) {
+    return (
+      <Panel title={t`Backups`} className={className}>
+        <p className="database-line">
+          <Trans>Not yet for ClickHouse</Trans>
+        </p>
+      </Panel>
+    );
+  }
   return (
     <Panel title={t`Backups`} actions={<StatusBadge status="stopped" label={t`None`} />} className={className}>
       <p className="database-line">
@@ -362,6 +442,7 @@ function Numbers({
   const none = "—";
   const unreadCaption = read ? undefined : unreadWord(reading?.unread);
   const sql = speaksSQL(db.engine);
+  const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
   const connections = Number(read?.connections ?? 0n);
   const most = Number(read?.maxConnections ?? 0n);
   const [size, unit] = read ? splitBytes(formatBytes(read.sizeBytes, locale)) : [none, ""];
@@ -398,9 +479,11 @@ function Numbers({
       unit: read?.cacheHit !== undefined ? "%" : undefined,
       caption: read
         ? read.cacheHit !== undefined
-          ? sql
-            ? t`Reads served from memory`
-            : t`Keys asked for that were there`
+          ? clickHouse
+            ? t`Marks served from cache`
+            : sql
+              ? t`Reads served from memory`
+              : t`Keys asked for that were there`
           : t`Nothing read yet`
         : unreadCaption,
     },
@@ -452,7 +535,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const latestError = latest?.error ?? "";
   const servers = db.readings.map((r) => r.serverName).join(", ");
   const destination = policy?.spec?.destination ?? "";
-  if (!backsUp(db)) return <NoBackups db={db} className="database-backups" />;
+  if (!backsUp(db, Boolean(policy))) return <NoBackups db={db} className="database-backups" />;
   const took =
     newest?.startedAt && newest.finishedAt
       ? time.span(timestampMs(newest.finishedAt) - timestampMs(newest.startedAt))
@@ -473,7 +556,9 @@ function BackupsPanel({ db }: { db: Database }) {
         <div className="databases-fact">
           <dt>{t`How`}</dt>
           <dd>
-            {!how.known ? (
+            {db.engine === DatabaseEngine.CLICKHOUSE ? (
+              t`A volume copy can contain partial writes`
+            ) : !how.known ? (
               how.failed ? (
                 t`Its server didn't say`
               ) : (
@@ -620,7 +705,12 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       value: db.host,
       hint: place ? t`From apps in ${place}` : t`From apps beside it`,
     },
-    { label: t`Port`, value: String(db.port) },
+    ...(db.engine === DatabaseEngine.CLICKHOUSE
+      ? [
+          { label: t`HTTP port`, value: String(db.httpPort || 8123) },
+          { label: t`Native port`, value: String(db.port) },
+        ]
+      : [{ label: t`Port`, value: String(db.port) }]),
     // One that checks no one has no user to sign in as.
     ...(sql && firstUser(db, read) && !read?.checksNoOne ? [{ label: t`User`, value: firstUser(db, read) }] : []),
     ...(published
@@ -675,11 +765,14 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       note={
         read?.checksNoOne
           ? t`It takes no password, as it checks no one.`
-          : !secret && sql
+          : !secret && sql && db.engine !== DatabaseEngine.CLICKHOUSE
             ? t`Its password is in its own environment, sealed, so it has no secret to reveal.`
             : undefined
       }
-      connectionString={{ label: t`Connection string`, build: (password) => connectionURL(db, read, password) }}
+      connectionString={{
+        label: db.engine === DatabaseEngine.CLICKHOUSE ? t`HTTP connection URL` : t`Connection string`,
+        build: (password) => connectionURL(db, read, password),
+      }}
     />
   );
 }

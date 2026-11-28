@@ -253,6 +253,7 @@ func (m *Manager) startInContainer(ctx context.Context, container, exact string,
 		if err != nil {
 			return nil, "", in, err
 		}
+		command = eng.WithPasswordFile(command, c.Config.Env)
 		env = append(env, extraEnv...)
 		if eng.KeyValue() {
 			// When Redis or Valkey is configured via --requirepass in Cmd rather

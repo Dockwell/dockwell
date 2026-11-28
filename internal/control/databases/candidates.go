@@ -60,7 +60,7 @@ func pinnedApart(ctx context.Context, tx *store.Tx, environment, service string,
 }
 
 // databaseEntries are the catalog's entries that install a database of its own.
-var databaseEntries = map[string]bool{"postgres": true, "mysql": true, "mariadb": true, "redis": true}
+var databaseEntries = map[string]bool{"postgres": true, "mysql": true, "mariadb": true, "redis": true, "clickhouse": true}
 
 // Candidates are the database servers Dockwell runs, as ways to meet an app's need
 // (ADR 0084): each with its engine, the version it says of itself where a reading
@@ -194,6 +194,24 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 						c.AdministeredBy = u.Name
 						break
 					}
+					if c.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE && u.Kind == string(variable.SecretKind) {
+						readers, err := tx.UsersOf(ctx, u.Scope, u.Kind, u.Name)
+						if err != nil {
+							return err
+						}
+						if j := slices.IndexFunc(readers, func(a store.Using) bool {
+							return a.Kind == "service" && (a.Scope != env || a.Name != p.ref.Name)
+						}); j >= 0 {
+							c.AdministeredBy = readers[j].Name
+							break
+						}
+					}
+				}
+			}
+			if c.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE && c.AdministeredBy == "" {
+				c.AdministeredBy, err = h.clickHouseLiteralClient(ctx, tx, p)
+				if err != nil {
+					return err
 				}
 			}
 			out = append(out, c)

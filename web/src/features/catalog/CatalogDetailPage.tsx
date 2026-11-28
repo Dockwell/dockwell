@@ -45,6 +45,7 @@ export function CatalogDetailPage({
     : origins.origins.get(id);
   // Dockwell's own catalog, which a source reads too (ADR 0077), is no other catalog's.
   const from = listed && !listed.own ? listed : undefined;
+  const builtIn = id === "clickhouse" && !chosen && !listed;
   const ownerWords = useOwnerWords();
   const installs = (useInstalls().data?.installs ?? []).filter((install) =>
     installOf(install, id, origins.origins, origins.also),
@@ -209,6 +210,8 @@ export function CatalogDetailPage({
                       <Icon name="branch" size={14} />
                       {named(from.name)}
                     </span>
+                  ) : builtIn ? (
+                    <Trans>Built into Dockwell</Trans>
                   ) : (
                     <Trans>Dockwell's own</Trans>
                   )}

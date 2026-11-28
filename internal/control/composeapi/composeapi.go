@@ -198,7 +198,7 @@ func dailyBackups(stack *compose.Stack, destination string) []*dockwellv1.Edit {
 	var out []*dockwellv1.Edit
 	for _, svc := range stack.Services {
 		found, ok := database.FromSpec(svc.Spec)
-		if !ok || found.Volume == "" || found.External {
+		if !ok || found.Volume == "" || found.External || found.Engine.ClickHouse() {
 			continue
 		}
 		out = append(out, &dockwellv1.Edit{

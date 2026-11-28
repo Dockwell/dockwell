@@ -89,10 +89,6 @@ func EngineOfImage(image string) catalogv1.Engine {
 		// The API's engines and the format's share their numbers.
 		return catalogv1.Engine(e.Kind)
 	}
-	switch database.Repository(image) {
-	case "clickhouse", "clickhouse/clickhouse-server":
-		return catalogv1.Engine_ENGINE_CLICKHOUSE
-	}
 	return catalogv1.Engine_ENGINE_UNSPECIFIED
 }
 
@@ -100,9 +96,6 @@ func EngineOfImage(image string) catalogv1.Engine {
 func port(e catalogv1.Engine) uint32 {
 	if d := database.Of(dockwellv1.DatabaseEngine(e)); d != nil {
 		return d.Port
-	}
-	if e == catalogv1.Engine_ENGINE_CLICKHOUSE {
-		return 9000
 	}
 	return 0
 }
@@ -112,9 +105,9 @@ func port(e catalogv1.Engine) uint32 {
 var databaseName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 
 // placeholder is a part a template names, such as {password}.
-var placeholder = regexp.MustCompile(`\{([a-z]*)\}`)
+var placeholder = regexp.MustCompile(`\{([a-z_]*)\}`)
 
-var templateParts = map[string]bool{"host": true, "port": true, "address": true, "database": true, "user": true, "password": true, "tls": true}
+var templateParts = map[string]bool{"host": true, "port": true, "native_port": true, "address": true, "database": true, "user": true, "password": true, "tls": true}
 
 // maxNeedLabel is how long a need's label may be: a word or two, on one line.
 const maxNeedLabel = 40
@@ -506,6 +499,9 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		return fmt.Errorf("the need %s writes %s from a template, which only a URL takes", need, name)
 	case s.GetTemplate() != "" && n.GetKind() != catalogv1.Kind_KIND_UNSPECIFIED:
 		return fmt.Errorf("the need %s writes %s from a template, which only a database's URL takes for now. Take the template out for the kind's own form", need, name)
+	case (part == catalogv1.Part_PART_NATIVE_PORT || strings.Contains(s.GetTemplate(), "{native_port}")) &&
+		(len(n.GetAccepts()) != 1 || n.GetAccepts()[0].GetEngine() != catalogv1.Engine_ENGINE_CLICKHOUSE):
+		return fmt.Errorf("the need %s sets a native port, which only ClickHouse has beside its HTTP port", need)
 	case part == catalogv1.Part_PART_KEY_PREFIX && n.GetKind() == catalogv1.Kind_KIND_UNSPECIFIED && !slices.ContainsFunc(n.GetAccepts(), func(a *catalogv1.NeedAccept) bool { return keyValue(a.GetEngine()) }):
 		return fmt.Errorf("the need %s sets %s as a key prefix, which only Redis and Valkey keep. Take it out, or accept one of them", need, name)
 	case !regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`).MatchString(e.GetCompose()):
@@ -523,7 +519,7 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 	}
 	for _, m := range placeholder.FindAllStringSubmatch(s.GetTemplate(), -1) {
 		if !templateParts[m[1]] {
-			return fmt.Errorf("the need %s's template for %s names {%s}, which isn't a part. Use {host}, {port}, {address}, {database}, {user}, {password} or {tls}", need, name, m[1])
+			return fmt.Errorf("the need %s's template for %s names {%s}, which isn't a part. Use {host}, {port}, {address}, {database}, {user}, {password}, {tls} or {native_port}", need, name, m[1])
 		}
 	}
 	if SecretPart(s) {
@@ -729,9 +725,11 @@ func engineList() string {
 // A Way is how an install meets one need: a new one beside the app, of an engine,
 // from the entry's own service or the catalog's entry for the engine.
 type Way struct {
-	Need    *catalogv1.Need
-	Engine  catalogv1.Engine
-	Version string
+	// Port and NativePort override the default database link endpoints when known.
+	Port, NativePort uint32
+	Need             *catalogv1.Need
+	Engine           catalogv1.Engine
+	Version          string
 	// Unset leaves an optional need unmet, as the app runs without it: the default
 	// for one, which is never met new unless a person asks (ADR 0099).
 	Unset bool
@@ -1923,7 +1921,14 @@ func databaseOf(n *catalogv1.Need) string {
 // needValues are the values of a need's plain parts, met by w.
 func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 	host := w.Service()
-	p := strconv.FormatUint(uint64(port(w.Engine)), 10)
+	listen := w.Port
+	if listen == 0 {
+		listen = port(w.Engine)
+		if w.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE {
+			listen = database.ClickHouseHTTPPort
+		}
+	}
+	p := strconv.FormatUint(uint64(listen), 10)
 	db := databaseOf(n)
 	user := cmp.Or(n.GetUser(), db)
 	if keyValue(w.Engine) {
@@ -1948,7 +1953,7 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 			tls = s.GetTls().GetOff()
 		}
 	}
-	return map[catalogv1.Part]string{
+	values := map[catalogv1.Part]string{
 		catalogv1.Part_PART_HOST:       host,
 		catalogv1.Part_PART_PORT:       p,
 		catalogv1.Part_PART_ADDRESS:    host + ":" + p,
@@ -1957,6 +1962,14 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 		catalogv1.Part_PART_TLS:        tls,
 		catalogv1.Part_PART_KEY_PREFIX: prefix,
 	}
+	if w.Engine == catalogv1.Engine_ENGINE_CLICKHOUSE {
+		native := w.NativePort
+		if native == 0 {
+			native = port(w.Engine)
+		}
+		values[catalogv1.Part_PART_NATIVE_PORT] = strconv.FormatUint(uint64(native), 10)
+	}
+	return values
 }
 
 // urls are each engine's own form of a URL, for a URL part with no template.
@@ -1967,7 +1980,7 @@ var urls = map[catalogv1.Engine]string{
 	catalogv1.Engine_ENGINE_REDIS:      "redis://{user}:{password}@{host}:{port}/{database}",
 	catalogv1.Engine_ENGINE_VALKEY:     "redis://{user}:{password}@{host}:{port}/{database}",
 	catalogv1.Engine_ENGINE_MONGODB:    "mongodb://{user}:{password}@{host}:{port}/{database}",
-	catalogv1.Engine_ENGINE_CLICKHOUSE: "clickhouse://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_CLICKHOUSE: "http://{user}:{password}@{host}:{port}/{database}",
 }
 
 // partName is a name of the app's environment a URL's part is kept as: the need's

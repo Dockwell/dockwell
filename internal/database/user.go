@@ -1261,6 +1261,8 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		// Made or given its password anew alike, by the image's root user.
 		return mongoMake(user, db, password), nil
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		return "", errors.New("creating ClickHouse users is not available yet")
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}

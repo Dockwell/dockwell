@@ -47,6 +47,9 @@ const (
 	// DatabaseServiceChangeDatabasePasswordProcedure is the fully-qualified name of the
 	// DatabaseService's ChangeDatabasePassword RPC.
 	DatabaseServiceChangeDatabasePasswordProcedure = "/dockwell.v1.DatabaseService/ChangeDatabasePassword"
+	// DatabaseServiceBoundClickHouseLogsProcedure is the fully-qualified name of the DatabaseService's
+	// BoundClickHouseLogs RPC.
+	DatabaseServiceBoundClickHouseLogsProcedure = "/dockwell.v1.DatabaseService/BoundClickHouseLogs"
 	// DatabaseServiceSetDatabaseExternalAccessProcedure is the fully-qualified name of the
 	// DatabaseService's SetDatabaseExternalAccess RPC.
 	DatabaseServiceSetDatabaseExternalAccessProcedure = "/dockwell.v1.DatabaseService/SetDatabaseExternalAccess"
@@ -102,6 +105,9 @@ type DatabaseServiceClient interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// BoundClickHouseLogs plans a restart with bounded server logging and system log
+	// writers disabled. Existing data, including old system log tables, stays.
+	BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error)
 	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
 	// server reach it, from the addresses listed and nowhere else, or taking that
 	// away. It's three edits that go together: the database publishes its engine's
@@ -122,7 +128,7 @@ type DatabaseServiceClient interface {
 	// server's is protected, as revealing its secrets does. One check runs at a time on
 	// a server, and an answer is given again for 30 seconds.
 	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
-	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
 	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
 	// an import brought (ADR 0084, Connect a database). The link is a resource in the
 	// app's environment, and what meets it is a new database with a user of the app's
@@ -133,7 +139,8 @@ type DatabaseServiceClient interface {
 	// environment the request names is set from the link, the password as a value
 	// read from the user's own secret, and a URL written from the parts. A server in
 	// another project is reached on a link network of the app's own, which it joins
-	// in place. The app runs on the server the database runs on.
+	// in place. The app runs on the server the database runs on. ClickHouse uses
+	// an existing database and the credentials the service already uses.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
 	// or MariaDB server, owned either by an existing user picked on that server
@@ -193,6 +200,12 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			httpClient,
 			baseURL+DatabaseServiceChangeDatabasePasswordProcedure,
 			connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
+			connect.WithClientOptions(opts...),
+		),
+		boundClickHouseLogs: connect.NewClient[v1.BoundClickHouseLogsRequest, v1.BoundClickHouseLogsResponse](
+			httpClient,
+			baseURL+DatabaseServiceBoundClickHouseLogsProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("BoundClickHouseLogs")),
 			connect.WithClientOptions(opts...),
 		),
 		setDatabaseExternalAccess: connect.NewClient[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse](
@@ -259,6 +272,7 @@ type databaseServiceClient struct {
 	getDatabase               *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
 	createDatabaseUser        *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
 	changeDatabasePassword    *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
+	boundClickHouseLogs       *connect.Client[v1.BoundClickHouseLogsRequest, v1.BoundClickHouseLogsResponse]
 	setDatabaseExternalAccess *connect.Client[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse]
 	checkDatabaseSignIn       *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
 	connectDatabase           *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
@@ -288,6 +302,11 @@ func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *con
 // ChangeDatabasePassword calls dockwell.v1.DatabaseService.ChangeDatabasePassword.
 func (c *databaseServiceClient) ChangeDatabasePassword(ctx context.Context, req *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return c.changeDatabasePassword.CallUnary(ctx, req)
+}
+
+// BoundClickHouseLogs calls dockwell.v1.DatabaseService.BoundClickHouseLogs.
+func (c *databaseServiceClient) BoundClickHouseLogs(ctx context.Context, req *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error) {
+	return c.boundClickHouseLogs.CallUnary(ctx, req)
 }
 
 // SetDatabaseExternalAccess calls dockwell.v1.DatabaseService.SetDatabaseExternalAccess.
@@ -361,6 +380,9 @@ type DatabaseServiceHandler interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// BoundClickHouseLogs plans a restart with bounded server logging and system log
+	// writers disabled. Existing data, including old system log tables, stays.
+	BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error)
 	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
 	// server reach it, from the addresses listed and nowhere else, or taking that
 	// away. It's three edits that go together: the database publishes its engine's
@@ -381,7 +403,7 @@ type DatabaseServiceHandler interface {
 	// server's is protected, as revealing its secrets does. One check runs at a time on
 	// a server, and an answer is given again for 30 seconds.
 	CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error)
-	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL or MariaDB server
+	// ConnectDatabase plans an app's link to a PostgreSQL, MySQL, MariaDB or ClickHouse server
 	// Dockwell runs, for an app from no catalog entry, such as one a Compose file or
 	// an import brought (ADR 0084, Connect a database). The link is a resource in the
 	// app's environment, and what meets it is a new database with a user of the app's
@@ -392,7 +414,8 @@ type DatabaseServiceHandler interface {
 	// environment the request names is set from the link, the password as a value
 	// read from the user's own secret, and a URL written from the parts. A server in
 	// another project is reached on a link network of the app's own, which it joins
-	// in place. The app runs on the server the database runs on.
+	// in place. The app runs on the server the database runs on. ClickHouse uses
+	// an existing database and the credentials the service already uses.
 	ConnectDatabase(context.Context, *connect.Request[v1.ConnectDatabaseRequest]) (*connect.Response[v1.ConnectDatabaseResponse], error)
 	// CreateLogicalDatabase plans a new logical database inside a PostgreSQL, MySQL
 	// or MariaDB server, owned either by an existing user picked on that server
@@ -448,6 +471,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		DatabaseServiceChangeDatabasePasswordProcedure,
 		svc.ChangeDatabasePassword,
 		connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	databaseServiceBoundClickHouseLogsHandler := connect.NewUnaryHandler(
+		DatabaseServiceBoundClickHouseLogsProcedure,
+		svc.BoundClickHouseLogs,
+		connect.WithSchema(databaseServiceMethods.ByName("BoundClickHouseLogs")),
 		connect.WithHandlerOptions(opts...),
 	)
 	databaseServiceSetDatabaseExternalAccessHandler := connect.NewUnaryHandler(
@@ -515,6 +544,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
 		case DatabaseServiceChangeDatabasePasswordProcedure:
 			databaseServiceChangeDatabasePasswordHandler.ServeHTTP(w, r)
+		case DatabaseServiceBoundClickHouseLogsProcedure:
+			databaseServiceBoundClickHouseLogsHandler.ServeHTTP(w, r)
 		case DatabaseServiceSetDatabaseExternalAccessProcedure:
 			databaseServiceSetDatabaseExternalAccessHandler.ServeHTTP(w, r)
 		case DatabaseServiceCheckDatabaseSignInProcedure:
@@ -556,6 +587,10 @@ func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *
 
 func (UnimplementedDatabaseServiceHandler) ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ChangeDatabasePassword is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) BoundClickHouseLogs(context.Context, *connect.Request[v1.BoundClickHouseLogsRequest]) (*connect.Response[v1.BoundClickHouseLogsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.BoundClickHouseLogs is not implemented"))
 }
 
 func (UnimplementedDatabaseServiceHandler) SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error) {

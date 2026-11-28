@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -41,6 +42,7 @@ var connectable = map[dockwellv1.DatabaseEngine]catalogv1.Engine{
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: catalogv1.Engine_ENGINE_POSTGRESQL,
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      catalogv1.Engine_ENGINE_MYSQL,
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    catalogv1.Engine_ENGINE_MARIADB,
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE: catalogv1.Engine_ENGINE_CLICKHOUSE,
 }
 
 // linkName is what a link may be called: a need's name, as an entry's is.
@@ -87,7 +89,7 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 	}
 	eng, ok := connectable[server.db.GetEngine()]
 	if !ok {
-		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, and an app connects to PostgreSQL, MySQL or MariaDB for now", server.ref.Name, database.Of(server.db.GetEngine()).Name))
+		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, and an app connects to PostgreSQL, MySQL, MariaDB or ClickHouse for now", server.ref.Name, database.Of(server.db.GetEngine()).Name))
 	}
 	if len(server.servers) == 0 {
 		return nil, authapi.Invalid(fmt.Errorf("%s runs on no server now, and an app connects to it where it runs. Deploy it first", server.ref.Name))
@@ -119,15 +121,25 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 				fmt.Errorf("%s runs on %s, and %s doesn't run there. An app connects to a database on its own server for now", m.GetApp(), human.List(c.ServerNames), c.Service), "other_server")
 		}
 	}
-	plan, err := h.connectPlan(ctx, m, link, eng, c, app)
+	if eng == catalogv1.Engine_ENGINE_CLICKHOUSE {
+		h.read(ctx, []*placed{server})
+	}
+	plan, err := h.connectPlan(ctx, m, link, eng, c, app, server)
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
 	summary := fmt.Sprintf("Connect %s to %s, as %s on %s", m.GetApp(), c.Service, plan.user, plan.database)
-	if plan.takenOn {
+	if plan.takenOn && eng != catalogv1.Engine_ENGINE_CLICKHOUSE {
 		summary = fmt.Sprintf("Connect %s to %s, taking on %s on %s", m.GetApp(), c.Service, plan.user, plan.database)
 	}
-	change, err := h.changes.Propose(ctx, summary, plan.edits, nil, changes.Also{})
+	var also changes.Also
+	if eng == catalogv1.Engine_ENGINE_CLICKHOUSE {
+		also.Notes = []revision.Note{{
+			Reason: "clickhouse_admin_link", Ref: server.ref, Names: []string{m.GetApp(), plan.user},
+			Message: fmt.Sprintf("%s signs in to %s as administrator %s and can read or change every database there. Only one app can use this link until per-app users are available.", m.GetApp(), c.Service, plan.user),
+		}}
+	}
+	change, err := h.changes.Propose(ctx, summary, plan.edits, nil, also)
 	if err != nil {
 		return nil, err
 	}
@@ -230,13 +242,22 @@ type connected struct {
 // on the server, the user's password and the user; in the app's environment, the
 // link, the names it sets, and where the server is in another environment, the link
 // network it joins in place, which the app's services that read the names join.
-func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabaseRequest, link string, eng catalogv1.Engine, c catalog.Candidate, app *appEnv) (*connected, error) {
+func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabaseRequest, link string, eng catalogv1.Engine, c catalog.Candidate, app *appEnv, server *placed) (*connected, error) {
 	across := c.EnvironmentID != app.id
+	clickHouse := eng == catalogv1.Engine_ENGINE_CLICKHOUSE
+	passwordSource := server.db.GetPasswordSecret()
 	need := &catalogv1.Need{Name: link, Label: "Database", Accepts: []*catalogv1.NeedAccept{{Engine: eng}}}
 	password := ""
+	needsPassword := false
 	for _, name := range slices.Sorted(maps.Keys(m.GetSets())) {
 		part := catalogv1.Part(m.GetSets()[name])
 		set := &catalogv1.NeedSet{Name: name, Part: part, Template: m.GetTemplates()[name]}
+		if clickHouse && part == catalogv1.Part_PART_URL && set.Template == "" {
+			set.Template = "http://{user}:{password}@{host}:{port}/{database}"
+			if passwordSource == "" {
+				set.Template = "http://{host}:{port}/{database}"
+			}
+		}
 		_, isSecret := app.secrets[name]
 		switch {
 		case !app.variables[name] && !isSecret:
@@ -245,6 +266,10 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return nil, invalidField("sets", fmt.Errorf("%s can't be set to the %s here: a link to %s sets a host, port, address, database, user, password or URL", name, strings.ToLower(strings.TrimPrefix(part.String(), "PART_")), catalog.EngineName(eng)))
 		case catalog.SecretPart(set) && !isSecret:
 			return nil, invalidField("sets", fmt.Errorf("%s is a variable, and what it would hold is secret. Keep it as a secret first", name))
+		case !clickHouse && (part == catalogv1.Part_PART_NATIVE_PORT || strings.Contains(set.GetTemplate(), "{native_port}")):
+			return nil, invalidField("sets", errors.New("only ClickHouse has a native port beside its HTTP port"))
+		case clickHouse && passwordSource == "" && (part == catalogv1.Part_PART_PASSWORD || strings.Contains(set.GetTemplate(), "{password}")):
+			return nil, invalidField("sets", errors.New("this ClickHouse has no password in a Dockwell secret. Use its URL without a password"))
 		case part == catalogv1.Part_PART_PASSWORD && password != "":
 			return nil, invalidField("sets", fmt.Errorf("%s and %s both hold the password. Set one", password, name))
 		case set.GetTemplate() != "" && part != catalogv1.Part_PART_URL:
@@ -253,6 +278,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		if part == catalogv1.Part_PART_PASSWORD {
 			password = name
 		}
+		needsPassword = needsPassword || part == catalogv1.Part_PART_PASSWORD || strings.Contains(set.GetTemplate(), "{password}")
 		need.Sets = append(need.Sets, set)
 	}
 	for name := range m.GetTemplates() {
@@ -260,14 +286,25 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return nil, invalidField("templates", fmt.Errorf("%s has a template, and the link doesn't set it", name))
 		}
 	}
-	if password == "" && !slices.ContainsFunc(need.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }) {
+	if clickHouse && passwordSource != "" && !needsPassword {
+		return nil, invalidField("sets", errors.New("this ClickHouse requires a password. Set its password or a URL that includes it"))
+	}
+	if !clickHouse && password == "" && !slices.ContainsFunc(need.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }) {
 		return nil, invalidField("sets", errors.New("nothing the link sets holds the password, so the app couldn't sign in. Set its password or its URL"))
+	}
+	if clickHouse {
+		names := slices.Collect(maps.Keys(m.GetSets()))
+		for name, svc := range app.services {
+			if name != m.GetApp() && readsAny(svc, names) {
+				return nil, invalidField("sets", fmt.Errorf("%s also reads a value this link sets. A ClickHouse administrator link can serve one app", name))
+			}
+		}
 	}
 	// The name the app's password is kept in: the one set, or one named for the link,
 	// which a URL reads.
 	password = catalog.PasswordName(need)
 	_, isSecret := app.secrets[password]
-	if _, set := m.GetSets()[password]; !set && (isSecret || app.variables[password]) {
+	if _, set := m.GetSets()[password]; !set && (isSecret || app.variables[password]) && (!clickHouse || needsPassword && (across || passwordSource != password)) {
 		return nil, invalidField("sets", fmt.Errorf("%s/%s has %s already, which a URL the link writes would keep its password in. Set it as the password, or rename it", app.project, app.name, password))
 	}
 
@@ -292,7 +329,31 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		}
 		out.database, out.user = m.GetDatabase(), m.GetUser()
 		out.takenOn = out.database != "" && slices.Contains(c.Databases, out.database)
-		if out.takenOn {
+		switch {
+		case clickHouse:
+			out.database = cmp.Or(out.database, "default")
+			readings := server.db.GetReadings()
+			i := slices.IndexFunc(readings, func(r *dockwellv1.DatabaseReading) bool { return r.GetUnread() == "" })
+			if i < 0 {
+				why := "no server reported its databases"
+				if len(readings) != 0 {
+					why = readings[0].GetUnread()
+				}
+				return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("ClickHouse couldn't be read: %s", why), "database_unread")
+			}
+			reading := readings[i]
+			out.user = cmp.Or(reading.GetUser(), server.firstUser)
+			switch {
+			case m.GetUser() != "" && m.GetUser() != out.user || m.GetPasswordSecret() != "":
+				return invalidField("user", errors.New("a ClickHouse link uses the database service's current credentials"))
+			case !slices.Contains(c.Databases, out.database) || strings.EqualFold(out.database, "system") || strings.EqualFold(out.database, "information_schema"):
+				return invalidField("database", fmt.Errorf("%s does not report an app database named %s", c.Service, out.database))
+			case across && reading.GetChecksNoOne():
+				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this ClickHouse takes no password. Set a password before linking it to another environment"), "password_required")
+			case passwordSource == "" && (across || !reading.GetChecksNoOne() || !unpasswordedClickHouse(server.spec)):
+				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this ClickHouse service needs its password in a Dockwell secret before it can be linked"), "no_secret")
+			}
+		case out.takenOn:
 			kept, err := h.keptDatabases(ctx, tx, c, mine)
 			if err != nil {
 				return err
@@ -317,7 +378,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			if s, ok := app.secrets[m.GetPasswordSecret()]; !ok || s.GetFrom() != nil {
 				return invalidField("password_secret", fmt.Errorf("%s/%s has no secret %s that holds a password of its own", app.project, app.name, m.GetPasswordSecret()))
 			}
-		} else {
+		default:
 			if m.GetPasswordSecret() != "" {
 				return invalidField("password_secret", errors.New("a new database's user gets a password Dockwell makes, so there's none to read. Leave it out, or name a database the server has"))
 			}
@@ -349,16 +410,22 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		// The user's password: in the app's environment beside it, or across, in a
 		// secret of the server's own that the app's reads through the link.
 		secret := password
-		if out.takenOn && !across {
+		if clickHouse {
+			secret = ""
+			if needsPassword {
+				secret = passwordSource
+			}
+		} else if out.takenOn && !across {
 			secret = m.GetPasswordSecret()
 		}
-		if across {
+		if across && !clickHouse {
 			if secret, err = freeSecret(ctx, tx, c.EnvironmentID, strings.ToUpper(out.user)+"_DATABASE_PASSWORD"); err != nil {
 				return err
 			}
 		}
 		value := ""
 		switch {
+		case clickHouse:
 		case out.takenOn:
 			value = app.secrets[m.GetPasswordSecret()].GetValue()
 		default:
@@ -374,6 +441,9 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			}
 		}
 		w := catalog.Way{Need: need, Engine: eng, Version: c.Version, Existing: &c, Database: out.database, User: out.user, Password: secret, Alias: alias}
+		if clickHouse {
+			w.Port, w.NativePort = server.db.GetHttpPort(), server.db.GetPort()
+		}
 		taken := slices.Concat(slices.Collect(maps.Keys(app.secrets)), slices.Collect(maps.Keys(app.variables)))
 		got, err := catalog.Connect(m.GetApp(), need, w, taken)
 		if err != nil {
@@ -384,36 +454,24 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			got.Link.MeetsEnvironment = c.EnvironmentID
 		}
 
-		// On the server.
-		user := &resourcev1.DatabaseUser{Service: c.Service, Password: secret, TakenOn: out.takenOn}
-		if out.database != out.user {
-			user.DatabaseName = out.database
+		if !clickHouse {
+			plan = append(plan, linkUserEdits(c, out, secret, value, across)...)
 		}
-		on := &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: c.EnvironmentID, Name: out.user}
-		if across || !out.takenOn {
-			plan = append(plan, &dockwellv1.Edit{
-				Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: c.EnvironmentID, Name: secret},
-				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}},
-			})
-		}
-		plan = append(plan,
-			&dockwellv1.Edit{Resource: on, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: user}}, Servers: slices.Clone(c.Servers)},
-			&dockwellv1.Edit{
-				Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: app.id, Name: link},
-				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: got.Link}},
-			},
-		)
+		plan = append(plan, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: app.id, Name: link},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: got.Link}},
+		})
 
-		// In the app's environment: the password, read from the user's where it's
-		// across, the URLs written from the parts, and the plain parts.
-		if across {
+		// The application reads the source password by reference so rotations follow
+		// the database. A password already read in the same environment needs no edit.
+		if secret != "" && (across || clickHouse && password != secret) {
 			plan = append(plan, &dockwellv1.Edit{
 				Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: app.id, Name: password},
 				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{From: &resourcev1.ValueFrom{
 					Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{Environment: c.EnvironmentID, Secret: true, Name: secret, Link: link}},
 				}}}},
 			})
-		} else if password != secret {
+		} else if !clickHouse && password != secret {
 			return invalidField("password_secret", fmt.Errorf("the app reads its password from %s, and %s is where the user's is. In one environment they're the same secret: set %s as the password, or pick %s here", password, secret, secret, password))
 		}
 		for _, name := range slices.Sorted(maps.Keys(got.Written)) {
@@ -476,6 +534,40 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 	}
 	out.edits = plan
 	return out, nil
+}
+
+func unpasswordedClickHouse(svc *resourcev1.Service) bool {
+	env := svc.GetApp().GetEnv()
+	if env["CLICKHOUSE_SKIP_USER_SETUP"] != "1" {
+		return false
+	}
+	for _, name := range []string{"CLICKHOUSE_PASSWORD", "CLICKHOUSE_PASSWORD_FILE"} {
+		_, boundVariable := svc.GetVariables()[name]
+		_, secret := svc.GetSecrets()[name]
+		if env[name] != "" || boundVariable || secret {
+			return false
+		}
+	}
+	return true
+}
+
+func linkUserEdits(c catalog.Candidate, out *connected, secret, value string, across bool) []*dockwellv1.Edit {
+	var edits []*dockwellv1.Edit
+	if across || !out.takenOn {
+		edits = append(edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: c.EnvironmentID, Name: secret},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}},
+		})
+	}
+	user := &resourcev1.DatabaseUser{Service: c.Service, Password: secret, TakenOn: out.takenOn}
+	if out.database != out.user {
+		user.DatabaseName = out.database
+	}
+	return append(edits, &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: c.EnvironmentID, Name: out.user},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: user}},
+		Servers:  slices.Clone(c.Servers),
+	})
 }
 
 // plainEdit sets a name the app has to a plain part's value, as the kind it is: a

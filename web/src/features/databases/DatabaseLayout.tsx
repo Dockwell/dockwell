@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { CatalogService, type Database, TerminalService } from "@dockwell/api";
+import { CatalogService, type Database, DatabaseEngine, TerminalService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -293,7 +293,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
         <RouterTabLink to="/databases/$serviceId" params={{ serviceId: db.id }} activeOptions={{ exact: true }}>
           <Trans>Overview</Trans>
         </RouterTabLink>
-        {makesUsers(db.engine) ? (
+        {makesUsers(db.engine) || db.engine === DatabaseEngine.CLICKHOUSE ? (
           <RouterTabLink
             to="/databases/$serviceId/databases"
             params={{ serviceId: db.id }}
@@ -307,7 +307,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
             <Trans>Backups</Trans>
           </RouterTabLink>
         ) : null}
-        {speaksSQL(db.engine) ? (
+        {speaksSQL(db.engine) && db.engine !== DatabaseEngine.CLICKHOUSE ? (
           <RouterTabLink
             to="/databases/$serviceId/users"
             params={{ serviceId: db.id }}

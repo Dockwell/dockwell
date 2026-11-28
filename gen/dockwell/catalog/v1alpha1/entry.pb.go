@@ -266,6 +266,8 @@ const (
 	Part_PART_URL Part = 7
 	// Whether to use TLS, in the app's own words, as the set's tls gives them.
 	Part_PART_TLS Part = 8
+	// The native TCP port of ClickHouse, beside its HTTP port.
+	Part_PART_NATIVE_PORT Part = 9
 	// A prefix the app puts before each key it keeps, on Redis or Valkey, such as
 	// "shop:". Where a need sets one, an app sharing a server keeps to its own keys,
 	// and reaches no other app's. Numbered in the block connectable apps hold, 40 to
@@ -318,6 +320,7 @@ var (
 		6:  "PART_PASSWORD",
 		7:  "PART_URL",
 		8:  "PART_TLS",
+		9:  "PART_NATIVE_PORT",
 		40: "PART_KEY_PREFIX",
 		41: "PART_ENGINE",
 		50: "PART_ENDPOINT",
@@ -342,6 +345,7 @@ var (
 		"PART_PASSWORD":      6,
 		"PART_URL":           7,
 		"PART_TLS":           8,
+		"PART_NATIVE_PORT":   9,
 		"PART_KEY_PREFIX":    40,
 		"PART_ENGINE":        41,
 		"PART_ENDPOINT":      50,
@@ -2535,7 +2539,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\fENGINE_REDIS\x10\x04\x12\x11\n" +
 	"\rENGINE_VALKEY\x10\x05\x12\x12\n" +
 	"\x0eENGINE_MONGODB\x10\x06\x12\x15\n" +
-	"\x11ENGINE_CLICKHOUSE\x10\a*\x97\x03\n" +
+	"\x11ENGINE_CLICKHOUSE\x10\a*\xad\x03\n" +
 	"\x04Part\x12\x14\n" +
 	"\x10PART_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tPART_HOST\x10\x01\x12\r\n" +
@@ -2545,7 +2549,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\tPART_USER\x10\x05\x12\x11\n" +
 	"\rPART_PASSWORD\x10\x06\x12\f\n" +
 	"\bPART_URL\x10\a\x12\f\n" +
-	"\bPART_TLS\x10\b\x12\x13\n" +
+	"\bPART_TLS\x10\b\x12\x14\n" +
+	"\x10PART_NATIVE_PORT\x10\t\x12\x13\n" +
 	"\x0fPART_KEY_PREFIX\x10(\x12\x0f\n" +
 	"\vPART_ENGINE\x10)\x12\x11\n" +
 	"\rPART_ENDPOINT\x102\x12\x0f\n" +

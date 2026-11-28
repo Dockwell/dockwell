@@ -4882,6 +4882,10 @@ msgstr "{0} · An admin chooses this"
 msgid "A new one for {name}"
 msgstr "A new one for {name}"
 
+#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
+msgid "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+msgstr "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+
 msgid "Checked as the plan applies"
 msgstr "Checked as the plan applies"
 
@@ -4907,14 +4911,17 @@ msgstr "Database name"
 msgid "Database server"
 msgstr "Database server"
 
+msgid "HTTP port"
+msgstr "HTTP port"
+
 msgid "Host"
 msgstr "Host"
 
 msgid "Host and port"
 msgstr "Host and port"
 
-msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
-msgstr "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
+msgid "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
+msgstr "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
 
 msgid "Its data stays where it is"
 msgstr "Its data stays where it is"
@@ -4924,6 +4931,9 @@ msgstr "Its password is in"
 
 msgid "Its values come from the link, and follow the database"
 msgstr "Its values come from the link, and follow the database"
+
+msgid "Native port"
+msgstr "Native port"
 
 msgid "Never its administrator"
 msgstr "Never its administrator"
@@ -9591,6 +9601,9 @@ msgstr "About {app}"
 msgid "App information"
 msgstr "App information"
 
+msgid "Built into Dockwell"
+msgstr "Built into Dockwell"
+
 msgid "Catalog to install from"
 msgstr "Catalog to install from"
 
@@ -13161,6 +13174,15 @@ msgstr "Check that you have another way in, such as your provider's console, bef
 msgid "Checks {domain} every minute"
 msgstr "Checks {domain} every minute"
 
+msgid "ClickHouse restarts with a password hash"
+msgstr "ClickHouse restarts with a password hash"
+
+msgid "ClickHouse restarts with bounded logging"
+msgstr "ClickHouse restarts with bounded logging"
+
+msgid "Clients with their own settings need the new password."
+msgstr "Clients with their own settings need the new password."
+
 msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 msgstr "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 
@@ -13208,6 +13230,9 @@ msgstr "Each keeps running as it is."
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
+
+msgid "Existing logs stay on disk."
+msgstr "Existing logs stay on disk."
 
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
@@ -13272,6 +13297,9 @@ msgstr "It bans any other address that keeps failing to sign in, yours included.
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
+
+msgid "It can read and change every database. Only one app can use this link."
+msgstr "It can read and change every database. Only one app can use this link."
 
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
@@ -13795,6 +13823,9 @@ msgstr "{0, plural, one {{list} stops while it loads, and what was made since go
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+
+msgid "{app} connects as administrator {user}"
+msgstr "{app} connects as administrator {user}"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app}'s data stays in {before}; {after} starts empty"
@@ -15643,6 +15674,9 @@ msgstr "A copy of its files, which stops {engine} a moment"
 msgid "A plan, which keeps what it replaces for 7 days"
 msgstr "A plan, which keeps what it replaces for 7 days"
 
+msgid "A volume copy can contain partial writes"
+msgstr "A volume copy can contain partial writes"
+
 msgid "Backups of {name}, newest first"
 msgstr "Backups of {name}, newest first"
 
@@ -15745,14 +15779,29 @@ msgstr "A copy of its files, which stops it a moment"
 msgid "All its backups"
 msgstr "All its backups"
 
+msgid "Anyone who can reach it can sign in."
+msgstr "Anyone who can reach it can sign in."
+
 msgid "Can do anything"
 msgstr "Can do anything"
 
 msgid "Change password"
 msgstr "Change password"
 
+msgid "ClickHouse logs can fill its disk"
+msgstr "ClickHouse logs can fill its disk"
+
+msgid "ClickHouse stores a readable password in its data"
+msgstr "ClickHouse stores a readable password in its data"
+
+msgid "ClickHouse takes no password"
+msgstr "ClickHouse takes no password"
+
 msgid "Connection string"
 msgstr "Connection string"
+
+msgid "Copies of its data can contain the password."
+msgstr "Copies of its data can contain the password."
 
 msgid "Data at {features}'s features, which its next upgrade raises"
 msgstr "Data at {features}'s features, which its next upgrade raises"
@@ -15774,6 +15823,9 @@ msgstr "Give it a <0>--keyFile</0> every member of {set} shares, make a root use
 
 msgid "Give it a volume"
 msgstr "Give it a volume"
+
+msgid "HTTP connection URL"
+msgstr "HTTP connection URL"
 
 msgid "It sets no most"
 msgstr "It sets no most"
@@ -15811,8 +15863,14 @@ msgstr "Kept in the secret <0>{secret}</0>"
 msgid "Keys asked for that were there"
 msgstr "Keys asked for that were there"
 
+msgid "Limit log growth"
+msgstr "Limit log growth"
+
 msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+
+msgid "Marks served from cache"
+msgstr "Marks served from cache"
 
 msgid "Newest"
 msgstr "Newest"
@@ -15822,6 +15880,9 @@ msgstr "No users yet"
 
 msgid "Not scheduled"
 msgstr "Not scheduled"
+
+msgid "Not yet for ClickHouse"
+msgstr "Not yet for ClickHouse"
 
 msgid "Nothing read yet"
 msgstr "Nothing read yet"
@@ -15841,8 +15902,14 @@ msgstr "Replica set {set}: each backup is one moment, and can't be restored into
 msgid "Restore the newest"
 msgstr "Restore the newest"
 
+msgid "Rotate password"
+msgstr "Rotate password"
+
 msgid "Runs alone: a backup isn't one moment while something writes"
 msgstr "Runs alone: a backup isn't one moment while something writes"
+
+msgid "Set a password"
+msgstr "Set a password"
 
 msgid "Since"
 msgstr "Since"
@@ -15862,6 +15929,9 @@ msgstr "The last one failed: {latestError}"
 
 msgid "The most it takes is {mostWords}"
 msgstr "The most it takes is {mostWords}"
+
+msgid "The plan restarts ClickHouse with rotating warning logs and stops writing system log tables."
+msgstr "The plan restarts ClickHouse with rotating warning logs and stops writing system log tables."
 
 msgid "This server's disk, unencrypted"
 msgstr "This server's disk, unencrypted"

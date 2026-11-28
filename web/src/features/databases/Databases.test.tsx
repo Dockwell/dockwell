@@ -844,6 +844,37 @@ describe("a database's page", () => {
     expect(screen.queryByText(/keeps sealed and never shows/)).toBeNull();
   });
 
+  it("offers to set a ClickHouse password and limit logs while keeping external access closed", async () => {
+    const db = aDatabase({
+      engine: DatabaseEngine.CLICKHOUSE,
+      image: "clickhouse:25.8",
+      passwordSecret: "",
+      readings: [{ serverId: SERVER, user: "default", checksNoOne: true, clickhouseUnboundedLogs: true }],
+    });
+    renderAt("/databases/svc_db", api([db]));
+    expect(await screen.findByText("ClickHouse takes no password")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Set a password" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Limit log growth" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "External access" })).toBeNull();
+    expect(screen.queryByText("ClickHouse stores a readable password in its data")).toBeNull();
+  });
+
+  it.each([false, true])("offers ClickHouse external access only with verification %s", async (verified) => {
+    const db = aDatabase({
+      engine: DatabaseEngine.CLICKHOUSE,
+      image: "clickhouse:25.8",
+      passwordSecret: "CLICKHOUSE_PASSWORD",
+      readings: [{ serverId: SERVER, user: "default", clickhousePasswordVerified: verified }],
+    });
+    renderAt("/databases/svc_db", api([db]));
+    expect(await screen.findByRole("heading", { level: 1, name: "db" })).toBeVisible();
+    if (verified) {
+      expect(await screen.findByRole("region", { name: "External access" })).toBeVisible();
+    } else {
+      expect(screen.queryByRole("region", { name: "External access" })).toBeNull();
+    }
+  });
+
   it("says why it can't tell how it is, and keeps the rest", async () => {
     const quiet = aDatabase({
       readings: [

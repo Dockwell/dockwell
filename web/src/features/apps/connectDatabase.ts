@@ -12,11 +12,12 @@ import {
 import { firstReading, readOf } from "../databases/useDatabases";
 import { environmentOf } from "./app";
 
-/** What an app connects to here: PostgreSQL, MySQL and MariaDB (ADR 0084, Connect a database). */
+/** What an app connects to here: PostgreSQL, MySQL, MariaDB and ClickHouse (ADR 0084, Connect a database). */
 export const CONNECTABLE: readonly DatabaseEngine[] = [
   DatabaseEngine.POSTGRESQL,
   DatabaseEngine.MYSQL,
   DatabaseEngine.MARIADB,
+  DatabaseEngine.CLICKHOUSE,
 ];
 
 /** Where a service runs, by server ID. */
@@ -34,6 +35,8 @@ export function candidates(databases: readonly Database[], service: ServiceInfo)
   const on = serversOf(service);
   const fits = databases.filter((db) => {
     if (!CONNECTABLE.includes(db.engine) || on.length === 0) return false;
+    if (db.engine === DatabaseEngine.CLICKHOUSE && !db.passwordSecret && db.resource?.scope !== environmentOf(service))
+      return false;
     const runs = db.readings.map((r) => r.serverId);
     return on.every((s) => runs.includes(s));
   });
@@ -83,7 +86,7 @@ export function appNames(service: ServiceInfo, variables: readonly EnvironmentVa
 }
 
 /** A name that's about a database, as DB_HOST, POSTGRES_PASSWORD or MYSQL_DATABASE. */
-const ABOUT_A_DATABASE = /(^|_)(DB|DATABASE|POSTGRES|POSTGRESQL|PG|MYSQL|MARIADB|SQL)(_|$)/;
+const ABOUT_A_DATABASE = /(^|_)(DB|DATABASE|POSTGRES|POSTGRESQL|PG|MYSQL|MARIADB|CLICKHOUSE|SQL)(_|$)/;
 
 /**
  * The part a name of the app's suggests, as an entry would set it, or none for a
@@ -96,6 +99,7 @@ export function suggest(name: string): LinkPart {
   if (/(^|_)(URL|URI|DSN)$/.test(n)) return LinkPart.URL;
   if (/(PASSWORD|PASS|PWD)$/.test(n)) return LinkPart.PASSWORD;
   if (/(^|_)(HOST|HOSTNAME|SERVER)$/.test(n)) return LinkPart.HOST;
+  if (/^CLICKHOUSE_(NATIVE|TCP)_PORT$/.test(n)) return LinkPart.NATIVE_PORT;
   if (/(^|_)PORT$/.test(n)) return LinkPart.PORT;
   if (/(^|_)(USER|USERNAME)$/.test(n)) return LinkPart.USER;
   if (/(^|_)(NAME|DATABASE|DB)$/.test(n)) return LinkPart.DATABASE;
@@ -111,6 +115,7 @@ export function secretPart(part: LinkPart): boolean {
 export const PARTS: readonly LinkPart[] = [
   LinkPart.HOST,
   LinkPart.PORT,
+  LinkPart.NATIVE_PORT,
   LinkPart.ADDRESS,
   LinkPart.DATABASE,
   LinkPart.USER,

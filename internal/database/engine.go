@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package database knows the databases Dockwell can read and manage from inside
-// their own containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB,
+// their own containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey, MongoDB and ClickHouse,
 // from their official images. The control plane uses it to tell a database from any other
 // service by its spec, and the agent to ask one what it holds, with the database's
 // own tools, which sign in with what its environment already has, so no password
@@ -95,6 +95,12 @@ var Engines = []*Engine{
 		// Its images have mongosh from 6.0, and the old mongo shell before.
 		Oldest: 6, OldestName: "6.0",
 	},
+	{
+		Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE, Name: "ClickHouse",
+		Images: []string{"clickhouse/clickhouse-server", "clickhouse"}, Servers: []string{"clickhouse-server"},
+		Data: always("/var/lib/clickhouse"), Volume: always("/var/lib/clickhouse"),
+		Port: 9000, Password: []string{"CLICKHOUSE_PASSWORD"}, User: "CLICKHOUSE_USER",
+	},
 }
 
 func always(dir string) func(int) string { return func(int) string { return dir } }
@@ -140,11 +146,11 @@ func Of(kind dockwellv1.DatabaseEngine) *Engine {
 	return nil
 }
 
-// SQL says the engine speaks SQL.
+// SQL says the engine supports the PostgreSQL and MySQL family of management paths.
 func (e *Engine) SQL() bool {
 	switch e.Kind {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY,
-		dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB, dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
 		return false
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
@@ -239,6 +245,8 @@ type Found struct {
 	Moved bool
 	// Port is what it listens on in its container.
 	Port uint32
+	// HTTPPort is ClickHouse's HTTP port.
+	HTTPPort uint32
 	// PasswordSecret is the environment's secret its first user's password is in,
 	// when it uses one: in a variable its image reads, or in its command, as
 	// Redis's --requirepass ${REDIS_PASSWORD}.
@@ -263,6 +271,9 @@ func FromSpec(svc *resourcev1.Service) (Found, bool) {
 		return Found{}, false
 	}
 	f := Found{Engine: e, Port: e.Port}
+	if e.ClickHouse() {
+		f.HTTPPort = clickHousePort(app.GetCommand(), "--http_port", ClickHouseHTTPPort)
+	}
 	major := Major(app.GetImage())
 	dir := e.Data(major)
 	moved := false
@@ -354,12 +365,18 @@ func startsServer(e *Engine, app *resourcev1.Container) bool {
 	if app.GetNoEntrypoint() {
 		return false
 	}
-	if ep := app.GetEntrypoint(); len(ep) > 0 && (len(ep) > 1 || !slices.Contains(entrypoints, path.Base(ep[0]))) {
-		return false
+	if ep := app.GetEntrypoint(); len(ep) > 0 {
+		name := path.Base(ep[0])
+		if len(ep) != 1 || (!slices.Contains(entrypoints, name) && (!e.ClickHouse() || name != "entrypoint.sh")) {
+			return false
+		}
 	}
 	cmd := app.GetCommand()
 	if len(cmd) == 0 || strings.HasPrefix(cmd[0], "-") {
 		return true
+	}
+	if e.ClickHouse() && ClickHouseAuthWrapped(cmd) {
+		return startsServer(e, &resourcev1.Container{Command: cmd[4:]})
 	}
 	if shell := path.Base(cmd[0]); (shell == "sh" || shell == "bash") && len(cmd) >= 3 && cmd[1] == "-c" {
 		// A script that starts the server, as sh -c 'exec redis-server --requirepass
@@ -368,9 +385,13 @@ func startsServer(e *Engine, app *resourcev1.Container) bool {
 		if len(words) > 0 && words[0] == "exec" {
 			words = words[1:]
 		}
-		return len(words) > 0 && (slices.Contains(e.Servers, path.Base(words[0])) || e.startsFromConf(words[0]))
+		// Some catalog images write config fragments and hand off to the official entrypoint.
+		if n := len(words); e.ClickHouse() && n > 1 && words[n-2] == "exec" && words[n-1] == "/entrypoint.sh" {
+			return true
+		}
+		return len(words) > 0 && (slices.Contains(e.Servers, path.Base(words[0])) || e.startsFromConf(words[0]) || e.clickHouseServer(words))
 	}
-	return slices.Contains(e.Servers, path.Base(cmd[0])) || e.startsFromConf(cmd[0])
+	return slices.Contains(e.Servers, path.Base(cmd[0])) || e.startsFromConf(cmd[0]) || e.clickHouseServer(cmd)
 }
 
 // startsFromConf says Redis's or Valkey's image starts its server with a first
@@ -410,6 +431,9 @@ func Holds(target, dir string) bool {
 // PortOf reads the port a server's command line sets, or 0: -p 5433, -p5433,
 // --port=5433, --port 5433 or -c port=5433.
 func PortOf(e *Engine, cmd []string) uint32 {
+	if e.ClickHouse() {
+		return clickHousePort(cmd, "--tcp_port", 0)
+	}
 	for i, arg := range cmd {
 		next := ""
 		if i+1 < len(cmd) {

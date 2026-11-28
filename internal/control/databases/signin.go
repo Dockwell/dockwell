@@ -52,8 +52,8 @@ func (h *Handler) CheckDatabaseSignIn(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	if _, ok := connectable[server.db.GetEngine()]; !ok {
-		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, and an app connects to PostgreSQL, MySQL or MariaDB for now", server.ref.Name, database.Of(server.db.GetEngine()).Name))
+	if _, ok := connectable[server.db.GetEngine()]; !ok || database.Of(server.db.GetEngine()).ClickHouse() {
+		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, and a live user sign-in check is available for PostgreSQL, MySQL and MariaDB", server.ref.Name, database.Of(server.db.GetEngine()).Name))
 	}
 	if len(server.servers) == 0 {
 		return nil, authapi.Invalid(fmt.Errorf("%s runs on no server now, so nothing can sign in to it. Deploy it first", server.ref.Name))

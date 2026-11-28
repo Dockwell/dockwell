@@ -9,6 +9,7 @@ import {
   BackupState,
   ChangeService,
   type Database,
+  DatabaseEngine,
   Engine,
   type Event,
   EventKind,
@@ -497,11 +498,12 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
     }
   };
 
+  const backupPolicies = usePolicies().data?.policies ?? [];
   const actionsFor = (db: Database): MenuAction[] => {
     const environment = db.resource?.scope ?? "";
     const target = consoleTarget(db, health.of({ id: db.id }));
     const mayBackUp = may(BackupService.method.createBackup, { environment });
-    const canBackUp = backsUp(db);
+    const canBackUp = backsUp(db, policiesOf(db, backupPolicies).length > 0);
     const externalHost = db.externalAccess ? externalAddressOf(db) : "";
     return [
       {
@@ -532,13 +534,16 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
         id: "backup",
         icon: "archive",
         label: t`Back up now`,
-        off: !canBackUp
-          ? db.volumeExternal
-            ? t`Its volume isn't one Dockwell backs up`
-            : t`It has no volume to back up`
-          : mayBackUp.allowed
-            ? undefined
-            : mayBackUp.reason,
+        off:
+          db.engine === DatabaseEngine.CLICKHOUSE && !canBackUp
+            ? t`Not yet for ClickHouse`
+            : !canBackUp
+              ? db.volumeExternal
+                ? t`Its volume isn't one Dockwell backs up`
+                : t`It has no volume to back up`
+              : mayBackUp.allowed
+                ? undefined
+                : mayBackUp.reason,
         onSelect: () => setBackingUp(db),
       },
       {
@@ -558,7 +563,7 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
             },
           ]
         : []),
-      ...(makesUsers(db.engine)
+      ...(makesUsers(db.engine) || db.engine === DatabaseEngine.CLICKHOUSE
         ? [
             {
               id: "databases",
@@ -568,12 +573,16 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
             },
           ]
         : []),
-      {
-        id: "users",
-        icon: "user",
-        label: t`Users`,
-        onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
-      },
+      ...(db.engine !== DatabaseEngine.CLICKHOUSE
+        ? [
+            {
+              id: "users",
+              icon: "user" as const,
+              label: t`Users`,
+              onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
+            },
+          ]
+        : []),
       {
         id: "backups",
         icon: "archive",
@@ -677,6 +686,8 @@ function DatabasesTable({
   const health = useHealth();
   const heads = useColumnHeads(fleet);
   const backups = useBackupWords();
+  const policies = usePolicies().data?.policies ?? [];
+  const schedule = useScheduleWords();
   const backUpDaily = useBackUpDaily();
   const destinations = useDestinations().data?.destinations ?? [];
   const mayPlan = useMay();
@@ -715,6 +726,18 @@ function DatabasesTable({
       );
     },
     backups: (db) => {
+      if (db.engine === DatabaseEngine.CLICKHOUSE) {
+        const policy = policiesOf(db, policies)[0];
+        if (!backsUp(db, Boolean(policy))) {
+          return <span className="databases-muted">{t`Not yet for ClickHouse`}</span>;
+        }
+        return (
+          <div className="dw-cell">
+            {policy?.spec ? <span>{schedule(policy.spec)}</span> : null}
+            <span className="databases-muted">{t`A volume copy can contain partial writes`}</span>
+          </div>
+        );
+      }
       const { how, when, unscheduled } = backups(db, now);
       const may = mayPlan(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
       return unscheduled ? (
@@ -1111,7 +1134,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   // A catalog install's database goes by the name the person gave the install (#796).
   const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
-  const withVolume = databases.filter((db) => db.volumeId !== "");
+  const withVolume = databases.filter((db) => backsUp(db, policiesOf(db, policies).length > 0));
   const scheduled = withVolume.filter((db) => policiesOf(db, policies).length > 0);
   // The newest run of any of them, whole or not: one that failed since the last whole
   // one is what "last run" has to say.
@@ -1151,16 +1174,23 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
           <dd className="databases-fact-list">
             {databases.map((db) => {
               const policy = policiesOf(db, policies)[0];
-              const isUnscheduled = db.volumeId !== "" && !db.volumeExternal && !policy;
+              const hasBackup = backsUp(db, Boolean(policy));
+              const isUnscheduled = hasBackup && !policy;
               const mayPlan = may(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
-              const how = !db.volume
-                ? t`No volume, so its data goes with its container`
-                : db.volumeExternal
-                  ? t`In a volume Dockwell didn't make`
-                  : [
-                      method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") || engineName(db.engine),
-                      policy?.spec ? schedule(policy.spec) : t`not scheduled`,
-                    ].join(", ");
+              const how =
+                db.engine === DatabaseEngine.CLICKHOUSE && !hasBackup
+                  ? t`Not yet for ClickHouse`
+                  : !db.volume
+                    ? t`No volume, so its data goes with its container`
+                    : db.volumeExternal
+                      ? t`In a volume Dockwell didn't make`
+                      : [
+                          db.engine === DatabaseEngine.CLICKHOUSE
+                            ? t`A volume copy can contain partial writes`
+                            : method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") ||
+                              engineName(db.engine),
+                          policy?.spec ? schedule(policy.spec) : t`not scheduled`,
+                        ].join(", ");
               const place = databaseContext(
                 db,
                 shownName(db, "database").app,

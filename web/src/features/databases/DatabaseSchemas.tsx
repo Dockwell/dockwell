@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   type Database,
+  DatabaseEngine,
   type DatabaseReading,
   DatabaseService,
   type InnerDatabase,
@@ -47,8 +48,35 @@ export function DatabaseSchemas() {
   }
   return (
     <div className="database-overview">
-      <LogicalDatabasesSection db={db} read={read} />
+      {db.engine === DatabaseEngine.CLICKHOUSE ? (
+        <ClickHouseDatabases db={db} read={read} />
+      ) : (
+        <LogicalDatabasesSection db={db} read={read} />
+      )}
     </div>
+  );
+}
+
+function ClickHouseDatabases({ db, read }: { db: Database; read: DatabaseReading }) {
+  const { t, i18n } = useLingui();
+  const name = useShownName()(db, "database").title;
+  return (
+    <Table
+      className="database-table"
+      caption={t`Databases in ${name}`}
+      density="compact"
+      rows={read.databases.map((d) => ({ ...d, id: d.name }))}
+      columns={[
+        { key: "name", header: t`Database`, render: (d) => <code>{d.name}</code> },
+        { key: "engine", header: t`Engine`, render: (d) => <code>{d.engine}</code> },
+        {
+          key: "size",
+          header: t({ message: "Size", context: "how much data" }),
+          align: "right",
+          render: (d) => formatBytes(d.sizeBytes, i18n.locale),
+        },
+      ]}
+    />
   );
 }
 

@@ -19,10 +19,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
-	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
@@ -139,7 +137,6 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
 	cfg.Desired, cfg.Journal = kept, journal
-	linkJoins(cfg.Drivers, cfg.Desired)
 	lookups(&cfg, stdio, g)
 	if err := testAway(&cfg, stdio); err != nil {
 		return err
@@ -214,50 +211,6 @@ func testAway(cfg *agent.Config, stdio IO) error {
 	}
 	cfg.AwayAfter, cfg.ReconcileEvery = d, d
 	return nil
-}
-
-// linkJoins has the agent's containers join, as each is made, the link networks of
-// other environments that name its service, from what the agent keeps of each
-// network: a database shared with an app stays on the app's link network through a
-// rollback, an undo, or a remake while the control plane is away (ADR 0084).
-func linkJoins(drivers *resource.Registry, kept agent.Desired) {
-	if kept == nil || drivers == nil {
-		return
-	}
-	d, err := drivers.Driver(container.Kind)
-	if err != nil {
-		return
-	}
-	cd, ok := d.(*container.Driver)
-	if !ok {
-		return
-	}
-	rt, ok := cd.Runtime.(*container.Docker)
-	if !ok {
-		return
-	}
-	rt.Joins = func(t container.Target) []container.Join {
-		var out []container.Join
-		for _, ref := range kept.Refs() {
-			if ref.Kind != network.Kind {
-				continue
-			}
-			r, ok, err := kept.Read(ref)
-			if err != nil || !ok || r.Spec == nil {
-				continue
-			}
-			var n resourcev1.Network
-			if proto.Unmarshal(r.Spec, &n) != nil {
-				continue
-			}
-			for _, m := range n.GetMembers() {
-				if project, svc := network.MemberTarget(m); project == t.Project && svc == t.Service {
-					out = append(out, container.Join{Network: network.TargetOf(ref).Name, Alias: m.GetAlias()})
-				}
-			}
-		}
-		return out
-	}
 }
 
 // keptDesired is the agent's cache of what this server should run, sealed in its

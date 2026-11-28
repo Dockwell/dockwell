@@ -4882,6 +4882,10 @@ msgstr "{0} · 由管理员选择"
 msgid "A new one for {name}"
 msgstr "为 {name} 新建一个"
 
+#. placeholder {0}: firstUser(server, readOf(firstReading(server)))
+msgid "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+msgstr "管理员 <0>{0}</0> 可读取和修改所有数据库。此链接仅供一个应用使用。"
+
 msgid "Checked as the plan applies"
 msgstr "应用计划时检查"
 
@@ -4907,14 +4911,17 @@ msgstr "数据库名"
 msgid "Database server"
 msgstr "数据库服务器"
 
+msgid "HTTP port"
+msgstr "HTTP 端口"
+
 msgid "Host"
 msgstr "主机"
 
 msgid "Host and port"
 msgstr "主机和端口"
 
-msgid "It connects to a PostgreSQL, MySQL or MariaDB that runs where it does."
-msgstr "它连接到与它运行在同一服务器上的 PostgreSQL、MySQL 或 MariaDB。"
+msgid "It connects to a PostgreSQL, MySQL, MariaDB or ClickHouse that runs where it does."
+msgstr "可连接到与应用运行在同一服务器上的 PostgreSQL、MySQL、MariaDB 或 ClickHouse。"
 
 msgid "Its data stays where it is"
 msgstr "其数据保留在原处"
@@ -4924,6 +4931,9 @@ msgstr "其密码所在"
 
 msgid "Its values come from the link, and follow the database"
 msgstr "其值来自链接，并随数据库变化"
+
+msgid "Native port"
+msgstr "原生协议端口"
 
 msgid "Never its administrator"
 msgstr "绝不是其管理员"
@@ -9591,6 +9601,9 @@ msgstr "关于 {app}"
 msgid "App information"
 msgstr "应用信息"
 
+msgid "Built into Dockwell"
+msgstr "Dockwell 内置"
+
 msgid "Catalog to install from"
 msgstr "安装来源目录"
 
@@ -13161,6 +13174,15 @@ msgstr "应用前，请确认你还有其他登录途径，例如服务商的控
 msgid "Checks {domain} every minute"
 msgstr "每分钟检查一次 {domain}"
 
+msgid "ClickHouse restarts with a password hash"
+msgstr "ClickHouse 将重启并使用密码哈希"
+
+msgid "ClickHouse restarts with bounded logging"
+msgstr "ClickHouse 将重启并限制日志增长"
+
+msgid "Clients with their own settings need the new password."
+msgstr "使用独立设置的客户端需要更新密码。"
+
 msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
 msgstr "{domains} 的 DNS 记录会保留。若要编辑仍通过此提供方发布的路由，请让管理员恢复访问权限。由此提供方验证的证书可能无法续期。"
 
@@ -13208,6 +13230,9 @@ msgstr "它们会照常运行。"
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
+
+msgid "Existing logs stay on disk."
+msgstr "已有日志会保留在磁盘上。"
 
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "文件在读取时发生了变化，因此可能包含写到一半的内容，应用可能无法从中启动。"
@@ -13272,6 +13297,9 @@ msgstr "其他任何多次登录失败的地址都会被它封禁，包括你的
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
+
+msgid "It can read and change every database. Only one app can use this link."
+msgstr "它可读取和修改所有数据库。此链接仅供一个应用使用。"
 
 msgid "It can read and write that path on the server."
 msgstr "它可以读写服务器上的该路径。"
@@ -13795,6 +13823,9 @@ msgstr "{0, plural, other {{list} 在加载期间停止，此后产生的内容�
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, other {{list} 会在此期间停止}}"
+
+msgid "{app} connects as administrator {user}"
+msgstr "{app} 以管理员 {user} 的身份连接"
 
 msgid "{app}'s data stays in {before}; {after} starts empty"
 msgstr "{app} 的数据留在 {before} 中；{after} 从空库开始"
@@ -15643,6 +15674,9 @@ msgstr "复制其文件，{engine} 会短暂停止"
 msgid "A plan, which keeps what it replaces for 7 days"
 msgstr "通过计划进行，被替换的内容保留 7 天"
 
+msgid "A volume copy can contain partial writes"
+msgstr "卷副本可能包含未完成的写入"
+
 msgid "Backups of {name}, newest first"
 msgstr "{name} 的备份，最新在前"
 
@@ -15745,14 +15779,29 @@ msgstr "复制其文件，会短暂停止它"
 msgid "All its backups"
 msgstr "它的全部备份"
 
+msgid "Anyone who can reach it can sign in."
+msgstr "任何能访问它的人都可以登录。"
+
 msgid "Can do anything"
 msgstr "拥有全部权限"
 
 msgid "Change password"
 msgstr "修改密码"
 
+msgid "ClickHouse logs can fill its disk"
+msgstr "ClickHouse 日志可能占满磁盘"
+
+msgid "ClickHouse stores a readable password in its data"
+msgstr "ClickHouse 的数据中存有可读取的密码"
+
+msgid "ClickHouse takes no password"
+msgstr "ClickHouse 无需密码"
+
 msgid "Connection string"
 msgstr "连接字符串"
+
+msgid "Copies of its data can contain the password."
+msgstr "其数据副本可能包含此密码。"
 
 msgid "Data at {features}'s features, which its next upgrade raises"
 msgstr "数据处于 {features} 的功能，下次升级会先提升"
@@ -15774,6 +15823,9 @@ msgstr "请先为它配置 {set} 所有成员共用的 <0>--keyFile</0>，创建
 
 msgid "Give it a volume"
 msgstr "为它添加卷"
+
+msgid "HTTP connection URL"
+msgstr "HTTP 连接 URL"
 
 msgid "It sets no most"
 msgstr "未设置上限"
@@ -15811,8 +15863,14 @@ msgstr "保存在密钥 <0>{secret}</0> 中"
 msgid "Keys asked for that were there"
 msgstr "查询的键中命中的比例"
 
+msgid "Limit log growth"
+msgstr "限制日志增长"
+
 msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
 msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1>。"
+
+msgid "Marks served from cache"
+msgstr "从缓存读取的标记"
 
 msgid "Newest"
 msgstr "最新"
@@ -15822,6 +15880,9 @@ msgstr "暂无用户"
 
 msgid "Not scheduled"
 msgstr "未安排"
+
+msgid "Not yet for ClickHouse"
+msgstr "ClickHouse 暂不支持备份"
 
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"
@@ -15841,8 +15902,14 @@ msgstr "副本集 {set}：每次备份都是同一时刻的快照，暂时无法
 msgid "Restore the newest"
 msgstr "恢复最新备份"
 
+msgid "Rotate password"
+msgstr "轮换密码"
+
 msgid "Runs alone: a backup isn't one moment while something writes"
 msgstr "单独运行：有写入时，备份不是同一时刻的快照"
+
+msgid "Set a password"
+msgstr "设置密码"
 
 msgid "Since"
 msgstr "此后"
@@ -15862,6 +15929,9 @@ msgstr "最近一次失败：{latestError}"
 
 msgid "The most it takes is {mostWords}"
 msgstr "最多可接受 {mostWords} 个"
+
+msgid "The plan restarts ClickHouse with rotating warning logs and stops writing system log tables."
+msgstr "计划将重启 ClickHouse，轮换警告日志，并停止写入系统日志表。"
 
 msgid "This server's disk, unencrypted"
 msgstr "本服务器磁盘，未加密"

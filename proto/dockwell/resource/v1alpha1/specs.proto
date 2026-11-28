@@ -2842,6 +2842,8 @@ enum LinkPart {
   LINK_PART_PASSWORD = 6;
   LINK_PART_URL = 7;
   LINK_PART_TLS = 8;
+  // The native TCP port of ClickHouse, beside its HTTP port.
+  LINK_PART_NATIVE_PORT = 9;
   LINK_PART_KEY_PREFIX = 40;
   LINK_PART_ENGINE = 41;
   // S3 storage's parts, numbered as the catalog format's Part (ADR 0099).

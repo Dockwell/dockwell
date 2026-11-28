@@ -178,7 +178,8 @@ func ReadLockout(ctx context.Context, client *docker.Client, c *docker.Container
 		}
 		return &Lockout{Owner: user, Host: host, Restore: "ALTER USER " + strings.TrimPrefix(create, "CREATE USER ") + ";\n"}, nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB,
-		dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY,
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
 	}
 	return nil, fmt.Errorf("restoring one %s database alone isn't something Dockwell does yet", e.Name)
 }
@@ -384,7 +385,8 @@ func LockOut(ctx context.Context, client *docker.Client, c *docker.Container, e 
 		}
 		return password, nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB,
-		dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY,
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
 	}
 	return "", fmt.Errorf("restoring one %s database alone isn't something Dockwell does yet", e.Name)
 }

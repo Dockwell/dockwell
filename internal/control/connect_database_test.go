@@ -143,7 +143,7 @@ func TestAnAppFromNoEntryConnectsToADatabase(t *testing.T) {
 			&dockwellv1.ConnectDatabaseRequest{Id: "db", App: "wiki", AppProject: "tools", Sets: sets},
 		},
 		{
-			"a cache", "", "an app connects to PostgreSQL, MySQL or MariaDB for now",
+			"a cache", "", "an app connects to PostgreSQL, MySQL, MariaDB or ClickHouse for now",
 			&dockwellv1.ConnectDatabaseRequest{Id: "cache", App: "blog", AppProject: "tools", Sets: sets},
 		},
 	} {

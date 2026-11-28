@@ -400,12 +400,43 @@ func (c *Client) ContainerOf(ctx context.Context, project, service string, numbe
 	}
 	for i := range list {
 		s := &list[i]
-		if s.Labels[LabelOneoff] == "True" || len(s.Names) == 0 || forNow().MatchString(s.Names[0]) {
-			continue
+		if canonicalContainer(s) {
+			return c.InspectContainer(ctx, s.ID)
 		}
-		return c.InspectContainer(ctx, s.ID)
 	}
 	return nil, noContainer(InstanceName(project, service, number))
+}
+
+// ServiceContainer returns a running canonical container of the service, or a
+// stopped one when none is running. Replacements can advance the replica number.
+func (c *Client) ServiceContainer(ctx context.Context, project, service string) (*Container, error) {
+	list, err := c.ListContainers(ctx, map[string][]string{"label": {
+		LabelProject + "=" + project, LabelService + "=" + service,
+	}})
+	if err != nil {
+		return nil, err
+	}
+	var stopped string
+	for i := range list {
+		s := &list[i]
+		if !canonicalContainer(s) {
+			continue
+		}
+		if s.State == "running" {
+			return c.InspectContainer(ctx, s.ID)
+		}
+		if stopped == "" {
+			stopped = s.ID
+		}
+	}
+	if stopped != "" {
+		return c.InspectContainer(ctx, stopped)
+	}
+	return nil, noContainer(InstanceName(project, service, 1))
+}
+
+func canonicalContainer(s *ContainerSummary) bool {
+	return s.Labels[LabelOneoff] != "True" && len(s.Names) != 0 && !forNow().MatchString(s.Names[0])
 }
 
 func noContainer(name string) error {
