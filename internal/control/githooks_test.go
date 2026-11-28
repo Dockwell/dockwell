@@ -442,6 +442,7 @@ func TestAPushLeavesWhatNeedsAPersonForOne(t *testing.T) {
 func TestPushesToOneAppDeployOneAtATime(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Parallel()
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "First", map[string]string{"Dockerfile": webDockerfile})
 		g.openWhere(t, g.done(t, g.propose(t, g.buildEdit("main", nil))))

@@ -20,7 +20,6 @@ import (
 	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/events"
-	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
@@ -154,7 +153,7 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	// No alert evaluator runs: the control plane's own, on the clock, fires for the
 	// failed change below whenever it ticks, which puts an alert among what Dockwell
 	// did on a loaded machine and not on a quiet one.
-	f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
+	f := startFreshFullConfig(t, backend, nil)
 	b := signedIn(t, f)
 	seen := &recorder{next: b}
 	ev := eventClient(seen, b.origin)
@@ -534,7 +533,7 @@ func TestProjectEventsAndResources(t *testing.T) {
 }
 
 func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
-	f := startFull(t, backend, nil)
+	f := startFreshFullConfig(t, backend, nil)
 	b := signedIn(t, f)
 	c := changeClient(b, b.origin)
 	ev := eventClient(b, b.origin)

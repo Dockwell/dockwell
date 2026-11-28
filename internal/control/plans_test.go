@@ -3,12 +3,11 @@
 package control
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -268,60 +268,84 @@ func TestRecoveringIsNeverRefused(t *testing.T) {
 	})
 }
 
-// A plan made from a spec that has moved on would quietly undo what moved it. It
-// took a race to show: the plan summarised "Publish port 10003" dropped the port
-// that had just been added.
+// A port added between another addition's read and plan must survive. The
+// second addition is stale, and a new plan from the current spec keeps both.
 func TestPortsAddedTogetherAreNeverLost(t *testing.T) {
 	t.Parallel()
-	b := newBench(t, store.SQLite)
-	b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
-	web := b.service(t, "shop", "web")
-	port := uint32(10000)
-	stale, proposed := 0, 0
-	for range 30 {
-		port += 2
-		first, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port, ContainerPort: 80}))
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		b := newBench(t, backend)
+		scope := b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopFile})
+		web := b.service(t, "shop", "web")
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		add := func(port uint32) (*connect.Response[dockwellv1.AddServicePortResponse], error) {
+			return b.s.AddServicePort(ctx, connect.NewRequest(&dockwellv1.AddServicePortRequest{
+				Id: web.GetId(), HostPort: port, ContainerPort: 80,
+			}))
+		}
+
+		const firstPort, secondPort = 10002, 10003
+		first, err := add(firstPort)
 		if err != nil {
 			t.Fatal(err)
 		}
-		applying := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Go(func() {
-			defer close(applying)
-			applied(t, b.c, first.Msg.GetChange())
-		})
-		// While it applies, as a plan made after that can't lose what it added.
-	proposing:
-		for range 40 {
-			proposed++
-			second, err := b.s.AddServicePort(t.Context(), connect.NewRequest(&dockwellv1.AddServicePortRequest{Id: web.GetId(), HostPort: port + 1, ContainerPort: 80}))
-			if reasonOf(err) == "plan_stale" {
-				stale++
-				continue
-			}
-			if err != nil {
-				break // the first has applied, and this port's own check ended the round
-			}
-			for _, r := range second.Msg.GetChange().GetPlan().GetResources() {
-				for _, c := range r.GetChanges() {
-					number := strconv.FormatUint(uint64(port), 10)
-					if strings.Contains(c.GetFrom(), number) && !strings.Contains(c.GetTo(), number) {
-						t.Errorf("the plan for %d drops %d: %v", port+1, port, r.GetChanges())
+
+		// AddServicePort has read and edited the spec before the engine sees
+		// it. Pause its proposal there until a different revision is current.
+		read, proceed := make(chan struct{}), make(chan struct{})
+		var paused atomic.Bool
+		b.f.engine.SetEditHook(func(ctx context.Context, _ *store.Tx, edits []revision.Edit) ([]revision.Edit, []revision.Note, error) {
+			for _, edit := range edits {
+				if spec, ok := edit.Spec.(*resourcev1.Service); ok &&
+					slices.ContainsFunc(spec.GetApp().GetPorts(), func(p *resourcev1.PortMapping) bool { return p.GetHostPort() == secondPort }) &&
+					paused.CompareAndSwap(false, true) {
+					close(read)
+					select {
+					case <-proceed:
+					case <-ctx.Done():
+						return nil, nil, ctx.Err()
 					}
 				}
 			}
-			if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: second.Msg.GetChange().GetId()})); err != nil {
-				t.Fatal(err)
+			return edits, nil, nil
+		})
+		asked := make(chan error, 1)
+		go func() {
+			_, err := add(secondPort)
+			asked <- err
+		}()
+		select {
+		case <-read:
+		case <-ctx.Done():
+			t.Fatal("the second addition didn't reach planning")
+		}
+		b.done(t, first.Msg.GetChange())
+		close(proceed)
+		select {
+		case err := <-asked:
+			if reasonOf(err) != "plan_stale" {
+				t.Fatalf("an addition from the old revision should be stale: %v", err)
 			}
-			select {
-			case <-applying:
-				break proposing
-			default:
+		case <-ctx.Done():
+			t.Fatal("the second addition didn't finish planning")
+		}
+
+		fresh, err := add(secondPort)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b.done(t, fresh.Msg.GetChange())
+		running := b.e.Serving(docker.ContainerName(docker.Project(scope), "web"))
+		if running == nil {
+			t.Fatal("the app isn't running")
+		}
+		bindings := running.HostConfig.PortBindings["80/tcp"]
+		for _, host := range []string{"10002", "10003"} {
+			if !slices.ContainsFunc(bindings, func(p docker.PortBinding) bool { return p.HostPort == host }) {
+				t.Errorf("port %s was lost: %+v", host, bindings)
 			}
 		}
-		wg.Wait()
-	}
-	t.Logf("of %d plans made as others applied, %d were refused as stale", proposed, stale)
+	})
 }
 
 // To the API and CLI an update of what runs used to read as a new app, and a

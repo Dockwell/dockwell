@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
@@ -48,7 +50,9 @@ func newDNSStandWith(t *testing.T, prepare func(*fullServer)) *dnsStand {
 // newDNSStandOn is newDNSStandWith, its control plane on backend.
 func newDNSStandOn(t *testing.T, backend store.Backend, prepare func(*fullServer)) *dnsStand {
 	t.Helper()
-	f := startFull(t, backend, nil)
+	f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+		c.ManualAlerts = false
+	})
 	if prepare != nil {
 		prepare(f)
 	}
@@ -307,7 +311,9 @@ func (l *certLoader) HearControlPlane(func() bool) {}
 // control plane gives it, sealed to its stream, opens there whole (ADR 0088).
 func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
 	t.Parallel()
-	f := startFull(t, store.SQLite, nil)
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+		c.ManualAlerts = false
+	})
 	l := &certLoader{}
 	f.certLoader = l
 	f.addServerWith(t, nil)

@@ -292,12 +292,23 @@ func startFullWith(t *testing.T, backend store.Backend, public https.Source, log
 // config before it starts.
 func startFullConfig(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options, tweak func(*Config)) *fullServer {
 	t.Helper()
+	return startFullOn(t, backend, public, logger, ingress, logs, tweak, openStartedStore)
+}
+
+// startFreshFullConfig starts before the default project, rules and catalog exist.
+func startFreshFullConfig(t *testing.T, backend store.Backend, tweak func(*Config)) *fullServer {
+	t.Helper()
+	return startFullOn(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, tweak, storetest.Open)
+}
+
+func startFullOn(t *testing.T, backend store.Backend, public https.Source, logger *slog.Logger, ingress net.Listener, logs logapi.Options, tweak func(*Config), open func(testing.TB, store.Backend) (*store.DB, string)) *fullServer {
+	t.Helper()
 	dir := t.TempDir()
 	key, err := seal.LoadOrCreate(filepath.Join(dir, "key"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	db, path := storetest.Open(t, backend)
+	db, path := open(t, backend)
 	ident, err := identity.Bootstrap(t.Context(), db, key, logger)
 	if err != nil {
 		t.Fatal(err)
@@ -343,6 +354,9 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		AlertClient: &http.Client{},
 		// A test's catalog source is served on loopback, which only a test's client reaches.
 		CatalogClient: gitfetchtest.Client(),
+		// Tests that use the scheduled alert, check, certificate or publishing
+		// workers enable them in their fixture.
+		ManualAlerts: true,
 		// A test that has a backup fall due moves the handler's clock and calls
 		// RunDue itself. The control plane's own looks, as it starts and every 30 s
 		// of real time, would run beside it with the same clock, and record a run

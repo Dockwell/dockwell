@@ -15,7 +15,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
-	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/docker"
 )
 
@@ -121,9 +121,9 @@ func (l *lookout) seen() (first, last map[string]time.Time) {
 }
 
 // healthRig is a move rig whose agent says how web is.
-func healthRig(t *testing.T) *moveRig {
+func healthRig(t *testing.T, moveGrace time.Duration) *moveRig {
 	t.Helper()
-	m := startMoveRig(t, nil)
+	m := startMoveRigWith(t, logs.Options{}, nil, moveGrace)
 	m.server.stop()
 	waitConnected(t, m.f, m.server.id.ServerID, false)
 	m.server.health = saysRunning{project: docker.Project(m.scope(t))}
@@ -155,7 +155,8 @@ func TestAMoveIsntAServerGoneToWhatReadsIt(t *testing.T) {
 	t.Parallel()
 	for _, reconnect := range []time.Duration{0, 150 * time.Millisecond, 400 * time.Millisecond} {
 		t.Run(reconnect.String(), func(t *testing.T) {
-			m := healthRig(t)
+			t.Parallel()
+			m := healthRig(t, 0)
 			m.door.hold.Store(int64(reconnect))
 			l := lookOut(t, m)
 			eventually(t, "a few reads", func() bool { return l.reads.Load() > 5 })
@@ -183,14 +184,15 @@ func TestAMoveIsntAServerGoneToWhatReadsIt(t *testing.T) {
 func TestAServerThatDoesntReturnFromAMoveReadsGoneInTime(t *testing.T) {
 	t.Parallel()
 	const late = 3 * time.Second // what a busy machine adds
-	m := healthRig(t)
+	const grace = 500 * time.Millisecond
+	m := healthRig(t, grace)
 	l := lookOut(t, m)
 	m.door.hold.Store(int64(time.Hour))
 	moved := time.Now()
 	m.move()
 	m.waitBetweenStreams(t)
 	for _, what := range []string{"health HEALTH_STATE_UNKNOWN", "domains", "the fleet"} {
-		waitWithin(t, agentapi.MoveGrace+late, what+" to read as gone", func() bool {
+		waitWithin(t, grace+late, what+" to read as gone", func() bool {
 			first, _ := l.seen()
 			_, ok := first[what]
 			return ok
@@ -200,8 +202,8 @@ func TestAServerThatDoesntReturnFromAMoveReadsGoneInTime(t *testing.T) {
 	for what, at := range first {
 		took := at.Sub(moved)
 		t.Logf("%s read as gone %s after the move", what, took)
-		if took < agentapi.MoveGrace-time.Second || took > agentapi.MoveGrace+late {
-			t.Errorf("%s read as gone %s after the move, want about %s", what, took, agentapi.MoveGrace)
+		if took < grace-50*time.Millisecond || took > grace+late {
+			t.Errorf("%s read as gone %s after the move, want about %s", what, took, grace)
 		}
 	}
 	l.end()

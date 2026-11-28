@@ -275,7 +275,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		// opens the next within a second, so its server doesn't read as gone in
 		// between, unless it isn't back within MoveGrace.
 		if session != nil && session.leftMoving() {
-			h.fleet.Hold(peer.ServerID, MoveGrace)
+			h.fleet.Hold(peer.ServerID, h.agents.moveGracePeriod())
 		}
 		detach()
 	}()

@@ -49,7 +49,10 @@ func TestCheckNowRunsTheCheckAtOnce(t *testing.T) {
 			}},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
-		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.CheckClient = client })
+		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+			c.CheckClient = client
+			c.ManualAlerts = false
+		})
 		b := signedIn(t, f)
 		c := changeClient(b, b.origin)
 		apply(t, c, propose(t, c, "Watch the shop", &dockwellv1.Edit{
@@ -162,7 +165,10 @@ func TestCheckNowKeepsARunWhoeverHangsUp(t *testing.T) {
 			}},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
-		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.CheckClient = client })
+		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) {
+			c.CheckClient = client
+			c.ManualAlerts = false
+		})
 		b := signedIn(t, f)
 		c := changeClient(b, b.origin)
 		apply(t, c, propose(t, c, "Watch the shop", &dockwellv1.Edit{

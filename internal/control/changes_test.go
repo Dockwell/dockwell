@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -383,8 +384,15 @@ func ruleEdit(name string, port uint32) *dockwellv1.Edit {
 
 func propose(t *testing.T, c dockwellv1connect.ChangeServiceClient, summary string, edits ...*dockwellv1.Edit) *dockwellv1.Change {
 	t.Helper()
-	res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: summary, Edits: edits}))
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	res, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: summary, Edits: edits}))
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			var stacks bytes.Buffer
+			_ = pprof.Lookup("goroutine").WriteTo(&stacks, 1)
+			t.Logf("goroutines after ProposeChange timed out:\n%s", stacks.String())
+		}
 		t.Fatalf("ProposeChange %q: %v", summary, err)
 	}
 	return res.Msg.GetChange()
@@ -527,7 +535,7 @@ func TestPlanApplyAndUndoThroughTheAPI(t *testing.T) {
 }
 
 func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
-	f := startFull(t, backend, nil)
+	f := startFreshFullConfig(t, backend, nil)
 	b := signedIn(t, f)
 	hz1 := f.addServer(t, true)
 	c := changeClient(b, b.origin)

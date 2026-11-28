@@ -447,6 +447,7 @@ func TestADumpThroughTheAPI(t *testing.T) {
 }
 
 func testADumpThroughTheAPI(t *testing.T, backend store.Backend, stopped bool) {
+	t.Parallel()
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
