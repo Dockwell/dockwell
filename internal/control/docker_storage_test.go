@@ -80,7 +80,7 @@ func storageControl(t *testing.T, backend store.Backend, client *docker.Client, 
 			keeps: true,
 			drivers: resource.NewRegistry(&ctr, &service.Driver{Containers: ctr, Movers: backups}, &network.Driver{Client: client},
 				&database.UserDriver{Client: client, Dir: t.TempDir()},
-				&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, BacksUp: backups}),
+				&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: backups, BacksUp: backups, Moves: backups}),
 		}
 		s.connect(t, f)
 		f.lastDocker = s
