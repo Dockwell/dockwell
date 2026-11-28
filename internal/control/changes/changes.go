@@ -92,9 +92,10 @@ type Handler struct {
 
 // GitLogins checks a build's git login, as a plan is made: one named must reach
 // the project and list the repository, and one left out is the installation of a
-// GitHub App that does, or "" where none does.
+// GitHub App or GitLab connection that does, or "" where none does. It runs
+// outside any store transaction because GitLab auto-pick may probe the host.
 type GitLogins interface {
-	PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error)
+	PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error)
 }
 
 // SetGitLogins has plans check and fill builds' git logins with g (ADR 0098).
@@ -1325,8 +1326,10 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 	}
 	kinds := h.engine.Kinds()
 	out := make([]revision.Edit, 0, len(in))
+	editProjects := make([]string, 0, len(in))
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		var tree *scope.Tree
+		var envProjects map[string]string
 		for i, e := range in {
 			ref := resourcepb.FromRef(e.GetResource())
 			var spec proto.Message
@@ -1369,6 +1372,12 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				if err != nil {
 					return err
 				}
+				envProjects = make(map[string]string)
+				for _, p := range loaded.Projects {
+					for _, env := range p.Environments {
+						envProjects[env.ID] = p.ID
+					}
+				}
 				loaded.Projects = inReach(ctx, loaded.Projects)
 				tree = &loaded
 			}
@@ -1395,15 +1404,13 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 					return err
 				}
 				out = append(out, revision.Edit{Ref: ref, Spec: spec, Base: int(e.GetBaseRevision())})
+				editProjects = append(editProjects, "")
 				continue
 			}
 			if spec, err = withNewAppDefaults(ctx, tx, ref, spec); err != nil {
 				return err
 			}
 			if spec, err = withInstallZone(ctx, tx, spec); err != nil {
-				return err
-			}
-			if spec, err = h.withGitLogin(ctx, tx, ref, spec); err != nil {
 				return err
 			}
 			// None keeps a service where it runs.
@@ -1428,10 +1435,21 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				KeepSharedIn: e.GetKeepSharedIn(), DeleteShared: e.GetDeleteShared(),
 				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate() && (ref.Kind == "network" || ref.Kind == "volume"),
 			})
+			editProjects = append(editProjects, envProjects[ref.Scope])
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		spec, err := h.withGitLogin(ctx, editProjects[i], out[i].Ref, out[i].Spec)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Spec = spec
+	}
+	return out, nil
 }
 
 // runIntentOnly recognizes the narrow edit that changes run state without
@@ -1481,9 +1499,10 @@ func withNewAppDefaults(ctx context.Context, tx *store.Tx, ref resource.Ref, spe
 
 // withGitLogin checks the git login of a service's build from Git, for the
 // project of its environment, and gives one that names none the GitHub App's
-// installation that reaches its repository there, if one does (ADR 0098). A copy
-// is changed, never the request.
-func (h *Handler) withGitLogin(ctx context.Context, tx *store.Tx, ref resource.Ref, spec proto.Message) (proto.Message, error) {
+// installation or GitLab connection that reaches its repository there, if one
+// does (ADR 0098, ADR 0113). Runs outside any store transaction. A copy is
+// changed, never the request.
+func (h *Handler) withGitLogin(ctx context.Context, project string, ref resource.Ref, spec proto.Message) (proto.Message, error) {
 	svc, ok := spec.(*resourcev1.Service)
 	g := svc.GetBuild().GetGit()
 	if !ok || g == nil {
@@ -1496,20 +1515,12 @@ func (h *Handler) withGitLogin(ctx context.Context, tx *store.Tx, ref resource.R
 		}
 		return spec, nil
 	}
-	tree, err := scope.Load(ctx, tx)
+	pinned, err := h.gitLogins.PinGitLogin(ctx, project, g.GetUrl(), login)
 	if err != nil {
-		return nil, err
-	}
-	project := ""
-	for _, p := range tree.Projects {
-		for _, e := range p.Environments {
-			if e.ID == ref.Scope {
-				project = p.ID
-			}
+		var refusal *connect.Error
+		if errors.As(err, &refusal) {
+			return nil, err
 		}
-	}
-	pinned, err := h.gitLogins.PinGitLogin(ctx, tx, project, g.GetUrl(), login)
-	if err != nil {
 		return nil, fault.New(revision.ErrInvalid, "%s's build: %w", ref.Name, err)
 	}
 	if pinned == login {

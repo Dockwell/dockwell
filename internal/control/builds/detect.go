@@ -105,15 +105,15 @@ func (h *Handler) ListRepositoryBranches(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
-	login, err := h.loginFor(ctx, project, url, req.Msg.GetGitLogin())
-	if err != nil {
-		return nil, err
-	}
 	select {
 	case h.listing <- struct{}{}:
 		defer func() { <-h.listing }()
 	default:
 		return nil, errTooManyListings
+	}
+	login, err := h.loginFor(ctx, project, url, req.Msg.GetGitLogin())
+	if err != nil {
+		return nil, err
 	}
 	head, branches, err := lister.Branches(revision.WithGitScope(revision.WithGitLogin(ctx, login), project), url)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
@@ -26,7 +27,38 @@ import (
 const (
 	gitlabProjectsCacheTTL     = 60 * time.Second
 	gitlabProjectsCacheMaxKeys = 256
+	gitlabProbeCacheTTL        = 2 * time.Minute
+	gitlabProbeCacheMaxKeys    = 256
+	gitlabReadsAtOnce          = 2
 )
+
+var errTooManyGitLabReads = authapi.ReasonError(connect.CodeResourceExhausted,
+	fmt.Errorf("the control server is checking %d GitLab repositories already. Check again in a moment", gitlabReadsAtOnce), "too_many_readings")
+
+type gitlabProbeOutcome uint8
+
+const (
+	probeUnknown gitlabProbeOutcome = iota
+	probePublic
+	probePrivate
+)
+
+type gitlabProbeCache struct {
+	outcome   gitlabProbeOutcome
+	expiresAt time.Time
+}
+
+func (h *Handler) acquireGitLabRead() (func(), error) {
+	if h.glGate == nil {
+		return func() {}, nil
+	}
+	select {
+	case h.glGate <- struct{}{}:
+		return func() { <-h.glGate }, nil
+	default:
+		return nil, errTooManyGitLabReads
+	}
+}
 
 type gitlabProjectsCache struct {
 	projects  []gitlab.Project
@@ -131,12 +163,11 @@ func (h *Handler) NoteGitLabStatus(connID string, rev int, state dockwellv1.GitL
 		checkedAt: h.now(),
 	}
 	if state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
-		caps := &dockwellv1.GitLabCapabilities{BuildPrivate: true, ListProjects: true, PostStatuses: true}
 		if same && prev.capabilities != nil {
-			caps = cloneGitLabCapabilities(prev.capabilities)
+			caps := cloneGitLabCapabilities(prev.capabilities)
 			caps.PostStatuses = true
+			next.capabilities = caps
 		}
-		next.capabilities = caps
 		next.statusScopeMissing = false
 	} else if same {
 		next.capabilities = cloneGitLabCapabilities(prev.capabilities)
@@ -312,6 +343,12 @@ func (h *Handler) listGitLabProjectsCached(ctx context.Context, k keptGitLab, ba
 	}
 	h.mu.Unlock()
 
+	release, err := h.acquireGitLabRead()
+	if err != nil {
+		return nil, false, err
+	}
+	defer release()
+
 	projects, hasMore, err = h.cfg.GitLab.ListProjects(ctx, baseURL, k.spec.GetToken(), query)
 	if err != nil {
 		return nil, false, err
@@ -395,6 +432,10 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 		}
 		projects, hasMore, err := h.listGitLabProjectsCached(ctx, k, baseURL, query)
 		if err != nil {
+			var busy *connect.Error
+			if errors.As(err, &busy) {
+				return nil, err
+			}
 			var ge *gitlab.Error
 			switch {
 			case errors.As(err, &ge) && ge.Status == 403:
@@ -437,6 +478,9 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 		}
 		h.mu.Lock()
 		if prev, same := h.gitlabChecks[k.r.ID]; same && prev.revision == k.r.Revision {
+			if prev.state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE {
+				connInfo.State = prev.state
+			}
 			connInfo.Capabilities = cloneGitLabCapabilities(prev.capabilities)
 		}
 		h.mu.Unlock()

@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/github"
 	"github.com/dockwell/dockwell/internal/control/gitlab"
@@ -56,7 +58,11 @@ func (s *Sources) Resolve(ctx context.Context, url, ref string) (commit, full st
 	if err != nil {
 		return "", "", err
 	}
-	return s.Base.Resolve(ctx, target, ref)
+	commit, full, err = s.Base.Resolve(ctx, target, ref)
+	if err != nil {
+		err = s.annotateGitLabAuthError(ctx, url, err)
+	}
+	return commit, full, err
 }
 
 // Branches lists the repository's branches, as Base does.
@@ -69,7 +75,33 @@ func (s *Sources) Branches(ctx context.Context, url string) (head string, branch
 	if err != nil {
 		return "", nil, err
 	}
-	return lister.Branches(ctx, target)
+	head, branches, err = lister.Branches(ctx, target)
+	if err != nil {
+		err = s.annotateGitLabAuthError(ctx, url, err)
+	}
+	return head, branches, err
+}
+
+// annotateGitLabAuthError enriches an unauthenticated ErrAuthRequired failure
+// (for example, when an anonymous GitLab probe timed out or returned 5xx/429
+// and left git_login empty) by naming the matching GitLab connection(s) that
+// could fetch the repository, while preserving errors.Is(err, ErrAuthRequired).
+func (s *Sources) annotateGitLabAuthError(ctx context.Context, repoURL string, err error) error {
+	if revision.GitLoginOf(ctx) != "" || !errors.Is(err, gitref.ErrAuthRequired) {
+		return err
+	}
+	apps := s.apps.Load()
+	if apps == nil {
+		return err
+	}
+	names := apps.matchingGitLabConnectionNames(ctx, revision.GitScopeOf(ctx), repoURL)
+	if len(names) == 0 {
+		return err
+	}
+	if len(names) == 1 {
+		return fmt.Errorf("%w. GitLab connection %s covers this repository; try again or select %s", err, names[0], service.GitLabLoginPrefix+names[0])
+	}
+	return fmt.Errorf("%w. GitLab connections %s cover this repository; try again or select one", err, strings.Join(names, ", "))
 }
 
 // authed is ctx with the Authorization the call's git login gives, if it names one,
@@ -207,40 +239,63 @@ var _ changes.GitLogins = (*Handler)(nil)
 // PinGitLogin checks a build's git login for project, as a plan is made: one named
 // must be a GitHub App installation or GitLab connection that reaches the project
 // and covers repoURL. One left out picks the first matching GitHub App
-// installation or the most specific matching GitLab connection, or "" where none
-// matches, which fetches the repository as the public do.
-func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error) {
+// installation or, after an anonymous probe finds the repository private, the
+// most specific matching GitLab connection, or "" where public or none matches.
+// Store reads finish before any outbound network probe or project listing runs.
+func (h *Handler) PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error) {
 	if connName, isGL := service.GitLabConnectionOf(login); isGL {
-		return h.pinGitLabLogin(ctx, tx, project, repoURL, connName)
+		var conns []keptGitLab
+		if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			var err error
+			conns, err = h.allGitLab(ctx, tx)
+			return err
+		}); err != nil {
+			return "", err
+		}
+		return h.pinGitLabLogin(ctx, conns, project, repoURL, connName)
 	}
 	full := fullName(h.cfg.Web, repoURL)
-	apps, err := h.all(ctx, tx)
-	if err != nil {
-		return "", err
-	}
 	type reaching struct {
 		login, account string
 		listed         bool
 	}
-	var reach []reaching
-	for _, a := range apps {
-		ins, err := tx.GitHubInstallationsOf(ctx, a.r.ID)
+	var (
+		reach []reaching
+		conns []keptGitLab
+	)
+	if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		apps, err := h.all(ctx, tx)
 		if err != nil {
-			return "", err
+			return err
 		}
-		for i := range ins {
-			in := &ins[i]
-			if !in.Usable() || !githubapp.Reaches(a.spec, in.ID, project) {
-				continue
+		for _, a := range apps {
+			ins, err := tx.GitHubInstallationsOf(ctx, a.r.ID)
+			if err != nil {
+				return err
 			}
-			r := reaching{login: a.r.Name + "/" + strconv.FormatInt(in.ID, 10), account: in.Account}
-			for _, repo := range in.Repositories {
-				if full != "" && strings.EqualFold(repo.FullName, full) {
-					r.listed = true
+			for i := range ins {
+				in := &ins[i]
+				if !in.Usable() || !githubapp.Reaches(a.spec, in.ID, project) {
+					continue
 				}
+				r := reaching{login: a.r.Name + "/" + strconv.FormatInt(in.ID, 10), account: in.Account}
+				for _, repo := range in.Repositories {
+					if full != "" && strings.EqualFold(repo.FullName, full) {
+						r.listed = true
+					}
+				}
+				reach = append(reach, r)
 			}
-			reach = append(reach, r)
 		}
+		if login == "" && project != "" {
+			conns, err = h.allGitLab(ctx, tx)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 	if login == "" {
 		for _, r := range reach {
@@ -248,11 +303,7 @@ func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoUR
 				return r.login, nil
 			}
 		}
-		glLogin, err := h.pinGitLabLogin(ctx, tx, project, repoURL, "")
-		if err != nil {
-			return "", err
-		}
-		return glLogin, nil
+		return h.pinGitLabLogin(ctx, conns, project, repoURL, "")
 	}
 	accounts := make([]string, 0, len(reach))
 	for _, r := range reach {
@@ -271,16 +322,94 @@ func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoUR
 	return "", fmt.Errorf("the GitHub App installation %s doesn't reach this project. The project's are on %s", login, strings.Join(accounts, ", "))
 }
 
-// pinGitLabLogin validates an explicit GitLab connection name for project and
-// repoURL, or picks the most specific reachable GitLab connection when connName
-// is empty ONLY if that connection lists the project OR an anonymous smart-HTTP
-// probe of repoURL answers 401/403/404. Public repositories on a connected
-// GitLab host keep git_login == "" and build directly on the agent with no token.
-func (h *Handler) pinGitLabLogin(ctx context.Context, tx *store.Tx, project, repoURL, connName string) (string, error) {
-	conns, err := h.allGitLab(ctx, tx)
-	if err != nil {
-		return "", err
+type gitlabCandidate struct {
+	k           keptGitLab
+	projectPath string
+}
+
+func matchingGitLabCandidates(conns []keptGitLab, project, repoURL string) []gitlabCandidate {
+	if project == "" {
+		return nil
 	}
+	var matches []gitlabCandidate
+	for i := range conns {
+		k := conns[i]
+		if !gitlabconnection.Reaches(k.spec, project) {
+			continue
+		}
+		projectPath := gitlab.ProjectPath(k.spec.GetInstanceUrl(), repoURL)
+		if projectPath == "" || !gitlab.MatchesPrefix(projectPath, k.spec.GetPathPrefix()) {
+			continue
+		}
+		matches = append(matches, gitlabCandidate{k: k, projectPath: projectPath})
+	}
+	slices.SortFunc(matches, func(a, b gitlabCandidate) int {
+		if d := len(b.k.spec.GetPathPrefix()) - len(a.k.spec.GetPathPrefix()); d != 0 {
+			return d
+		}
+		return strings.Compare(a.k.r.Name, b.k.r.Name)
+	})
+	return matches
+}
+
+// matchingGitLabConnectionNames reads the store (no network) to find reaching
+// GitLab connections covering repoURL for scopeID (project ID/name or env ID).
+func (h *Handler) matchingGitLabConnectionNames(ctx context.Context, scopeID, repoURL string) []string {
+	if scopeID == "" || h.cfg.DB == nil {
+		return nil
+	}
+	var (
+		projectID string
+		conns     []keptGitLab
+	)
+	if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if p.ID == scopeID || p.Name == scopeID {
+				projectID = p.ID
+				break
+			}
+			for _, e := range p.Environments {
+				if e.ID == scopeID {
+					projectID = p.ID
+					break
+				}
+			}
+			if projectID != "" {
+				break
+			}
+		}
+		if projectID == "" {
+			return nil
+		}
+		conns, err = h.allGitLab(ctx, tx)
+		return err
+	}); err != nil || projectID == "" {
+		return nil
+	}
+	matches := matchingGitLabCandidates(conns, projectID, repoURL)
+	if len(matches) == 0 {
+		return nil
+	}
+	names := make([]string, len(matches))
+	for i := range matches {
+		names[i] = matches[i].k.r.Name
+	}
+	return names
+}
+
+// pinGitLabLogin validates an explicit GitLab connection name for project and
+// repoURL, or picks a matching connection when connName is empty ONLY after an
+// anonymous smart-HTTP probe finds the repository private (401, 404, or 403
+// carrying WWW-Authenticate). Public repositories (200 OK) ALWAYS keep
+// git_login == "" even if a connection lists them. Unknown probe outcomes
+// (timeout, network error, 429, 5xx, 403 without WWW-Authenticate) never pin.
+// Project listing is used only to disambiguate multiple matching connections
+// once the probe has established that the repository is private.
+func (h *Handler) pinGitLabLogin(ctx context.Context, conns []keptGitLab, project, repoURL, connName string) (string, error) {
 	if connName != "" {
 		if project == "" {
 			return "", fmt.Errorf("the GitLab connection %s reaches only the projects an admin lets it. Name the project the build belongs to", connName)
@@ -303,50 +432,43 @@ func (h *Handler) pinGitLabLogin(ctx context.Context, tx *store.Tx, project, rep
 		}
 		return "", fmt.Errorf("there's no GitLab connection %s any more. Connect it again in Settings, Integrations", connName)
 	}
-	if project == "" {
-		return "", nil
-	}
-	type candidate struct {
-		k           keptGitLab
-		projectPath string
-	}
-	var matches []candidate
-	for i := range conns {
-		k := conns[i]
-		if !gitlabconnection.Reaches(k.spec, project) {
-			continue
-		}
-		projectPath := gitlab.ProjectPath(k.spec.GetInstanceUrl(), repoURL)
-		if projectPath == "" || !gitlab.MatchesPrefix(projectPath, k.spec.GetPathPrefix()) {
-			continue
-		}
-		matches = append(matches, candidate{k: k, projectPath: projectPath})
-	}
+	matches := matchingGitLabCandidates(conns, project, repoURL)
 	if len(matches) == 0 {
 		return "", nil
 	}
-	slices.SortFunc(matches, func(a, b candidate) int {
-		if d := len(b.k.spec.GetPathPrefix()) - len(a.k.spec.GetPathPrefix()); d != 0 {
-			return d
-		}
-		return strings.Compare(a.k.r.Name, b.k.r.Name)
-	})
-	// 1. Prefer a matching connection whose project list already includes repoURL.
+	// 1. Always probe anonymously first (outside any store transaction, under the
+	// GitLab read gate and cached per normalized repository URL).
+	outcome, err := h.probeAnonymousGitLab(ctx, repoURL)
+	if err != nil {
+		return "", err
+	}
+	if outcome != probePrivate {
+		return "", nil
+	}
+	// 2. When a single connection matches, pick it directly without listing.
+	if len(matches) == 1 {
+		return service.GitLabLoginPrefix + matches[0].k.r.Name, nil
+	}
+	// 3. With multiple matching connections, prefer the most specific connection
+	// whose project list includes repoURL, falling back to the most specific prefix.
 	for i := range matches {
 		m := &matches[i]
-		if h.gitlabListsProject(ctx, m.k, m.projectPath) {
+		listed, lerr := h.gitlabListsProject(ctx, m.k, m.projectPath)
+		if lerr != nil {
+			var refusal *connect.Error
+			if errors.As(lerr, &refusal) {
+				return "", lerr
+			}
+			continue
+		}
+		if listed {
 			return service.GitLabLoginPrefix + m.k.r.Name, nil
 		}
 	}
-	// 2. Otherwise probe repoURL anonymously: pin the most specific connection
-	// only if the repository refuses unauthenticated access (401/403/404).
-	if h.probeAnonymousGitLabNeedsAuth(ctx, repoURL) {
-		return service.GitLabLoginPrefix + matches[0].k.r.Name, nil
-	}
-	return "", nil
+	return service.GitLabLoginPrefix + matches[0].k.r.Name, nil
 }
 
-func (h *Handler) gitlabListsProject(ctx context.Context, k keptGitLab, projectPath string) bool {
+func (h *Handler) gitlabListsProject(ctx context.Context, k keptGitLab, projectPath string) (bool, error) {
 	baseURL := strings.TrimRight(k.spec.GetInstanceUrl(), "/")
 	want := strings.ToLower(strings.Trim(projectPath, "/"))
 	has := func(list []gitlab.Project) bool {
@@ -359,33 +481,87 @@ func (h *Handler) gitlabListsProject(ctx context.Context, k keptGitLab, projectP
 	}
 	projects, hasMore, err := h.listGitLabProjectsCached(ctx, k, baseURL, "")
 	if err != nil {
-		return false
+		return false, err
 	}
 	if has(projects) {
-		return true
+		return true, nil
 	}
 	if !hasMore {
-		return false
+		return false, nil
 	}
 	seg := projectPath
 	if i := strings.LastIndex(seg, "/"); i >= 0 {
 		seg = seg[i+1:]
 	}
 	if seg == "" {
-		return false
+		return false, nil
 	}
 	more, _, err := h.listGitLabProjectsCached(ctx, k, baseURL, seg)
-	return err == nil && has(more)
+	if err != nil {
+		return false, err
+	}
+	return has(more), nil
 }
 
-func (h *Handler) probeAnonymousGitLabNeedsAuth(ctx context.Context, repoURL string) bool {
+func normalizeProbeURL(repoURL string) string {
+	s := strings.TrimSpace(repoURL)
+	s = strings.TrimRight(s, "/")
+	s = strings.TrimSuffix(s, ".git")
+	return strings.ToLower(s)
+}
+
+func (h *Handler) probeAnonymousGitLab(ctx context.Context, repoURL string) (gitlabProbeOutcome, error) {
+	cacheKey := normalizeProbeURL(repoURL)
+	now := h.now()
+	if cacheKey != "" {
+		h.mu.Lock()
+		if entry, ok := h.gitlabProbes[cacheKey]; ok && now.Before(entry.expiresAt) {
+			h.mu.Unlock()
+			return entry.outcome, nil
+		}
+		h.mu.Unlock()
+	}
+
+	release, err := h.acquireGitLabRead()
+	if err != nil {
+		return probeUnknown, err
+	}
+	defer release()
+
+	outcome := h.runAnonymousGitLabProbe(ctx, repoURL)
+	if cacheKey != "" && (outcome == probePublic || outcome == probePrivate) {
+		now = h.now()
+		h.mu.Lock()
+		if h.gitlabProbes == nil {
+			h.gitlabProbes = map[string]gitlabProbeCache{}
+		}
+		if len(h.gitlabProbes) >= gitlabProbeCacheMaxKeys {
+			for ck, cv := range h.gitlabProbes {
+				if !now.Before(cv.expiresAt) {
+					delete(h.gitlabProbes, ck)
+				}
+			}
+			if len(h.gitlabProbes) >= gitlabProbeCacheMaxKeys {
+				clear(h.gitlabProbes)
+			}
+		}
+		h.gitlabProbes[cacheKey] = gitlabProbeCache{
+			outcome:   outcome,
+			expiresAt: now.Add(gitlabProbeCacheTTL),
+		}
+		h.mu.Unlock()
+	}
+	return outcome, nil
+}
+
+func (h *Handler) runAnonymousGitLabProbe(ctx context.Context, repoURL string) gitlabProbeOutcome {
 	targetURL, err := h.cfg.GitLab.GitURL(repoURL)
 	if err != nil {
-		return false
+		return probeUnknown
 	}
 	orig, err := neturl.Parse(strings.TrimRight(strings.TrimSpace(targetURL), "/"))
 	if err != nil || orig.Host == "" {
-		return false
+		return probeUnknown
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -404,37 +580,44 @@ func (h *Handler) probeAnonymousGitLabNeedsAuth(ctx context.Context, repoURL str
 	for hop := range 2 {
 		req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, cur.String()+"/info/refs?service=git-upload-pack", http.NoBody)
 		if err != nil {
-			return false
+			return probeUnknown
 		}
 		req.Header.Set("User-Agent", "git/dockwell")
 		req.Header.Set("Git-Protocol", "version=2")
 		resp, err := client.Do(req)
 		if err != nil {
-			return false
+			return probeUnknown
 		}
 		_ = resp.Body.Close()
 		switch resp.StatusCode {
-		case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
-			return true
+		case http.StatusOK:
+			return probePublic
+		case http.StatusUnauthorized, http.StatusNotFound:
+			return probePrivate
+		case http.StatusForbidden:
+			if strings.TrimSpace(resp.Header.Get("WWW-Authenticate")) != "" {
+				return probePrivate
+			}
+			return probeUnknown
 		case http.StatusMovedPermanently, http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
 			loc := strings.TrimSpace(resp.Header.Get("Location"))
 			if loc == "" || hop == 1 {
-				return false
+				return probeUnknown
 			}
 			next, err := req.URL.Parse(loc)
 			if err != nil || next.User != nil || !strings.EqualFold(next.Scheme, orig.Scheme) || !strings.EqualFold(next.Host, orig.Host) {
-				return false
+				return probeUnknown
 			}
 			p := strings.TrimRight(strings.TrimSuffix(next.Path, "/info/refs"), "/")
 			if strings.TrimSuffix(p, ".git") != origRepo {
-				return false
+				return probeUnknown
 			}
 			cur.Path = p
 		default:
-			return false
+			return probeUnknown
 		}
 	}
-	return false
+	return probeUnknown
 }
 
 func (h *Handler) gitlabForOp(ctx context.Context, login, repoURL, scopeID string) (keptGitLab, string, error) {
@@ -588,11 +771,7 @@ func (h *Handler) DockerBuildAuthorization(ctx context.Context, login, url, proj
 	if project == "" {
 		return "", errors.New("a private repository requires a credential project")
 	}
-	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
-		_, err := h.PinGitLogin(ctx, tx, project, url, login)
-		return err
-	})
-	if err != nil {
+	if _, err := h.PinGitLogin(ctx, project, url, login); err != nil {
 		return "", err
 	}
 	return h.Authorization(ctx, login, url)

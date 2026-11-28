@@ -17,9 +17,9 @@ import (
 
 // GitLogins checks the GitHub App installation, GitLab connection, or SSH deploy
 // key a reading fetches a repository through, as a plan does, and picks one
-// where none is named (ADR 0098, ADR 0113).
+// where none is named (ADR 0098, ADR 0113). Runs outside any store transaction.
 type GitLogins interface {
-	PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error)
+	PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error)
 }
 
 // SetGitLogins has readings of a repository fetch it through the login g says
@@ -50,13 +50,12 @@ func (h *Handler) loginFor(ctx context.Context, project, url, login string) (str
 		}
 		return "", nil
 	}
-	var pinned string
-	err := h.db.View(ctx, func(tx *store.Tx) error {
-		var err error
-		pinned, err = h.gitLogins.PinGitLogin(ctx, tx, project, url, login)
-		return err
-	})
+	pinned, err := h.gitLogins.PinGitLogin(ctx, project, url, login)
 	if err != nil {
+		var refusal *connect.Error
+		if errors.As(err, &refusal) {
+			return "", err
+		}
 		return "", authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 	}
 	return pinned, nil

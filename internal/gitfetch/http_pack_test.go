@@ -168,7 +168,7 @@ func TestFetchVerifiedPackOverSmartHTTP(t *testing.T) {
 		t.Fatalf("FetchVerifiedPack(missing branch) = %v, want branch list in error", err)
 	}
 
-	// 6. Over-limit pack reports build wording, not catalog wording (L1).
+	// 6. Over-limit pack reports build wording with a fix, not catalog wording (L1).
 	if _, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
 		RepoURL:     srv.URL + "/acme/web",
 		Ref:         "refs/heads/main",
@@ -177,8 +177,8 @@ func TestFetchVerifiedPackOverSmartHTTP(t *testing.T) {
 		Client:      srv.Client(),
 		PackTempDir: packDir,
 		MaxPack:     16,
-	}); err == nil || !strings.Contains(err.Error(), "pack is over") || strings.Contains(err.Error(), "catalog") {
-		t.Fatalf("FetchVerifiedPack(over MaxPack) = %v, want build pack-size error without catalog wording", err)
+	}); err == nil || !strings.Contains(err.Error(), "pack is over") || !strings.Contains(err.Error(), "Trim large files") || strings.Contains(err.Error(), "catalog") {
+		t.Fatalf("FetchVerifiedPack(over MaxPack) = %v, want build pack-size error with fix and without catalog wording", err)
 	}
 }
 

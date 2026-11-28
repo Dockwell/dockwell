@@ -6769,6 +6769,10 @@ msgid "Add read_api to pick projects from {0}. You can still paste a URL."
 msgstr "添加 read_api 权限以从 {0} 选择项目。你仍然可以粘贴 URL。"
 
 #. placeholder {0}: conn.name
+msgid "Add read_repository to build from {0}."
+msgstr "添加 read_repository 权限以从 {0} 构建。"
+
+#. placeholder {0}: conn.name
 msgid "Could not reach {0} right now."
 msgstr "目前无法连接到 {0}。"
 
@@ -24973,17 +24977,11 @@ msgstr "需要组织所有者先批准"
 msgid "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
 msgstr "在 gitlab.com 或自托管 GitLab 上构建私有仓库并报告 CI 提交状态"
 
-msgid "Builds private repositories and lists projects. Add api to also report CI commit statuses."
-msgstr "可构建私有仓库并列出项目。添加 api 权限可同时上报 CI 提交状态。"
+msgid "Builds private repositories and lists projects; add api for CI commit statuses."
+msgstr "可构建私有仓库并列出项目；添加 api 权限以报告 CI 提交状态。"
 
-msgid "Builds private repositories and lists projects. Add api to report CI commit statuses."
-msgstr "可构建私有仓库并列出项目。添加 api 权限可上报 CI 提交状态。"
-
-msgid "Builds private repositories. Add read_api to pick projects, or api to also report CI commit statuses."
-msgstr "可构建私有仓库。添加 read_api 权限可在选择器中挑选项目，或添加 api 权限同时上报 CI 提交状态。"
-
-msgid "Builds private repositories. Add read_api to pick projects, or api to report CI commit statuses."
-msgstr "可构建私有仓库。添加 read_api 权限可在选择器中挑选项目，或添加 api 权限上报 CI 提交状态。"
+msgid "Builds private repositories; add read_api to pick projects or api for CI commit statuses."
+msgstr "可构建私有仓库；添加 read_api 权限以选择项目，或添加 api 权限以报告 CI 提交状态。"
 
 msgid "CI commit statuses need the api scope; private repository builds stay connected."
 msgstr "CI 提交状态需要 api 权限；私有仓库构建仍保持已连接。"
@@ -25004,8 +25002,8 @@ msgid "Could not reach GitLab on the last check."
 msgstr "上次检查时无法连接到 GitLab。"
 
 #. placeholder {0}: checked.url || trimmedURL
-msgid "Could not reach {0}. Check the URL and network access."
-msgstr "无法连接到 {0}。请检查 URL 和网络访问。"
+msgid "Could not reach {0}; check the URL and network access."
+msgstr "无法连接 {0}；请检查 URL 和网络访问。"
 
 msgid "Enter a token for the new GitLab URL. Needs read_repository or api scope."
 msgstr "请为新的 GitLab URL 输入令牌。需要 read_repository 或 api 权限范围。"
@@ -25017,11 +25015,11 @@ msgstr "GitLab URL"
 msgid "GitLab connection {0}"
 msgstr "GitLab 连接 {0}"
 
-msgid "GitLab refused this token. Check or replace it in Manage."
-msgstr "GitLab 拒绝了此令牌。请在“管理”中检查或更换。"
+msgid "GitLab refused this token; check or replace it in Manage."
+msgstr "GitLab 拒绝了此令牌；请在「管理」中检查或更换。"
 
-msgid "GitLab refused this token. Check that it is active and has read_repository or api scope."
-msgstr "GitLab 拒绝了此令牌。请检查令牌是否有效且具有 read_repository 或 api 权限。"
+msgid "GitLab refused this token; check that it is active with read_repository or api scope."
+msgstr "GitLab 拒绝了此令牌；请确认其处于有效状态并具有 read_repository 或 api 权限。"
 
 msgid "Leave blank to keep the saved token"
 msgstr "留空以保留已保存的令牌"

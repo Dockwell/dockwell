@@ -1317,6 +1317,73 @@ func TestGitLabPublicRepoStaysPublicAndScopeIsolation(t *testing.T) {
 			t.Fatalf("public GitLab build made %d authenticated Git calls, want 0 (M1)", gl.GitCalls())
 		}
 
+		// 3b. M1 (probe first): Even when a GitLab connection's membership=true
+		// listing DOES include the public repository (TokenAPI), the anonymous
+		// probe runs first, sees 200 OK, and NEVER pins git_login.
+		gl.SetProjects([]gltest.Project{
+			{PathWithNamespace: "acme/public", WebURL: publicURL, DefaultBranch: "main"},
+		})
+		apiConnProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect api-scope GitLab listing public repo",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "api-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenAPI,
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(api-gl): %v", err)
+		}
+		doneChange(t, c, apiConnProp.Msg.GetChange())
+
+		listedPublic, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil {
+			t.Fatalf("ListGitLabProjects(with api-gl): %v", err)
+		}
+		foundListedPublic := false
+		for _, p := range listedPublic.Msg.GetProjects() {
+			if p.GetPathWithNamespace() == "acme/public" {
+				foundListedPublic = true
+			}
+		}
+		if !foundListedPublic {
+			t.Fatalf("expected api-gl membership listing to include acme/public, got %+v", listedPublic.Msg.GetProjects())
+		}
+		brListedPub, err := builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{
+			Url:     publicURL,
+			Project: defaultProjectID,
+		}))
+		if err != nil || brListedPub.Msg.GetGitLogin() != "" {
+			t.Fatalf("ListRepositoryBranches(listed public) = %+v, %v; want empty git_login (M1 probe-first)", brListedPub, err)
+		}
+		pubCommit3 := pubRepo.Commit("main", "Public GitLab v3", map[string]string{"app.js": "public-v3"})
+		redepListed, err := s.DeployService(ctx, connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: pubSvcID}))
+		if err != nil {
+			t.Fatalf("DeployService(listed public): %v", err)
+		}
+		if step := buildStep(redepListed.Msg.GetChange()); step == nil || step.GetCommit() != pubCommit3 || step.GetGitLogin() != "" {
+			t.Fatalf("listed public redeploy step = %+v, want commit %s with empty git_login (M1 probe-first)", step, pubCommit3)
+		}
+		doneChange(t, c, redepListed.Msg.GetChange())
+		if gl.GitCalls() != 0 {
+			t.Fatalf("listed public GitLab build made %d authenticated Git calls, want 0 (M1 probe-first)", gl.GitCalls())
+		}
+		// Remove api-gl so subsequent assertions exercise repo-only-gl cleanly.
+		delAPIProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Remove api-gl",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "api-gl"},
+				Delete:   true,
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(delete api-gl): %v", err)
+		}
+		doneChange(t, c, delAPIProp.Msg.GetChange())
+		gl.SetProjects([]gltest.Project{})
+
 		// 4. M1: Unlisted private repo answers 401 anonymously -> pins gitlab:repo-only-gl and builds!
 		secretURL := "https://gitlab.example.com/acme/secret"
 		privProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
@@ -1422,6 +1489,44 @@ func TestGitLabPublicRepoStaysPublicAndScopeIsolation(t *testing.T) {
 		glConn := provs.Msg.GetGitlabConnections()[0]
 		if glConn.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED || !glConn.GetStatusScopeMissing() {
 			t.Fatalf("after CI status 403: state=%v status_scope_missing=%v, want CONNECTED & true (M2)", glConn.GetState(), glConn.GetStatusScopeMissing())
+		}
+
+		// 7. N9: A read_api-only token (TokenReadOnly) checks as MISSING_SCOPE and
+		// surfaces state=MISSING_SCOPE with no listing_problem in ListGitLabProjects.
+		roProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect read_api-only GitLab",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "read-api-only-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenReadOnly,
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(read-api-only-gl): %v", err)
+		}
+		doneChange(t, c, roProp.Msg.GetChange())
+		chkRO, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Name: "read-api-only-gl",
+			Url:  "https://gitlab.example.com",
+		}))
+		if err != nil || chkRO.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE {
+			t.Fatalf("CheckGitLabConnection(read-api-only-gl) = %+v, %v; want MISSING_SCOPE", chkRO, err)
+		}
+		listedRO, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil {
+			t.Fatalf("ListGitLabProjects(read-api-only-gl): %v", err)
+		}
+		var gotROConn *dockwellv1.GitLabProjectConnection
+		for _, cn := range listedRO.Msg.GetConnections() {
+			if cn.GetName() == "read-api-only-gl" {
+				gotROConn = cn
+			}
+		}
+		if gotROConn == nil || gotROConn.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE ||
+			gotROConn.GetListingProblem() != dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNSPECIFIED {
+			t.Fatalf("read-api-only-gl in ListGitLabProjects = %+v, want state=MISSING_SCOPE listing_problem=UNSPECIFIED (N9)", gotROConn)
 		}
 	})
 }

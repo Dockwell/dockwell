@@ -281,6 +281,11 @@ func scrub(err error, location string) error {
 // Backend reports which kind of database the store runs on.
 func (db *DB) Backend() Backend { return db.dialect.backend }
 
+// ReadInUse reports how many connections are currently checked out of the read
+// pool, useful in tests asserting that slow network calls do not hold a store
+// transaction open.
+func (db *DB) ReadInUse() int { return db.read.Stats().InUse }
+
 // Where reports the store's location, without secrets.
 func (db *DB) Where() string { return db.where }
 

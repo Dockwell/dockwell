@@ -228,7 +228,7 @@ export function RepositoryField({
         case GitLabConnectionState.AUTH_FAILED:
           return t`GitLab refused this token. Check it in Settings, Integrations.`;
         case GitLabConnectionState.MISSING_SCOPE:
-          return t`Add read_api to pick projects from ${conn.name}. You can still paste a URL.`;
+          return t`Add read_repository to build from ${conn.name}.`;
         case GitLabConnectionState.UNREACHABLE:
           return t`Could not reach ${conn.name} right now.`;
         default:

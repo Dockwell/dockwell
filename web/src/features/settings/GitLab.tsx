@@ -56,7 +56,7 @@ export function GitLabCard({
   let note: string | undefined;
   switch (connection.state) {
     case GitLabConnectionState.AUTH_FAILED:
-      note = t`GitLab refused this token. Check or replace it in Manage.`;
+      note = t`GitLab refused this token; check or replace it in Manage.`;
       break;
     case GitLabConnectionState.MISSING_SCOPE:
       note = t`Needs read_repository to build private repositories, or api to also report CI commit statuses.`;
@@ -68,8 +68,8 @@ export function GitLabCard({
       const caps = connection.capabilities;
       if (caps && !caps.postStatuses) {
         note = caps.listProjects
-          ? t`Builds private repositories and lists projects. Add api to report CI commit statuses.`
-          : t`Builds private repositories. Add read_api to pick projects, or api to report CI commit statuses.`;
+          ? t`Builds private repositories and lists projects; add api for CI commit statuses.`
+          : t`Builds private repositories; add read_api to pick projects or api for CI commit statuses.`;
       } else if (connection.statusScopeMissing) {
         note = t`CI commit statuses need the api scope; private repository builds stay connected.`;
       }
@@ -403,8 +403,8 @@ export function GitLabSheet({
                   ? t`Token ${checked.tokenName} can build private repositories and report commit statuses on ${checked.url || trimmedURL}.`
                   : t`This token can build private repositories and report commit statuses on ${checked.url || trimmedURL}.`
                 : checked.capabilities.listProjects
-                  ? t`Builds private repositories and lists projects. Add api to also report CI commit statuses.`
-                  : t`Builds private repositories. Add read_api to pick projects, or api to also report CI commit statuses.`}
+                  ? t`Builds private repositories and lists projects; add api for CI commit statuses.`
+                  : t`Builds private repositories; add read_api to pick projects or api for CI commit statuses.`}
             </Callout>
           ) : (
             <Callout
@@ -414,8 +414,8 @@ export function GitLabSheet({
               {checked.state === GitLabConnectionState.MISSING_SCOPE
                 ? t`This token needs read_repository to build private repositories, or api to also report CI commit statuses.`
                 : checked.state === GitLabConnectionState.AUTH_FAILED
-                  ? t`GitLab refused this token. Check that it is active and has read_repository or api scope.`
-                  : t`Could not reach ${checked.url || trimmedURL}. Check the URL and network access.`}
+                  ? t`GitLab refused this token; check that it is active with read_repository or api scope.`
+                  : t`Could not reach ${checked.url || trimmedURL}; check the URL and network access.`}
             </Callout>
           )
         ) : null}

@@ -12,7 +12,6 @@ import (
 
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/revision"
-	"github.com/dockwell/dockwell/internal/store"
 )
 
 type stubSources struct {
@@ -36,7 +35,7 @@ type stubGitLogins struct {
 	err    error
 }
 
-func (s *stubGitLogins) PinGitLogin(_ context.Context, _ *store.Tx, _, _, _ string) (string, error) {
+func (s *stubGitLogins) PinGitLogin(_ context.Context, _, _, _ string) (string, error) {
 	return s.pinned, s.err
 }
 

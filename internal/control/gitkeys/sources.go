@@ -78,27 +78,43 @@ type MultiGitLogins struct {
 
 var _ changes.GitLogins = (*MultiGitLogins)(nil)
 
-// PinGitLogin checks or picks the git_login for project and repoURL.
-func (m *MultiGitLogins) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error) {
+// PinGitLogin checks or picks the git_login for project and repoURL outside any
+// store transaction.
+func (m *MultiGitLogins) PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error) {
 	if _, isKey := service.DeployKeyOf(login); isKey {
 		if m.Keys == nil {
 			return "", errors.New("this control plane doesn't support SSH deploy keys")
 		}
-		return m.Keys.PinDeployKey(ctx, tx, project, repoURL, login)
+		return m.Keys.PinDeployKeyForProject(ctx, project, repoURL, login)
 	}
 	if login == "" && service.IsSSHRepository(repoURL) {
 		if m.Keys == nil {
 			return "", errors.New("this control plane doesn't support SSH deploy keys")
 		}
-		return m.Keys.PinDeployKey(ctx, tx, project, repoURL, "")
+		return m.Keys.PinDeployKeyForProject(ctx, project, repoURL, "")
 	}
 	if m.Fallback != nil {
-		return m.Fallback.PinGitLogin(ctx, tx, project, repoURL, login)
+		return m.Fallback.PinGitLogin(ctx, project, repoURL, login)
 	}
 	if login != "" {
 		return "", fmt.Errorf("this control plane can't use git login %s", login)
 	}
 	return "", nil
+}
+
+// PinDeployKeyForProject opens a short read transaction to validate or pick a
+// project-scoped deploy key.
+func (h *Handler) PinDeployKeyForProject(ctx context.Context, project, repoURL, login string) (string, error) {
+	if project == "" {
+		return "", errors.New("a deploy key belongs to one project. Name the project the app builds in")
+	}
+	var pinned string
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		pinned, err = h.PinDeployKey(ctx, tx, project, repoURL, login)
+		return err
+	})
+	return pinned, err
 }
 
 // PinDeployKey validates a named ssh:<name> deploy key in project (or finds a

@@ -502,7 +502,7 @@ func fetchHTTPV2(ctx context.Context, client doer, base *url.URL, authHeader, cr
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s answered %s when asked for %s", base.Host, status(resp), commit)
 	}
-	overLimit := fmt.Sprintf("the commit %s's pack is over %d MiB, more than Dockwell reads", commit, most>>20)
+	overLimit := fmt.Sprintf("the commit %s's pack is over %d MiB, more than Dockwell reads. Trim large files or build from a smaller repository or a prebuilt image", commit, most>>20)
 	return receivePackLimit(resp.Body, f, base, commit, most, overLimit)
 }
 
@@ -587,7 +587,7 @@ func receiveRawV1Pack(body io.Reader, f *os.File, u *url.URL, commit string, mos
 		return 0, fmt.Errorf("keeping what %s sends: %w", u.Host, err)
 	}
 	if n > most {
-		return 0, fmt.Errorf("the commit %s's pack is over %d MiB, more than Dockwell reads", commit, most>>20)
+		return 0, fmt.Errorf("the commit %s's pack is over %d MiB, more than Dockwell reads. Trim large files or build from a smaller repository or a prebuilt image", commit, most>>20)
 	}
 	if n == 0 {
 		return 0, fmt.Errorf("%s sent no objects for %s. Check the commit is in the repository", u.Host, commit)
@@ -628,7 +628,7 @@ func receiveV1SidebandPack(body io.Reader, f *os.File, u *url.URL, commit string
 		switch line[0] {
 		case 1:
 			if size += int64(len(line) - 1); size > most {
-				return 0, fmt.Errorf("the commit %s's pack is over %d MiB, more than Dockwell reads", commit, most>>20)
+				return 0, fmt.Errorf("the commit %s's pack is over %d MiB, more than Dockwell reads. Trim large files or build from a smaller repository or a prebuilt image", commit, most>>20)
 			}
 			if _, err := w.Write(line[1:]); err != nil {
 				return 0, fmt.Errorf("keeping what %s sends: %w", u.Host, err)

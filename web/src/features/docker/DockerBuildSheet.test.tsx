@@ -291,3 +291,46 @@ it("shows a short read_api note in the repository picker when a GitLab token can
   fireEvent.focus(repoInput);
   expect(await screen.findByText("Add read_api to pick projects from corp. You can still paste a URL.")).toBeVisible();
 });
+
+it("GitLab repository picker tells MISSING_SCOPE connections to add read_repository to build (N9)", async () => {
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitProviders: {
+        listGitLabProjects: () => ({
+          connections: [
+            create(GitLabProjectConnectionSchema, {
+              id: "glc_ro",
+              name: "corp",
+              url: "https://gitlab.example.com",
+              state: GitLabConnectionState.MISSING_SCOPE,
+              listingProblem: GitLabListingProblem.UNSPECIFIED,
+            }),
+          ],
+          projects: [],
+        }),
+      },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.focus(repoInput);
+  expect(await screen.findByText("Add read_repository to build from corp.")).toBeVisible();
+});
