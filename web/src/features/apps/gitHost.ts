@@ -19,10 +19,20 @@ export interface GitHost {
 /** Prefix on ImageBuild.gitLogin when a build fetches via a project SSH deploy key. */
 export const SSH_LOGIN_PREFIX = "ssh:";
 
+/** Prefix on ImageBuild.gitLogin when a build fetches via a GitLab connection. */
+export const GITLAB_LOGIN_PREFIX = "gitlab:";
+
 /** Returns the deploy key name if gitLogin names an SSH deploy key, or undefined otherwise. */
 export function deployKeyNameOf(gitLogin: string | undefined): string | undefined {
   if (!gitLogin?.startsWith(SSH_LOGIN_PREFIX)) return undefined;
   const name = gitLogin.slice(SSH_LOGIN_PREFIX.length);
+  return name || undefined;
+}
+
+/** Returns the GitLab connection name if gitLogin names a GitLab connection, or undefined otherwise. */
+export function gitlabConnectionNameOf(gitLogin: string | undefined): string | undefined {
+  if (!gitLogin?.startsWith(GITLAB_LOGIN_PREFIX)) return undefined;
+  const name = gitLogin.slice(GITLAB_LOGIN_PREFIX.length);
   return name || undefined;
 }
 

@@ -521,6 +521,140 @@ describe("New app, from Git", () => {
     );
   });
 
+  it("lists GitLab connection projects alongside GitHub repositories, prefers the connection over a matching deploy key, and names it in the plan", async () => {
+    const user = userEvent.setup();
+    const branchesFor: { project: string; gitLogin: string }[] = [];
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        resources: {
+          listResources: () => ({
+            resources: [
+              { id: "prj_1", resource: { kind: "project", name: "default" } },
+              { id: "env_prod", resource: { kind: "environment", scope: "prj_1", name: "production" } },
+            ],
+          }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            apps: [{ id: "gha_1", name: "dockwell-deploy", installations: [{ id: 7n, account: "acme" }] }],
+            gitlabConnections: [{ id: "glc_1", name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+          }),
+          listGitRepositories: () => ({
+            repositories: [
+              { fullName: "acme/api", url: "https://github.com/acme/api", private: false, account: "acme" },
+            ],
+          }),
+          listGitLabProjects: () => ({
+            connections: [{ name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+            projects: [
+              {
+                pathWithNamespace: "acme/private-web",
+                url: "https://gitlab.example.com/acme/private-web",
+                connectionName: "team-gitlab",
+                defaultBranch: "main",
+              },
+            ],
+          }),
+        },
+        gitKeys: {
+          listGitDeployKeys: () => ({
+            keys: [
+              {
+                id: "gdk_1",
+                name: "gl-overlap",
+                project: "prj_1",
+                repository: "git@gitlab.example.com:acme/private-web.git",
+                gitLogin: "ssh:gl-overlap",
+                hostKeyPinned: true,
+              },
+            ],
+          }),
+        },
+        builds: {
+          listRepositoryBranches: (req) => {
+            branchesFor.push({ project: req.project, gitLogin: req.gitLogin });
+            return { branches: ["main", "staging"], defaultBranch: "main", gitLogin: "gitlab:team-gitlab" };
+          },
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: [8080] },
+          }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return {
+              change: create(ChangeSchema, {
+                id: "chg_gl_new",
+                summary: "Build acme/private-web as private-web",
+                state: ChangeState.PLANNED,
+                plan: {
+                  fingerprint: "feedfacefeedfacefeedfacefeedface",
+                  summary: { create: 1 },
+                  resources: [
+                    {
+                      id: "svc_private_web",
+                      resource: { kind: "service", scope: "env_prod", name: "private-web" },
+                      action: PlanAction.CREATE,
+                    },
+                  ],
+                  servers: [
+                    {
+                      serverId: SERVER,
+                      serverName: "hz-1",
+                      steps: [
+                        {
+                          resource: { kind: "service", scope: "env_prod", name: "private-web" },
+                          action: PlanAction.CREATE,
+                          build: {
+                            url: "https://gitlab.example.com/acme/private-web",
+                            ref: "main",
+                            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+                            gitLogin: "gitlab:team-gitlab",
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            };
+          },
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const field = await within(sheet).findByRole("combobox", { name: "Repository" });
+    await user.click(field);
+    const list = await within(sheet).findByRole("listbox", { name: "Repositories" });
+    expect(within(list).getByRole("group", { name: "GitLab · team-gitlab" })).toBeVisible();
+    const glOption = within(list).getByRole("option", { name: /acme\/private-web/ });
+    expect(glOption).toHaveTextContent("Uses GitLab, not gl-overlap");
+    await user.click(glOption);
+    expect(field).toHaveValue("https://gitlab.example.com/acme/private-web");
+    await within(sheet).findByText(
+      "Through GitLab (team-gitlab, preferred over deploy key gl-overlap) · 2 branches",
+      {},
+      { timeout: 3000 },
+    );
+    expect(branchesFor).toContainEqual({ project: "prj_1", gitLogin: "gitlab:team-gitlab" });
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.gitLogin : "?").toBe("gitlab:team-gitlab");
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() =>
+      expect(review).toHaveTextContent(
+        "Builds gitlab.example.com/acme/private-web at 8be41d2 (main) on hz-1 first, through GitLab connection team-gitlab. If the build fails, what runs stays as it is.",
+      ),
+    );
+  });
+
   it("takes a free port on the server when another app holds the one the build exposes", async () => {
     const user = userEvent.setup();
     renderAt(

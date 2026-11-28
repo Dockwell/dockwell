@@ -5127,6 +5127,116 @@ describe("an app's deployments, for an app that builds from Git", () => {
     );
   });
 
+  it("names the GitLab connection on Source, and warns when it is removed or narrowed away", async () => {
+    const app = builtApp();
+    if (app.spec?.build?.source.case === "git") {
+      app.spec.build.source.value.url = "https://gitlab.example.com/acme/web";
+    }
+    if (app.spec?.build) app.spec.build.gitLogin = "gitlab:team-gitlab";
+    const { container, unmount } = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            gitlabConnections: [{ id: "glc_1", name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+          }),
+          listGitLabProjects: () => ({
+            connections: [{ name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+            projects: [
+              {
+                pathWithNamespace: "acme/web",
+                url: "https://gitlab.example.com/acme/web",
+                connectionName: "team-gitlab",
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const source = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(source).findByText("through GitLab connection team-gitlab")).toBeVisible();
+    await expectAccessible(container);
+    unmount();
+
+    // A read_repository-only token (listing 403 -> listingProblem=MISSING_READ_API)
+    // stays healthy on Source while builds remain Connected (M2).
+    const listingLimited = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            gitlabConnections: [{ id: "glc_1", name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+          }),
+          listGitLabProjects: () => ({
+            connections: [
+              {
+                name: "team-gitlab",
+                url: "https://gitlab.example.com",
+                state: 1,
+                listingProblem: 1,
+              },
+            ],
+            projects: [],
+          }),
+        },
+      }),
+    );
+    const limitedSource = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(limitedSource).findByText("through GitLab connection team-gitlab")).toBeVisible();
+    listingLimited.unmount();
+
+    // Narrowed away from this project: warns with a link to Integrations.
+    const narrowed = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            gitlabConnections: [{ id: "glc_1", name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+          }),
+          listGitLabProjects: () => ({ connections: [], projects: [] }),
+        },
+      }),
+    );
+    const narrowedSource = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(
+      await within(narrowedSource).findByText("GitLab connection team-gitlab doesn't reach this project any more."),
+    ).toBeVisible();
+    expect(within(narrowedSource).getByRole("link", { name: "Open Integrations" })).toHaveAttribute(
+      "href",
+      "/settings/integrations",
+    );
+    narrowed.unmount();
+
+    // Removed altogether.
+    renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({ gitlabConnections: [] }),
+          listGitLabProjects: () => ({ connections: [], projects: [] }),
+        },
+      }),
+    );
+    const removedSource = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(removedSource).findByText("The GitLab connection team-gitlab was removed.")).toBeVisible();
+  });
+
   it("says what the last push came to in a line, and gives the hook a new secret", async () => {
     const app = builtApp();
     const rotated: string[] = [];

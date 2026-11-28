@@ -6443,6 +6443,12 @@ msgstr "{count, plural, one {Public · # branch} other {Public · # branches}}"
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, one {Show it} other {Show them}}"
 
+msgid "{count, plural, one {Through GitLab ({gitlabConn}) · # branch} other {Through GitLab ({gitlabConn}) · # branches}}"
+msgstr "{count, plural, one {Through GitLab ({gitlabConn}) · # branch} other {Through GitLab ({gitlabConn}) · # branches}}"
+
+msgid "{count, plural, one {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branch} other {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branches}}"
+msgstr "{count, plural, one {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branch} other {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branches}}"
+
 msgid "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
 msgstr "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
 
@@ -6758,12 +6764,37 @@ msgstr "you"
 msgid "{kept}, not available to this project"
 msgstr "{kept}, not available to this project"
 
+#. placeholder {0}: conn.name
+msgid "Add read_api to pick projects from {0}. You can still paste a URL."
+msgstr "Add read_api to pick projects from {0}. You can still paste a URL."
+
+#. placeholder {0}: conn.name
+msgid "Add read_repository to build from {0}."
+msgstr "Add read_repository to build from {0}."
+
+#. placeholder {0}: conn.name
+msgid "Could not reach {0} right now."
+msgstr "Could not reach {0} right now."
+
+msgid "GitHub · {acct}"
+msgstr "GitHub · {acct}"
+
+msgid "GitLab refused this token. Check it in Settings, Integrations."
+msgstr "GitLab refused this token. Check it in Settings, Integrations."
+
+msgid "GitLab · {connName}"
+msgstr "GitLab · {connName}"
+
 msgctxt "a repository"
 msgid "Private"
 msgstr "Private"
 
 msgid "Repositories"
 msgstr "Repositories"
+
+#. placeholder {0}: opt.replacedKeyName
+msgid "Uses GitLab, not {0}"
+msgstr "Uses GitLab, not {0}"
 
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
@@ -6859,6 +6890,12 @@ msgstr "Each push to {branch} deploys {name}."
 msgid "Each push to {branch} plans a deploy of {name}, which waits for a person here."
 msgstr "Each push to {branch} plans a deploy of {name}, which waits for a person here."
 
+msgid "GitLab connection {connName} can't read this repository right now."
+msgstr "GitLab connection {connName} can't read this repository right now."
+
+msgid "GitLab connection {connName} doesn't reach this project any more."
+msgstr "GitLab connection {connName} doesn't reach this project any more."
+
 msgid "Give the panel a domain"
 msgstr "Give the panel a domain"
 
@@ -6937,6 +6974,9 @@ msgstr "The GitHub App can't reach {name} any more."
 msgid "The GitHub App was deleted on GitHub."
 msgstr "The GitHub App was deleted on GitHub."
 
+msgid "The GitLab connection {connName} was removed."
+msgstr "The GitLab connection {connName} was removed."
+
 msgid "The SSH host key changed, so fetches are stopped."
 msgstr "The SSH host key changed, so fetches are stopped."
 
@@ -6960,6 +7000,9 @@ msgstr "the default branch"
 
 msgid "this environment"
 msgstr "this environment"
+
+msgid "through GitLab connection {connName}"
+msgstr "through GitLab connection {connName}"
 
 msgid "through the GitHub App"
 msgstr "through the GitHub App"
@@ -11797,6 +11840,16 @@ msgstr "The result will appear here when it finishes."
 msgid "Uploaded context"
 msgstr "Uploaded context"
 
+#. placeholder {0}: b.git.gitLogin
+msgid "through GitHub App {0}"
+msgstr "through GitHub App {0}"
+
+msgid "through GitLab connection {gl}"
+msgstr "through GitLab connection {gl}"
+
+msgid "with deploy key {key}"
+msgstr "with deploy key {key}"
+
 msgid "Already published"
 msgstr "Already published"
 
@@ -13104,6 +13157,10 @@ msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone w
 msgstr "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone who loaded {back} since goes round in a circle until it expires: clearing the browser's cache ends it sooner."
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} ({ref}) on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
 
@@ -13118,6 +13175,10 @@ msgstr "Builds {repository} at {commit} ({ref}) on {0} first, with deploy key {d
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
+msgstr "Builds {repository} at {commit} on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
@@ -17172,6 +17233,13 @@ msgstr "The image build could not be reviewed."
 
 msgid "The server couldn't verify this build input."
 msgstr "The server couldn't verify this build input."
+
+msgid "Through GitLab ({activeGitLab})."
+msgstr "Through GitLab ({activeGitLab})."
+
+#. placeholder {0}: matchedKey.name
+msgid "Through GitLab ({activeGitLab}, preferred over deploy key {0})."
+msgstr "Through GitLab ({activeGitLab}, preferred over deploy key {0})."
 
 msgid "Upload context"
 msgstr "Upload context"
@@ -24906,11 +24974,20 @@ msgstr "Keeping the App GitHub made"
 msgid "The organization's owner approves it first"
 msgstr "The organization's owner approves it first"
 
+msgid "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
+msgstr "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
+
+msgid "Builds private repositories and lists projects; add api for CI commit statuses."
+msgstr "Builds private repositories and lists projects; add api for CI commit statuses."
+
+msgid "Builds private repositories; add read_api to pick projects or api for CI commit statuses."
+msgstr "Builds private repositories; add read_api to pick projects or api for CI commit statuses."
+
+msgid "CI commit statuses need the api scope; private repository builds stay connected."
+msgstr "CI commit statuses need the api scope; private repository builds stay connected."
+
 msgid "Check connection"
 msgstr "Check connection"
-
-msgid "Commit statuses for GitLab CI deploys"
-msgstr "Commit statuses for GitLab CI deploys"
 
 msgid "Connect GitLab {trimmedName}"
 msgstr "Connect GitLab {trimmedName}"
@@ -24921,11 +24998,15 @@ msgstr "Connected to GitLab"
 msgid "Connection check failed"
 msgstr "Connection check failed"
 
-msgid "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
-msgstr "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
+msgid "Could not reach GitLab on the last check."
+msgstr "Could not reach GitLab on the last check."
 
-msgid "Enter a token for the new GitLab URL. Needs the api scope."
-msgstr "Enter a token for the new GitLab URL. Needs the api scope."
+#. placeholder {0}: checked.url || trimmedURL
+msgid "Could not reach {0}; check the URL and network access."
+msgstr "Could not reach {0}; check the URL and network access."
+
+msgid "Enter a token for the new GitLab URL. Needs read_repository or api scope."
+msgstr "Enter a token for the new GitLab URL. Needs read_repository or api scope."
 
 msgid "GitLab URL"
 msgstr "GitLab URL"
@@ -24934,17 +25015,32 @@ msgstr "GitLab URL"
 msgid "GitLab connection {0}"
 msgstr "GitLab connection {0}"
 
+msgid "GitLab refused this token; check or replace it in Manage."
+msgstr "GitLab refused this token; check or replace it in Manage."
+
+msgid "GitLab refused this token; check that it is active with read_repository or api scope."
+msgstr "GitLab refused this token; check that it is active with read_repository or api scope."
+
 msgid "Leave blank to keep the saved token"
 msgstr "Leave blank to keep the saved token"
 
 msgid "Leave blank to match every repository on this GitLab host."
 msgstr "Leave blank to match every repository on this GitLab host."
 
-msgid "Limit which projects' deploys can report statuses through this connection."
-msgstr "Limit which projects' deploys can report statuses through this connection."
+msgid "Limit which projects can pick repositories, build, and report statuses through this connection."
+msgstr "Limit which projects can pick repositories, build, and report statuses through this connection."
 
 msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
 msgstr "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
+
+msgid "Missing scope"
+msgstr "Missing scope"
+
+msgid "Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses."
+msgstr "Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses."
+
+msgid "Needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "Needs read_repository to build private repositories, or api to also report CI commit statuses."
 
 msgid "Optional, such as acme or acme/platform"
 msgstr "Optional, such as acme or acme/platform"
@@ -24952,8 +25048,11 @@ msgstr "Optional, such as acme or acme/platform"
 msgid "Path prefix"
 msgstr "Path prefix"
 
-msgid "Personal, group or project access token with the api scope."
-msgstr "Personal, group or project access token with the api scope."
+msgid "Private repositories and CI commit statuses"
+msgstr "Private repositories and CI commit statuses"
+
+msgid "Private repositories won't build or report commit statuses through this connection until another connection covers them."
+msgstr "Private repositories won't build or report commit statuses through this connection until another connection covers them."
 
 #. placeholder {0}: editing.name
 msgid "Remove the GitLab connection {0}"
@@ -24962,20 +25061,20 @@ msgstr "Remove the GitLab connection {0}"
 msgid "Remove this GitLab connection?"
 msgstr "Remove this GitLab connection?"
 
-msgid "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
-msgstr "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
-
 msgid "Review removal"
 msgstr "Review removal"
 
-#. placeholder {0}: checked.url
-msgid "This token can post commit statuses to {0}."
-msgstr "This token can post commit statuses to {0}."
+#. placeholder {0}: checked.url || trimmedURL
+msgid "This token can build private repositories and report commit statuses on {0}."
+msgstr "This token can build private repositories and report commit statuses on {0}."
+
+msgid "This token needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "This token needs read_repository to build private repositories, or api to also report CI commit statuses."
 
 #. placeholder {0}: checked.tokenName
-#. placeholder {1}: checked.url
-msgid "Token {0} can post commit statuses to {1}."
-msgstr "Token {0} can post commit statuses to {1}."
+#. placeholder {1}: checked.url || trimmedURL
+msgid "Token {0} can build private repositories and report commit statuses on {1}."
+msgstr "Token {0} can build private repositories and report commit statuses on {1}."
 
 msgid "Update the GitLab connection {trimmedName}"
 msgstr "Update the GitLab connection {trimmedName}"

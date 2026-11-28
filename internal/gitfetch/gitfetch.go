@@ -362,6 +362,11 @@ func fetchPackTo(ctx context.Context, client doer, u *url.URL, commit string, mo
 // receivePack keeps the pack a fetch's answer carries in f, most bytes at most, and
 // says how many it kept. what names what was asked for, in its errors.
 func receivePack(body io.Reader, f *os.File, u *url.URL, what string, most int64) (int64, error) {
+	overLimit := fmt.Sprintf("the commit %s's files are over %d MiB, more than a source reads. Keep the catalog in a repository of its own", what, most>>20)
+	return receivePackLimit(body, f, u, what, most, overLimit)
+}
+
+func receivePackLimit(body io.Reader, f *os.File, u *url.URL, what string, most int64, overLimit string) (int64, error) {
 	commit := what
 	r := bufio.NewReader(body)
 	w := bufio.NewWriter(f)
@@ -393,7 +398,7 @@ func receivePack(body io.Reader, f *os.File, u *url.URL, what string, most int64
 		switch line[0] {
 		case 1:
 			if size += int64(len(line) - 1); size > most {
-				return 0, fmt.Errorf("the commit %s's files are over %d MiB, more than a source reads. Keep the catalog in a repository of its own", commit, most>>20)
+				return 0, errors.New(overLimit)
 			}
 			if _, err := w.Write(line[1:]); err != nil {
 				return 0, fmt.Errorf("keeping what %s sends: %w", u.Host, err)

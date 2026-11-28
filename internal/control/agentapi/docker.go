@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"time"
 
@@ -313,13 +314,43 @@ func (s *Session) PreviewDockerImage(ctx context.Context, ref resource.Ref, imag
 	plan := &dockwellv1.DockerMaintenance{ImageAction: image}
 	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(ref), DockerMaintenance: plan}
 	wait := dockerCallWait
+	var packReader io.ReaderAt
+	var packSize int64
+	var cleanupPack func()
 	if image.GetBuild() != nil {
 		wait = 3 * time.Minute
+		var err error
+		packReader, packSize, cleanupPack, err = s.dockerBuildGitPack(ctx, image)
+		if err != nil {
+			return nil, err
+		}
+		if cleanupPack != nil {
+			defer cleanupPack()
+		}
 	}
+	var packTransfer *transfer
+	defer func() {
+		if packTransfer != nil {
+			s.agents.closeTransfer(packTransfer)
+		}
+	}()
 	reply, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: &agentv1.PlanCall{Desired: []*agentv1.DesiredResource{wanted}}}}, wait,
 		func(session *Session) error {
 			if image.GetBuild() != nil {
-				return session.sealDockerBuild(ctx, ref, wanted)
+				if err := session.sealDockerBuild(ctx, ref, wanted); err != nil {
+					return err
+				}
+				if packReader != nil {
+					if !session.handsGitBundle || !session.transfersFiles {
+						return fmt.Errorf("the agent on %s can't receive a repository pack from the control plane yet. Update the agent on %s, then try again", session.name, session.name)
+					}
+					if packTransfer != nil {
+						s.agents.closeTransfer(packTransfer)
+					}
+					packTransfer = session.openGitPackTransfer(packReader, packSize, cleanupPack)
+					wanted.BuildGitBundleStream = packTransfer.token
+				}
+				return nil
 			}
 			return session.imageOperationAuth(wanted, ref, login)
 		})
@@ -355,12 +386,42 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 		wait += registry.PushTimeout + 30*time.Minute
 		reference = push.GetDestination()
 	}
+	var packReader io.ReaderAt
+	var packSize int64
+	var cleanupPack func()
 	if image.GetBuild() != nil {
 		wait += 2*time.Hour + resource.BuildBudget
+		var err error
+		packReader, packSize, cleanupPack, err = s.dockerBuildGitPack(ctx, image)
+		if err != nil {
+			return err
+		}
+		if cleanupPack != nil {
+			defer cleanupPack()
+		}
 	}
+	var packTransfer *transfer
+	defer func() {
+		if packTransfer != nil {
+			s.agents.closeTransfer(packTransfer)
+		}
+	}()
 	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, wait, func(session *Session) error {
 		if image.GetBuild() != nil {
-			return session.sealDockerBuild(ctx, step.Ref, wanted)
+			if err := session.sealDockerBuild(ctx, step.Ref, wanted); err != nil {
+				return err
+			}
+			if packReader != nil {
+				if !session.handsGitBundle || !session.transfersFiles {
+					return fmt.Errorf("the agent on %s can't receive a repository pack from the control plane yet. Update the agent on %s, then try again", session.name, session.name)
+				}
+				if packTransfer != nil {
+					s.agents.closeTransfer(packTransfer)
+				}
+				packTransfer = session.openGitPackTransfer(packReader, packSize, cleanupPack)
+				wanted.BuildGitBundleStream = packTransfer.token
+			}
+			return nil
 		}
 		var login registry.Auth
 		if refs := image.GetApprovedLogins(); len(refs) > 0 {

@@ -195,10 +195,13 @@ type Engine struct {
 	// Mountpoints has a local volume with no options say where its files are, its
 	// VolumeDir, as Docker on the agent's own machine does.
 	Mountpoints bool
-	images      map[string]*image // pulled, by reference and by ID
-	containers  map[string]*container
-	volumes     map[string]*docker.Volume
-	networks    map[string]*docker.Network
+	// GitURLRewrite, when set, rewrites DW_URL before fakeBuild checks out a
+	// public repository, so tests can serve an https:// host from a local stand-in.
+	GitURLRewrite func(string) string
+	images        map[string]*image // pulled, by reference and by ID
+	containers    map[string]*container
+	volumes       map[string]*docker.Volume
+	networks      map[string]*docker.Network
 	// Pulls counts pulls, and Creates containers created.
 	Pulls, Creates int
 	clock          int64 // orders what is made

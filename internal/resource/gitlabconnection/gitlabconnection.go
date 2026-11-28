@@ -145,7 +145,7 @@ func (Type) Validate(spec proto.Message) error {
 func (Type) CheckNew(spec proto.Message) error {
 	c := spec.(*resourcev1.GitLabConnection) //nolint:forcetypeassert // Validate saw it
 	if c.GetToken() == "" {
-		return errors.New("a GitLab connection needs an access token with the api scope")
+		return errors.New("a GitLab connection needs an access token with read_repository or api scope")
 	}
 	return nil
 }

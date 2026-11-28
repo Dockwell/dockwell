@@ -100,7 +100,7 @@ func sweepPackTempDir(dir string, logger *slog.Logger) {
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), "dockwell-ssh-pack-") {
+		if !e.IsDir() && (strings.HasPrefix(e.Name(), "dockwell-ssh-pack-") || strings.HasPrefix(e.Name(), "dockwell-git-pack-")) {
 			_ = os.Remove(filepath.Join(dir, e.Name()))
 		}
 	}

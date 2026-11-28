@@ -76,6 +76,7 @@ type Targets interface {
 	VerifyChecksPermission(ctx context.Context, appID string, installationID int64) bool
 	FindGitLabStatusTarget(ctx context.Context, repoURL, serviceID string) (*GitLabTarget, string, error)
 	NoteGitLabStatus(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string)
+	NoteGitLabStatusScopeMissing(connID string, rev int, detail string)
 }
 
 // Config configures a Worker.
@@ -731,7 +732,7 @@ func (w *Worker) deliverGitLab(ctx context.Context, entry store.CIStatusEntry) d
 		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED, ge.Error())
 		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabAuthFailed, reason: ge.Error()}
 	case errors.As(err, &ge) && ge.Status == 403:
-		w.cfg.Targets.NoteGitLabStatus(target.ConnectionID, target.Revision, dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE, ge.Error())
+		w.cfg.Targets.NoteGitLabStatusScopeMissing(target.ConnectionID, target.Revision, ge.Error())
 		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabMissingScope, reason: ge.Error()}
 	case errors.As(err, &ge) && !ge.Transient():
 		return deliveryOutcome{permanentFail: true, credentialRef: target.CredentialRef, reasonCode: store.CIStatusReasonGitLabNotReached, reason: ge.Error()}

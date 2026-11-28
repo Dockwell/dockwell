@@ -102,11 +102,12 @@ type ListRepositoryBranchesRequest struct {
 	// the CLI takes as --repository.
 	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	// The project whose app builds from it, by ID or name. A repository one of
-	// its GitHub App installations or deploy keys reaches is read through it,
-	// private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
+	// its GitHub App installations, GitLab connections or deploy keys reaches is
+	// read through it, private or not, as the project's builds fetch it (ADR 0098,
+	// ADR 0113).
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// Optional git login to read through, such as "ssh:<key name>" for a deploy
-	// key in project (ADR 0113).
+	// key in project or "gitlab:<connection name>" for a GitLab connection (ADR 0113).
 	GitLogin      string `protobuf:"bytes,3,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -173,8 +174,9 @@ type ListRepositoryBranchesResponse struct {
 	DefaultBranch string `protobuf:"bytes,2,opt,name=default_branch,json=defaultBranch,proto3" json:"default_branch,omitempty"`
 	// How many branches it has in all, when more than are listed.
 	Total int32 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
-	// The GitHub App installation it was read through, as a build names it,
-	// "<App name>/<installation ID>"; empty where it was read as the public do.
+	// The Git login it was read through: "<App name>/<installation ID>",
+	// "gitlab:<connection name>" or "ssh:<key name>"; empty where it was read as
+	// the public do.
 	GitLogin      string `protobuf:"bytes,4,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

@@ -12,6 +12,7 @@ import (
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 type dockerBuildLogins interface {
@@ -57,7 +58,7 @@ func (s *Session) sealDockerBuild(ctx context.Context, ref resource.Ref, wanted 
 		}
 		wanted.DockerRegistryAuth = data
 	}
-	if git := action.GetBuild().GetGit(); git.GetGitLogin() != "" {
+	if git := action.GetBuild().GetGit(); git.GetGitLogin() != "" && !service.UsesGitPack(git.GetGitLogin()) {
 		s.agents.mu.Lock()
 		fn := s.agents.dockerBuildGitAuth
 		s.agents.mu.Unlock()

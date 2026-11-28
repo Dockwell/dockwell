@@ -212,6 +212,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(GitProviderService, {
         listGitProviders: () => ({}),
         listGitRepositories: () => ({}),
+        listGitLabProjects: () => ({}),
         ...api.gitProviders,
       });
     },

@@ -25,16 +25,19 @@ import (
 
 const imageResourcePrefix = "docker-image/"
 
-// ResolveDockerGit authorizes the selected repository through the existing
-// GitHub installation and resolves an immutable commit for the server.
+// ResolveDockerGit authorizes the selected repository through the project's
+// GitHub App installation, GitLab connection, or SSH deploy key and resolves an
+// immutable commit for the server.
 func (h *Handler) ResolveDockerGit(ctx context.Context, input *v1.DockerImageGitSource, dockerfile string) (*v1.DockerImageGitSource, string, error) {
 	g := proto.CloneOf(input)
-	spec := &resourcev1.ImageBuild{Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: g.GetRepository(), Ref: g.GetRef()}}, Context: g.GetSubdirectory(), Dockerfile: dockerfile}
+	spec := &resourcev1.ImageBuild{
+		Source:     &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: g.GetRepository(), Ref: g.GetRef()}},
+		Context:    g.GetSubdirectory(),
+		Dockerfile: dockerfile,
+		GitLogin:   g.GetGitLogin(),
+	}
 	if err := service.CheckBuild(spec); err != nil {
 		return nil, "", authapi.Invalid(err)
-	}
-	if service.IsSSHRepository(spec.GetGit().GetUrl()) || strings.HasPrefix(g.GetGitLogin(), service.SSHLoginPrefix) {
-		return nil, "", authapi.Invalid(errors.New("standalone Docker image builds fetch HTTPS repositories, so an SSH repository or deploy key can't be used here. Build this repository as an app instead"))
 	}
 	if h.sources == nil {
 		return nil, "", connect.NewError(connect.CodeUnavailable, errors.New("repository sources are unavailable"))
@@ -50,7 +53,7 @@ func (h *Handler) ResolveDockerGit(ctx context.Context, input *v1.DockerImageGit
 	}
 	commit, ref, err := h.sources.Resolve(revision.WithGitScope(revision.WithGitLogin(ctx, g.GetGitLogin()), project), g.GetRepository(), spec.GetGit().GetRef())
 	if err != nil {
-		return nil, "", connect.NewError(connect.CodeFailedPrecondition, errors.New("the selected Git ref could not be resolved"))
+		return nil, "", connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	if ref == "" {
 		ref = commit

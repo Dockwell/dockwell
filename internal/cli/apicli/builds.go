@@ -139,6 +139,8 @@ func buildWords(b *dockwellv1.BuildPlan) string {
 	if login := b.GetGitLogin(); login != "" {
 		if keyName, ok := strings.CutPrefix(login, "ssh:"); ok {
 			where += ", with deploy key " + terminalSafe(keyName, false)
+		} else if connName, ok := strings.CutPrefix(login, "gitlab:"); ok {
+			where += ", through GitLab connection " + terminalSafe(connName, false)
 		} else {
 			where += ", through the GitHub App installation " + terminalSafe(login, false)
 		}

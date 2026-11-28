@@ -28,17 +28,18 @@ import (
 )
 
 type fakeTargets struct {
-	mu             sync.Mutex
-	gh             *cistatus.GitHubTarget
-	ghSkip         string
-	gl             *cistatus.GitLabTarget
-	glSkip         string
-	ghFindCalls    int
-	glFindCalls    int
-	verifyCalls    int
-	verifyMissing  bool
-	glNotedStates  []dockwellv1.GitLabConnectionState
-	glTargetByRepo map[string]*cistatus.GitLabTarget
+	mu                   sync.Mutex
+	gh                   *cistatus.GitHubTarget
+	ghSkip               string
+	gl                   *cistatus.GitLabTarget
+	glSkip               string
+	ghFindCalls          int
+	glFindCalls          int
+	verifyCalls          int
+	verifyMissing        bool
+	glNotedStates        []dockwellv1.GitLabConnectionState
+	glStatusScopeMissing int
+	glTargetByRepo       map[string]*cistatus.GitLabTarget
 }
 
 func (f *fakeTargets) FindGitHubStatusTarget(_ context.Context, _, _ string) (*cistatus.GitHubTarget, string, error) {
@@ -70,6 +71,12 @@ func (f *fakeTargets) FindGitLabStatusTarget(_ context.Context, repoURL, _ strin
 func (f *fakeTargets) NoteGitLabStatus(_ string, _ int, state dockwellv1.GitLabConnectionState, _ string) {
 	f.mu.Lock()
 	f.glNotedStates = append(f.glNotedStates, state)
+	f.mu.Unlock()
+}
+
+func (f *fakeTargets) NoteGitLabStatusScopeMissing(_ string, _ int, _ string) {
+	f.mu.Lock()
+	f.glStatusScopeMissing++
 	f.mu.Unlock()
 }
 

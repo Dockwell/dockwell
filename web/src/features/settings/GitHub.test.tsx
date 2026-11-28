@@ -436,6 +436,8 @@ describe("Back from GitHub", () => {
       pathPrefix: "acme",
       everyProject: true,
       state: GitLabConnectionState.CONNECTED,
+      capabilities: { buildPrivate: true, listProjects: true, postStatuses: false },
+      statusScopeMissing: true,
       revision: 1n,
     });
     const { unmount } = renderAt(
@@ -473,5 +475,38 @@ describe("Back from GitHub", () => {
     const saved = await screen.findByRole("article", { name: "GitLab team-gitlab" });
     expect(saved).toHaveTextContent("gitlab.example.com/acme");
     expect(saved).toHaveTextContent("Connected");
+    expect(saved).toHaveTextContent("Builds private repositories and lists projects; add api for CI commit statuses.");
+  });
+
+  it("shows one-sentence GitLab check callouts for partial scopes and unreachable hosts (L2)", async () => {
+    const user = userEvent.setup();
+    let nextCheck = {
+      state: GitLabConnectionState.CONNECTED,
+      url: "https://gitlab.example.com",
+      capabilities: { buildPrivate: true, listProjects: false, postStatuses: false },
+    };
+    renderAt("/settings/integrations", api([], { gitProviders: { checkGitLabConnection: () => nextCheck } }));
+    const card = await screen.findByRole("article", { name: "GitLab" });
+    await user.click(within(card).getByRole("button", { name: "Connect" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connect GitLab" });
+    await user.clear(within(sheet).getByLabelText("GitLab URL"));
+    await user.type(within(sheet).getByLabelText("GitLab URL"), "https://gitlab.example.com");
+    await user.type(within(sheet).getByLabelText("Access token"), "glpat-repo-only");
+    await user.click(within(sheet).getByRole("button", { name: "Check connection" }));
+    expect(
+      await within(sheet).findByText(
+        "Builds private repositories; add read_api to pick projects or api for CI commit statuses.",
+      ),
+    ).toBeVisible();
+
+    nextCheck = {
+      state: GitLabConnectionState.UNREACHABLE,
+      url: "https://gitlab.example.com",
+      capabilities: { buildPrivate: false, listProjects: false, postStatuses: false },
+    };
+    await user.click(within(sheet).getByRole("button", { name: "Check connection" }));
+    expect(
+      await within(sheet).findByText("Could not reach https://gitlab.example.com; check the URL and network access."),
+    ).toBeVisible();
   });
 });

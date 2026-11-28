@@ -4,7 +4,10 @@ package control
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log/slog"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,14 +17,24 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/cistatus"
+	"github.com/dockwell/dockwell/internal/control/gitlab"
+	"github.com/dockwell/dockwell/internal/control/gitlab/gltest"
+	"github.com/dockwell/dockwell/internal/control/gitproviders"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/gitssh"
 	"github.com/dockwell/dockwell/internal/gitssh/gitsshtest"
+	"github.com/dockwell/dockwell/internal/gittest"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/gitdeploykey"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -44,6 +57,7 @@ func TestSSHDeployKeyFullLifecycle(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
+		g.e.SetDockerRoot(t.TempDir())
 		ctx := t.Context()
 		_ = g.repo.Commit("main", "Initial private SSH commit", map[string]string{
 			"Dockerfile": webDockerfile,
@@ -709,5 +723,894 @@ func TestSSHDeployKeyConcurrencyCap(t *testing.T) {
 	}
 	if okA != 1 || busyA != 1 {
 		t.Fatalf("project A concurrent TestGitDeployKey: ok=%d busy=%d, want ok=1 busy=1", okA, busyA)
+	}
+}
+
+// TestDockerImageBuildOverSSHOnBothStores verifies standalone Docker image
+// builds (Docker -> Images -> Build) from an SSH repository using a project
+// deploy key: the verified pack is fetched on the control plane and streamed to
+// the building server, cross-project keys and changed host keys are refused,
+// and temporary pack files are cleaned up.
+func TestDockerImageBuildOverSSHOnBothStores(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		g := newGitBench(t, backend)
+		g.e.SetDockerRoot(t.TempDir())
+		ctx := t.Context()
+		commit1 := g.repo.Commit("main", "Standalone Docker SSH build", map[string]string{
+			"Dockerfile": "FROM scratch\nRUN echo ssh-docker-image\n",
+		})
+		srv, err := gitsshtest.NewServer("127.0.0.1:0", "acme/img.git", g.repo.BareDir())
+		if err != nil {
+			t.Fatalf("start ssh git server: %v", err)
+		}
+		t.Cleanup(func() { _ = srv.Close() })
+
+		sshURL := fmt.Sprintf("ssh://git@%s/acme/img.git", srv.Addr)
+		keys := gitKeysClient(g.b)
+		dockerAPI := dockwellv1connect.NewDockerServiceClient(g.b, g.b.origin, connect.WithProtoJSON())
+		serverID := g.f.lastDocker.id.ServerID
+		defaultProjectID := envProject(t, g.f, listedEnv(t, g.b))
+
+		createdRes, err := keys.CreateGitDeployKey(ctx, connect.NewRequest(&dockwellv1.CreateGitDeployKeyRequest{
+			Project:    defaultProjectID,
+			Repository: sshURL,
+			Proof:      stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY, defaultProjectID),
+		}))
+		if err != nil {
+			t.Fatalf("CreateGitDeployKey: %v", err)
+		}
+		key := createdRes.Msg.GetKey()
+		if err := srv.SetAuthorizedKeys(key.GetPublicKey()); err != nil {
+			t.Fatalf("SetAuthorizedKeys: %v", err)
+		}
+		algo, fp := srv.HostKey()
+		testOK, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
+			Id:                 key.GetId(),
+			AcceptHostKey:      true,
+			HostKeyAlgorithm:   algo,
+			HostKeyFingerprint: fp,
+		}))
+		if err != nil || testOK.Msg.GetStatus() != dockwellv1.GitDeployKeyTestStatus_GIT_DEPLOY_KEY_TEST_STATUS_OK {
+			t.Fatalf("TestGitDeployKey = %+v, %v", testOK, err)
+		}
+
+		// 1. Plan and apply a standalone Docker image build from the SSH repo.
+		planned, err := dockerAPI.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{serverID},
+			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Build{Build: &dockwellv1.DockerImageBuild{
+				Output:            "example/ssh-image",
+				CredentialProject: defaultProjectID,
+				Git: &dockwellv1.DockerImageGitSource{
+					Repository: sshURL,
+					Ref:        "main",
+					Project:    defaultProjectID,
+				},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("PlanDockerMaintenance over SSH: %v", err)
+		}
+		ch := planned.Msg.GetChange()
+		action := ch.GetPlan().GetResources()[0].GetDockerMaintenance().GetImageAction()
+		if action.GetGitCommit() != commit1 || action.GetBuild().GetGit().GetGitLogin() != key.GetGitLogin() || action.GetDockerfileSha256() == "" {
+			t.Fatalf("standalone SSH image plan = %+v, want commit %s login %s", action, commit1, key.GetGitLogin())
+		}
+		applied := g.done(t, ch)
+		if applied.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("standalone SSH image build ended %v: %s", applied.GetState(), applied.GetError())
+		}
+		if _, err := g.e.Client().InspectImage(ctx, action.GetBuild().GetOutput()); err != nil {
+			t.Fatalf("built SSH image missing on server: %v", err)
+		}
+		if entries, err := os.ReadDir(filepath.Join(g.f.config.DataDir, "ssh-packs")); err == nil {
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), "dockwell-ssh-pack-") {
+					t.Fatalf("leftover SSH pack temp file after Docker image build: %s", e.Name())
+				}
+			}
+		}
+
+		// 2. Refusal when the deploy key belongs to another project.
+		otherProj := resourceIn(t, apply(t, g.c, propose(t, g.c, "Make other project", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "other-docker"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+		})), "project")
+		for _, login := range []string{key.GetGitLogin(), ""} {
+			if _, err := dockerAPI.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+				ServerIds: []string{serverID},
+				Operation: &dockwellv1.PlanDockerMaintenanceRequest_Build{Build: &dockwellv1.DockerImageBuild{
+					Output:            "example/stolen-ssh",
+					CredentialProject: otherProj,
+					Git: &dockwellv1.DockerImageGitSource{
+						Repository: sshURL,
+						Ref:        "main",
+						Project:    otherProj,
+						GitLogin:   login,
+					},
+				}},
+			})); err == nil {
+				t.Fatalf("cross-project Docker image build (login=%q) succeeded; want refusal", login)
+			}
+		}
+
+		// 3. Refusal when host key changes.
+		if _, _, err := srv.RotateHostKeyECDSA(); err != nil {
+			t.Fatalf("RotateHostKeyECDSA: %v", err)
+		}
+		if _, err := dockerAPI.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{serverID},
+			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Build{Build: &dockwellv1.DockerImageBuild{
+				Output:            "example/changed-host",
+				CredentialProject: defaultProjectID,
+				Git: &dockwellv1.DockerImageGitSource{
+					Repository: sshURL,
+					Ref:        "main",
+					Project:    defaultProjectID,
+					GitLogin:   key.GetGitLogin(),
+				},
+			}},
+		})); err == nil {
+			t.Fatalf("Docker image build succeeded after SSH host key change; want refusal")
+		}
+	})
+}
+
+// TestGitLabConnectionPickerAndPrivateBuildOnBothStores verifies GitLab
+// connection scope checks (read_repository is enough for builds), project-scoped
+// project listings, HTTPS branch listing, control-plane verified pack streaming
+// for app builds and standalone Docker image builds, host isolation (token never
+// sent to another host), project reach isolation, and zero token leakage.
+func TestGitLabConnectionPickerAndPrivateBuildOnBothStores(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		repo := gittest.Start(t).Repo("web")
+		_ = repo.Commit("main", "Initial private GitLab commit", map[string]string{
+			"Dockerfile": webDockerfile,
+			"app.js":     "v1",
+		})
+		repo.Commit("release", "Release branch", map[string]string{
+			"Dockerfile": webDockerfile,
+			"app.js":     "release-v1",
+		})
+		commitMain := repo.Commit("main", "Second commit on GitLab main", map[string]string{
+			"app.js":             "v2",
+			"Dockerfile.scratch": "FROM scratch\nRUN echo gitlab-docker-image\n",
+		})
+
+		gl := gltest.New()
+		gl.SetProjects([]gltest.Project{
+			{PathWithNamespace: "acme/web", WebURL: "https://gitlab.example.com/acme/web", DefaultBranch: "main"},
+			{PathWithNamespace: "other/app", WebURL: "https://gitlab.example.com/other/app", DefaultBranch: "main"},
+		})
+		gl.SetRepo("acme/web", repo.BareDir())
+		glSrv := httptest.NewServer(gl)
+		t.Cleanup(func() {
+			glSrv.Close()
+			gl.Close()
+		})
+
+		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+			cfg.GitLab = GitLabConfig{Base: glSrv.URL, Client: glSrv.Client()}
+		})
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		e.SetDockerRoot(t.TempDir())
+		ctx := t.Context()
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		builds := dockwellv1connect.NewBuildServiceClient(b, b.origin, connect.WithProtoJSON())
+		gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+		dockerAPI := dockwellv1connect.NewDockerServiceClient(b, b.origin, connect.WithProtoJSON())
+		defaultEnv := listedEnv(t, b)
+		defaultProjectID := envProject(t, f, defaultEnv)
+
+		// 1. Scope checks: api -> full capabilities; read_api+read_repository ->
+		// build_private+list_projects; read_repository alone -> build_private only;
+		// read_api alone -> MISSING_SCOPE (L2).
+		chkAPI, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Url: "https://gitlab.example.com", Token: gltest.TokenAPI,
+		}))
+		if err != nil || chkAPI.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED ||
+			!chkAPI.Msg.GetCapabilities().GetBuildPrivate() || !chkAPI.Msg.GetCapabilities().GetListProjects() || !chkAPI.Msg.GetCapabilities().GetPostStatuses() {
+			t.Fatalf("CheckGitLabConnection(api) = %+v, %v", chkAPI, err)
+		}
+		chkRepo, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Url: "https://gitlab.example.com", Token: gltest.TokenReadRepo,
+		}))
+		if err != nil || chkRepo.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED ||
+			!chkRepo.Msg.GetCapabilities().GetBuildPrivate() || !chkRepo.Msg.GetCapabilities().GetListProjects() || chkRepo.Msg.GetCapabilities().GetPostStatuses() {
+			t.Fatalf("CheckGitLabConnection(read_api+read_repository) = %+v, %v", chkRepo, err)
+		}
+		chkRepoOnly, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Url: "https://gitlab.example.com", Token: gltest.TokenRepoOnly,
+		}))
+		if err != nil || chkRepoOnly.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED ||
+			!chkRepoOnly.Msg.GetCapabilities().GetBuildPrivate() || chkRepoOnly.Msg.GetCapabilities().GetListProjects() || chkRepoOnly.Msg.GetCapabilities().GetPostStatuses() {
+			t.Fatalf("CheckGitLabConnection(read_repository) = %+v, %v", chkRepoOnly, err)
+		}
+		chkReadOnly, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Url: "https://gitlab.example.com", Token: gltest.TokenReadOnly,
+		}))
+		if err != nil || chkReadOnly.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE ||
+			chkReadOnly.Msg.GetCapabilities().GetBuildPrivate() || !chkReadOnly.Msg.GetCapabilities().GetListProjects() || chkReadOnly.Msg.GetCapabilities().GetPostStatuses() {
+			t.Fatalf("CheckGitLabConnection(read_api only) = %+v, %v", chkReadOnly, err)
+		}
+
+		// 2. Connect GitLab scoped ONLY to defaultProjectID using read_api+read_repository
+		// (proving read_repository is enough without api scope).
+		otherProj := resourceIn(t, apply(t, c, propose(t, c, "Make other project", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "gl-other"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+		})), "project")
+		otherEnv := resourceIn(t, apply(t, c, propose(t, c, "Make other env", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: otherProj, Name: "prod"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{}}},
+		})), "environment")
+
+		connProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect GitLab for default project",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "corp-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenReadRepo,
+					PathPrefix:  "acme",
+					Projects:    []string{defaultProjectID},
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(gitlab.connection): %v", err)
+		}
+		doneChange(t, c, connProp.Msg.GetChange())
+
+		// 3. ListGitLabProjects returns acme/web (filtered by path_prefix) with default_branch
+		// for defaultProjectID, and nothing for otherProj (project reach enforced).
+		listedA, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil || len(listedA.Msg.GetProjects()) != 1 || listedA.Msg.GetProjects()[0].GetPathWithNamespace() != "acme/web" || listedA.Msg.GetProjects()[0].GetDefaultBranch() != "main" {
+			t.Fatalf("ListGitLabProjects(default) = %+v, %v", listedA, err)
+		}
+		listedB, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: otherProj}))
+		if err != nil || len(listedB.Msg.GetProjects()) != 0 || len(listedB.Msg.GetConnections()) != 0 {
+			t.Fatalf("ListGitLabProjects(other) = %+v, %v; want empty", listedB, err)
+		}
+
+		// 4. ListRepositoryBranches and DetectBuild read through the GitLab connection's token.
+		repoURL := "https://gitlab.example.com/acme/web"
+		brRes, err := builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{
+			Url:     repoURL,
+			Project: defaultProjectID,
+		}))
+		if err != nil {
+			t.Fatalf("ListRepositoryBranches(GitLab): %v", err)
+		}
+		if brRes.Msg.GetGitLogin() != "gitlab:corp-gl" || brRes.Msg.GetDefaultBranch() != "main" || !slices.Contains(brRes.Msg.GetBranches(), "release") {
+			t.Fatalf("ListRepositoryBranches(GitLab) = %+v", brRes.Msg)
+		}
+
+		detRes, err := builds.DetectBuild(ctx, connect.NewRequest(&dockwellv1.DetectBuildRequest{
+			Project: defaultProjectID,
+			Build: &resourcev1.ImageBuild{
+				Source:   &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: repoURL, Ref: "main"}},
+				GitLogin: "gitlab:corp-gl",
+			},
+		}))
+		if err != nil {
+			t.Fatalf("DetectBuild(GitLab): %v", err)
+		}
+		if detRes.Msg.GetDetection().GetBuilder() != resourcev1.ImageBuild_BUILDER_DOCKERFILE {
+			t.Fatalf("DetectBuild(GitLab) = %+v", detRes.Msg)
+		}
+
+		// 5. Plan and build an app from the private GitLab project: plan names gitlab:corp-gl,
+		// build streams verified pack from control plane, and token never leaks.
+		appProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Build private GitLab app",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: defaultEnv, Name: "glweb"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+					Runs: &resourcev1.Service_App{App: &resourcev1.Container{Ports: []*resourcev1.PortMapping{{HostPort: 8087, ContainerPort: 8080}}}},
+					Build: &resourcev1.ImageBuild{
+						Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: repoURL, Ref: "main"}},
+					},
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(GitLab app): %v", err)
+		}
+		plan := appProp.Msg.GetChange()
+		step := buildStep(plan)
+		if step == nil || step.GetCommit() != commitMain || step.GetGitLogin() != "gitlab:corp-gl" {
+			t.Fatalf("GitLab build plan step = %+v, want commit %s login gitlab:corp-gl", step, commitMain)
+		}
+		assertNoGLToken := func(label string, msg proto.Message) {
+			t.Helper()
+			raw, err := protojson.Marshal(msg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(raw), gltest.TokenReadRepo) {
+				t.Fatalf("%s leaked GitLab access token", label)
+			}
+		}
+		assertNoGLToken("ProposeChange(app)", appProp.Msg)
+		applied := doneChange(t, c, plan)
+		if applied.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("GitLab app build ended %v: %s", applied.GetState(), applied.GetError())
+		}
+		listedSvcs, err := s.ListServices(ctx, connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatalf("ListServices: %v", err)
+		}
+		var glSvc *dockwellv1.ServiceInfo
+		for _, svc := range listedSvcs.Msg.GetServices() {
+			if svc.GetResource().GetName() == "glweb" {
+				glSvc = svc
+				break
+			}
+		}
+		if glSvc == nil {
+			t.Fatalf("glweb not listed in ListServices")
+		}
+		running := e.Newest(docker.Project(glSvc.GetResource().GetScope()), "glweb")
+		if running == nil || !running.State.Running {
+			t.Fatalf("GitLab-built container not running: %+v", running)
+		}
+		if entries, err := os.ReadDir(filepath.Join(f.config.DataDir, "ssh-packs")); err == nil {
+			for _, ent := range entries {
+				if strings.HasPrefix(ent.Name(), "dockwell-git-pack-") {
+					t.Fatalf("leftover GitLab pack temp file after build: %s", ent.Name())
+				}
+			}
+		}
+
+		// 6. Standalone Docker image build from the private GitLab project also uses the verified pack stream.
+		dockerPlan, err := dockerAPI.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{f.lastDocker.id.ServerID},
+			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Build{Build: &dockwellv1.DockerImageBuild{
+				Output:            "example/gl-image",
+				DockerfilePath:    "Dockerfile.scratch",
+				CredentialProject: defaultProjectID,
+				Git: &dockwellv1.DockerImageGitSource{
+					Repository: repoURL,
+					Ref:        "main",
+					Project:    defaultProjectID,
+					GitLogin:   "gitlab:corp-gl",
+				},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("PlanDockerMaintenance(GitLab): %v", err)
+		}
+		imgAction := dockerPlan.Msg.GetChange().GetPlan().GetResources()[0].GetDockerMaintenance().GetImageAction()
+		if imgAction.GetBuild().GetGit().GetGitLogin() != "gitlab:corp-gl" || imgAction.GetGitCommit() != commitMain {
+			t.Fatalf("GitLab Docker image plan = %+v", imgAction)
+		}
+		doneChange(t, c, dockerPlan.Msg.GetChange())
+		if _, err := e.Client().InspectImage(ctx, imgAction.GetBuild().GetOutput()); err != nil {
+			t.Fatalf("GitLab-built Docker image missing on server: %v", err)
+		}
+
+		// 7. Token is never sent to another host, wrong path prefix, or cleartext HTTP.
+		for _, badURL := range []string{
+			"https://other.example.com/acme/web",
+			"https://gitlab.example.com/other/app",
+			"http://gitlab.example.com/acme/web",
+		} {
+			if _, err := builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{
+				Url:      badURL,
+				Project:  defaultProjectID,
+				GitLogin: "gitlab:corp-gl",
+			})); err == nil {
+				t.Fatalf("ListRepositoryBranches(%s) with gitlab:corp-gl succeeded; want refusal", badURL)
+			}
+		}
+
+		// 8. Cross-project refusal: otherProj cannot use gitlab:corp-gl for app builds
+		// or standalone Docker image builds (L5).
+		if _, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Cross-project GitLab build",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: otherEnv, Name: "gl-stolen"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+					Runs: &resourcev1.Service_App{App: &resourcev1.Container{Ports: []*resourcev1.PortMapping{{HostPort: 8088, ContainerPort: 8080}}}},
+					Build: &resourcev1.ImageBuild{
+						Source:   &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: repoURL, Ref: "main"}},
+						GitLogin: "gitlab:corp-gl",
+					},
+				}}},
+			}},
+		})); err == nil {
+			t.Fatalf("cross-project GitLab build succeeded; want refusal")
+		}
+		if _, err := dockerAPI.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{f.lastDocker.id.ServerID},
+			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Build{Build: &dockwellv1.DockerImageBuild{
+				Output:            "example/stolen-gl",
+				DockerfilePath:    "Dockerfile.scratch",
+				CredentialProject: otherProj,
+				Git: &dockwellv1.DockerImageGitSource{
+					Repository: repoURL,
+					Ref:        "main",
+					Project:    otherProj,
+					GitLogin:   "gitlab:corp-gl",
+				},
+			}},
+		})); err == nil {
+			t.Fatalf("cross-project Docker image build with gitlab:corp-gl succeeded; want refusal (L5)")
+		}
+
+		// 8b. L4: gitlab: login with no project/environment scope in context is refused.
+		glSources := &gitproviders.Sources{Base: &gitref.Resolver{Client: glSrv.Client()}}
+		glSources.SetApps(f.server.apps)
+		if _, _, err := glSources.Resolve(revision.WithGitLogin(ctx, "gitlab:corp-gl"), repoURL, "main"); err == nil {
+			t.Fatalf("gitproviders.Sources.Resolve with gitlab: login and no scope succeeded; want refusal (L4)")
+		}
+
+		// 9. Verify SQLite file on disk contains no unsealed GitLab token.
+		if backend == store.SQLite {
+			raw, err := os.ReadFile(f.db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(raw, []byte(gltest.TokenReadRepo)) {
+				t.Fatalf("sqlite database file contains plaintext GitLab token")
+			}
+		}
+	})
+}
+
+type rewritePublicGitSources struct {
+	base *gitref.Resolver
+	from string
+	to   string
+}
+
+func (r *rewritePublicGitSources) rewrite(u string) string {
+	return strings.Replace(u, r.from, r.to, 1)
+}
+
+func (r *rewritePublicGitSources) Resolve(ctx context.Context, rawURL, ref string) (string, string, error) {
+	return r.base.Resolve(ctx, r.rewrite(rawURL), ref)
+}
+
+func (r *rewritePublicGitSources) Branches(ctx context.Context, rawURL string) (string, []string, error) {
+	return r.base.Branches(ctx, r.rewrite(rawURL))
+}
+
+// TestGitLabPublicRepoStaysPublicAndScopeIsolation covers review M1, M2, and L5:
+//   - M1: An existing public GitLab app keeps git_login == "" and redeploys on
+//     the agent with no token even after a GitLab connection is added for that
+//     host, while an unlisted private repo answering 401 anonymously still pins
+//     the connection.
+//   - M2: A read_repository-only token getting 403 from ListGitLabProjects
+//     reports listing_problem=MISSING_READ_API without marking the connection
+//     refused; a CI commit status 403 marks status_scope_missing=true without
+//     poisoning Connected build health.
+//   - L5: GitLab pack fetch and SSH pack fetch from the same project share the
+//     1-per-project fetch gate (second waits until first releases).
+func TestGitLabPublicRepoStaysPublicAndScopeIsolation(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		gitSrv := gittest.Start(t)
+		pubRepo := gitSrv.Repo("public")
+		pubCommit1 := pubRepo.Commit("main", "Public GitLab v1", map[string]string{
+			"Dockerfile": webDockerfile,
+			"app.js":     "public-v1",
+		})
+		privRepo := gitSrv.Repo("secret")
+		privCommit := privRepo.Commit("main", "Unlisted private GitLab v1", map[string]string{
+			"Dockerfile": webDockerfile,
+			"app.js":     "secret-v1",
+		})
+
+		gl := gltest.New()
+		gl.SetProjects([]gltest.Project{}) // neither repo is in the listed projects
+		gl.SetPublicRepo("acme/public", pubRepo.BareDir())
+		gl.SetRepo("acme/secret", privRepo.BareDir())
+		glSrv := httptest.NewServer(gl)
+		t.Cleanup(func() {
+			glSrv.Close()
+			gl.Close()
+		})
+
+		f := startFullConfig(t, backend, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(cfg *Config) {
+			cfg.GitLab = GitLabConfig{Base: glSrv.URL, Client: glSrv.Client()}
+			cfg.Sources = &rewritePublicGitSources{
+				base: &gitref.Resolver{Client: glSrv.Client()},
+				from: "https://gitlab.example.com",
+				to:   glSrv.URL,
+			}
+		})
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		e.SetDockerRoot(t.TempDir())
+		e.GitURLRewrite = func(u string) string {
+			return strings.Replace(u, "https://gitlab.example.com", glSrv.URL, 1)
+		}
+		ctx := t.Context()
+		c := changeClient(b, b.origin)
+		s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		builds := dockwellv1connect.NewBuildServiceClient(b, b.origin, connect.WithProtoJSON())
+		gp := dockwellv1connect.NewGitProviderServiceClient(b, b.origin, connect.WithProtoJSON())
+		defaultEnv := listedEnv(t, b)
+		defaultProjectID := envProject(t, f, defaultEnv)
+
+		// 1. Deploy an existing public GitLab app BEFORE any GitLab connection exists.
+		publicURL := "https://gitlab.example.com/acme/public"
+		initProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Deploy public GitLab app",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: defaultEnv, Name: "pubweb"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+					Runs: &resourcev1.Service_App{App: &resourcev1.Container{Ports: []*resourcev1.PortMapping{{HostPort: 8091, ContainerPort: 8080}}}},
+					Build: &resourcev1.ImageBuild{
+						Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: publicURL, Ref: "main"}},
+					},
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(public before connection): %v", err)
+		}
+		if step := buildStep(initProp.Msg.GetChange()); step == nil || step.GetCommit() != pubCommit1 || step.GetGitLogin() != "" {
+			t.Fatalf("initial public build step = %+v, want commit %s with empty git_login", step, pubCommit1)
+		}
+		doneChange(t, c, initProp.Msg.GetChange())
+
+		// 2. Connect GitLab on the same host with a read_repository-only token (no read_api, no api).
+		connProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect repo-only GitLab",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "repo-only-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenRepoOnly,
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(repo-only gitlab.connection): %v", err)
+		}
+		doneChange(t, c, connProp.Msg.GetChange())
+
+		// Check connection so it starts in CONNECTED state with BuildPrivate=true, ListProjects=false, PostStatuses=false.
+		chk, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Name: "repo-only-gl",
+			Url:  "https://gitlab.example.com",
+		}))
+		if err != nil || chk.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
+			t.Fatalf("CheckGitLabConnection(repo-only-gl) = %+v, %v", chk, err)
+		}
+
+		// 3. M1: Redeploy the existing public GitLab app unchanged -> keeps git_login == ""
+		// and builds on the agent with zero authenticated GitLab calls!
+		pubCommit2 := pubRepo.Commit("main", "Public GitLab v2", map[string]string{"app.js": "public-v2"})
+		brPub, err := builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{
+			Url:     publicURL,
+			Project: defaultProjectID,
+		}))
+		if err != nil || brPub.Msg.GetGitLogin() != "" {
+			t.Fatalf("ListRepositoryBranches(public) = %+v, %v; want empty git_login (M1)", brPub, err)
+		}
+		listedSvcs, err := s.ListServices(ctx, connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pubSvcID string
+		for _, svc := range listedSvcs.Msg.GetServices() {
+			if svc.GetResource().GetName() == "pubweb" {
+				pubSvcID = svc.GetId()
+			}
+		}
+		redep, err := s.DeployService(ctx, connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: pubSvcID}))
+		if err != nil {
+			t.Fatalf("DeployService(public after connection): %v", err)
+		}
+		if step := buildStep(redep.Msg.GetChange()); step == nil || step.GetCommit() != pubCommit2 || step.GetGitLogin() != "" {
+			t.Fatalf("public redeploy build step = %+v, want commit %s with empty git_login (M1)", step, pubCommit2)
+		}
+		doneChange(t, c, redep.Msg.GetChange())
+		if gl.GitCalls() != 0 {
+			t.Fatalf("public GitLab build made %d authenticated Git calls, want 0 (M1)", gl.GitCalls())
+		}
+
+		// 3b. M1 (probe first): Even when a GitLab connection's membership=true
+		// listing DOES include the public repository (TokenAPI), the anonymous
+		// probe runs first, sees 200 OK, and NEVER pins git_login.
+		gl.SetProjects([]gltest.Project{
+			{PathWithNamespace: "acme/public", WebURL: publicURL, DefaultBranch: "main"},
+		})
+		apiConnProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect api-scope GitLab listing public repo",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "api-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenAPI,
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(api-gl): %v", err)
+		}
+		doneChange(t, c, apiConnProp.Msg.GetChange())
+
+		listedPublic, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil {
+			t.Fatalf("ListGitLabProjects(with api-gl): %v", err)
+		}
+		foundListedPublic := false
+		for _, p := range listedPublic.Msg.GetProjects() {
+			if p.GetPathWithNamespace() == "acme/public" {
+				foundListedPublic = true
+			}
+		}
+		if !foundListedPublic {
+			t.Fatalf("expected api-gl membership listing to include acme/public, got %+v", listedPublic.Msg.GetProjects())
+		}
+		brListedPub, err := builds.ListRepositoryBranches(ctx, connect.NewRequest(&dockwellv1.ListRepositoryBranchesRequest{
+			Url:     publicURL,
+			Project: defaultProjectID,
+		}))
+		if err != nil || brListedPub.Msg.GetGitLogin() != "" {
+			t.Fatalf("ListRepositoryBranches(listed public) = %+v, %v; want empty git_login (M1 probe-first)", brListedPub, err)
+		}
+		pubCommit3 := pubRepo.Commit("main", "Public GitLab v3", map[string]string{"app.js": "public-v3"})
+		redepListed, err := s.DeployService(ctx, connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: pubSvcID}))
+		if err != nil {
+			t.Fatalf("DeployService(listed public): %v", err)
+		}
+		if step := buildStep(redepListed.Msg.GetChange()); step == nil || step.GetCommit() != pubCommit3 || step.GetGitLogin() != "" {
+			t.Fatalf("listed public redeploy step = %+v, want commit %s with empty git_login (M1 probe-first)", step, pubCommit3)
+		}
+		doneChange(t, c, redepListed.Msg.GetChange())
+		if gl.GitCalls() != 0 {
+			t.Fatalf("listed public GitLab build made %d authenticated Git calls, want 0 (M1 probe-first)", gl.GitCalls())
+		}
+		// Remove api-gl so subsequent assertions exercise repo-only-gl cleanly.
+		delAPIProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Remove api-gl",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "api-gl"},
+				Delete:   true,
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(delete api-gl): %v", err)
+		}
+		doneChange(t, c, delAPIProp.Msg.GetChange())
+		gl.SetProjects([]gltest.Project{})
+
+		// 4. M1: Unlisted private repo answers 401 anonymously -> pins gitlab:repo-only-gl and builds!
+		secretURL := "https://gitlab.example.com/acme/secret"
+		privProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Deploy unlisted private GitLab app",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: defaultEnv, Name: "secweb"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+					Runs: &resourcev1.Service_App{App: &resourcev1.Container{Ports: []*resourcev1.PortMapping{{HostPort: 8092, ContainerPort: 8080}}}},
+					Build: &resourcev1.ImageBuild{
+						Source: &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: secretURL, Ref: "main"}},
+					},
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(unlisted private): %v", err)
+		}
+		if step := buildStep(privProp.Msg.GetChange()); step == nil || step.GetCommit() != privCommit || step.GetGitLogin() != "gitlab:repo-only-gl" {
+			t.Fatalf("private build step = %+v, want commit %s login gitlab:repo-only-gl (M1)", step, privCommit)
+		}
+		doneChange(t, c, privProp.Msg.GetChange())
+		if gl.GitCalls() == 0 {
+			t.Fatalf("private GitLab build made 0 authenticated Git calls")
+		}
+
+		// 5. M2 (listing 403): ListGitLabProjects with read_repository-only token returns
+		// listing_problem=MISSING_READ_API while ListGitProviders stays CONNECTED (never AUTH_FAILED).
+		listed, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil || len(listed.Msg.GetConnections()) != 1 {
+			t.Fatalf("ListGitLabProjects(repo-only) = %+v, %v", listed, err)
+		}
+		pconn := listed.Msg.GetConnections()[0]
+		if pconn.GetListingProblem() != dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_MISSING_READ_API {
+			t.Fatalf("listing_problem = %v, want MISSING_READ_API (M2)", pconn.GetListingProblem())
+		}
+		if pconn.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
+			t.Fatalf("picker connection state = %v, want CONNECTED (M2)", pconn.GetState())
+		}
+		provs, err := gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+		if err != nil || len(provs.Msg.GetGitlabConnections()) != 1 {
+			t.Fatalf("ListGitProviders = %+v, %v", provs, err)
+		}
+		if provs.Msg.GetGitlabConnections()[0].GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
+			t.Fatalf("ListGitProviders state after listing 403 = %v, want CONNECTED (M2)", provs.Msg.GetGitlabConnections()[0].GetState())
+		}
+
+		// 6. M2 (CI status 403): Delivering a CI commit status with read_repository-only
+		// token hits 403, records status_scope_missing=true, and leaves connection State CONNECTED!
+		listedSvcs, err = s.ListServices(ctx, connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var secSvcID string
+		for _, svc := range listedSvcs.Msg.GetServices() {
+			if svc.GetResource().GetName() == "secweb" {
+				secSvcID = svc.GetId()
+			}
+		}
+		ciChgID := id.New(id.Change)
+		now := time.Now().UTC()
+		if err := f.store.Revise(ctx, func(tx *store.RevisionTx) error {
+			if err := tx.CreateChange(ctx, store.Change{
+				ID: ciChgID, Summary: "CI deploy secweb", Actor: "tok_ci", State: store.ChangePlanned,
+				CreatedAt: now, Plan: []byte(`{}`), Fingerprint: "fp-ci",
+			}); err != nil {
+				return err
+			}
+			if err := tx.RecordCIDeploy(ctx, store.CIDeployOrigin{
+				CIDeployKey: store.CIDeployKey{
+					Service: secSvcID,
+					Digest:  "sha256:" + strings.Repeat("b", 64),
+					Commit:  privCommit,
+				},
+				Provider:   int32(dockwellv1.DeployProvider_DEPLOY_PROVIDER_GITLAB_CI),
+				Repository: secretURL,
+				Ref:        "refs/heads/main",
+				Image:      "registry.gitlab.example.com/acme/secret:1",
+			}, ciChgID); err != nil {
+				return err
+			}
+			_, err := tx.EnqueueCIStatusForChange(ctx, ciChgID, store.CIStatusHealthy, store.CIStatusEnqueueOpts{
+				ServiceName:       "secweb",
+				EnvironmentName:   "production",
+				AllowedRepository: secretURL,
+				Summary:           "Healthy",
+			}, now)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		worker := cistatus.New(cistatus.Config{
+			DB:      f.store,
+			Targets: ciStatusTargets{apps: f.server.apps},
+			GitLab:  &gitlab.Client{HTTP: glSrv.Client(), TestBase: glSrv.URL},
+		})
+		if err := worker.DeliverOnce(ctx); err != nil {
+			t.Fatalf("cistatus.DeliverOnce: %v", err)
+		}
+		provs, err = gp.ListGitProviders(ctx, connect.NewRequest(&dockwellv1.ListGitProvidersRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		glConn := provs.Msg.GetGitlabConnections()[0]
+		if glConn.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED || !glConn.GetStatusScopeMissing() {
+			t.Fatalf("after CI status 403: state=%v status_scope_missing=%v, want CONNECTED & true (M2)", glConn.GetState(), glConn.GetStatusScopeMissing())
+		}
+
+		// 7. N9: A read_api-only token (TokenReadOnly) checks as MISSING_SCOPE and
+		// surfaces state=MISSING_SCOPE with no listing_problem in ListGitLabProjects.
+		roProp, err := c.ProposeChange(ctx, connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+			Summary: "Connect read_api-only GitLab",
+			Edits: []*dockwellv1.Edit{{
+				Resource: &dockwellv1.ResourceRef{Kind: "gitlab.connection", Name: "read-api-only-gl"},
+				Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_GitlabConnection{GitlabConnection: &resourcev1.GitLabConnection{
+					InstanceUrl: "https://gitlab.example.com",
+					Token:       gltest.TokenReadOnly,
+				}}},
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("ProposeChange(read-api-only-gl): %v", err)
+		}
+		doneChange(t, c, roProp.Msg.GetChange())
+		chkRO, err := gp.CheckGitLabConnection(ctx, connect.NewRequest(&dockwellv1.CheckGitLabConnectionRequest{
+			Name: "read-api-only-gl",
+			Url:  "https://gitlab.example.com",
+		}))
+		if err != nil || chkRO.Msg.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE {
+			t.Fatalf("CheckGitLabConnection(read-api-only-gl) = %+v, %v; want MISSING_SCOPE", chkRO, err)
+		}
+		listedRO, err := gp.ListGitLabProjects(ctx, connect.NewRequest(&dockwellv1.ListGitLabProjectsRequest{Project: defaultProjectID}))
+		if err != nil {
+			t.Fatalf("ListGitLabProjects(read-api-only-gl): %v", err)
+		}
+		var gotROConn *dockwellv1.GitLabProjectConnection
+		for _, cn := range listedRO.Msg.GetConnections() {
+			if cn.GetName() == "read-api-only-gl" {
+				gotROConn = cn
+			}
+		}
+		if gotROConn == nil || gotROConn.GetState() != dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE ||
+			gotROConn.GetListingProblem() != dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNSPECIFIED {
+			t.Fatalf("read-api-only-gl in ListGitLabProjects = %+v, want state=MISSING_SCOPE listing_problem=UNSPECIFIED (N9)", gotROConn)
+		}
+	})
+}
+
+// TestSharedPackFetchGateBetweenSSHAndGitLab verifies L5: a GitLab pack fetch
+// and an SSH pack fetch for the same project share the 1-per-project fetch gate
+// (the second waits until the first releases, while another project is not blocked).
+func TestSharedPackFetchGateBetweenSSHAndGitLab(t *testing.T) {
+	t.Parallel()
+	g := newGitBench(t, store.SQLite)
+	ctx := t.Context()
+	commit := g.repo.Commit("main", "Shared gate commit", map[string]string{"Dockerfile": webDockerfile})
+
+	sshSrv, err := gitsshtest.NewServer("127.0.0.1:0", "acme/web.git", g.repo.BareDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sshSrv.Close() })
+
+	keys := gitKeysClient(g.b)
+	projA := envProject(t, g.f, listedEnv(t, g.b))
+	projB := resourceIn(t, apply(t, g.c, propose(t, g.c, "Make projB", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "projb-gate"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+	})), "project")
+
+	created, err := keys.CreateGitDeployKey(ctx, connect.NewRequest(&dockwellv1.CreateGitDeployKeyRequest{
+		Project:    projA,
+		Repository: sshSrv.URL(),
+		Proof:      stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_CREATE_GIT_DEPLOY_KEY, projA),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := created.Msg.GetKey()
+	if err := sshSrv.SetAuthorizedKeys(key.GetPublicKey()); err != nil {
+		t.Fatal(err)
+	}
+	algo, fp := sshSrv.HostKey()
+	if _, err := keys.TestGitDeployKey(ctx, connect.NewRequest(&dockwellv1.TestGitDeployKeyRequest{
+		Id:                 key.GetId(),
+		AcceptHostKey:      true,
+		HostKeyAlgorithm:   algo,
+		HostKeyFingerprint: fp,
+	})); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate an active GitLab pack fetch holding projA's pack-fetch slot via AcquirePackFetch.
+	releaseGL, err := g.f.server.deployKeys.AcquirePackFetch(ctx, projA)
+	if err != nil {
+		t.Fatalf("AcquirePackFetch(projA): %v", err)
+	}
+	// Another project (projB) is NOT blocked by projA.
+	releaseB, err := g.f.server.deployKeys.AcquirePackFetch(ctx, projB)
+	if err != nil {
+		releaseGL()
+		t.Fatalf("AcquirePackFetch(projB) while projA held: %v", err)
+	}
+	releaseB()
+
+	// Start an SSH FetchPackIn in the SAME project (projA): it MUST block until releaseGL() runs.
+	sshDone := make(chan error, 1)
+	go func() {
+		_, _, cleanup, ferr := g.f.server.deployKeys.FetchPackIn(ctx, key.GetGitLogin(), sshSrv.URL(), "main", commit, projA)
+		if cleanup != nil {
+			cleanup()
+		}
+		sshDone <- ferr
+	}()
+	select {
+	case err := <-sshDone:
+		releaseGL()
+		t.Fatalf("SSH FetchPackIn in projA completed while GitLab pack slot was held (err=%v); want shared 1-per-project gate", err)
+	case <-time.After(150 * time.Millisecond):
+		// Expected: SSH fetch is waiting on the shared gate!
+	}
+	releaseGL()
+	select {
+	case err := <-sshDone:
+		if err != nil {
+			t.Fatalf("SSH FetchPackIn after GitLab release failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("SSH FetchPackIn did not unblock after GitLab slot released")
 	}
 }

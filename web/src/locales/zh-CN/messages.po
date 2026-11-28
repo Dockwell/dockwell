@@ -6443,6 +6443,12 @@ msgstr "{count, plural, other {公开 · # 个分支}}"
 msgid "{count, plural, one {Show it} other {Show them}}"
 msgstr "{count, plural, other {显示}}"
 
+msgid "{count, plural, one {Through GitLab ({gitlabConn}) · # branch} other {Through GitLab ({gitlabConn}) · # branches}}"
+msgstr "{count, plural, other {通过 GitLab（{gitlabConn}） · # 个分支}}"
+
+msgid "{count, plural, one {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branch} other {Through GitLab ({gitlabConn}, preferred over deploy key {matchingDeployKeyName}) · # branches}}"
+msgstr "{count, plural, other {通过 GitLab（{gitlabConn}，优先于部署密钥 {matchingDeployKeyName}） · # 个分支}}"
+
 msgid "{count, plural, one {Through the GitHub App · # branch} other {Through the GitHub App · # branches}}"
 msgstr "{count, plural, other {通过 GitHub 应用 · # 个分支}}"
 
@@ -6758,12 +6764,37 @@ msgstr "你"
 msgid "{kept}, not available to this project"
 msgstr "{kept}，这个项目不可用"
 
+#. placeholder {0}: conn.name
+msgid "Add read_api to pick projects from {0}. You can still paste a URL."
+msgstr "添加 read_api 权限以从 {0} 选择项目。你仍然可以粘贴 URL。"
+
+#. placeholder {0}: conn.name
+msgid "Add read_repository to build from {0}."
+msgstr "添加 read_repository 权限以从 {0} 构建。"
+
+#. placeholder {0}: conn.name
+msgid "Could not reach {0} right now."
+msgstr "目前无法连接到 {0}。"
+
+msgid "GitHub · {acct}"
+msgstr "GitHub · {acct}"
+
+msgid "GitLab refused this token. Check it in Settings, Integrations."
+msgstr "GitLab 拒绝了此令牌。请在“设置 -> 集成”中检查。"
+
+msgid "GitLab · {connName}"
+msgstr "GitLab · {connName}"
+
 msgctxt "a repository"
 msgid "Private"
 msgstr "私有"
 
 msgid "Repositories"
 msgstr "仓库"
+
+#. placeholder {0}: opt.replacedKeyName
+msgid "Uses GitLab, not {0}"
+msgstr "使用 GitLab，而非 {0}"
 
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
@@ -6859,6 +6890,12 @@ msgstr "每次推送到 {branch} 都会部署 {name}。"
 msgid "Each push to {branch} plans a deploy of {name}, which waits for a person here."
 msgstr "每次推送到 {branch} 都会计划部署 {name}，在这里等人来应用。"
 
+msgid "GitLab connection {connName} can't read this repository right now."
+msgstr "GitLab 连接 {connName} 目前无法读取此仓库。"
+
+msgid "GitLab connection {connName} doesn't reach this project any more."
+msgstr "GitLab 连接 {connName} 不再覆盖此项目。"
+
 msgid "Give the panel a domain"
 msgstr "为面板设置域名"
 
@@ -6937,6 +6974,9 @@ msgstr "GitHub 应用已无法访问 {name}。"
 msgid "The GitHub App was deleted on GitHub."
 msgstr "GitHub 应用已在 GitHub 上删除。"
 
+msgid "The GitLab connection {connName} was removed."
+msgstr "GitLab 连接 {connName} 已被移除。"
+
 msgid "The SSH host key changed, so fetches are stopped."
 msgstr "SSH 主机密钥已变更，拉取已停止。"
 
@@ -6960,6 +7000,9 @@ msgstr "默认分支"
 
 msgid "this environment"
 msgstr "此环境"
+
+msgid "through GitLab connection {connName}"
+msgstr "通过 GitLab 连接 {connName}"
 
 msgid "through the GitHub App"
 msgstr "通过 GitHub 应用"
@@ -11797,6 +11840,16 @@ msgstr "完成后，结果会显示在这里。"
 msgid "Uploaded context"
 msgstr "已上传的上下文"
 
+#. placeholder {0}: b.git.gitLogin
+msgid "through GitHub App {0}"
+msgstr "通过 GitHub 应用 {0}"
+
+msgid "through GitLab connection {gl}"
+msgstr "通过 GitLab 连接 {gl}"
+
+msgid "with deploy key {key}"
+msgstr "使用部署密钥 {key}"
+
 msgid "Already published"
 msgstr "已发布"
 
@@ -13104,6 +13157,10 @@ msgid "Browsers keep {back}'s earlier redirect to {to} for up to a day. Anyone w
 msgstr "浏览器会将 {back} 之前到 {to} 的重定向保留至多一天。此后访问过 {back} 的人会一直循环，直到它过期：清除浏览器缓存可以更早结束。"
 
 #. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} ({ref}) on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
+msgstr "先在 {0} 上通过 GitLab 连接 {gitlabConn} 构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
 msgstr "先通过 {account} 上的 GitHub 应用，在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
 
@@ -13118,6 +13175,10 @@ msgstr "先在 {0} 上使用部署密钥 {deployKey} 构建 {repository} 的 {co
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "先在 {0} 上构建 {repository} 的 {commit}（{ref}）。如果构建失败，正在运行的内容保持不变。"
+
+#. placeholder {0}: server.serverName
+msgid "Builds {repository} at {commit} on {0} first, through GitLab connection {gitlabConn}. If the build fails, what runs stays as it is."
+msgstr "先在 {0} 上通过 GitLab 连接 {gitlabConn} 构建 {repository} 的 {commit}。如果构建失败，正在运行的内容保持不变。"
 
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first, through the GitHub App on {account}. If the build fails, what runs stays as it is."
@@ -17172,6 +17233,13 @@ msgstr "无法审查镜像构建。"
 
 msgid "The server couldn't verify this build input."
 msgstr "服务器无法验证此构建输入。"
+
+msgid "Through GitLab ({activeGitLab})."
+msgstr "通过 GitLab（{activeGitLab}）。"
+
+#. placeholder {0}: matchedKey.name
+msgid "Through GitLab ({activeGitLab}, preferred over deploy key {0})."
+msgstr "通过 GitLab（{activeGitLab}，优先于部署密钥 {0}）。"
 
 msgid "Upload context"
 msgstr "上传上下文"
@@ -24906,11 +24974,20 @@ msgstr "正在保存 GitHub 创建的应用"
 msgid "The organization's owner approves it first"
 msgstr "需要组织所有者先批准"
 
+msgid "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
+msgstr "在 gitlab.com 或自托管 GitLab 上构建私有仓库并报告 CI 提交状态"
+
+msgid "Builds private repositories and lists projects; add api for CI commit statuses."
+msgstr "可构建私有仓库并列出项目；添加 api 权限以报告 CI 提交状态。"
+
+msgid "Builds private repositories; add read_api to pick projects or api for CI commit statuses."
+msgstr "可构建私有仓库；添加 read_api 权限以选择项目，或添加 api 权限以报告 CI 提交状态。"
+
+msgid "CI commit statuses need the api scope; private repository builds stay connected."
+msgstr "CI 提交状态需要 api 权限；私有仓库构建仍保持已连接。"
+
 msgid "Check connection"
 msgstr "检查连接"
-
-msgid "Commit statuses for GitLab CI deploys"
-msgstr "GitLab CI 部署的提交状态"
 
 msgid "Connect GitLab {trimmedName}"
 msgstr "连接 GitLab {trimmedName}"
@@ -24921,11 +24998,15 @@ msgstr "已连接到 GitLab"
 msgid "Connection check failed"
 msgstr "连接检查失败"
 
-msgid "Deploys from matching GitLab repositories won't report commit statuses until another connection covers them."
-msgstr "在有其他连接覆盖之前，来自匹配 GitLab 仓库的部署将不会上报提交状态。"
+msgid "Could not reach GitLab on the last check."
+msgstr "上次检查时无法连接到 GitLab。"
 
-msgid "Enter a token for the new GitLab URL. Needs the api scope."
-msgstr "输入新 GitLab URL 的令牌。需要 api 作用域。"
+#. placeholder {0}: checked.url || trimmedURL
+msgid "Could not reach {0}; check the URL and network access."
+msgstr "无法连接 {0}；请检查 URL 和网络访问。"
+
+msgid "Enter a token for the new GitLab URL. Needs read_repository or api scope."
+msgstr "请为新的 GitLab URL 输入令牌。需要 read_repository 或 api 权限范围。"
 
 msgid "GitLab URL"
 msgstr "GitLab URL"
@@ -24934,17 +25015,32 @@ msgstr "GitLab URL"
 msgid "GitLab connection {0}"
 msgstr "GitLab 连接 {0}"
 
+msgid "GitLab refused this token; check or replace it in Manage."
+msgstr "GitLab 拒绝了此令牌；请在「管理」中检查或更换。"
+
+msgid "GitLab refused this token; check that it is active with read_repository or api scope."
+msgstr "GitLab 拒绝了此令牌；请确认其处于有效状态并具有 read_repository 或 api 权限。"
+
 msgid "Leave blank to keep the saved token"
 msgstr "留空以保留已保存的令牌"
 
 msgid "Leave blank to match every repository on this GitLab host."
 msgstr "留空以匹配此 GitLab 主机上的所有仓库。"
 
-msgid "Limit which projects' deploys can report statuses through this connection."
-msgstr "限制哪些项目的部署可以通过此连接上报状态。"
+msgid "Limit which projects can pick repositories, build, and report statuses through this connection."
+msgstr "限制哪些项目可以通过此连接选择仓库、构建并报告状态。"
 
 msgid "Lowercase letters, digits and hyphens, such as gitlab or acme-gitlab."
 msgstr "小写字母、数字和连字符，例如 gitlab 或 acme-gitlab。"
+
+msgid "Missing scope"
+msgstr "缺少权限范围"
+
+msgid "Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses."
+msgstr "构建需要 read_repository（以及 read_api 以选择项目），若要同时报告 CI 提交状态则需要 api。"
+
+msgid "Needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "需要 read_repository 权限以构建私有仓库，或 api 权限以同时上报 CI 提交状态。"
 
 msgid "Optional, such as acme or acme/platform"
 msgstr "可选，例如 acme 或 acme/platform"
@@ -24952,8 +25048,11 @@ msgstr "可选，例如 acme 或 acme/platform"
 msgid "Path prefix"
 msgstr "路径前缀"
 
-msgid "Personal, group or project access token with the api scope."
-msgstr "具有 api 作用域的个人、群组或项目访问令牌。"
+msgid "Private repositories and CI commit statuses"
+msgstr "私有仓库与 CI 提交状态"
+
+msgid "Private repositories won't build or report commit statuses through this connection until another connection covers them."
+msgstr "在有其他连接覆盖之前，私有仓库将无法通过此连接构建或报告提交状态。"
 
 #. placeholder {0}: editing.name
 msgid "Remove the GitLab connection {0}"
@@ -24962,20 +25061,20 @@ msgstr "移除 GitLab 连接 {0}"
 msgid "Remove this GitLab connection?"
 msgstr "移除此 GitLab 连接？"
 
-msgid "Report CI deploy commit statuses to gitlab.com or self-managed GitLab"
-msgstr "向 gitlab.com 或自托管 GitLab 上报 CI 部署提交状态"
-
 msgid "Review removal"
 msgstr "审查移除"
 
-#. placeholder {0}: checked.url
-msgid "This token can post commit statuses to {0}."
-msgstr "此令牌可向 {0} 发布提交状态。"
+#. placeholder {0}: checked.url || trimmedURL
+msgid "This token can build private repositories and report commit statuses on {0}."
+msgstr "此令牌可在 {0} 上构建私有仓库并上报提交状态。"
+
+msgid "This token needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "此令牌需要 read_repository 权限以构建私有仓库，或 api 权限以同时上报 CI 提交状态。"
 
 #. placeholder {0}: checked.tokenName
-#. placeholder {1}: checked.url
-msgid "Token {0} can post commit statuses to {1}."
-msgstr "令牌 {0} 可向 {1} 发布提交状态。"
+#. placeholder {1}: checked.url || trimmedURL
+msgid "Token {0} can build private repositories and report commit statuses on {1}."
+msgstr "令牌 {0} 可在 {1} 上构建私有仓库并上报提交状态。"
 
 msgid "Update the GitLab connection {trimmedName}"
 msgstr "更新 GitLab 连接 {trimmedName}"

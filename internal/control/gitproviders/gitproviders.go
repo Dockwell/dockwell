@@ -68,6 +68,9 @@ type Config struct {
 	Client github.Doer
 	// GitLab reaches GitLab servers: a netguard-backed client unless a test's.
 	GitLab *gitlab.Client
+	// PackTempDir is a Dockwell-owned directory for temporary verified packs
+	// fetched on the control plane (ADR 0113). Empty falls back to os.TempDir().
+	PackTempDir string
 	// Now is the clock: time.Now unless a test's.
 	Now func() time.Time
 	// BeforeChange runs between reading an App and keeping a change made from it,
@@ -97,6 +100,11 @@ type Handler struct {
 	gitlabChecks map[string]gitlabCheck
 	// gitlabProjects caches GET /api/v4/projects per (connection ID, revision, query) for 60s (N8).
 	gitlabProjects map[string]gitlabProjectsCache
+	// gitlabProbes caches anonymous smart-HTTP probe outcomes (public/private only)
+	// per normalized repository URL for 2 minutes (N7, N8).
+	gitlabProbes map[string]gitlabProbeCache
+	// glGate bounds concurrent outbound GitLab probe and project-listing calls (N7).
+	glGate chan struct{}
 	// watch is whether each App's deliveries reach the panel, by resource ID;
 	// branches what the last check of each hook's branch said, by hook ID; and
 	// pusher what deploys a push polling finds.
@@ -137,8 +145,9 @@ func New(cfg Config) *Handler {
 	return &Handler{
 		cfg: cfg, starting: map[string]starting{}, apps: map[string]*actingApp{}, gone: map[string]bool{},
 		appPerms: map[string]map[string]string{}, gitlabChecks: map[string]gitlabCheck{},
-		gitlabProjects: map[string]gitlabProjectsCache{},
-		watch:          map[string]*watching{}, branches: map[string]branch{},
+		gitlabProjects: map[string]gitlabProjectsCache{}, gitlabProbes: map[string]gitlabProbeCache{},
+		glGate: make(chan struct{}, gitlabReadsAtOnce),
+		watch:  map[string]*watching{}, branches: map[string]branch{},
 	}
 }
 

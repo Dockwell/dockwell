@@ -78,27 +78,43 @@ type MultiGitLogins struct {
 
 var _ changes.GitLogins = (*MultiGitLogins)(nil)
 
-// PinGitLogin checks or picks the git_login for project and repoURL.
-func (m *MultiGitLogins) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error) {
+// PinGitLogin checks or picks the git_login for project and repoURL outside any
+// store transaction.
+func (m *MultiGitLogins) PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error) {
 	if _, isKey := service.DeployKeyOf(login); isKey {
 		if m.Keys == nil {
 			return "", errors.New("this control plane doesn't support SSH deploy keys")
 		}
-		return m.Keys.PinDeployKey(ctx, tx, project, repoURL, login)
+		return m.Keys.PinDeployKeyForProject(ctx, project, repoURL, login)
 	}
 	if login == "" && service.IsSSHRepository(repoURL) {
 		if m.Keys == nil {
 			return "", errors.New("this control plane doesn't support SSH deploy keys")
 		}
-		return m.Keys.PinDeployKey(ctx, tx, project, repoURL, "")
+		return m.Keys.PinDeployKeyForProject(ctx, project, repoURL, "")
 	}
 	if m.Fallback != nil {
-		return m.Fallback.PinGitLogin(ctx, tx, project, repoURL, login)
+		return m.Fallback.PinGitLogin(ctx, project, repoURL, login)
 	}
 	if login != "" {
 		return "", fmt.Errorf("this control plane can't use git login %s", login)
 	}
 	return "", nil
+}
+
+// PinDeployKeyForProject opens a short read transaction to validate or pick a
+// project-scoped deploy key.
+func (h *Handler) PinDeployKeyForProject(ctx context.Context, project, repoURL, login string) (string, error) {
+	if project == "" {
+		return "", errors.New("a deploy key belongs to one project. Name the project the app builds in")
+	}
+	var pinned string
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		pinned, err = h.PinDeployKey(ctx, tx, project, repoURL, login)
+		return err
+	})
+	return pinned, err
 }
 
 // PinDeployKey validates a named ssh:<name> deploy key in project (or finds a
@@ -281,10 +297,42 @@ func (h *Handler) maybeNoteHostKeyChange(ctx context.Context, keyID string, err 
 	}
 }
 
+// AcquirePackFetch acquires a shared control-plane pack-fetch slot (at most 2
+// concurrent pack fetches total, 1 per project) so SSH and GitLab pack
+// verifications stay inside the control-plane memory budget.
+func (h *Handler) AcquirePackFetch(ctx context.Context, scopeID string) (func(), error) {
+	if scopeID == "" {
+		scopeID = revision.GitScopeOf(ctx)
+	}
+	if scopeID == "" {
+		return nil, errors.New("a private repository pack fetch belongs to one project, and this build named none")
+	}
+	projectID := scopeID
+	if h.cfg.DB != nil {
+		if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			p, err := h.projectForScope(ctx, tx, scopeID)
+			if err != nil {
+				return err
+			}
+			projectID = p
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		if projectID == "" {
+			return nil, errors.New("a private repository pack fetch belongs to a known project, and this build named none")
+		}
+	}
+	return h.gate.acquireFetch(ctx, projectID, "")
+}
+
 // ShownLogin formats a git_login for CLI or plan display.
 func ShownLogin(login string) string {
 	if name, ok := service.DeployKeyOf(login); ok {
 		return "deploy key " + name
+	}
+	if name, ok := service.GitLabConnectionOf(login); ok {
+		return "GitLab connection " + name
 	}
 	if strings.Contains(login, "/") {
 		return "GitHub App " + login

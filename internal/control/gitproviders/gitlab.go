@@ -16,6 +16,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/gitlab"
 	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource/gitlabconnection"
@@ -26,7 +27,38 @@ import (
 const (
 	gitlabProjectsCacheTTL     = 60 * time.Second
 	gitlabProjectsCacheMaxKeys = 256
+	gitlabProbeCacheTTL        = 2 * time.Minute
+	gitlabProbeCacheMaxKeys    = 256
+	gitlabReadsAtOnce          = 2
 )
+
+var errTooManyGitLabReads = authapi.ReasonError(connect.CodeResourceExhausted,
+	fmt.Errorf("the control server is checking %d GitLab repositories already. Check again in a moment", gitlabReadsAtOnce), "too_many_readings")
+
+type gitlabProbeOutcome uint8
+
+const (
+	probeUnknown gitlabProbeOutcome = iota
+	probePublic
+	probePrivate
+)
+
+type gitlabProbeCache struct {
+	outcome   gitlabProbeOutcome
+	expiresAt time.Time
+}
+
+func (h *Handler) acquireGitLabRead() (func(), error) {
+	if h.glGate == nil {
+		return func() {}, nil
+	}
+	select {
+	case h.glGate <- struct{}{}:
+		return func() { <-h.glGate }, nil
+	default:
+		return nil, errTooManyGitLabReads
+	}
+}
 
 type gitlabProjectsCache struct {
 	projects  []gitlab.Project
@@ -35,10 +67,23 @@ type gitlabProjectsCache struct {
 }
 
 type gitlabCheck struct {
-	revision  int
-	state     dockwellv1.GitLabConnectionState
-	detail    string
-	checkedAt time.Time
+	revision           int
+	state              dockwellv1.GitLabConnectionState
+	detail             string
+	capabilities       *dockwellv1.GitLabCapabilities
+	statusScopeMissing bool
+	checkedAt          time.Time
+}
+
+func cloneGitLabCapabilities(c *dockwellv1.GitLabCapabilities) *dockwellv1.GitLabCapabilities {
+	if c == nil {
+		return nil
+	}
+	return &dockwellv1.GitLabCapabilities{
+		BuildPrivate: c.GetBuildPrivate(),
+		ListProjects: c.GetListProjects(),
+		PostStatuses: c.GetPostStatuses(),
+	}
 }
 
 type keptGitLab struct {
@@ -92,6 +137,8 @@ func (h *Handler) gitlabList(ctx context.Context, tx *store.Tx) ([]*dockwellv1.G
 		if c, ok := h.gitlabChecks[k.r.ID]; ok && c.revision == k.r.Revision {
 			info.State = c.state
 			info.Detail = c.detail
+			info.Capabilities = cloneGitLabCapabilities(c.capabilities)
+			info.StatusScopeMissing = c.statusScopeMissing
 			if !c.checkedAt.IsZero() {
 				info.CheckedTime = timestamppb.New(c.checkedAt)
 			}
@@ -102,11 +149,73 @@ func (h *Handler) gitlabList(ctx context.Context, tx *store.Tx) ([]*dockwellv1.G
 }
 
 // NoteGitLabStatus records the latest live status of a GitLab connection from
-// status delivery so Settings, Integrations reflects expired tokens or missing
-// scopes right away.
+// status delivery or project listing so Settings, Integrations reflects
+// expired tokens or unreachable hosts right away.
 func (h *Handler) NoteGitLabStatus(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string) {
 	h.mu.Lock()
-	h.gitlabChecks[connID] = gitlabCheck{revision: rev, state: state, detail: detail, checkedAt: h.now()}
+	defer h.mu.Unlock()
+	prev, same := h.gitlabChecks[connID]
+	same = same && prev.revision == rev
+	next := gitlabCheck{
+		revision:  rev,
+		state:     state,
+		detail:    detail,
+		checkedAt: h.now(),
+	}
+	if state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED {
+		if same && prev.capabilities != nil {
+			caps := cloneGitLabCapabilities(prev.capabilities)
+			caps.PostStatuses = true
+			next.capabilities = caps
+		}
+		next.statusScopeMissing = false
+	} else if same {
+		next.capabilities = cloneGitLabCapabilities(prev.capabilities)
+		next.statusScopeMissing = prev.statusScopeMissing
+	}
+	h.gitlabChecks[connID] = next
+}
+
+// NoteGitLabStatusScopeMissing records that posting a CI commit status got a
+// 403 (missing api scope) without poisoning the connection's build state
+// (read_repository tokens still build private repositories).
+func (h *Handler) NoteGitLabStatusScopeMissing(connID string, rev int, _ string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	prev, same := h.gitlabChecks[connID]
+	if same && prev.revision == rev {
+		caps := cloneGitLabCapabilities(prev.capabilities)
+		if caps == nil {
+			caps = &dockwellv1.GitLabCapabilities{
+				BuildPrivate: prev.state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+			}
+		}
+		caps.PostStatuses = false
+		prev.capabilities = caps
+		prev.statusScopeMissing = true
+		prev.checkedAt = h.now()
+		h.gitlabChecks[connID] = prev
+		return
+	}
+	h.gitlabChecks[connID] = gitlabCheck{
+		revision:           rev,
+		state:              dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNKNOWN,
+		capabilities:       &dockwellv1.GitLabCapabilities{PostStatuses: false},
+		statusScopeMissing: true,
+		checkedAt:          h.now(),
+	}
+}
+
+func (h *Handler) noteGitLabCheck(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string, caps *dockwellv1.GitLabCapabilities) {
+	h.mu.Lock()
+	h.gitlabChecks[connID] = gitlabCheck{
+		revision:           rev,
+		state:              state,
+		detail:             detail,
+		capabilities:       cloneGitLabCapabilities(caps),
+		statusScopeMissing: state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED && caps != nil && !caps.GetPostStatuses(),
+		checkedAt:          h.now(),
+	}
 	h.mu.Unlock()
 }
 
@@ -142,7 +251,7 @@ func (h *Handler) CheckGitLabConnection(ctx context.Context, req *connect.Reques
 	usingSavedToken := false
 	if token == "" {
 		if saved == nil {
-			return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with the api scope")
+			return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with read_repository or api scope")
 		}
 		savedURL, serr := gitlabconnection.NormalizeURL(saved.spec.GetInstanceUrl())
 		if serr != nil || savedURL != normURL {
@@ -152,51 +261,65 @@ func (h *Handler) CheckGitLabConnection(ctx context.Context, req *connect.Reques
 		usingSavedToken = true
 	}
 	if token == "" {
-		return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with the api scope")
+		return nil, said(connect.CodeInvalidArgument, "invalid", "enter a GitLab access token with read_repository or api scope")
 	}
 
 	info, err := h.cfg.GitLab.CheckToken(ctx, normURL, token)
-	state, detail, scopes, tokenName := classifyGitLabCheck(info, err)
+	state, detail, scopes, tokenName, caps := classifyGitLabCheck(info, err)
 	if saved != nil {
 		savedURL, _ := gitlabconnection.NormalizeURL(saved.spec.GetInstanceUrl())
 		if savedURL == normURL && (usingSavedToken || token == saved.spec.GetToken()) {
-			h.NoteGitLabStatus(saved.r.ID, saved.r.Revision, state, detail)
+			h.noteGitLabCheck(saved.r.ID, saved.r.Revision, state, detail, caps)
 			h.invalidateGitLabProjectsCache(saved.r.ID)
 		}
 	}
 	return connect.NewResponse(&dockwellv1.CheckGitLabConnectionResponse{
-		State:     state,
-		Detail:    detail,
-		Url:       normURL,
-		TokenName: tokenName,
-		Scopes:    scopes,
+		State:        state,
+		Detail:       detail,
+		Url:          normURL,
+		TokenName:    tokenName,
+		Scopes:       scopes,
+		Capabilities: caps,
 	}), nil
 }
 
-func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabConnectionState, string, []string, string) {
+func classifyGitLabCheck(info gitlab.TokenInfo, err error) (dockwellv1.GitLabConnectionState, string, []string, string, *dockwellv1.GitLabCapabilities) {
 	if err != nil {
 		var ge *gitlab.Error
 		switch {
 		case errors.Is(err, netguard.ErrForbidden):
-			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error(), nil, ""
+			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error(), nil, "", nil
 		case errors.As(err, &ge) && (ge.Status == 401 || ge.Status == 403):
 			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED,
-				"GitLab refused this token. Check that it hasn't expired or been revoked, and carries the api scope.", nil, ""
+				"GitLab refused this token. Check that it hasn't expired or been revoked, and carries read_repository or api scope.", nil, "", nil
 		case errors.As(err, &ge):
-			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, ge.Error(), nil, ""
+			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, ge.Error(), nil, "", nil
 		default:
-			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error(), nil, ""
+			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_UNREACHABLE, err.Error(), nil, "", nil
 		}
 	}
 	if info.Revoked || (info.ScopesKnown && !info.Active) {
 		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_AUTH_FAILED,
-			"This GitLab token is revoked or expired. Create a new token with the api scope.", info.Scopes, info.Name
+			"This GitLab token is revoked or expired. Create a new token with read_repository (plus read_api to list projects) or api scope.", info.Scopes, info.Name, &dockwellv1.GitLabCapabilities{}
 	}
-	if !info.HasAPIScope() {
-		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE,
-			"This token doesn't have the api scope needed to report commit statuses. Create a token with the api scope.", info.Scopes, info.Name
+	caps := &dockwellv1.GitLabCapabilities{
+		BuildPrivate: info.HasReadRepositoryScope(),
+		ListProjects: info.HasListProjectsScope(),
+		PostStatuses: info.HasAPIScope(),
 	}
-	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name
+	if caps.PostStatuses {
+		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED, "", info.Scopes, info.Name, caps
+	}
+	if caps.BuildPrivate {
+		if caps.ListProjects {
+			return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+				"Builds private repositories and lists projects. Add the api scope to also report CI commit statuses.", info.Scopes, info.Name, caps
+		}
+		return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+			"Builds private repositories. Add read_api to list projects in the picker, or api to also report CI commit statuses.", info.Scopes, info.Name, caps
+	}
+	return dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE,
+		"This token needs read_repository (plus read_api to list projects) to build private repositories, or api to also report CI commit statuses.", info.Scopes, info.Name, caps
 }
 
 func (h *Handler) invalidateGitLabProjectsCache(connID string) {
@@ -219,6 +342,12 @@ func (h *Handler) listGitLabProjectsCached(ctx context.Context, k keptGitLab, ba
 		return entry.projects, entry.hasMore, nil
 	}
 	h.mu.Unlock()
+
+	release, err := h.acquireGitLabRead()
+	if err != nil {
+		return nil, false, err
+	}
+	defer release()
 
 	projects, hasMore, err = h.cfg.GitLab.ListProjects(ctx, baseURL, k.spec.GetToken(), query)
 	if err != nil {
@@ -303,13 +432,58 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 		}
 		projects, hasMore, err := h.listGitLabProjectsCached(ctx, k, baseURL, query)
 		if err != nil {
-			state, detail, _, _ := classifyGitLabCheck(gitlab.TokenInfo{}, err)
-			connInfo.State = state
-			connInfo.Detail = detail
-			h.NoteGitLabStatus(k.r.ID, k.r.Revision, state, detail)
+			var busy *connect.Error
+			if errors.As(err, &busy) {
+				return nil, err
+			}
+			var ge *gitlab.Error
+			switch {
+			case errors.As(err, &ge) && ge.Status == 403:
+				// A read_repository-only token gets 403 from /api/v4/projects:
+				// surface a listing-only problem without marking the connection refused.
+				connInfo.ListingProblem = dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_MISSING_READ_API
+				connInfo.Detail = "Add read_api to pick projects from this connection. You can still paste a URL."
+				h.mu.Lock()
+				prev, same := h.gitlabChecks[k.r.ID]
+				h.mu.Unlock()
+				if same && prev.revision == k.r.Revision {
+					connInfo.State = prev.state
+					caps := cloneGitLabCapabilities(prev.capabilities)
+					if caps == nil {
+						caps = &dockwellv1.GitLabCapabilities{
+							BuildPrivate: prev.state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED,
+						}
+					}
+					caps.ListProjects = false
+					connInfo.Capabilities = caps
+				} else {
+					connInfo.State = dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_CONNECTED
+					connInfo.Capabilities = &dockwellv1.GitLabCapabilities{BuildPrivate: true, ListProjects: false}
+				}
+			case errors.As(err, &ge) && ge.Status == 401:
+				state, detail, _, _, _ := classifyGitLabCheck(gitlab.TokenInfo{}, err)
+				connInfo.State = state
+				connInfo.Detail = detail
+				connInfo.ListingProblem = dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_AUTH_FAILED
+				h.NoteGitLabStatus(k.r.ID, k.r.Revision, state, detail)
+			default:
+				state, detail, _, _, _ := classifyGitLabCheck(gitlab.TokenInfo{}, err)
+				connInfo.State = state
+				connInfo.Detail = detail
+				connInfo.ListingProblem = dockwellv1.GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNREACHABLE
+				h.NoteGitLabStatus(k.r.ID, k.r.Revision, state, detail)
+			}
 			out.Connections = append(out.Connections, connInfo)
 			continue
 		}
+		h.mu.Lock()
+		if prev, same := h.gitlabChecks[k.r.ID]; same && prev.revision == k.r.Revision {
+			if prev.state == dockwellv1.GitLabConnectionState_GIT_LAB_CONNECTION_STATE_MISSING_SCOPE {
+				connInfo.State = prev.state
+			}
+			connInfo.Capabilities = cloneGitLabCapabilities(prev.capabilities)
+		}
+		h.mu.Unlock()
 		connInfo.HasMore = hasMore
 		out.Connections = append(out.Connections, connInfo)
 		for _, p := range projects {
@@ -335,6 +509,7 @@ func (h *Handler) ListGitLabProjects(ctx context.Context, req *connect.Request[d
 				ConnectionId:          k.r.ID,
 				ConnectionName:        k.r.Name,
 				ClaimedByOtherProject: claimed[key],
+				DefaultBranch:         p.DefaultBranch,
 			})
 		}
 	}

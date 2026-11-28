@@ -5100,8 +5100,9 @@ paths:
                 - GitProviderService
             description: |-
                 CheckGitLabConnection checks a GitLab host and access token from the control
-                 plane without saving anything, verifying connectivity and the api scope
-                 required for commit statuses (ADR 0111).
+                 plane without saving anything, verifying connectivity and token scopes for
+                 private repository builds (read_repository, plus read_api to list projects)
+                 and CI commit statuses (api) (ADR 0111, ADR 0113).
             operationId: GitProviderService_CheckGitLabConnection
             requestBody:
                 content:
@@ -15991,7 +15992,11 @@ components:
                     type: array
                     items:
                         type: string
-            description: CheckGitLabConnectionResponse reports whether the GitLab token can post commit statuses.
+                capabilities:
+                    $ref: '#/components/schemas/GitLabCapabilities'
+            description: |-
+                CheckGitLabConnectionResponse reports whether the GitLab token can build
+                 private repositories or post commit statuses.
         CheckInviteRequest:
             type: object
             properties:
@@ -24419,6 +24424,19 @@ components:
             description: |-
                 GitHubInstallationReach is which projects one of a GitHub App's installations
                  reaches: their apps may build from its repositories.
+        GitLabCapabilities:
+            type: object
+            properties:
+                buildPrivate:
+                    type: boolean
+                    description: Token can fetch private repositories over HTTPS (read_repository, write_repository, or api).
+                listProjects:
+                    type: boolean
+                    description: Token can list projects in the repository picker (read_api or api).
+                postStatuses:
+                    type: boolean
+                    description: Token can post CI deploy commit statuses (api).
+            description: GitLabCapabilities says which operations a verified GitLab token's scopes allow.
         GitLabConnection:
             type: object
             properties:
@@ -24483,6 +24501,13 @@ components:
                 checkedTime:
                     type: string
                     format: date-time
+                capabilities:
+                    $ref: '#/components/schemas/GitLabCapabilities'
+                statusScopeMissing:
+                    type: boolean
+                    description: |-
+                        True when CI status delivery received 403 (missing api scope) while private
+                         builds through this connection remain unaffected.
             description: GitLabConnectionInfo is a connected GitLab instance without its token.
         GitLabProject:
             type: object
@@ -24501,6 +24526,9 @@ components:
                         True when another project has an app building from or a deploy token bound
                          to this repository, so only an install admin may bind a deploy token in
                          this project to it.
+                defaultBranch:
+                    type: string
+                    description: Default branch reported by GitLab, such as "main", when known.
             description: GitLabProject is one repository reachable through a GitLab connection.
         GitLabProjectConnection:
             type: object
@@ -24522,7 +24550,7 @@ components:
                         - GIT_LAB_CONNECTION_STATE_AUTH_FAILED
                         - GIT_LAB_CONNECTION_STATE_UNREACHABLE
                     type: string
-                    description: Live state from listing or checking this connection.
+                    description: Live state from checking this connection.
                     format: enum
                 detail:
                     type: string
@@ -24530,6 +24558,17 @@ components:
                 hasMore:
                     type: boolean
                     description: True when GitLab has more projects beyond the returned page (search narrows).
+                listingProblem:
+                    enum:
+                        - GIT_LAB_LISTING_PROBLEM_UNSPECIFIED
+                        - GIT_LAB_LISTING_PROBLEM_MISSING_READ_API
+                        - GIT_LAB_LISTING_PROBLEM_AUTH_FAILED
+                        - GIT_LAB_LISTING_PROBLEM_UNREACHABLE
+                    type: string
+                    description: Structured reason when listing projects failed (e.g. token has read_repository without read_api).
+                    format: enum
+                capabilities:
+                    $ref: '#/components/schemas/GitLabCapabilities'
             description: GitLabProjectConnection summarizes a GitLab connection reachable by the project.
         GitRepository:
             type: object
@@ -25326,10 +25365,11 @@ components:
                     type: string
                     description: |-
                         What fetches a private repository: a GitHub App's installation, as
-                         "<App name>/<installation ID>" (ADR 0098), or an SSH deploy key in the
-                         app's project, as "ssh:<key name>" (ADR 0113). A plan names it where an
-                         installation or deploy key of the project matches the repository and the
-                         edit leaves it out. Empty fetches as the public. Numbered after the
+                         "<App name>/<installation ID>" (ADR 0098), a GitLab connection, as
+                         "gitlab:<connection name>" (ADR 0113), or an SSH deploy key in the app's
+                         project, as "ssh:<key name>" (ADR 0113). A plan names it where an
+                         installation, connection or deploy key of the project matches the repository
+                         and the edit leaves it out. Empty fetches as the public. Numbered after the
                          registry logins, as ADR 0098 has it.
             description: |-
                 ImageBuild says how Dockwell builds a service's image from source, with
@@ -27294,13 +27334,14 @@ components:
                     type: string
                     description: |-
                         The project whose app builds from it, by ID or name. A repository one of
-                         its GitHub App installations or deploy keys reaches is read through it,
-                         private or not, as the project's builds fetch it (ADR 0098, ADR 0113).
+                         its GitHub App installations, GitLab connections or deploy keys reaches is
+                         read through it, private or not, as the project's builds fetch it (ADR 0098,
+                         ADR 0113).
                 gitLogin:
                     type: string
                     description: |-
                         Optional git login to read through, such as "ssh:<key name>" for a deploy
-                         key in project (ADR 0113).
+                         key in project or "gitlab:<connection name>" for a GitLab connection (ADR 0113).
             description: ListRepositoryBranchesRequest names a repository to ask for its branches.
         ListRepositoryBranchesResponse:
             type: object
@@ -27322,8 +27363,9 @@ components:
                 gitLogin:
                     type: string
                     description: |-
-                        The GitHub App installation it was read through, as a build names it,
-                         "<App name>/<installation ID>"; empty where it was read as the public do.
+                        The Git login it was read through: "<App name>/<installation ID>",
+                         "gitlab:<connection name>" or "ssh:<key name>"; empty where it was read as
+                         the public do.
             description: ListRepositoryBranchesResponse is a repository's branches, as it says them.
         ListResourcesResponse:
             type: object

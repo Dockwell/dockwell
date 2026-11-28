@@ -6129,10 +6129,11 @@ type ImageBuild struct {
 	// the block registry logins hold, 100 to 109.
 	RegistryLogins []string `protobuf:"bytes,100,rep,name=registry_logins,json=registryLogins,proto3" json:"registry_logins,omitempty"`
 	// What fetches a private repository: a GitHub App's installation, as
-	// "<App name>/<installation ID>" (ADR 0098), or an SSH deploy key in the
-	// app's project, as "ssh:<key name>" (ADR 0113). A plan names it where an
-	// installation or deploy key of the project matches the repository and the
-	// edit leaves it out. Empty fetches as the public. Numbered after the
+	// "<App name>/<installation ID>" (ADR 0098), a GitLab connection, as
+	// "gitlab:<connection name>" (ADR 0113), or an SSH deploy key in the app's
+	// project, as "ssh:<key name>" (ADR 0113). A plan names it where an
+	// installation, connection or deploy key of the project matches the repository
+	// and the edit leaves it out. Empty fetches as the public. Numbered after the
 	// registry logins, as ADR 0098 has it.
 	GitLogin      string `protobuf:"bytes,101,opt,name=git_login,json=gitLogin,proto3" json:"git_login,omitempty"`
 	unknownFields protoimpl.UnknownFields

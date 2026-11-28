@@ -25,7 +25,7 @@ import { useTimeWords } from "../../lib/time";
 import { appOf as appOfService } from "../apps/app";
 import { shownRepository } from "../apps/Build";
 import { useDetectionWords } from "../apps/detection";
-import { deployKeyNameOf } from "../apps/gitHost";
+import { deployKeyNameOf, gitlabConnectionNameOf } from "../apps/gitHost";
 import { useServices } from "../apps/useServices";
 import { engineOfImage } from "../databases/useDatabases";
 import { useFleetView } from "../servers/useFleet";
@@ -1869,7 +1869,9 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         const railpack = d?.builder === ImageBuild_Builder.RAILPACK;
         const login = step.build.gitLogin;
         const deployKey = deployKeyNameOf(login);
-        const account = login && !deployKey ? (installationOf(apps, login)?.installation?.account ?? "") : "";
+        const gitlabConn = gitlabConnectionNameOf(login);
+        const account =
+          login && !deployKey && !gitlabConn ? (installationOf(apps, login)?.installation?.account ?? "") : "";
         out.push({
           key: `build-${key}`,
           title: !login
@@ -1880,13 +1882,17 @@ export function useAsides(plan: Plan | undefined): Notice[] {
               ? ref
                 ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, with deploy key ${deployKey}. If the build fails, what runs stays as it is.`
                 : t`Builds ${repository} at ${commit} on ${server.serverName} first, with deploy key ${deployKey}. If the build fails, what runs stays as it is.`
-              : account
+              : gitlabConn
                 ? ref
-                  ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
-                  : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
-                : ref
-                  ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`
-                  : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`,
+                  ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through GitLab connection ${gitlabConn}. If the build fails, what runs stays as it is.`
+                  : t`Builds ${repository} at ${commit} on ${server.serverName} first, through GitLab connection ${gitlabConn}. If the build fails, what runs stays as it is.`
+                : account
+                  ? ref
+                    ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
+                    : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App on ${account}. If the build fails, what runs stays as it is.`
+                  : ref
+                    ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`
+                    : t`Builds ${repository} at ${commit} on ${server.serverName} first, through the GitHub App. If the build fails, what runs stays as it is.`,
         });
         // What it builds with, on a line of its own after the build.
         // One span, so its words and code flow as a sentence in the note's row.

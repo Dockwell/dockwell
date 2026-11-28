@@ -2,7 +2,18 @@
 
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { DockerImageActionSchema, DockerImageOutcome, StepProgressSchema, StepState } from "@dockwell/api";
+import {
+  DockerImageActionSchema,
+  DockerImageOutcome,
+  GitDeployKeyInfoSchema,
+  GitLabConnectionState,
+  GitLabListingProblem,
+  GitLabProjectConnectionSchema,
+  GitLabProjectSchema,
+  ResourceSchema,
+  StepProgressSchema,
+  StepState,
+} from "@dockwell/api";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
@@ -72,4 +83,254 @@ it("shows publication after a late cancel and then shows the Engine's receipt", 
   await waitFor(() => expect(screen.getByText("Built")).toBeVisible());
   expect(screen.getByText("111111111111")).toBeVisible();
   expect(screen.queryByText("Docker is already adding the image")).not.toBeInTheDocument();
+});
+
+it("picks a GitLab project and passes its gitlab login (preferring it over a matching deploy key)", async () => {
+  const ask = vi.fn(() => {
+    throw new ConnectError("fixture finished", Code.Canceled);
+  });
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitProviders: {
+        listGitLabProjects: () => ({
+          connections: [
+            create(GitLabProjectConnectionSchema, {
+              id: "glc_1",
+              name: "corp",
+              url: "https://gitlab.example.com",
+              state: GitLabConnectionState.CONNECTED,
+            }),
+          ],
+          projects: [
+            create(GitLabProjectSchema, {
+              pathWithNamespace: "acme/web",
+              url: "https://gitlab.example.com/acme/web",
+              connectionId: "glc_1",
+              connectionName: "corp",
+              defaultBranch: "main",
+            }),
+          ],
+        }),
+      },
+      gitKeys: {
+        listGitDeployKeys: () => ({
+          keys: [
+            create(GitDeployKeyInfoSchema, {
+              id: "gdk_1",
+              name: "acme-web",
+              projectId: "prj_1",
+              repository: "ssh://git@gitlab.example.com/acme/web.git",
+              gitLogin: "ssh:acme-web",
+              hostKeyPinned: true,
+              verified: true,
+            }),
+          ],
+        }),
+      },
+      docker: { planDockerMaintenance: ask },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.focus(repoInput);
+  const option = await screen.findByRole("option", { name: /acme\/web/ });
+  expect(option).toHaveTextContent("Uses GitLab, not acme-web");
+  fireEvent.click(option);
+
+  expect(await screen.findByText(/Through GitLab \(corp, preferred over deploy key acme-web\)/)).toBeVisible();
+
+  fireEvent.change(screen.getByLabelText("Local image name"), { target: { value: "example/gl-img" } });
+  fireEvent.click(screen.getByRole("button", { name: "Review plan" }));
+
+  await waitFor(() =>
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: expect.objectContaining({
+          case: "build",
+          value: expect.objectContaining({
+            git: expect.objectContaining({
+              repository: "https://gitlab.example.com/acme/web",
+              gitLogin: "gitlab:corp",
+              project: "prj_1",
+            }),
+          }),
+        }),
+      }),
+      expect.anything(),
+    ),
+  );
+});
+
+it("uses a project SSH deploy key for a standalone Docker image build", async () => {
+  const ask = vi.fn(() => {
+    throw new ConnectError("fixture finished", Code.Canceled);
+  });
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitKeys: {
+        listGitDeployKeys: () => ({
+          keys: [
+            create(GitDeployKeyInfoSchema, {
+              id: "gdk_1",
+              name: "ssh-repo",
+              projectId: "prj_1",
+              repository: "ssh://git@git.example.com/acme/ssh-repo.git",
+              gitLogin: "ssh:ssh-repo",
+              hostKeyPinned: true,
+              hostKeyFingerprint: "SHA256:testfp",
+              verified: true,
+            }),
+          ],
+        }),
+      },
+      docker: { planDockerMaintenance: ask },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.change(repoInput, { target: { value: "ssh://git@git.example.com/acme/ssh-repo.git" } });
+  expect(await screen.findByTestId("deploy-key-ready")).toBeVisible();
+
+  fireEvent.change(screen.getByLabelText("Local image name"), { target: { value: "example/ssh-img" } });
+  fireEvent.click(screen.getByRole("button", { name: "Review plan" }));
+
+  await waitFor(() =>
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: expect.objectContaining({
+          case: "build",
+          value: expect.objectContaining({
+            git: expect.objectContaining({
+              repository: "ssh://git@git.example.com/acme/ssh-repo.git",
+              gitLogin: "ssh:ssh-repo",
+              project: "prj_1",
+            }),
+          }),
+        }),
+      }),
+      expect.anything(),
+    ),
+  );
+});
+
+it("shows a short read_api note in the repository picker when a GitLab token cannot list projects", async () => {
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitProviders: {
+        listGitLabProjects: () => ({
+          connections: [
+            create(GitLabProjectConnectionSchema, {
+              id: "glc_1",
+              name: "corp",
+              url: "https://gitlab.example.com",
+              state: GitLabConnectionState.CONNECTED,
+              listingProblem: GitLabListingProblem.MISSING_READ_API,
+            }),
+          ],
+          projects: [],
+        }),
+      },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.focus(repoInput);
+  expect(await screen.findByText("Add read_api to pick projects from corp. You can still paste a URL.")).toBeVisible();
+});
+
+it("GitLab repository picker tells MISSING_SCOPE connections to add read_repository to build (N9)", async () => {
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitProviders: {
+        listGitLabProjects: () => ({
+          connections: [
+            create(GitLabProjectConnectionSchema, {
+              id: "glc_ro",
+              name: "corp",
+              url: "https://gitlab.example.com",
+              state: GitLabConnectionState.MISSING_SCOPE,
+              listingProblem: GitLabListingProblem.UNSPECIFIED,
+            }),
+          ],
+          projects: [],
+        }),
+      },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.focus(repoInput);
+  expect(await screen.findByText("Add read_repository to build from corp.")).toBeVisible();
 });

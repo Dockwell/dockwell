@@ -10,46 +10,52 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// GitLogins checks the GitHub App installation a reading fetches a repository
-// through, as a plan does, and picks one where none is named: gitproviders
-// (ADR 0098).
+// GitLogins checks the GitHub App installation, GitLab connection, or SSH deploy
+// key a reading fetches a repository through, as a plan does, and picks one
+// where none is named (ADR 0098, ADR 0113). Runs outside any store transaction.
 type GitLogins interface {
-	PinGitLogin(ctx context.Context, tx *store.Tx, project, repoURL, login string) (string, error)
+	PinGitLogin(ctx context.Context, project, repoURL, login string) (string, error)
 }
 
-// SetGitLogins has readings of a repository fetch it through the installation g
-// says reaches the project they're for.
+// SetGitLogins has readings of a repository fetch it through the login g says
+// reaches the project they're for.
 func (h *Handler) SetGitLogins(g GitLogins) { h.gitLogins = g }
 
-// loginFor is the git login a reading of the repository at url, for project, fetches
-// through: login, once it reaches project and lists the repository, or where login
-// is "", the first installation that does, or "" for none, which reads it as the
-// public do. A login named for no project is refused: an installation reaches only
-// the projects an admin lets it.
+// loginFor is the git login a reading of the repository at url, for project,
+// fetches through. A login or SSH repository named for no project is refused.
 func (h *Handler) loginFor(ctx context.Context, project, url, login string) (string, error) {
 	if h.gitLogins == nil {
-		if login != "" {
-			return "", connect.NewError(connect.CodeUnavailable, errors.New("this control plane has no GitHub App to read a private repository with"))
+		if login != "" || service.IsSSHRepository(url) {
+			return "", connect.NewError(connect.CodeUnavailable, errors.New("this control plane has no Git provider or deploy keys to read a private repository with"))
 		}
 		return "", nil
 	}
 	if project == "" {
+		if _, isKey := service.DeployKeyOf(login); isKey {
+			return "", authapi.Invalid(errors.New("an SSH deploy key belongs to one project. Name the project that holds the deploy key"))
+		}
+		if _, isGL := service.GitLabConnectionOf(login); isGL {
+			return "", authapi.Invalid(fmt.Errorf("%s reads through a GitLab connection, which reaches only the projects an admin lets it. Name the project the build belongs to", login))
+		}
 		if login != "" {
 			return "", authapi.Invalid(fmt.Errorf("%s reads through a GitHub App's installation, which reaches only the projects an admin lets it. Name the project the app builds in", login))
 		}
+		if service.IsSSHRepository(url) {
+			return "", authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("an SSH repository needs a project's deploy key. Choose a project and set up a deploy key"), "unreadable")
+		}
 		return "", nil
 	}
-	var pinned string
-	err := h.db.View(ctx, func(tx *store.Tx) error {
-		var err error
-		pinned, err = h.gitLogins.PinGitLogin(ctx, tx, project, url, login)
-		return err
-	})
+	pinned, err := h.gitLogins.PinGitLogin(ctx, project, url, login)
 	if err != nil {
+		var refusal *connect.Error
+		if errors.As(err, &refusal) {
+			return "", err
+		}
 		return "", authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 	}
 	return pinned, nil
