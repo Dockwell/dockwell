@@ -94,21 +94,9 @@ func (e *Engine) WithPasswordFile(cmd, env []string) []string {
 }
 
 func (r Reader) checkClickHouse(ctx context.Context, c *docker.Container, port uint32, reading *dockwellv1.DatabaseReading) {
-	// An explicit empty config prevents client-side defaults from supplying
-	// credentials. The native client rejects an empty --password argument.
-	cmd := clickHouseClient(port, "", "--user="+reading.GetUser(), "--config-file=/dev/stdin", "--query=SELECT 1")
-	var out, stderr capped
-	out.max, stderr.max = 128, 4<<10
-	code, err := r.Client.ExecWith(ctx, c.ID, cmd, docker.ExecOptions{Env: []string{"CLICKHOUSE_PASSWORD="}},
-		docker.Streams{Stdin: strings.NewReader("<clickhouse/>"), Stdout: &out, Stderr: &stderr})
-	if err == nil {
-		switch {
-		case code == 0 && strings.TrimSpace(out.String()) == "1":
-			reading.ChecksNoOne = true
-			reading.ClickhousePlaintextPassword = false
-		case code != 0 && strings.Contains(stderr.String(), "AUTHENTICATION_FAILED"):
-			reading.ClickhousePasswordVerified = true
-		}
+	reading.ChecksNoOne, reading.ClickhousePasswordVerified = r.clickHousePasswordCheck(ctx, c, port, reading.GetUser())
+	if reading.GetChecksNoOne() {
+		reading.ClickhousePlaintextPassword = false
 	}
 	if slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Destination == ClickHouseLogsTarget && !m.RW }) {
 		// Turning the writers off leaves historical system tables on disk.
@@ -116,6 +104,33 @@ func (r Reader) checkClickHouse(ctx context.Context, c *docker.Container, port u
 	} else if !reading.GetClickhouseUnboundedLogs() {
 		reading.ClickhouseUnboundedLogs = r.clickHouseVerboseLog(ctx, c.ID)
 	}
+}
+
+func (r Reader) clickHousePasswordCheck(ctx context.Context, c *docker.Container, port uint32, user string) (open, verified bool) {
+	// An explicit empty config prevents client-side defaults from supplying
+	// credentials. The native client rejects an empty --password argument.
+	cmd := clickHouseClient(port, "", "--user="+user, "--config-file=/dev/stdin", "--query=SELECT 1")
+	var out, stderr capped
+	out.max, stderr.max = 128, 4<<10
+	code, err := r.Client.ExecWith(ctx, c.ID, cmd, docker.ExecOptions{Env: []string{"CLICKHOUSE_PASSWORD="}},
+		docker.Streams{Stdin: strings.NewReader("<clickhouse/>"), Stdout: &out, Stderr: &stderr})
+	return err == nil && code == 0 && strings.TrimSpace(out.String()) == "1",
+		err == nil && code != 0 && strings.Contains(stderr.String(), "AUTHENTICATION_FAILED")
+}
+
+// RequireClickHouseSystemGrants checks that only explicitly granted system tables
+// are visible to app users. Some system tables expose queries and backup paths.
+func (r Reader) RequireClickHouseSystemGrants(ctx context.Context, container string) error {
+	const config = "/var/lib/clickhouse/preprocessed_configs/config.xml"
+	cmd := []string{"sh", "-ec", `
+		grant="$(clickhouse extract-from-config --config-file="$1" --key=access_control_improvements.select_from_system_db_requires_grant)"
+		case "$grant" in true|1) exit 0 ;; esac
+		exit 1
+		`, "sh", config}
+	if code, err := r.Client.Exec(ctx, container, cmd, docker.Streams{}); err != nil || code != 0 {
+		return errors.New("ClickHouse hasn't restricted access to system tables, so app users could see other apps' queries and backups. Enable select_from_system_db_requires_grant and try again")
+	}
+	return nil
 }
 
 func (r Reader) clickHouseVerboseLog(ctx context.Context, id string) bool {
@@ -139,7 +154,8 @@ SELECT version() AS version, currentUser() AS user, uptime() AS uptime,
   (SELECT toBool(countIf(toString(auth_type) LIKE '%plaintext_password%') > 0) FROM system.users WHERE name = currentUser()) AS plaintext_password,
   (SELECT toBool(count() > 0) FROM system.tables WHERE database = 'system' AND endsWith(name, '_log')
     AND engine LIKE '%MergeTree' AND NOT match(engine_full, '(?i)[[:space:]]TTL[[:space:]]')) AS unbounded_logs,
-  greatest((SELECT count() FROM system.databases), 200) - 200 AS unlisted
+  greatest((SELECT count() FROM system.databases), 200) - 200 +
+  greatest((SELECT count() FROM system.users), 200) - 200 AS unlisted
 FORMAT JSONEachRow SETTINGS output_format_json_quote_64bit_integers = 0;
 
 SELECT d.name AS name, d.engine AS engine, coalesce(p.size_bytes, 0) AS size_bytes
@@ -147,6 +163,9 @@ FROM system.databases AS d LEFT JOIN
   (SELECT database, sum(bytes_on_disk) AS size_bytes FROM system.parts WHERE active GROUP BY database) AS p
 ON d.name = p.database ORDER BY d.name LIMIT 200
 FORMAT JSONEachRow SETTINGS output_format_json_quote_64bit_integers = 0;
+
+SELECT name AS account FROM system.users ORDER BY (name = currentUser()) DESC, name LIMIT 200
+FORMAT JSONEachRow;
 `
 
 func parseClickHouse(said []byte) (*dockwellv1.DatabaseReading, error) {
@@ -180,11 +199,18 @@ func parseClickHouse(said []byte) (*dockwellv1.DatabaseReading, error) {
 	for rows.Scan() {
 		var db struct {
 			Name      string `json:"name"`
+			Account   string `json:"account"`
 			Engine    string `json:"engine"`
 			SizeBytes int64  `json:"size_bytes"`
 		}
-		if json.Unmarshal(rows.Bytes(), &db) != nil || db.Name == "" {
+		if json.Unmarshal(rows.Bytes(), &db) != nil || db.Name == "" && db.Account == "" {
 			return nil, errors.New("invalid database facts")
+		}
+		if db.Account != "" {
+			read.Users = append(read.Users, &dockwellv1.DatabaseAccount{
+				Name: db.Account, Superuser: db.Account == server.User, CanSignIn: true,
+			})
+			continue
 		}
 		name := strings.ToLower(db.Name)
 		read.Databases = append(read.Databases, &dockwellv1.InnerDatabase{

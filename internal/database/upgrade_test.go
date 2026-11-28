@@ -118,7 +118,7 @@ func TestAMongoMovingAsksTheServerFirst(t *testing.T) {
 		mu.Unlock()
 	}
 	for _, image := range []string{"mongo:7.0.14", "mongo:latest", "postgres:17"} {
-		if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: image}); err != nil {
+		if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: image}); err != nil {
 			t.Errorf("to %s: %v", image, err)
 		}
 	}
@@ -126,7 +126,7 @@ func TestAMongoMovingAsksTheServerFirst(t *testing.T) {
 		t.Fatalf("a move to no other release raised %q", raised)
 	}
 	// Up: to the release it runs, whatever its tag says.
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:8.0"}); err != nil {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:8.0"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(raised) != 1 || !strings.Contains(raised[0], "DW_RELEASE=7.0") || !strings.Contains(raised[0], "DW_PORT=27018") ||
@@ -135,25 +135,166 @@ func TestAMongoMovingAsksTheServerFirst(t *testing.T) {
 	}
 	// A release the next doesn't move from: mongo:8 running 8.2 isn't moved to 9.
 	set("8.2.1", "8.2", false)
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:9.0"}); err == nil || !strings.Contains(err.Error(), "moves only from data at 8.0 or 8.3") {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:9.0"}); err == nil || !strings.Contains(err.Error(), "moves only from data at 8.0 or 8.3") {
 		t.Errorf("8.2 to 9.0: %v", err)
 	}
 	set("8.3.13", "8.0", false)
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:9"}); err != nil || !strings.Contains(raised[len(raised)-1], "DW_RELEASE=8.3") {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:9"}); err != nil || !strings.Contains(raised[len(raised)-1], "DW_RELEASE=8.3") {
 		t.Errorf("8.3 to 9: %v, raised %q", err, raised[len(raised)-1])
 	}
 	// Down: data at newer features than where it goes stays.
 	set("8.0.34", "8.0", false)
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:7.0"}); err == nil || !strings.Contains(err.Error(), "uses MongoDB 8.0's features, which 7.0 can't run") {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:7.0"}); err == nil || !strings.Contains(err.Error(), "uses MongoDB 8.0's features, which 7.0 can't run") {
 		t.Errorf("down with data at 8.0: %v", err)
 	}
 	set("8.0.34", "7.0", false)
 	n := len(raised)
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:7.0"}); err != nil || len(raised) != n {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:7.0"}); err != nil || len(raised) != n {
 		t.Errorf("down with data at 7.0: %v, raised %d", err, len(raised)-n)
 	}
 	set("7.0.14", "7.0", true)
-	if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:8.0"}); err == nil || !strings.Contains(err.Error(), "refused Dockwell's sign-in") {
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "mongo:8.0"}); err == nil || !strings.Contains(err.Error(), "refused Dockwell's sign-in") {
 		t.Errorf("a refused sign-in says %v", err)
+	}
+}
+
+func TestClickHouseChecksPinnedUpgradeCompatibility(t *testing.T) {
+	const repo = "clickhouse/clickhouse-server:"
+	digest := "@sha256:" + strings.Repeat("a", 64)
+	for _, c := range []struct {
+		from, to string
+		backup   bool
+		refused  string
+	}{
+		{"25.8.33.6", "25.8.34.1" + digest, false, ""},
+		{"25.8.33.6", "25.12.1.1" + digest, false, ""},
+		{"25.8.33.6", "26.3.62.3" + digest, true, ""},
+		{"25.8.33.6", "26.8.1.1" + digest, false, "intermediate"},
+		{"26.3.62.3", "25.8.33.6" + digest, false, "can't downgrade"},
+		{"26.3.62.3", "26.3.62.2" + digest, false, "can't downgrade"},
+		{"25.8.33.6", "latest" + digest, false, "full version"},
+		{"25.8.33.6", "26.3.62.3", false, "isn't pinned"},
+	} {
+		t.Run(c.from+"_"+c.to, func(t *testing.T) {
+			got, err := MoveOf("events", service(repo+c.from), service(repo+c.to))
+			if c.refused != "" {
+				if err == nil || !strings.Contains(err.Error(), c.refused) {
+					t.Fatalf("want %q, got %v", c.refused, err)
+				}
+				return
+			}
+			if err != nil || got == nil || got.Dumps || got.RequiresBackup != c.backup {
+				t.Fatalf("move: %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestClickHouseMirrorUsesTheDataMountAndRealVersions(t *testing.T) {
+	const source = "mirror.example/analytics:25.8.33.6"
+	digest := "@sha256:" + strings.Repeat("a", 64)
+	target := "mirror.example/analytics:26.3.62.3" + digest
+	current := service(source)
+	current.GetApp().Mounts = []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/var/lib/clickhouse"}}
+	move, err := MoveOf("events", current, service(target))
+	if err != nil || move == nil || !move.RequiresBackup || move.Volume != "data" {
+		t.Fatalf("mirrored image bypassed the plan's native backup: %+v, %v", move, err)
+	}
+	unknown := "mirror.example/analytics:latest" + digest
+	if _, err := MoveOf("events", current, service(unknown)); err == nil || !strings.Contains(err.Error(), unknown) || !strings.Contains(err.Error(), "full version") {
+		t.Fatalf("a version that can't be read was accepted: %v", err)
+	}
+	e := dockertest.New(t)
+	e.Registry[target] = dockertest.Image{Config: docker.Config{Labels: map[string]string{clickHouseVersionLabel: "25.1.3.4-alpine"}}}
+	if err := e.Client().PullImage(t.Context(), target, nil); err != nil {
+		t.Fatal(err)
+	}
+	old := &docker.Container{
+		Config: docker.Config{Image: source, Labels: map[string]string{clickHouseVersionLabel: "25.8.33.6-alpine"}},
+		Mounts: []docker.MountPoint{{Destination: "/var/lib/clickhouse"}},
+	}
+	r := Reader{Client: e.Client()}
+	if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: target}); err == nil || !strings.Contains(err.Error(), "can't downgrade") {
+		t.Fatalf("a misleading mirror tag bypassed the downgrade check: %v", err)
+	}
+}
+
+func TestClickHouseMirrorMajorMoveRequiresManagedData(t *testing.T) {
+	const source = "mirror.example/analytics:25.8.33.6"
+	const project = "env_fixture"
+	target := "mirror.example/analytics:26.3.62.3@sha256:" + strings.Repeat("a", 64)
+	managed := docker.ScopedName(project, "data")
+	volumeMount := &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: clickHouseDataDir}
+	hostMount := &resourcev1.Mount{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/events"}, Target: clickHouseDataDir}
+	e := dockertest.New(t)
+	e.Registry[target] = dockertest.Image{Config: docker.Config{Labels: map[string]string{clickHouseVersionLabel: "26.3.62.3-alpine"}}}
+	r := Reader{Client: e.Client()}
+	if err := r.Client.PullImage(t.Context(), target, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.AddVolume(docker.Volume{Name: managed, Labels: map[string]string{docker.LabelProject: project, docker.LabelVolume: "data"}})
+	for _, tc := range []struct {
+		name          string
+		before, after *resourcev1.Mount
+		mountType     string
+		mounted       string
+		allow         bool
+	}{
+		{name: "anonymous", mountType: "volume", mounted: "anonymous-volume"},
+		{name: "host path", before: hostMount, after: hostMount, mountType: "bind"},
+		{name: "another volume", before: volumeMount, after: volumeMount, mountType: "volume", mounted: "some-other-volume"},
+		{name: "managed volume", before: volumeMount, after: volumeMount, mountType: "volume", mounted: managed, allow: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			current, desired := service(source), service(target)
+			if tc.before != nil {
+				current.GetApp().Mounts = []*resourcev1.Mount{tc.before}
+			}
+			if tc.after != nil {
+				desired.GetApp().Mounts = []*resourcev1.Mount{tc.after}
+			}
+			move, err := MoveOf("events", current, desired)
+			if err != nil || tc.before != nil && (move == nil || !move.RequiresBackup || move.Volume != tc.before.GetVolume()) {
+				t.Fatalf("ClickHouse plan move = %+v, %v", move, err)
+			}
+			old := &docker.Container{
+				Name: "events", Config: docker.Config{Image: source, Labels: map[string]string{clickHouseVersionLabel: "25.8.33.6", docker.LabelProject: project}},
+				Mounts: []docker.MountPoint{{Type: tc.mountType, Name: tc.mounted, Destination: clickHouseDataDir}},
+			}
+			id, err := r.BeforeReplace(t.Context(), old, desired.GetApp())
+			if tc.allow {
+				if err != nil || !docker.IsImageID(id) {
+					t.Fatalf("managed upgrade = %q, %v", id, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "can't back it up") {
+				t.Fatalf("major upgrade without managed data was allowed: %q, %v", id, err)
+			}
+		})
+	}
+}
+
+func TestClickHouseChecksWhenTheSameTagMoves(t *testing.T) {
+	const image = "mirror.example/analytics:latest"
+	e := dockertest.New(t)
+	r := Reader{Client: e.Client()}
+	build := func(version string) *docker.Image {
+		t.Helper()
+		e.AddLocalImage(image, dockertest.Image{Config: docker.Config{Labels: map[string]string{clickHouseVersionLabel: version}}})
+		inspected, err := r.Client.InspectImage(t.Context(), image)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return inspected
+	}
+	initial := build("25.8.33.6")
+	old := &docker.Container{Image: initial.ID, Config: *initial.Config, Mounts: []docker.MountPoint{{Destination: clickHouseDataDir}}}
+	old.Config.Image = image
+	spec := &resourcev1.Container{Image: image}
+	if id, err := r.BeforeReplace(t.Context(), old, spec); err != nil || id != initial.ID {
+		t.Fatalf("unchanged image = %q, %v", id, err)
+	}
+	build("26.3.62.3")
+	if _, err := r.BeforeReplace(t.Context(), old, spec); err == nil || !strings.Contains(err.Error(), image) || !strings.Contains(err.Error(), "full version") {
+		t.Fatalf("moved tag was allowed: %v", err)
 	}
 }

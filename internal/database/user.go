@@ -61,6 +61,8 @@ type UserDriver struct {
 	// redisMu keeps a Redis user's step and putting users back after a restart from
 	// crossing, so a user a step drops isn't put back.
 	redisMu sync.Mutex
+	// clickHouseMu serializes releasing and reclaiming a kept database.
+	clickHouseMu sync.Mutex
 }
 
 var (
@@ -240,9 +242,8 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 		switch {
 		case ok && g.Redis != "":
 			dec.Destroys, dec.KeysLeft = false, g.KeyPrefix+"*"
-		case ok && g.TakenOn:
-			// Letting go of one taken on drops nothing: it and its database stay the
-			// server's, which the plan says (ADR 0084).
+		case ok && (g.TakenOn || g.ClickHouse):
+			// ClickHouse removes only the user. A taken-on account also stays.
 			dec.Destroys = false
 			dec.Leaves = Owned(ref.Name, &resourcev1.DatabaseUser{DatabaseName: g.Database})
 		case ok && !deletedHere(ctx, ref.Scope, g.Service):
@@ -282,6 +283,9 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 	if err != nil {
 		return resource.Decision{}, err
 	}
+	if e.ClickHouse() && (u.GetTakenOn() || u.GetCopyFrom() != nil) {
+		return resource.Decision{}, errors.New("ClickHouse makes a new user for a database of its own. Leave out taking on or copying an existing database")
+	}
 	// One taken on is the server's own already, with its database, and isn't its
 	// administrator, which applying checks again with its password (ADR 0084).
 	if u.GetTakenOn() {
@@ -307,7 +311,9 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 	case there.user:
 		return resource.Decision{}, fmt.Errorf("%s has a user %s already, which Dockwell didn't make. Choose another name", u.GetService(), ref.Name)
 	case there.owner != "":
-		return resource.Decision{}, fmt.Errorf("%s has a database %s already, which Dockwell didn't make. Choose another name", u.GetService(), Owned(ref.Name, u))
+		if err := d.reuseDatabase(ctx, ref, u, e, there.databaseID); err != nil {
+			return resource.Decision{}, err
+		}
 	}
 	if undoes := resource.DeployOf(ctx).Undoes; undoes != "" && u.GetCopyFrom() == nil && e.SQL() && hasDeletedBackup(d.Dir, time.Now(), undoes, ref.Scope, u.GetService(), Owned(ref.Name, u)) {
 		dec.Restores = true
@@ -332,8 +338,8 @@ func (d *UserDriver) server(ctx context.Context, ref resource.Ref, service strin
 		return nil, nil, fmt.Errorf("%s isn't running, and a database user is made in it. Start it, then try again", service)
 	}
 	e := Recognise(c.Config.Image)
-	if e == nil || !e.SQL() && !e.KeyValue() && e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
-		return nil, nil, fmt.Errorf("%s doesn't run PostgreSQL, MySQL, MariaDB, MongoDB, Redis or Valkey from its official image, so Dockwell can't make users in it", service)
+	if e == nil || !e.SQL() && !e.KeyValue() && !e.ClickHouse() && e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		return nil, nil, fmt.Errorf("%s doesn't run PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Valkey or ClickHouse from its official image, so Dockwell can't make users in it", service)
 	}
 	return c, e, nil
 }
@@ -346,6 +352,13 @@ func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) 
 	case e.KeyValue():
 		_, _, err := d.redisInfo(ctx, c, e, true)
 		return err
+	case e.ClickHouse():
+		user := cmp.Or(envMap(c.Config.Env)[e.User], "default")
+		_, verified := (Reader{Client: d.Client}).clickHousePasswordCheck(ctx, c, PortOf(e, c.Config.Cmd), user)
+		if !verified {
+			return errors.New("ClickHouse didn't confirm that its administrator requires a password, so an app user can't keep its data private. Set the administrator password and try again")
+		}
+		return (Reader{Client: d.Client}).RequireClickHouseSystemGrants(ctx, c.ID)
 	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
 		said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, mongoOpen)
@@ -460,8 +473,9 @@ func keyPrefixByte(c byte) bool {
 
 // found is what a database server has of a user and its database.
 type found struct {
-	user  bool
-	owner string // the database's owner, or "" with no such database
+	user       bool
+	owner      string // the database's owner, or "" with no such database
+	databaseID string // the identity ClickHouse keeps on the data
 }
 
 // there reads whether a database server has a user and a database.
@@ -480,13 +494,15 @@ func (d *UserDriver) there(ctx context.Context, c *docker.Container, e *Engine, 
 	switch e.Kind {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		sql = mongoThere(user, db)
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
+		sql = fmt.Sprintf("SELECT 'u', count() FROM system.users WHERE name = '%s';\nSELECT 'd', toString(uuid) FROM system.databases WHERE name = '%s';\n", user, db)
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
 		sql = fmt.Sprintf(`SELECT json_build_object('user', EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '%s'), 'owner', coalesce((SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '%s'), ''));`, user, db)
 	default:
 		sql = fmt.Sprintf("SELECT 'u', COUNT(*) FROM mysql.user WHERE User = '%s';\nSELECT 'd', COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '%s';\n", user, db)
 	}
 	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
-	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, sql)
+	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, e.WithPasswordFile(cmd, c.Config.Env), sql)
 	if err != nil {
 		return found{}, err
 	}
@@ -511,6 +527,9 @@ func (d *UserDriver) there(ctx context.Context, c *docker.Container, e *Engine, 
 				f.user = true
 			case "d":
 				f.owner = user
+				if e.ClickHouse() {
+					f.databaseID = fields[1]
+				}
 			}
 		}
 	}
@@ -556,6 +575,9 @@ type given struct {
 	// took them on (DatabaseUser.taken_on): it never made them, and deleting the user
 	// only forgets it.
 	TakenOn bool `json:"taken_on,omitempty"`
+	// Removing a ClickHouse user keeps its database.
+	ClickHouse bool   `json:"clickhouse,omitempty"`
+	DatabaseID string `json:"database_id,omitempty"`
 }
 
 func (d *UserDriver) recordPath() string { return filepath.Join(d.Dir, "database-users.json") }
@@ -779,12 +801,19 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	if err != nil {
 		return err
 	}
+	if e.ClickHouse() {
+		d.clickHouseMu.Lock()
+		defer d.clickHouseMu.Unlock()
+	}
 	create := step.Action == resource.ActionCreate
 	if create {
 		// A server that keeps no one out gets no user that would say it does.
 		if err := d.whileStarting(ctx, func() error { return d.guard(ctx, c, e) }); err != nil {
 			return err
 		}
+	}
+	if e.ClickHouse() && (u.GetTakenOn() || u.GetCopyFrom() != nil) {
+		return errors.New("ClickHouse makes a new user for a database of its own. Leave out taking on or copying an existing database")
 	}
 	if u.GetTakenOn() {
 		return d.takeOn(ctx, ref, u, db, password, c, e)
@@ -843,12 +872,29 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	if err != nil {
 		return fmt.Errorf("can't give %s the password in %s: %w", ref.Name, u.GetPassword(), err)
 	}
-	g := &given{Service: u.GetService(), Database: u.GetDatabaseName(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse]}
+	g := &given{
+		Service: u.GetService(), Database: u.GetDatabaseName(), Uses: u.GetPassword(),
+		Revision: u.GetRevisions()[passwordUse], ClickHouse: e.ClickHouse(),
+	}
 	from := u.GetCopyFrom()
 	if create {
 		before, began, err := d.recorded(ref)
 		if err != nil {
 			return err
+		}
+		if e.ClickHouse() && !began {
+			f, err := d.there(ctx, c, e, ref.Name, db)
+			if err != nil {
+				return err
+			}
+			if f.user {
+				return fmt.Errorf("ClickHouse already has the user %s, so nothing was changed. Choose a new name and review the plan again", ref.Name)
+			}
+			if f.owner != "" {
+				if err := d.reuseDatabase(ctx, ref, u, e, f.databaseID); err != nil {
+					return err
+				}
+			}
 		}
 		if began && before.Copying {
 			// An earlier run left part of a copy in the database it made: that goes, and
@@ -902,6 +948,12 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	} else if from != nil {
 		// A copy is made once, with the user, and what it came from can't change.
 		g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
+	}
+	if create && e.ClickHouse() {
+		if err := d.record(ref, g); err != nil {
+			return err
+		}
+		return d.recordKey(clickHouseKeptKey(ref, u.GetService(), db), nil)
 	}
 	return d.record(ref, g)
 }
@@ -1110,7 +1162,7 @@ func (d *UserDriver) keptForAnother(ref resource.Ref, u *resourcev1.DatabaseUser
 	db := Owned(ref.Name, u)
 	for key := range all {
 		g := all[key]
-		if key == ref.String() || g.Service != u.GetService() || !strings.HasSuffix(key, " in "+ref.Scope) {
+		if key == ref.String() || g.Service != u.GetService() || !strings.HasPrefix(key, string(UserKind)+" ") || !strings.HasSuffix(key, " in "+ref.Scope) {
 			continue
 		}
 		name := strings.TrimSuffix(strings.TrimPrefix(key, string(UserKind)+" "), " in "+ref.Scope)
@@ -1119,6 +1171,33 @@ func (d *UserDriver) keptForAnother(ref resource.Ref, u *resourcev1.DatabaseUser
 		}
 	}
 	return nil
+}
+
+func clickHouseKeptKey(ref resource.Ref, service, db string) string {
+	return (resource.Ref{Kind: "database.clickhouse-kept", Scope: ref.Scope, Name: service + "/" + db}).String()
+}
+
+func (d *UserDriver) reuseDatabase(ctx context.Context, ref resource.Ref, u *resourcev1.DatabaseUser, e *Engine, uuid string) error {
+	db := Owned(ref.Name, u)
+	if !e.ClickHouse() {
+		return fmt.Errorf("%s has a database %s already, which Dockwell didn't make. Choose another name", u.GetService(), db)
+	}
+	if err := d.keptForAnother(ref, u); err != nil {
+		return err
+	}
+	if resource.DeployOf(ctx).Undoes != "" {
+		return nil
+	}
+	d.mu.Lock()
+	all, err := d.records()
+	d.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if uuid != "" && uuid != "00000000-0000-0000-0000-000000000000" && all[clickHouseKeptKey(ref, u.GetService(), db)].DatabaseID == uuid {
+		return nil
+	}
+	return fmt.Errorf("%s already has a database %s that this plan can't give to a new user. Choose another database name", u.GetService(), db)
 }
 
 // drop drops a user and its database, with everything in it. With its server's
@@ -1153,6 +1232,19 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 		}
 		return d.record(ref, nil)
 	}
+	if e.ClickHouse() {
+		d.clickHouseMu.Lock()
+		defer d.clickHouseMu.Unlock()
+		f, err := d.there(ctx, c, e, ref.Name, db)
+		if err != nil {
+			return err
+		}
+		if f.databaseID != "" {
+			if err := d.recordKey(clickHouseKeptKey(ref, g.Service, db), &given{DatabaseID: f.databaseID}); err != nil {
+				return err
+			}
+		}
+	}
 	if e.SQL() {
 		// Back up the database before dropping so Undo restores its data; refuse if backup fails.
 		if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), resource.DeployOf(ctx).Change, c, e, ref.Scope, g.Service, db, ref.Name); err != nil {
@@ -1168,7 +1260,7 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 // run runs SQL as the database server's first user, as the image signs in.
 func (d *UserDriver) run(ctx context.Context, c *docker.Container, e *Engine, sql string) error {
 	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
-	_, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, sql)
+	_, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, e.WithPasswordFile(cmd, c.Config.Env), sql)
 	return err
 }
 
@@ -1262,7 +1354,17 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		// Made or given its password anew alike, by the image's root user.
 		return mongoMake(user, db, password), nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE:
-		return "", errors.New("creating ClickHouse users is not available yet")
+		passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(password)))
+		identified := " IDENTIFIED WITH sha256_hash BY '" + passwordHash + "'" +
+			" SETTINGS max_threads=2 CONST, max_insert_threads=1 CONST, max_memory_usage=335544320 CONST;\n"
+		alter := "ALTER USER " + myName(user) + identified
+		revoke := "REVOKE BACKUP ON " + myName(db) + ".* FROM " + myName(user) + ";\n"
+		if !create {
+			return alter + revoke, nil
+		}
+		return "CREATE DATABASE IF NOT EXISTS " + myName(db) + ";\n" +
+			"CREATE USER IF NOT EXISTS " + myName(user) + identified + alter +
+			"GRANT ALL ON " + myName(db) + ".* TO " + myName(user) + ";\n" + revoke, nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}
@@ -1315,6 +1417,9 @@ func myGranted(db string) string { return strings.ReplaceAll(db, "_", `\_`) }
 func (e *Engine) drop(user, db string) string {
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		return mongoDrop(user, db)
+	}
+	if e.ClickHouse() {
+		return "DROP USER IF EXISTS " + myName(user) + ";\n"
 	}
 	if e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 		return "DROP DATABASE IF EXISTS " + myName(db) + ";\nDROP USER IF EXISTS " + myUser(user) + ";\n"

@@ -228,14 +228,11 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 		return nil, h.fail(ctx, err)
 	}
 	engine := database.Of(server.db.GetEngine())
-	if engine.ClickHouse() {
-		return nil, authapi.Invalid(errors.New("creating ClickHouse users is not available yet"))
-	}
 	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		// Its users are read, and making them comes after (ADR 0038).
 		return nil, authapi.Invalid(fmt.Errorf("%s runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh, in the database they sign in to", server.ref.Name))
 	}
-	if !engine.SQL() {
+	if !engine.SQL() && !engine.ClickHouse() {
 		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which has no users of its own", server.ref.Name, engine.Name))
 	}
 	if len(server.servers) == 0 {
@@ -585,7 +582,7 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 	}
 	engine := database.Of(server.db.GetEngine())
 	name, env := server.ref.Name, server.ref.Scope
-	if engine.ClickHouse() {
+	if engine.ClickHouse() && (m.GetUser() == "" || m.GetUser() == server.firstUser) {
 		change, err := h.changeClickHousePassword(ctx, server, m.GetUser())
 		if err != nil {
 			return nil, h.fail(ctx, err)
@@ -975,7 +972,8 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 	return h.db.View(ctx, func(tx *store.Tx) error {
 		// Collect active links pointing to logical databases so the UI knows which
 		// apps depend on each logical database (respecting caller visibility).
-		linkedBy := map[string][]string{} // key: meetsEnv+"/"+service+"/"+dbName
+		linkedBy := map[string][]string{}       // key: meetsEnv+"/"+service+"/"+dbName
+		clickHouseApps := map[string][]string{} // key: meetsEnv+"/"+service+"/"+user
 		if tree, err := scope.Load(ctx, tx); err == nil {
 			visible := place.Reachable(ctx, tree)
 			envProject := map[string]string{}
@@ -1009,6 +1007,33 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 						}
 						if !slices.Contains(linkedBy[key], label) {
 							linkedBy[key] = append(linkedBy[key], label)
+						}
+						if l.GetDedicatedUser() {
+							linkEnv := live[i].Scope
+							apps := []string{label}
+							if visibleEnv[linkEnv] {
+								names := make([]string, 0, len(l.GetSets()))
+								for _, set := range l.GetSets() {
+									names = append(names, set.GetName())
+								}
+								uses, err := tx.UsersOf(ctx, linkEnv, "", names...)
+								if err != nil {
+									return err
+								}
+								apps = nil
+								for i := range uses {
+									used := &uses[i]
+									if used.Scope == linkEnv && used.Kind == string(service.Kind) {
+										if linkEnv == meets {
+											apps = append(apps, used.Name)
+										} else {
+											apps = append(apps, label+"/"+used.Name)
+										}
+									}
+								}
+							}
+							userKey := meets + "/" + l.GetService() + "/" + l.GetUser()
+							clickHouseApps[userKey] = append(clickHouseApps[userKey], apps...)
 						}
 					}
 				}
@@ -1268,6 +1293,10 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 						for _, a := range r.GetUsers() {
 							if a.GetName() == u.Name {
 								a.Secret, a.UsedBy, a.ResourceId = spec.GetPassword(), usedByApps, u.ID
+								if p.db.GetEngine() == dockwellv1.DatabaseEngine_DATABASE_ENGINE_CLICKHOUSE {
+									a.Databases = []string{ownedDB}
+									appendUnique(&a.UsedBy, clickHouseApps[env+"/"+p.ref.Name+"/"+u.Name])
+								}
 							}
 						}
 						if !spec.GetTakenOn() {

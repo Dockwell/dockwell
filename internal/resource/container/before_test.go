@@ -5,6 +5,7 @@ package container
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,15 +27,15 @@ func TestBeforeReplaceGetsTheOneThere(t *testing.T) {
 	fail := false
 	d := &Docker{
 		Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1,
-		BeforeReplace: func(_ context.Context, old *docker.Container, spec *resourcev1.Container) error {
+		BeforeReplace: func(_ context.Context, old *docker.Container, spec *resourcev1.Container) (string, error) {
 			seen = append(seen, old.Config.Image+">"+spec.GetImage())
 			if !old.State.Running {
 				t.Error("what was there had stopped")
 			}
 			if fail {
-				return refuse
+				return "", refuse
 			}
-			return nil
+			return "", nil
 		},
 	}
 	at := Target{Name: "env_01-docs-1", Project: "env_01", Service: "docs", Scoped: true}
@@ -58,5 +59,45 @@ func TestBeforeReplaceGetsTheOneThere(t *testing.T) {
 	}
 	if len(seen) != 2 || seen[1] != "mongo:7.0>mongo:8.0" {
 		t.Errorf("it ran with %v", seen)
+	}
+}
+
+func TestBeforeReplaceDoesNotStartAnImageThatChangedAfterTheCheck(t *testing.T) {
+	e := dockertest.New(t)
+	client := e.Client()
+	const old, next = "events:25.8.33.6", "events:26.3.62.3"
+	for _, image := range []string{old, next} {
+		e.AddLocalImage(image, dockertest.Image{})
+	}
+	d := &Docker{
+		Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1,
+		BeforeReplace: func(ctx context.Context, _ *docker.Container, spec *resourcev1.Container) (string, error) {
+			image, err := client.InspectImage(ctx, spec.GetImage())
+			if err != nil {
+				return "", err
+			}
+			e.AddLocalImage(spec.GetImage(), dockertest.Image{})
+			return image.ID, nil
+		},
+	}
+	at := Target{Name: "env_01-events-1", Project: "env_01", Service: "events", Scoped: true}
+	if err := d.Run(t.Context(), at, &resourcev1.Container{Image: old}, resource.Decision{}); err != nil {
+		t.Fatal(err)
+	}
+	// The previous instance can have a different name after a rollout.
+	c, err := client.ContainerNamed(t.Context(), at.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const previous = "env_01-events-2"
+	if err := client.RenameContainer(t.Context(), c.ID, previous); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Run(t.Context(), at, &resourcev1.Container{Image: next}, resource.Decision{}); err == nil || !strings.Contains(err.Error(), "changed after it was checked") {
+		t.Fatalf("replacing with a tag that moved after the check: %v", err)
+	}
+	c, err = client.ContainerNamed(t.Context(), previous)
+	if err != nil || c.Config.Image != old || !c.State.Running {
+		t.Fatalf("the old image is no longer running: %v, %v", c, err)
 	}
 }

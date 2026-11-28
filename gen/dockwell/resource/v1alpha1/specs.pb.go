@@ -12513,6 +12513,9 @@ type Link struct {
 	// Dockwell made the app a database and a user of its own. Named apart from the
 	// CLI's own --environment, which says where the link is.
 	MeetsEnvironment string `protobuf:"bytes,10,opt,name=meets_environment,json=meetsEnvironment,proto3" json:"meets_environment,omitempty"`
+	// For ClickHouse, the user is a database.user that can only access its database.
+	// Links made before this field used the administrator.
+	DedicatedUser bool `protobuf:"varint,11,opt,name=dedicated_user,json=dedicatedUser,proto3" json:"dedicated_user,omitempty"`
 	// The connection that meets it, by name, for a link to one (ADR 0099): its values
 	// are the connection's, read at the revision the link's values pin. Numbered, with
 	// what follows, in the block every kind holds in shared messages, 90 to 99.
@@ -12631,6 +12634,13 @@ func (x *Link) GetMeetsEnvironment() string {
 		return x.MeetsEnvironment
 	}
 	return ""
+}
+
+func (x *Link) GetDedicatedUser() bool {
+	if x != nil {
+		return x.DedicatedUser
+	}
+	return false
 }
 
 func (x *Link) GetConnection() string {
@@ -14370,7 +14380,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x06labels\x18\x14 \x03(\v22.dockwell.resource.v1alpha1.ServerHost.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfc\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x05\n" +
 	"\x04Link\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12>\n" +
@@ -14382,7 +14392,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04sets\x18\b \x03(\v2#.dockwell.resource.v1alpha1.LinkSetR\x04sets\x12\x19\n" +
 	"\bset_once\x18\t \x01(\bR\asetOnce\x12+\n" +
 	"\x11meets_environment\x18\n" +
-	" \x01(\tR\x10meetsEnvironment\x12\x1e\n" +
+	" \x01(\tR\x10meetsEnvironment\x12%\n" +
+	"\x0ededicated_user\x18\v \x01(\bR\rdedicatedUser\x12\x1e\n" +
 	"\n" +
 	"connection\x18Z \x01(\tR\n" +
 	"connection\x128\n" +

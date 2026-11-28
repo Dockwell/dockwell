@@ -2146,6 +2146,9 @@ type Hello struct {
 	// to one that doesn't. Catalog and databases work takes 200 to 202 and 220 to
 	// 229 in agent messages.
 	Drills bool `protobuf:"varint,221,opt,name=drills,proto3" json:"drills,omitempty"`
+	// This agent takes and restores native ClickHouse backups. A major upgrade
+	// can only run on an agent that backs up the data before replacing the image.
+	ClickhouseBackups bool `protobuf:"varint,222,opt,name=clickhouse_backups,json=clickhouseBackups,proto3" json:"clickhouse_backups,omitempty"`
 	// True when the agent carries a connection to a port a service publishes
 	// (ForwardCall), so the panel opens an app's web UI through it (ADR 0061).
 	Forwards bool `protobuf:"varint,202,opt,name=forwards,proto3" json:"forwards,omitempty"`
@@ -2530,6 +2533,13 @@ func (x *Hello) GetFirstPasswords() bool {
 func (x *Hello) GetDrills() bool {
 	if x != nil {
 		return x.Drills
+	}
+	return false
+}
+
+func (x *Hello) GetClickhouseBackups() bool {
+	if x != nil {
+		return x.ClickhouseBackups
 	}
 	return false
 }
@@ -22306,7 +22316,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xa6\x16\n" +
+	"\bDraining\"\xd6\x16\n" +
 	"\x05Hello\x12\"\n" +
 	"\fsftp_backups\x18\x88\x04 \x01(\bR\vsftpBackups\x127\n" +
 	"\x17tests_sftp_destinations\x18\x89\x04 \x01(\bR\x15testsSftpDestinations\x12/\n" +
@@ -22338,7 +22348,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\aboot_id\x18\xe7\x01 \x01(\tR\x06bootId\x12#\n" +
 	"\racts_on_units\x18\x9a\x02 \x01(\bR\vactsOnUnits\x12(\n" +
 	"\x0ffirst_passwords\x18\xc8\x01 \x01(\bR\x0efirstPasswords\x12\x17\n" +
-	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12\x1b\n" +
+	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12.\n" +
+	"\x12clickhouse_backups\x18\xde\x01 \x01(\bR\x11clickhouseBackups\x12\x1b\n" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x12(\n" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12%\n" +

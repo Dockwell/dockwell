@@ -307,7 +307,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
             <Trans>Backups</Trans>
           </RouterTabLink>
         ) : null}
-        {speaksSQL(db.engine) && db.engine !== DatabaseEngine.CLICKHOUSE ? (
+        {speaksSQL(db.engine) ? (
           <RouterTabLink
             to="/databases/$serviceId/users"
             params={{ serviceId: db.id }}

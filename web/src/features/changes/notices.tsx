@@ -1219,9 +1219,21 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           key,
           amber: true,
           title: t`${app} connects as administrator ${user}`,
-          detail: t`It can read and change every database. Only one app can use this link.`,
+          detail: t`It can read and change every database. Only one app link can use this administrator.`,
         };
       }
+      case "clickhouse_upgrade":
+        return {
+          key,
+          title: t`ClickHouse upgrades in place`,
+          detail: t`If the new release doesn't become healthy, the old one starts again on the same data.`,
+        };
+      case "clickhouse_major_upgrade":
+        return {
+          key,
+          title: t`A native backup runs before the ClickHouse upgrade`,
+          detail: t`If the backup fails, the upgrade stops. If the new release doesn't become healthy, the old one starts again on the same data.`,
+        };
       case "clickhouse_password":
         return {
           key,

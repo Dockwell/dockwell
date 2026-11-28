@@ -172,13 +172,13 @@ func TestAMovingTagThatCrossesAMajorIsRefusedBeforeAnythingStops(t *testing.T) {
 	e.AddLocalImage("postgres:16.5", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}})
 	e.AddLocalImage("postgres:custom", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}})
 	for _, image := range []string{"postgres:16.5", "postgres:custom"} {
-		if err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: image}); err != nil {
+		if _, err := r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: image}); err != nil {
 			t.Errorf("to %s: %v", image, err)
 		}
 	}
 	// The tag moves on to 17, as a pull of it would find.
 	e.AddLocalImage("postgres:latest", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=17"}}})
-	err = r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "postgres:latest"})
+	_, err = r.BeforeReplace(t.Context(), old, &resourcev1.Container{Image: "postgres:latest"})
 	if err == nil || resource.ReasonOf(err) != resource.ReasonDatabaseRelease {
 		t.Fatalf("a tag that moved from 16 to 17 = %v", err)
 	}
@@ -215,11 +215,11 @@ func TestAReplaceOntoAnotherVolumeIsNoMove(t *testing.T) {
 	}
 	r := Reader{Client: client}
 	back := &resourcev1.Container{Image: "postgres:16", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/var/lib/postgresql/data"}}}
-	if err := r.BeforeReplace(ctx, old, back); err != nil {
+	if _, err := r.BeforeReplace(ctx, old, back); err != nil {
 		t.Errorf("back to 16 on the volume it had: %v", err)
 	}
 	same := &resourcev1.Container{Image: "postgres:16", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data-17"}, Target: "/var/lib/postgresql/data"}}}
-	if err := r.BeforeReplace(ctx, old, same); resource.ReasonOf(err) != resource.ReasonDatabaseRelease {
+	if _, err := r.BeforeReplace(ctx, old, same); resource.ReasonOf(err) != resource.ReasonDatabaseRelease {
 		t.Errorf("16 on 17's volume = %v, want it refused", err)
 	}
 }

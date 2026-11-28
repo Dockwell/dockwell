@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/pki"
@@ -67,14 +68,18 @@ func storageControl(t *testing.T, backend store.Backend, client *docker.Client, 
 		if err != nil {
 			t.Fatal(err)
 		}
-		runtime := &container.Docker{Client: client, RunStateDir: t.TempDir(), Settle: 20 * time.Millisecond, Poll: 20 * time.Millisecond, Soak: -1, Files: &container.Files{Client: client, Dir: t.TempDir()}}
+		runtime := &container.Docker{
+			Client: client, RunStateDir: t.TempDir(), Settle: 20 * time.Millisecond, Poll: 20 * time.Millisecond, Soak: -1,
+			Files: &container.Files{Client: client, Dir: t.TempDir()}, BeforeReplace: (database.Reader{Client: client}).BeforeReplace,
+		}
 		ctr := container.Driver{Runtime: runtime}
 		backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper, Work: 1000, RunControl: runtime}
 		s := &testServer{
 			id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 			client: client, backups: backups,
 			keeps: true,
-			drivers: resource.NewRegistry(&ctr, &service.Driver{Containers: ctr}, &network.Driver{Client: client},
+			drivers: resource.NewRegistry(&ctr, &service.Driver{Containers: ctr, Movers: backups}, &network.Driver{Client: client},
+				&database.UserDriver{Client: client, Dir: t.TempDir()},
 				&volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, BacksUp: backups}),
 		}
 		s.connect(t, f)

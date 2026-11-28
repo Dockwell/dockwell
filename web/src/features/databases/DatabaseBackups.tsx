@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { BackupPolicyInfo, Database } from "@dockwell/api";
-import { BackupPolicy_Drill, ChangeService, DatabaseEngine } from "@dockwell/api";
+import { BackupPolicy_Drill, BackupState, ChangeService, DatabaseEngine } from "@dockwell/api";
 import { Button, Callout, Loading, Panel, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -29,10 +29,9 @@ import { engineName, policiesOf, useBackupHow } from "./useDatabases";
  */
 export function DatabaseBackups() {
   const db = useThisDatabase();
-  const policies = policiesOf(db, usePolicies().data?.policies ?? []);
   // With no volume of Dockwell's there's nothing to list, and asking for no volume's
   // backups would list every volume's.
-  return backsUp(db, policies.length > 0) ? (
+  return backsUp(db) ? (
     <VolumeBackups db={db} />
   ) : (
     <div className="database-overview">
@@ -64,6 +63,13 @@ function VolumeBackups({ db }: { db: Database }) {
   const engine = engineName(db.engine);
   const dumpOf = how.database || engine;
   const backups = query.data?.backups ?? [];
+  const latest = backups[0];
+  const spaceError =
+    db.engine === DatabaseEngine.CLICKHOUSE &&
+    latest?.state === BackupState.FAILED &&
+    /^(ClickHouse's data disk|The disk that holds backups) has .* free/.test(latest.error)
+      ? latest.error
+      : "";
   const volumes: VolumeChoice[] = [{ id: db.volumeId, name: db.volume, environment: db.resource?.scope ?? "" }];
   const policy = policies[0];
   const sentTo = policy?.spec?.destination ?? "";
@@ -75,9 +81,9 @@ function VolumeBackups({ db }: { db: Database }) {
   );
   return (
     <div className="database-overview">
-      {db.engine === DatabaseEngine.CLICKHOUSE ? (
-        <Callout tone="warning">
-          <Trans>A volume copy can contain partial writes</Trans>
+      {spaceError ? (
+        <Callout tone="warning" title={t`Not enough space for a backup`}>
+          {sentence(spaceError)}
         </Callout>
       ) : null}
       {query.error ? (

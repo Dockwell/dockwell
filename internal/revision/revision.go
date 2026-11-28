@@ -1244,6 +1244,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	if err := e.checkClickHouseBackupAgents(items, moves); err != nil {
+		return nil, err
+	}
 	for _, ref := range p.BackUp {
 		if !slices.Contains(backUp, ref) {
 			backUp = append(backUp, ref)
@@ -4665,6 +4668,11 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 		if err := e.checkRoles(ctx, tx, cmp.Or(by.Actor, c.Actor), &c, asked, items, applying); err != nil {
 			return err
 		}
+		if asked.plan != nil {
+			if err := e.checkClickHouseBackupAgents(items, asked.plan.Notes); err != nil {
+				return err
+			}
+		}
 		held, err = e.holdsToo(ctx, tx, items)
 		return err
 	})
@@ -5495,6 +5503,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				}
 				e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: b, One: one, For: link})
 			}
+		}
+		if step.BackupFirst != nil && slices.ContainsFunc(r.plan.Notes, func(n Note) bool {
+			return n.Reason == "clickhouse_major_upgrade" && n.Ref.Scope == it.ref.Scope && len(n.Names) > 2 && n.Names[2] == it.ref.Name
+		}) && !slices.ContainsFunc(taken, func(b resource.BackupTaken) bool {
+			return b.ID == it.backups[q.server] && b.Method == resource.BackupDump && b.Database == "ClickHouse"
+		}) {
+			return stopped(fault.New(ErrInvalid, "The agent didn't complete a native ClickHouse backup, so the upgrade stopped before replacing the database. Update the agent or check the backup, then plan again"), false)
 		}
 		// Each database the step was to dump alone, the agent says it dumped alone: one
 		// from before ignores what it's asked, and backs up the whole volume (ADR 0084).
@@ -6885,6 +6900,22 @@ func databaseMoves(items []item, skip bool, features func(serviceID string) stri
 		switch {
 		case move == nil || move.Dumps:
 			continue
+		case move.Engine.ClickHouse():
+			how := "ClickHouse upgrades in place. If the new release doesn't become healthy, the old one starts again on the same data."
+			reason := "clickhouse_upgrade"
+			if move.RequiresBackup && len(it.placed) != 0 {
+				if skip || move.Volume == "" {
+					return nil, nil, fault.New(ErrInvalid, "ClickHouse %s to %s needs a native backup before it can replace the image. Enable backups and put its data in a volume Dockwell manages", move.From, move.To)
+				}
+				backUp = append(backUp, resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: move.Volume})
+				reason = "clickhouse_major_upgrade"
+				how = fmt.Sprintf("Dockwell backs up %s with ClickHouse before it starts the new major release. If the new release doesn't become healthy, the old one starts again on the same data.", move.Volume)
+			}
+			notes = append(notes, Note{
+				Reason: reason, Ref: it.ref, Names: []string{move.From, move.To, move.Volume},
+				Named: true, IfItChanges: true, Message: how,
+			})
+			continue
 		case move.Lowers:
 			fcv := ""
 			if features != nil && it.id != "" {
@@ -6935,6 +6966,31 @@ func databaseMoves(items []item, skip bool, features func(serviceID string) stri
 		}
 	}
 	return notes, backUp, nil
+}
+
+func (e *Engine) checkClickHouseBackupAgents(items []item, notes []Note) error {
+	for i := range notes {
+		note := &notes[i]
+		if note.Reason != "clickhouse_major_upgrade" {
+			continue
+		}
+		for j := range items {
+			it := &items[j]
+			if it.ref != note.Ref {
+				continue
+			}
+			for _, server := range it.placed {
+				a, connected := e.agents.Agent(server)
+				if !connected {
+					return fault.New(ErrInvalid, "The server running %s is disconnected, so Dockwell can't confirm it can take a ClickHouse backup. Reconnect it and plan the upgrade again", it.ref.Name)
+				}
+				if v, ok := a.(interface{ ClickHouseBackups() bool }); !ok || !v.ClickHouseBackups() {
+					return fault.New(ErrInvalid, "The agent running %s can't take a native ClickHouse backup, so it can't upgrade ClickHouse. Update the agent and plan the upgrade again", it.ref.Name)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // volumeKind is the volumes' kind, which a backup is of (volume.Kind, which this

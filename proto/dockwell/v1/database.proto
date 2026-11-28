@@ -546,6 +546,9 @@ message ConnectDatabaseRequest {
   // "postgres://{user}:{password}@{host}:{port}/{database}?sslmode=disable". Empty is
   // the engine's own form.
   map<string, string> templates = 12;
+  // For ClickHouse, connect with a database-scoped user created for the app, or
+  // a managed user named in user. Unset keeps the administrator connection.
+  bool dedicated_user = 13;
 }
 
 // ConnectDatabaseResponse carries the planned change.

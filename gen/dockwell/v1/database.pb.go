@@ -1253,7 +1253,10 @@ type ConnectDatabaseRequest struct {
 	// {address}, {database}, {user} and {password}, such as
 	// "postgres://{user}:{password}@{host}:{port}/{database}?sslmode=disable". Empty is
 	// the engine's own form.
-	Templates     map[string]string `protobuf:"bytes,12,rep,name=templates,proto3" json:"templates,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Templates map[string]string `protobuf:"bytes,12,rep,name=templates,proto3" json:"templates,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// For ClickHouse, connect with a database-scoped user created for the app, or
+	// a managed user named in user. Unset keeps the administrator connection.
+	DedicatedUser bool `protobuf:"varint,13,opt,name=dedicated_user,json=dedicatedUser,proto3" json:"dedicated_user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1370,6 +1373,13 @@ func (x *ConnectDatabaseRequest) GetTemplates() map[string]string {
 		return x.Templates
 	}
 	return nil
+}
+
+func (x *ConnectDatabaseRequest) GetDedicatedUser() bool {
+	if x != nil {
+		return x.DedicatedUser
+	}
+	return false
 }
 
 // ConnectDatabaseResponse carries the planned change.
@@ -2949,7 +2959,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\bsigns_in\x18\x01 \x01(\bR\asignsIn\x12\x12\n" +
 	"\x04said\x18\x02 \x01(\tR\x04said\x12$\n" +
 	"\radministrator\x18\x03 \x01(\bR\radministrator\x12\x1b\n" +
-	"\tno_rights\x18\x04 \x01(\bR\bnoRights\"\xf2\x04\n" +
+	"\tno_rights\x18\x04 \x01(\bR\bnoRights\"\x99\x05\n" +
 	"\x16ConnectDatabaseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -2964,7 +2974,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x0fpassword_secret\x18\n" +
 	" \x01(\tR\x0epasswordSecret\x12A\n" +
 	"\x04sets\x18\v \x03(\v2-.dockwell.v1.ConnectDatabaseRequest.SetsEntryR\x04sets\x12P\n" +
-	"\ttemplates\x18\f \x03(\v22.dockwell.v1.ConnectDatabaseRequest.TemplatesEntryR\ttemplates\x1a]\n" +
+	"\ttemplates\x18\f \x03(\v22.dockwell.v1.ConnectDatabaseRequest.TemplatesEntryR\ttemplates\x12%\n" +
+	"\x0ededicated_user\x18\r \x01(\bR\rdedicatedUser\x1a]\n" +
 	"\tSetsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
 	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\x1a<\n" +

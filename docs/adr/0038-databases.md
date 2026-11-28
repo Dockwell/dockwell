@@ -108,7 +108,7 @@ The image's user setup is skipped. A read-only users config outside the data vol
 
 An app can link to an existing ClickHouse database over HTTP or native TCP. The `port` part and the default URL use HTTP on 8123. The `native_port` part uses native TCP on 9000. Dockwell allows one app link per ClickHouse service. An app already using the server through a ClickHouse URL, an endpoint setting or a reference to the administrator secret also holds that administrator connection. The plan and connect sheet name the administrator account and say it can read and change every database. The password follows the database service's secret by reference. A link across environments requires an administrator on the source and a password kept as a secret. A catalog app can keep using its own passwordless database in the same environment.
 
-Per-app users, consistent database backups and version-aware upgrades are follow-ups. A volume copy can capture partial writes. An upstream catalog recipe can take over new installs when it becomes available. Existing installs keep their built-in origin. Moving them to the upstream recipe requires a version-aware upgrade that can restore the old release's data.
+ClickHouse app users, native database backups and version-aware upgrades follow [ADR 0115](0115-clickhouse-app-users-and-native-backups.md). Existing administrator links keep working. A prior volume copy can contain partial writes. An upstream catalog recipe can take over new installs when it becomes available. Existing installs keep their built-in origin. Moving them to the upstream recipe requires a version-aware upgrade that can restore the old release's data.
 
 ### The panel
 

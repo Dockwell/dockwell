@@ -16870,6 +16870,11 @@ components:
                          {address}, {database}, {user} and {password}, such as
                          "postgres://{user}:{password}@{host}:{port}/{database}?sslmode=disable". Empty is
                          the engine's own form.
+                dedicatedUser:
+                    type: boolean
+                    description: |-
+                        For ClickHouse, connect with a database-scoped user created for the app, or
+                         a managed user named in user. Unset keeps the administrator connection.
             description: |-
                 ConnectDatabaseRequest names a database server, the app to connect to it, and
                  what the app reads of it.
@@ -26575,6 +26580,11 @@ components:
                          one: a server in another project, shared because a person chose it, on which
                          Dockwell made the app a database and a user of its own. Named apart from the
                          CLI's own --environment, which says where the link is.
+                dedicatedUser:
+                    type: boolean
+                    description: |-
+                        For ClickHouse, the user is a database.user that can only access its database.
+                         Links made before this field used the administrator.
                 connection:
                     type: string
                     description: |-

@@ -4883,8 +4883,8 @@ msgid "A new one for {name}"
 msgstr "A new one for {name}"
 
 #. placeholder {0}: firstUser(server, readOf(firstReading(server)))
-msgid "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
-msgstr "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
+msgid "Administrator <0>{0}</0> can read and change every database. Only one app link can use this administrator."
+msgstr "Administrator <0>{0}</0> can read and change every database. Only one app link can use this administrator."
 
 msgid "Checked as the plan applies"
 msgstr "Checked as the plan applies"
@@ -4903,6 +4903,9 @@ msgstr "Connection URL"
 
 msgid "Couldn't check now. The plan checks it as it applies."
 msgstr "Couldn't check now. The plan checks it as it applies."
+
+msgid "Database administrator"
+msgstr "Database administrator"
 
 msgctxt "what a variable holds"
 msgid "Database name"
@@ -4951,6 +4954,12 @@ msgstr "Open Databases"
 msgid "Pick a secret"
 msgstr "Pick a secret"
 
+msgid "Set a password"
+msgstr "Set a password"
+
+msgid "Set an administrator password to give this app its own user."
+msgstr "Set an administrator password to give this app its own user."
+
 msgid "Signs in"
 msgstr "Signs in"
 
@@ -4959,6 +4968,9 @@ msgstr "Signs in as"
 
 msgid "Use a new database"
 msgstr "Use a new database"
+
+msgid "User for this app"
+msgstr "User for this app"
 
 msgid "What {name} reads"
 msgstr "What {name} reads"
@@ -13069,6 +13081,9 @@ msgstr "<0>{path}</0> gives it control of Docker on the server, the same as root
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 
+msgid "A native backup runs before the ClickHouse upgrade"
+msgstr "A native backup runs before the ClickHouse upgrade"
+
 msgid "A request answered 404, which says nothing of a login."
 msgstr "A request answered 404, which says nothing of a login."
 
@@ -13241,6 +13256,9 @@ msgstr "ClickHouse restarts with a password hash"
 msgid "ClickHouse restarts with bounded logging"
 msgstr "ClickHouse restarts with bounded logging"
 
+msgid "ClickHouse upgrades in place"
+msgstr "ClickHouse upgrades in place"
+
 msgid "Clients with their own settings need the new password."
 msgstr "Clients with their own settings need the new password."
 
@@ -13331,6 +13349,12 @@ msgstr "If it's a secret, set it in environment for the app to read instead."
 msgid "If that isn't what you meant, change name: in the file to give it a project of its own."
 msgstr "If that isn't what you meant, change name: in the file to give it a project of its own."
 
+msgid "If the backup fails, the upgrade stops. If the new release doesn't become healthy, the old one starts again on the same data."
+msgstr "If the backup fails, the upgrade stops. If the new release doesn't become healthy, the old one starts again on the same data."
+
+msgid "If the new release doesn't become healthy, the old one starts again on the same data."
+msgstr "If the new release doesn't become healthy, the old one starts again on the same data."
+
 msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
 msgstr "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
 
@@ -13359,8 +13383,8 @@ msgstr "It bans any other address that keeps failing to sign in, yours included.
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 
-msgid "It can read and change every database. Only one app can use this link."
-msgstr "It can read and change every database. Only one app can use this link."
+msgid "It can read and change every database. Only one app link can use this administrator."
+msgstr "It can read and change every database. Only one app link can use this administrator."
 
 msgid "It can read and write that path on the server."
 msgstr "It can read and write that path on the server."
@@ -15735,9 +15759,6 @@ msgstr "A copy of its files, which stops {engine} a moment"
 msgid "A plan, which keeps what it replaces for 7 days"
 msgstr "A plan, which keeps what it replaces for 7 days"
 
-msgid "A volume copy can contain partial writes"
-msgstr "A volume copy can contain partial writes"
-
 msgid "Backups of {name}, newest first"
 msgstr "Backups of {name}, newest first"
 
@@ -15767,6 +15788,9 @@ msgstr "No backups of {name} yet"
 
 msgid "Not backed up on a schedule"
 msgstr "Not backed up on a schedule"
+
+msgid "Not enough space for a backup"
+msgstr "Not enough space for a backup"
 
 msgid "Restoring"
 msgstr "Restoring"
@@ -15837,6 +15861,9 @@ msgstr "A change to how {engine} {now} runs is out"
 msgid "A copy of its files, which stops it a moment"
 msgstr "A copy of its files, which stops it a moment"
 
+msgid "A volume copy can contain partial writes"
+msgstr "A volume copy can contain partial writes"
+
 msgid "All its backups"
 msgstr "All its backups"
 
@@ -15857,6 +15884,9 @@ msgstr "ClickHouse stores a readable password in its data"
 
 msgid "ClickHouse takes no password"
 msgstr "ClickHouse takes no password"
+
+msgid "ClickHouse upgrades in place. Moving to a new major version requires a backup first."
+msgstr "ClickHouse upgrades in place. Moving to a new major version requires a backup first."
 
 msgid "Connection string"
 msgstr "Connection string"
@@ -15942,9 +15972,6 @@ msgstr "No users yet"
 msgid "Not scheduled"
 msgstr "Not scheduled"
 
-msgid "Not yet for ClickHouse"
-msgstr "Not yet for ClickHouse"
-
 msgid "Nothing read yet"
 msgstr "Nothing read yet"
 
@@ -15968,9 +15995,6 @@ msgstr "Rotate password"
 
 msgid "Runs alone: a backup isn't one moment while something writes"
 msgstr "Runs alone: a backup isn't one moment while something writes"
-
-msgid "Set a password"
-msgstr "Set a password"
 
 msgid "Since"
 msgstr "Since"
@@ -16088,6 +16112,9 @@ msgstr "Actions for {who}"
 
 msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
 msgstr "Apps sign in with a password. Inside its own container, nothing asks for one"
+
+msgid "Choose a user Dockwell made for the app"
+msgstr "Choose a user Dockwell made for the app"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."

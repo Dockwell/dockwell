@@ -107,7 +107,11 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	if c.AdministeredBy != "" && (c.EnvironmentID != app.id || c.AdministeredBy != m.GetApp()) {
+	dedicated := m.GetDedicatedUser()
+	if dedicated && eng != catalogv1.Engine_ENGINE_CLICKHOUSE {
+		return nil, invalidField("user", errors.New("the dedicated-user choice is for ClickHouse"))
+	}
+	if !dedicated && c.AdministeredBy != "" && (c.EnvironmentID != app.id || c.AdministeredBy != m.GetApp()) {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s signs in to %s as its administrator, so another app's user there could be reached through it. Give %s a user of its own first", c.AdministeredBy, c.Service, c.AdministeredBy), "administered")
 	}
@@ -133,10 +137,10 @@ func (h *Handler) ConnectDatabase(ctx context.Context, req *connect.Request[dock
 		summary = fmt.Sprintf("Connect %s to %s, taking on %s on %s", m.GetApp(), c.Service, plan.user, plan.database)
 	}
 	var also changes.Also
-	if eng == catalogv1.Engine_ENGINE_CLICKHOUSE {
+	if eng == catalogv1.Engine_ENGINE_CLICKHOUSE && !dedicated {
 		also.Notes = []revision.Note{{
 			Reason: "clickhouse_admin_link", Ref: server.ref, Names: []string{m.GetApp(), plan.user},
-			Message: fmt.Sprintf("%s signs in to %s as administrator %s and can read or change every database there. Only one app can use this link until per-app users are available.", m.GetApp(), c.Service, plan.user),
+			Message: fmt.Sprintf("%s signs in to %s as administrator %s and can read or change every database there. Only one app link can use this administrator.", m.GetApp(), c.Service, plan.user),
 		}}
 	}
 	change, err := h.changes.Propose(ctx, summary, plan.edits, nil, also)
@@ -245,7 +249,17 @@ type connected struct {
 func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabaseRequest, link string, eng catalogv1.Engine, c catalog.Candidate, app *appEnv, server *placed) (*connected, error) {
 	across := c.EnvironmentID != app.id
 	clickHouse := eng == catalogv1.Engine_ENGINE_CLICKHOUSE
+	dedicated := m.GetDedicatedUser()
+	adminLink := clickHouse && !dedicated
 	passwordSource := server.db.GetPasswordSecret()
+	passworded := passwordSource != "" || dedicated
+	if dedicated && (passwordSource == "" || len(server.db.GetReadings()) != len(c.Servers) ||
+		slices.ContainsFunc(server.db.GetReadings(), func(r *dockwellv1.DatabaseReading) bool {
+			return r.GetUnread() != "" || !r.GetClickhousePasswordVerified()
+		})) {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			errors.New("ClickHouse hasn't confirmed an administrator password on every server, so an app user can't keep its data private. Set the administrator password and check that the database is running"), "password_required")
+	}
 	need := &catalogv1.Need{Name: link, Label: "Database", Accepts: []*catalogv1.NeedAccept{{Engine: eng}}}
 	password := ""
 	needsPassword := false
@@ -254,7 +268,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		set := &catalogv1.NeedSet{Name: name, Part: part, Template: m.GetTemplates()[name]}
 		if clickHouse && part == catalogv1.Part_PART_URL && set.Template == "" {
 			set.Template = "http://{user}:{password}@{host}:{port}/{database}"
-			if passwordSource == "" {
+			if !passworded {
 				set.Template = "http://{host}:{port}/{database}"
 			}
 		}
@@ -268,7 +282,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return nil, invalidField("sets", fmt.Errorf("%s is a variable, and what it would hold is secret. Keep it as a secret first", name))
 		case !clickHouse && (part == catalogv1.Part_PART_NATIVE_PORT || strings.Contains(set.GetTemplate(), "{native_port}")):
 			return nil, invalidField("sets", errors.New("only ClickHouse has a native port beside its HTTP port"))
-		case clickHouse && passwordSource == "" && (part == catalogv1.Part_PART_PASSWORD || strings.Contains(set.GetTemplate(), "{password}")):
+		case clickHouse && !passworded && (part == catalogv1.Part_PART_PASSWORD || strings.Contains(set.GetTemplate(), "{password}")):
 			return nil, invalidField("sets", errors.New("this ClickHouse has no password in a Dockwell secret. Use its URL without a password"))
 		case part == catalogv1.Part_PART_PASSWORD && password != "":
 			return nil, invalidField("sets", fmt.Errorf("%s and %s both hold the password. Set one", password, name))
@@ -286,7 +300,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return nil, invalidField("templates", fmt.Errorf("%s has a template, and the link doesn't set it", name))
 		}
 	}
-	if clickHouse && passwordSource != "" && !needsPassword {
+	if clickHouse && passworded && !needsPassword {
 		return nil, invalidField("sets", errors.New("this ClickHouse requires a password. Set its password or a URL that includes it"))
 	}
 	if !clickHouse && password == "" && !slices.ContainsFunc(need.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_URL }) {
@@ -296,7 +310,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		names := slices.Collect(maps.Keys(m.GetSets()))
 		for name, svc := range app.services {
 			if name != m.GetApp() && readsAny(svc, names) {
-				return nil, invalidField("sets", fmt.Errorf("%s also reads a value this link sets. A ClickHouse administrator link can serve one app", name))
+				return nil, invalidField("sets", fmt.Errorf("%s also reads a value this link sets. A ClickHouse link can serve one app", name))
 			}
 		}
 	}
@@ -304,7 +318,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 	// which a URL reads.
 	password = catalog.PasswordName(need)
 	_, isSecret := app.secrets[password]
-	if _, set := m.GetSets()[password]; !set && (isSecret || app.variables[password]) && (!clickHouse || needsPassword && (across || passwordSource != password)) {
+	if _, set := m.GetSets()[password]; !dedicated && !set && (isSecret || app.variables[password]) && (!clickHouse || needsPassword && (across || passwordSource != password)) {
 		return nil, invalidField("sets", fmt.Errorf("%s/%s has %s already, which a URL the link writes would keep its password in. Set it as the password, or rename it", app.project, app.name, password))
 	}
 
@@ -329,8 +343,14 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		}
 		out.database, out.user = m.GetDatabase(), m.GetUser()
 		out.takenOn = out.database != "" && slices.Contains(c.Databases, out.database)
+		var existing *resourcev1.DatabaseUser
 		switch {
-		case clickHouse:
+		case dedicated:
+			existing, err = dedicatedClickHouseUser(m, c, mine, dbs, users, out)
+			if err != nil {
+				return err
+			}
+		case adminLink:
 			out.database = cmp.Or(out.database, "default")
 			readings := server.db.GetReadings()
 			i := slices.IndexFunc(readings, func(r *dockwellv1.DatabaseReading) bool { return r.GetUnread() == "" })
@@ -410,22 +430,29 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		// The user's password: in the app's environment beside it, or across, in a
 		// secret of the server's own that the app's reads through the link.
 		secret := password
-		if clickHouse {
+		switch {
+		case adminLink:
 			secret = ""
 			if needsPassword {
 				secret = passwordSource
 			}
-		} else if out.takenOn && !across {
+		case existing != nil:
+			secret = existing.GetPassword()
+		case out.takenOn && !across:
 			secret = m.GetPasswordSecret()
 		}
-		if across && !clickHouse {
+		if across && !adminLink && existing == nil {
 			if secret, err = freeSecret(ctx, tx, c.EnvironmentID, strings.ToUpper(out.user)+"_DATABASE_PASSWORD"); err != nil {
 				return err
 			}
 		}
+		if _, set := m.GetSets()[password]; dedicated && !set && (isSecret || app.variables[password]) &&
+			(existing == nil || across || password != secret) {
+			return invalidField("sets", fmt.Errorf("%s is already in the app's environment. Set it as the password or choose another link name", password))
+		}
 		value := ""
 		switch {
-		case clickHouse:
+		case adminLink || existing != nil:
 		case out.takenOn:
 			value = app.secrets[m.GetPasswordSecret()].GetValue()
 		default:
@@ -450,11 +477,12 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 			return invalidField("sets", err)
 		}
 		got.Link.Service = c.Service
+		got.Link.DedicatedUser = dedicated
 		if across {
 			got.Link.MeetsEnvironment = c.EnvironmentID
 		}
 
-		if !clickHouse {
+		if !adminLink && existing == nil {
 			plan = append(plan, linkUserEdits(c, out, secret, value, across)...)
 		}
 		plan = append(plan, &dockwellv1.Edit{
@@ -534,6 +562,37 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 	}
 	out.edits = plan
 	return out, nil
+}
+
+// dedicatedClickHouseUser picks the app's new database and user, or a managed
+// account that was added separately for it.
+func dedicatedClickHouseUser(m *dockwellv1.ConnectDatabaseRequest, c catalog.Candidate, mine map[string]*resourcev1.DatabaseUser, dbs, users []string, out *connected) (*resourcev1.DatabaseUser, error) {
+	if m.GetPasswordSecret() != "" {
+		return nil, invalidField("password_secret", errors.New("a ClickHouse app user has a generated password. Leave out the password secret"))
+	}
+	out.takenOn = false
+	out.database = cmp.Or(out.database, freeName(sqlName(m.GetApp()), dbs, users))
+	out.user = cmp.Or(out.user, out.database)
+	if err := database.CheckSQLName("database", out.database); err != nil {
+		return nil, invalidField("database", err)
+	}
+	if err := database.CheckSQLName("user", out.user); err != nil {
+		return nil, invalidField("user", err)
+	}
+	if database.SystemDatabase(out.database) || out.database == "default" {
+		return nil, invalidField("database", errors.New("ClickHouse keeps that database for itself. Choose a database for the app"))
+	}
+	if database.ReservedUser(out.user) {
+		return nil, invalidField("user", errors.New("ClickHouse keeps that username for itself. Choose a user for the app"))
+	}
+	if u := mine[out.user]; u != nil && u.GetService() == c.Service && !u.GetTakenOn() && database.Owned(out.user, u) == out.database {
+		return u, nil
+	}
+	if slices.Contains(users, out.user) {
+		return nil, invalidField("user", fmt.Errorf("%s already has a user %s. Choose another name", c.Service, out.user))
+	}
+	// The agent checks whether an existing database is one Dockwell made and kept.
+	return nil, nil
 }
 
 func unpasswordedClickHouse(svc *resourcev1.Service) bool {

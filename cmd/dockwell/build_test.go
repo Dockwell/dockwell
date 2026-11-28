@@ -112,6 +112,7 @@ var agentModules = []string{
 	"github.com/pkg/sftp",                       // sealed SFTP backups (ADR 0112). The pageout comparison peaked at 36.0 MB (ADR 0109).
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
+	"github.com/yeka/zip",                       // streams native ClickHouse ZIP entries with their per-run password (ADR 0115)
 	"golang.org/x/crypto",                       // pinned SSH sessions, OpenSSH key decoding and fingerprints, and forced HTTP-01 renewal
 	"golang.org/x/sys",                          // system calls, for x/term
 	"golang.org/x/term",                         // whether a person is at a terminal

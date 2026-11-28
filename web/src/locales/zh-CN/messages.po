@@ -4883,8 +4883,8 @@ msgid "A new one for {name}"
 msgstr "为 {name} 新建一个"
 
 #. placeholder {0}: firstUser(server, readOf(firstReading(server)))
-msgid "Administrator <0>{0}</0> can read and change every database. Only one app can use this link."
-msgstr "管理员 <0>{0}</0> 可读取和修改所有数据库。此链接仅供一个应用使用。"
+msgid "Administrator <0>{0}</0> can read and change every database. Only one app link can use this administrator."
+msgstr "管理员 <0>{0}</0> 可以读取和修改所有数据库。只有一个应用链接可以使用这个管理员账号。"
 
 msgid "Checked as the plan applies"
 msgstr "应用计划时检查"
@@ -4903,6 +4903,9 @@ msgstr "连接 URL"
 
 msgid "Couldn't check now. The plan checks it as it applies."
 msgstr "现在无法检查。应用计划时会再检查。"
+
+msgid "Database administrator"
+msgstr "数据库管理员"
 
 msgctxt "what a variable holds"
 msgid "Database name"
@@ -4951,6 +4954,12 @@ msgstr "打开数据库"
 msgid "Pick a secret"
 msgstr "选择一个密钥"
 
+msgid "Set a password"
+msgstr "设置密码"
+
+msgid "Set an administrator password to give this app its own user."
+msgstr "设置管理员密码后，即可为此应用分配独立用户。"
+
 msgid "Signs in"
 msgstr "可登录"
 
@@ -4959,6 +4968,9 @@ msgstr "登录身份"
 
 msgid "Use a new database"
 msgstr "使用新数据库"
+
+msgid "User for this app"
+msgstr "此应用的专用用户"
 
 msgid "What {name} reads"
 msgstr "{name} 读取的内容"
@@ -13069,6 +13081,9 @@ msgstr "<0>{path}</0> 让它能控制服务器上的 Docker，相当于 root。"
 msgid "<0>{path}</0> leads to <1>{leadsTo}</1> through a symlink, which gives it control of Docker on the server, the same as root."
 msgstr "<0>{path}</0> 通过符号链接指向 <1>{leadsTo}</1>，这让它能控制服务器上的 Docker，相当于 root。"
 
+msgid "A native backup runs before the ClickHouse upgrade"
+msgstr "升级 ClickHouse 前先创建原生备份"
+
 msgid "A request answered 404, which says nothing of a login."
 msgstr "有一个请求返回了 404，无法据此判断是否需要登录。"
 
@@ -13241,6 +13256,9 @@ msgstr "ClickHouse 将重启并使用密码哈希"
 msgid "ClickHouse restarts with bounded logging"
 msgstr "ClickHouse 将重启并限制日志增长"
 
+msgid "ClickHouse upgrades in place"
+msgstr "ClickHouse 会就地升级"
+
 msgid "Clients with their own settings need the new password."
 msgstr "使用独立设置的客户端需要更新密码。"
 
@@ -13331,6 +13349,12 @@ msgstr "如果它是机密，请改为在 environment 中设置，让应用从�
 msgid "If that isn't what you meant, change name: in the file to give it a project of its own."
 msgstr "如果这不是你的本意，请修改文件中的 name:，让它有自己的项目。"
 
+msgid "If the backup fails, the upgrade stops. If the new release doesn't become healthy, the old one starts again on the same data."
+msgstr "如果备份失败，升级将停止。如果新版本未能通过健康检查，旧版本会使用同一份数据重新启动。"
+
+msgid "If the new release doesn't become healthy, the old one starts again on the same data."
+msgstr "如果新版本未能通过健康检查，旧版本会使用同一份数据重新启动。"
+
 msgid "If your address isn't one of these, or stops being one, SSH closes to you, and no timer catches that later."
 msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH 就会对你关闭，而且之后没有计时器能发现这一点。"
 
@@ -13359,8 +13383,8 @@ msgstr "其他任何多次登录失败的地址都会被它封禁，包括你的
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
 
-msgid "It can read and change every database. Only one app can use this link."
-msgstr "它可读取和修改所有数据库。此链接仅供一个应用使用。"
+msgid "It can read and change every database. Only one app link can use this administrator."
+msgstr "它可以读取和修改所有数据库。只有一个应用链接可以使用这个管理员账号。"
 
 msgid "It can read and write that path on the server."
 msgstr "它可以读写服务器上的该路径。"
@@ -15735,9 +15759,6 @@ msgstr "复制其文件，{engine} 会短暂停止"
 msgid "A plan, which keeps what it replaces for 7 days"
 msgstr "通过计划进行，被替换的内容保留 7 天"
 
-msgid "A volume copy can contain partial writes"
-msgstr "卷副本可能包含未完成的写入"
-
 msgid "Backups of {name}, newest first"
 msgstr "{name} 的备份，最新在前"
 
@@ -15767,6 +15788,9 @@ msgstr "{name} 还没有备份"
 
 msgid "Not backed up on a schedule"
 msgstr "没有按计划备份"
+
+msgid "Not enough space for a backup"
+msgstr "备份所需空间不足"
 
 msgid "Restoring"
 msgstr "恢复"
@@ -15837,6 +15861,9 @@ msgstr "{engine} {now} 的运行方式有更新"
 msgid "A copy of its files, which stops it a moment"
 msgstr "复制其文件，会短暂停止它"
 
+msgid "A volume copy can contain partial writes"
+msgstr "卷副本可能包含未完成的写入"
+
 msgid "All its backups"
 msgstr "它的全部备份"
 
@@ -15857,6 +15884,9 @@ msgstr "ClickHouse 的数据中存有可读取的密码"
 
 msgid "ClickHouse takes no password"
 msgstr "ClickHouse 无需密码"
+
+msgid "ClickHouse upgrades in place. Moving to a new major version requires a backup first."
+msgstr "ClickHouse 会就地升级。升级到新的主版本前需要先备份。"
 
 msgid "Connection string"
 msgstr "连接字符串"
@@ -15942,9 +15972,6 @@ msgstr "暂无用户"
 msgid "Not scheduled"
 msgstr "未安排"
 
-msgid "Not yet for ClickHouse"
-msgstr "ClickHouse 暂不支持备份"
-
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"
 
@@ -15968,9 +15995,6 @@ msgstr "轮换密码"
 
 msgid "Runs alone: a backup isn't one moment while something writes"
 msgstr "单独运行：有写入时，备份不是同一时刻的快照"
-
-msgid "Set a password"
-msgstr "设置密码"
 
 msgid "Since"
 msgstr "此后"
@@ -16088,6 +16112,9 @@ msgstr "{who} 的操作"
 
 msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
 msgstr "应用使用密码登录。在它自己的容器内，不需要密码"
+
+msgid "Choose a user Dockwell made for the app"
+msgstr "选择 Dockwell 为应用创建的用户"
 
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell 暂时无法添加 MongoDB 用户。请在 <1>mongosh</1> 中用 <0>db.createUser</0> 添加。"

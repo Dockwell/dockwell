@@ -72,19 +72,30 @@ export function ConnectDatabaseSheet({
   const server = servers.find((db) => db.id === picked) ?? servers[0];
   const has = holds(server);
   const clickHouse = server?.engine === DatabaseEngine.CLICKHOUSE;
+  const hasAdminPassword = Boolean(
+    server?.readings.length &&
+      server.readings.every((r) => r.clickhousePasswordVerified && !r.checksNoOne && !r.unread),
+  );
+  const [wantsAdministrator, setAdministrator] = useState(false);
+  const administrator = wantsAdministrator || (clickHouse && !hasAdminPassword);
+  const dedicated = clickHouse && !administrator;
+  const accounts = dedicated ? (readOf(firstReading(server))?.users ?? []).filter((u) => u.resourceId) : [];
+  const availableDatabases = dedicated ? accounts.flatMap((u) => u.databases) : has.databases;
   const [pickedDatabase, setDatabase] = useState(preset?.database ?? NEW);
   const database =
-    clickHouse && !has.databases.includes(pickedDatabase)
-      ? has.databases.includes("default")
+    clickHouse && !availableDatabases.includes(pickedDatabase)
+      ? !dedicated && availableDatabases.includes("default")
         ? "default"
-        : (has.databases[0] ?? "")
+        : dedicated
+          ? NEW
+          : (availableDatabases[0] ?? NEW)
       : pickedDatabase;
   const [user, setUser] = useState<string | undefined>(preset?.user);
   const [password, setPassword] = useState<string | undefined>(preset?.password);
   const [chosen, setParts] = useState<Map<string, LinkPart>>();
   const allowedPart = (part: LinkPart) =>
     (part !== LinkPart.NATIVE_PORT || clickHouse) &&
-    (part !== LinkPart.PASSWORD || !clickHouse || Boolean(server?.passwordSecret));
+    (part !== LinkPart.PASSWORD || !clickHouse || dedicated || Boolean(server?.passwordSecret));
   const parts = new Map([...(chosen ?? suggested(names))].filter(([, part]) => allowedPart(part)));
   const existing = database !== NEW;
   const signsInAs =
@@ -95,6 +106,9 @@ export function ConnectDatabaseSheet({
   const mayCheck = may(DatabaseService.method.checkDatabaseSignIn, {
     environment: server?.resource?.scope ?? "",
   }).allowed;
+  const maySetPassword = may(DatabaseService.method.changeDatabasePassword, {
+    environment: server?.resource?.scope ?? "",
+  });
   const signIn = useSignInCheck(client, {
     on: !clickHouse && mayCheck && existing && server !== undefined && signsInAs !== "" && passwordIn !== "",
     id: server?.id ?? "",
@@ -126,7 +140,7 @@ export function ConnectDatabaseSheet({
 
   const ask = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy || !server || !setsAny || (clickHouse && !database)) return;
+    if (busy || !server || !setsAny || (clickHouse && administrator && !database)) return;
     setBusy(true);
     setErrors({});
     setFailure(undefined);
@@ -139,7 +153,12 @@ export function ConnectDatabaseSheet({
         appProject: places.environments.find((e) => e.id === environment)?.scope ?? "",
         appEnvironment: environment,
         database,
-        user: !clickHouse && existing ? signsInAs : "",
+        user: dedicated
+          ? (accounts.find((u) => u.databases.includes(database))?.name ?? "")
+          : !clickHouse && existing
+            ? signsInAs
+            : "",
+        dedicatedUser: dedicated,
         passwordSecret: !clickHouse && existing ? passwordIn : "",
         sets,
       });
@@ -188,7 +207,7 @@ export function ConnectDatabaseSheet({
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy}
-            disabled={!server || !setsAny || refused || (clickHouse && !database)}
+            disabled={!server || !setsAny || refused || (clickHouse && administrator && !database)}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void ask()}
           >
@@ -243,14 +262,51 @@ export function ConnectDatabaseSheet({
                 setErrors({});
               }}
             />
+            {clickHouse ? (
+              <SelectField
+                label={t`Access`}
+                value={administrator ? "administrator" : "app"}
+                options={[
+                  { value: "app", label: t`User for this app`, disabled: !hasAdminPassword },
+                  { value: "administrator", label: t`Database administrator` },
+                ]}
+                onChange={(event) => {
+                  setAdministrator(event.target.value === "administrator");
+                  setDatabase(NEW);
+                  setErrors({});
+                }}
+              />
+            ) : null}
+            {clickHouse && !hasAdminPassword ? (
+              <Callout
+                tone="info"
+                actions={
+                  <Button
+                    size="sm"
+                    {...maySetPassword.off}
+                    onClick={() =>
+                      setPlan({
+                        kind: "plan",
+                        make: () => client.changeDatabasePassword({ id: server.id }),
+                        onClose: () => setPlan(undefined),
+                      })
+                    }
+                  >
+                    <Trans>Set a password</Trans>
+                  </Button>
+                }
+              >
+                <Trans>Set an administrator password to give this app its own user.</Trans>
+              </Callout>
+            ) : null}
             <SelectField
               label={t`Database`}
               value={database}
               error={errors.database}
               hint={existing ? t`Its data stays where it is` : undefined}
               options={[
-                ...(!clickHouse ? [{ value: NEW, label: t`A new one for ${name}` }] : []),
-                ...has.databases.map((d) => ({ value: d, label: d })),
+                ...(!clickHouse || dedicated ? [{ value: NEW, label: t`A new one for ${name}` }] : []),
+                ...availableDatabases.map((d) => ({ value: d, label: d })),
               ]}
               onChange={(event) => {
                 setDatabase(event.target.value);
@@ -258,11 +314,11 @@ export function ConnectDatabaseSheet({
                 setErrors({});
               }}
             />
-            {clickHouse ? (
+            {clickHouse && administrator ? (
               <p className="settings-meta">
                 <Trans>
                   Administrator <code>{firstUser(server, readOf(firstReading(server)))}</code> can read and change every
-                  database. Only one app can use this link.
+                  database. Only one app link can use this administrator.
                 </Trans>
               </p>
             ) : null}
