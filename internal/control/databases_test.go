@@ -832,6 +832,7 @@ func TestLogicalDatabasesInOneEngine(t *testing.T) {
 }
 
 func testLogicalDatabasesInOneEngine(t *testing.T, backend store.Backend) {
+	t.Parallel()
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)

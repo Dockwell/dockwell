@@ -172,7 +172,7 @@ func TestOpenedAppsGiveTheirForwardsBack(t *testing.T) {
 	services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
 	slow := make(chan time.Duration, 1)
 	slow <- 100 * time.Millisecond
-	var ids []string
+	var edits []*dockwellv1.Edit
 	for _, name := range []string{"one", "two", "three", "four"} {
 		app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			d := <-slow
@@ -183,7 +183,7 @@ func TestOpenedAppsGiveTheirForwardsBack(t *testing.T) {
 		t.Cleanup(app.Close)
 		_, appPort, _ := net.SplitHostPort(strings.TrimPrefix(app.URL, "http://"))
 		port, _ := strconv.Atoi(appPort)
-		ids = append(ids, resourceIn(t, apply(t, ch, propose(t, ch, "Run "+name, &dockwellv1.Edit{
+		edits = append(edits, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Name: name},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
 				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
@@ -191,7 +191,17 @@ func TestOpenedAppsGiveTheirForwardsBack(t *testing.T) {
 					Ports: []*resourcev1.PortMapping{{HostIp: "127.0.0.1", HostPort: uint32(port), ContainerPort: 80}},
 				}},
 			}}},
-		})), "service"))
+		})
+	}
+	done := apply(t, ch, propose(t, ch, "Run the four apps", edits...))
+	var ids []string
+	for _, item := range done.GetPlan().GetResources() {
+		if item.GetResource().GetKind() == "service" {
+			ids = append(ids, item.GetId())
+		}
+	}
+	if len(ids) != 4 {
+		t.Fatalf("the change runs %d apps, want four", len(ids))
 	}
 	type tab struct {
 		host   string

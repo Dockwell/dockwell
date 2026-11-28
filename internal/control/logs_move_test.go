@@ -94,12 +94,14 @@ type moveRig struct {
 
 func startMoveRig(t *testing.T, wrap func(agent.LogReader) agent.LogReader) *moveRig {
 	t.Helper()
-	return startMoveRigWith(t, logs.Options{}, wrap)
+	return startMoveRigWith(t, logs.Options{}, wrap, 0)
 }
 
-func startMoveRigWith(t *testing.T, options logs.Options, wrap func(agent.LogReader) agent.LogReader) *moveRig {
+func startMoveRigWith(t *testing.T, options logs.Options, wrap func(agent.LogReader) agent.LogReader, moveGrace time.Duration) *moveRig {
 	t.Helper()
-	f := startFullWith(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, options)
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, options, func(c *Config) {
+		c.Agents.SetMoveGrace(moveGrace)
+	})
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
 	c := changeClient(b, b.origin)
@@ -364,7 +366,7 @@ func TestAServerThatDoesntReturnFromAMoveReadsOfflineInTime(t *testing.T) {
 	t.Parallel()
 	const grace = 500 * time.Millisecond
 	const late = 3 * time.Second // what a busy machine adds to the grace
-	m := startMoveRigWith(t, logs.Options{MoveGrace: grace}, nil)
+	m := startMoveRigWith(t, logs.Options{MoveGrace: grace}, nil, 0)
 	m.print("start")
 	r := follow(t, m.logs, &dockwellv1.WatchLogsRequest{Id: "web"})
 	r.waitLines("start")

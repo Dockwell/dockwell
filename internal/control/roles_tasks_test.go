@@ -25,6 +25,7 @@ import (
 func TestTaskNamesAndRunsStayWithinTheirProjects(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Parallel()
 		s := newReachStand(t, backend)
 		ctx := t.Context()
 		tasks := dockwellv1connect.NewTaskServiceClient(s.b, s.b.origin, connect.WithProtoJSON())

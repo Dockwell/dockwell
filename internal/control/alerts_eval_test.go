@@ -27,8 +27,12 @@ import (
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
+	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/secrets/secretstest"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 type evalFleet struct{ list func() []*dockwellv1.Server }
@@ -122,6 +126,61 @@ func evaluatorOn(f *fullServer, at *clock) *alerts.Evaluator {
 	}
 }
 
+// evaluatorFor runs the real evaluator and webhook outbox with the default
+// rules under test. The full server fixture covers installing the complete set
+// and editing it through the API.
+func evaluatorFor(t *testing.T, at *clock, url, name string) *alerts.Evaluator {
+	t.Helper()
+	db, _ := storetest.Open(t, store.SQLite)
+	logger := slog.New(slog.DiscardHandler)
+	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
+		t.Fatal(err)
+	}
+	var org store.Organization
+	if err := db.View(t.Context(), func(tx *store.Tx) error {
+		var err error
+		org, err = tx.Organization(t.Context())
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	kinds := resource.NewRegistry(alert.Rule{}, alert.Channel{})
+	keeper := secretstest.Keeper(db, kinds)
+	engine := revision.New(db, kinds, nil, keeper, logger)
+	var rule *resourcev1.AlertRule
+	for _, d := range alert.Defaults() {
+		if d.Name == name {
+			rule = d.Rule
+			break
+		}
+	}
+	if rule == nil {
+		t.Fatalf("there is no default rule %q", name)
+	}
+	plan, err := engine.Propose(t.Context(), revision.Proposal{
+		Summary: "Set up alert evaluation",
+		Actor:   revision.SystemActor,
+		Via:     revision.ViaAutomatic,
+		Edits: []revision.Edit{
+			{Ref: resource.Ref{Kind: alert.RuleKind, Scope: org.ID, Name: name}, Spec: rule},
+			{Ref: resource.Ref{Kind: alert.ChannelKind, Scope: org.ID, Name: "ops"}, Spec: &resourcev1.AlertChannel{
+				To: &resourcev1.AlertChannel_Webhook{Webhook: &resourcev1.AlertWebhook{Url: url}},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Apply(t.Context(), plan.Change); err != nil {
+		t.Fatal(err)
+	}
+	return &alerts.Evaluator{
+		DB: db, Keeper: keeper, Engine: engine, Domains: noDomains{}, Logger: logger,
+		Health: placedApps{}, Fleet: evalFleet{func() []*dockwellv1.Server { return connectedAt(at.Now(), 50) }},
+		Now: at.Now, Sender: &alerts.Sender{},
+	}
+}
+
 func tickOn(t *testing.T, e *alerts.Evaluator) {
 	t.Helper()
 	if err := e.Tick(t.Context()); err != nil {
@@ -147,10 +206,9 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			h := newHook(t)
-			f, _, _ := evalStand(t, h.srv.URL+"/hook")
 			at := &clock{now: time.Now()}
-			rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
-			e := evaluatorOn(f, at)
+			e := evaluatorFor(t, at, h.srv.URL+"/hook", "app-down")
+			rec := &controlhealth.Recorder{DB: e.DB, Logger: e.Logger, Now: at.Now}
 			e.Health, e.Standings = placedApps{"api"}, rec
 			// Sample both states in each cycle for 30 minutes. Look while up
 			// too, so a brief restart can't resolve the alert.
@@ -172,10 +230,9 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 	t.Run("an app that starts slowly once isn't down", func(t *testing.T) {
 		t.Parallel()
 		h := newHook(t)
-		f, _, _ := evalStand(t, h.srv.URL+"/hook")
 		at := &clock{now: time.Now()}
-		rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
-		e := evaluatorOn(f, at)
+		e := evaluatorFor(t, at, h.srv.URL+"/hook", "app-down")
+		rec := &controlhealth.Recorder{DB: e.DB, Logger: e.Logger, Now: at.Now}
 		e.Health, e.Standings = placedApps{"api"}, rec
 		report := func(state dockwellv1.HealthState) {
 			rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", State: state}})
@@ -198,10 +255,9 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 	t.Run("an app that starts slowly after a stop-first deploy isn't down", func(t *testing.T) {
 		t.Parallel()
 		h := newHook(t)
-		f, _, _ := evalStand(t, h.srv.URL+"/hook")
 		at := &clock{now: time.Now()}
-		rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
-		e := evaluatorOn(f, at)
+		e := evaluatorFor(t, at, h.srv.URL+"/hook", "app-down")
+		rec := &controlhealth.Recorder{DB: e.DB, Logger: e.Logger, Now: at.Now}
 		e.Health, e.Standings = placedApps{"api"}, rec
 		report := func(id string, state dockwellv1.HealthState) {
 			rec.Heard("srv_zz", []*dockwellv1.InstanceHealth{{Project: project, Service: "api", ContainerId: id, State: state}})
@@ -232,10 +288,9 @@ func TestACrashLoopFiresAppDown(t *testing.T) {
 func TestAOneShotJobThatFinishedIsntDown(t *testing.T) {
 	t.Parallel()
 	h := newHook(t)
-	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
-	rec := &controlhealth.Recorder{DB: f.store, Logger: slog.New(slog.DiscardHandler), Now: at.Now}
-	e := evaluatorOn(f, at)
+	e := evaluatorFor(t, at, h.srv.URL+"/hook", "app-down")
+	rec := &controlhealth.Recorder{DB: e.DB, Logger: e.Logger, Now: at.Now}
 	e.Health, e.Standings = placedApps{"migrate", "worker"}, rec
 	project := docker.Project("env_zz")
 	for range 60 { // 15 minutes
@@ -307,10 +362,9 @@ func TestAFinishedJobThatsRunAgain(t *testing.T) {
 func TestMemoryThatDipsStaysOneAlert(t *testing.T) {
 	t.Parallel()
 	h := newHook(t)
-	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
 	tick := 0
-	e := evaluatorOn(f, at)
+	e := evaluatorFor(t, at, h.srv.URL+"/hook", "memory-high")
 	e.Fleet = evalFleet{func() []*dockwellv1.Server {
 		pct := uint64(92)
 		switch {
@@ -345,10 +399,9 @@ func TestMemoryThatDipsStaysOneAlert(t *testing.T) {
 func TestMemoryInTheBandIsntOver(t *testing.T) {
 	t.Parallel()
 	h := newHook(t)
-	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
 	tick := 0
-	e := evaluatorOn(f, at)
+	e := evaluatorFor(t, at, h.srv.URL+"/hook", "memory-high")
 	e.Fleet = evalFleet{func() []*dockwellv1.Server {
 		pct := uint64(88)
 		if tick == 0 || tick == 240 {
@@ -456,12 +509,11 @@ func TestTheOutboxDeliversWhatAStopCutShort(t *testing.T) {
 func TestAChannelThatStaysDownIsTriedForADay(t *testing.T) {
 	t.Parallel()
 	h := newHook(t)
-	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	h.mu.Lock()
 	h.code = http.StatusBadGateway
 	h.mu.Unlock()
 	at := &clock{now: time.Now()}
-	e := evaluatorOn(f, at)
+	e := evaluatorFor(t, at, h.srv.URL+"/hook", "server-unreachable")
 	e.Fleet = evalFleet{func() []*dockwellv1.Server {
 		return []*dockwellv1.Server{{Id: "srv_zz", Name: "web-1", Connection: dockwellv1.Connection_CONNECTION_UNREACHABLE, LastSeenTime: timestamppb.New(at.Now().Add(-time.Hour))}}
 	}}
@@ -498,7 +550,7 @@ func TestAChannelThatStaysDownIsTriedForADay(t *testing.T) {
 		t.Errorf("a far end down for a day was tried %d times, want about every 15 minutes", tries)
 	}
 	var deliveries []store.AlertDelivery
-	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+	if err := e.DB.View(t.Context(), func(tx *store.Tx) error {
 		var err error
 		deliveries, err = tx.RecentDeliveries(t.Context(), 50)
 		return err
@@ -578,14 +630,13 @@ func TestAResolvedMessageFollowsWhatWentOut(t *testing.T) {
 func TestTheFirstOfManyIsntHeldBack(t *testing.T) {
 	t.Parallel()
 	h := newHook(t)
-	f, _, _ := evalStand(t, h.srv.URL+"/hook")
 	at := &clock{now: time.Now()}
 	start := at.Now()
 	names := make([]string, 30)
 	for i := range names {
 		names[i] = fmt.Sprintf("app-%02d", i)
 	}
-	e := evaluatorOn(f, at)
+	e := evaluatorFor(t, at, h.srv.URL+"/hook", "app-down")
 	e.Health = placedApps(names)
 	e.Standings = staggered{start: start, every: 20 * time.Second, now: at.Now}
 	var firstSent time.Duration

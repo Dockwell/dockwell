@@ -5,7 +5,6 @@ package control
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,7 +21,6 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
-	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -44,7 +42,7 @@ func TestBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T) {
 func testBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T, backend store.Backend) {
 	dir := t.TempDir()
 	useCatalogDir(t, dir)
-	f := startFull(t, backend, nil)
+	f := startFreshFullConfig(t, backend, nil)
 	b := signedIn(t, f)
 	pullsAnything(f.addDockerServer(t))
 	c := changeClient(b, b.origin)
@@ -213,7 +211,7 @@ func TestAFirstStartAsksTheNetworkNothing(t *testing.T) {
 		asked.Add(1)
 		return nil, errors.New("this test has no network")
 	})}
-	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.CatalogClient = client })
+	f := startFreshFullConfig(t, store.SQLite, func(c *Config) { c.CatalogClient = client })
 	res, err := catalogClient(signedIn(t, f)).ListCatalogEntries(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogEntriesRequest{}))
 	if err != nil {
 		t.Fatal(err)

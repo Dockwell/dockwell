@@ -167,6 +167,7 @@ func TestARollbackThatFailedCanBeRecovered(t *testing.T) {
 	for _, state := range states {
 		for _, way := range ways {
 			t.Run(state.name+", by "+way.name, func(t *testing.T) {
+				t.Parallel()
 				b := newBench(t, store.SQLite)
 				name, web := state.make(t, b)
 				written := len(b.revisions(t, web.GetId()))
@@ -456,6 +457,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	none, replace, update := dockwellv1.PlanAction_PLAN_ACTION_NONE, dockwellv1.PlanAction_PLAN_ACTION_REPLACE, dockwellv1.PlanAction_PLAN_ACTION_UPDATE
 
 	t.Run("a pull with nothing newer stayed", func(t *testing.T) {
+		t.Parallel()
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
 		before := b.e.Serving(name).ID
@@ -469,6 +471,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	})
 
 	t.Run("a pull with something newer replaced", func(t *testing.T) {
+		t.Parallel()
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
 		before := b.e.Serving(name).ID
@@ -482,6 +485,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	// Run it, deploy another tag, roll back to r1, which pins what r1 ran, and deploy
 	// the tag again. It hasn't moved, and the container still has to change.
 	t.Run("leaving a pin with nothing newer replaced", func(t *testing.T) {
+		t.Parallel()
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
 		b.e.Registry["ghcr.io/acme/shop:other"] = dockertest.Image{Digest: digestB, Config: docker.Config{Cmd: []string{"shop"}}}
@@ -516,6 +520,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	})
 
 	t.Run("a restart policy put right with nothing newer changed in place", func(t *testing.T) {
+		t.Parallel()
 		b := newBench(t, store.SQLite)
 		name, web := runLatest(t, b)
 		before := b.e.Serving(name).ID
@@ -529,6 +534,7 @@ func TestAStepSaysWhatItDid(t *testing.T) {
 	})
 
 	t.Run("a step that failed says nothing", func(t *testing.T) {
+		t.Parallel()
 		b := newBench(t, store.SQLite)
 		_, web := runLatest(t, b)
 		delete(b.e.Registry, latest)

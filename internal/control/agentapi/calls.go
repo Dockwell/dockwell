@@ -78,6 +78,7 @@ type Agents struct {
 	logger *slog.Logger
 	// applyTimeout is ApplyTimeout as the Agents were made.
 	applyTimeout time.Duration
+	moveGrace    time.Duration
 	// values finds the values of the variables and secrets a service uses,
 	// for the server it is about to run on.
 	values resource.Values
@@ -155,6 +156,17 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 		installing: map[string]string{}, installsEnded: map[string]uint64{}, boots: map[string]string{},
 		applyTimeout: ApplyTimeout,
 	}
+}
+
+// SetMoveGrace sets how long a moving agent reads as connected. Set it
+// before serving any agent streams. Zero uses MoveGrace.
+func (a *Agents) SetMoveGrace(grace time.Duration) { a.moveGrace = grace }
+
+func (a *Agents) moveGracePeriod() time.Duration {
+	if a.moveGrace > 0 {
+		return a.moveGrace
+	}
+	return MoveGrace
 }
 
 // OnSaveEnded calls fn with what an agent says of a save that ended after nobody
@@ -341,7 +353,7 @@ func (a *Agents) connectedLocked(server string) bool {
 		return true
 	}
 	moved, ok := a.moved[server]
-	return ok && time.Since(moved) < MoveGrace
+	return ok && time.Since(moved) < a.moveGracePeriod()
 }
 
 // Report keeps what a server says of its routes' domains.
