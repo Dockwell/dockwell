@@ -4,18 +4,21 @@ package control
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	spec "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -36,6 +39,62 @@ func TestClickHouseInstallAndLink(t *testing.T) {
 func TestClickHouseLifecycleOnRealDocker(t *testing.T) {
 	f := storageControl(t, store.SQLite, dockertest.Real(t), "")
 	testClickHouseInstallAndLink(t, f)
+}
+
+func prepullClickHouseImage(t *testing.T, client *docker.Client, ref string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	if _, err := client.InspectImage(ctx, ref); err == nil {
+		return
+	}
+	start := time.Now()
+	if err := client.PullImage(ctx, ref, nil); err != nil {
+		t.Fatalf("pulling %s after %s: %v", ref, time.Since(start).Round(time.Second), err)
+	}
+}
+
+func applyClickHouseChange(t *testing.T, client dockwellv1connect.ChangeServiceClient, change *v1.Change) {
+	t.Helper()
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+	id := change.GetId()
+	if _, err := client.ApplyChange(ctx, connect.NewRequest(&v1.ApplyChangeRequest{
+		Id: id, Fingerprint: change.GetPlan().GetFingerprint(),
+	})); err != nil {
+		t.Fatalf("applying %q after %s: %v", change.GetSummary(), time.Since(start).Round(time.Second), err)
+	}
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	last := change
+	for {
+		res, err := client.GetChange(ctx, connect.NewRequest(&v1.GetChangeRequest{Id: id}))
+		if err == nil {
+			last = res.Msg.GetChange()
+			switch last.GetState() {
+			case v1.ChangeState_CHANGE_STATE_APPLIED:
+				return
+			case v1.ChangeState_CHANGE_STATE_FAILED, v1.ChangeState_CHANGE_STATE_DISCARDED:
+				t.Fatalf("change %q ended %v after %s: %s", last.GetSummary(), last.GetState(), time.Since(start).Round(time.Second), last.GetError())
+			default:
+			}
+		} else if ctx.Err() == nil {
+			t.Fatalf("reading change %q after %s: %v", last.GetSummary(), time.Since(start).Round(time.Second), err)
+		}
+		select {
+		case <-ticker.C:
+			continue
+		case <-ctx.Done():
+		}
+		for _, step := range last.GetSteps() {
+			if step.GetState() == v1.StepState_STEP_STATE_RUNNING {
+				t.Logf("%s %s still running for %s (%s): %s", step.GetAction(), step.GetResource().GetName(),
+					time.Since(step.GetStartTime().AsTime()).Round(time.Second), step.GetMessage(), step.GetActivity())
+			}
+		}
+		t.Fatalf("timed out after %s waiting for %q (%s): %v", time.Since(start).Round(time.Second), last.GetSummary(), id, last.GetState())
+	}
 }
 
 func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
@@ -62,7 +121,20 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 		t.Fatal("the entry must pin an image for both architectures")
 	}
 	const consumerImage = "busybox:1.37"
-	if f.engine != nil {
+	dockerClient := f.server.client
+	apply := func(ch *v1.Change) {
+		t.Helper()
+		applyConfirmed(t, f.changes, ch)
+	}
+	if f.engine == nil {
+		for _, ref := range []string{image, consumerImage} {
+			prepullClickHouseImage(t, dockerClient, ref)
+		}
+		apply = func(ch *v1.Change) {
+			t.Helper()
+			applyClickHouseChange(t, f.changes, ch)
+		}
+	} else {
 		f.engine.Registry[image] = dockertest.Image{
 			Volumes: []string{"/var/lib/clickhouse"},
 			Exec: func(x dockertest.Exec) int {
@@ -75,7 +147,6 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 		}
 		f.engine.Registry[consumerImage] = dockertest.Image{}
 	}
-	dockerClient := f.server.client
 	const oldURL = "http://example.com/default"
 	consumer := propose(t, f.changes, "Run the app with its variables",
 		&v1.Edit{
@@ -100,7 +171,7 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	if f.engine == nil {
 		removeStorageFixture(t, dockerClient, appEnv, []string{"default", "clickhouse-link"}, nil)
 	}
-	applyConfirmed(t, f.changes, consumer)
+	apply(consumer)
 	install := installApp(t, cat, &v1.InstallCatalogEntryRequest{
 		Id: "clickhouse", Project: dataProject, Servers: []string{f.server.id.ServerID},
 	})
@@ -115,7 +186,7 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	if f.engine == nil {
 		removeStorageFixture(t, dockerClient, env, []string{"default"}, []string{"data"})
 	}
-	applyConfirmed(t, f.changes, install)
+	apply(install)
 
 	inspect := func() *docker.Container {
 		t.Helper()
@@ -194,7 +265,7 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	}) {
 		t.Fatal("the link should use the existing ClickHouse user")
 	}
-	applyConfirmed(t, f.changes, link)
+	apply(link)
 	app := f.workload(t, appEnv)
 	var rawURL, native string
 	for _, value := range app.Config.Env {
@@ -268,7 +339,7 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	applyConfirmed(t, f.changes, restart.Msg.GetChange())
+	apply(restart.Msg.GetChange())
 	phase = "after restart"
 	checkLink()
 	if f.engine == nil {
@@ -281,8 +352,8 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	applyConfirmed(t, f.changes, unlink.Msg.GetChange())
-	applyConfirmed(t, f.changes, propose(t, f.changes, "Remove ClickHouse", &v1.Edit{Resource: data.GetResource(), Delete: true}))
+	apply(unlink.Msg.GetChange())
+	apply(propose(t, f.changes, "Remove ClickHouse", &v1.Edit{Resource: data.GetResource(), Delete: true}))
 	if _, err := dockerClient.ServiceContainer(t.Context(), docker.Project(env), "db"); !docker.IsNotFound(err) {
 		t.Fatalf("the ClickHouse container should be gone: %v", err)
 	}
