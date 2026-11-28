@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"path"
 	"slices"
@@ -125,20 +124,7 @@ func (r Reader) clickHouseVerboseLog(ctx context.Context, id string) bool {
 	if err != nil || code != 0 || out.over {
 		return false
 	}
-	var config struct {
-		Logger struct {
-			Level    string `xml:"level"`
-			Log      string `xml:"log"`
-			ErrorLog string `xml:"errorlog"`
-			Size     string `xml:"size"`
-			Count    string `xml:"count"`
-		} `xml:"logger"`
-	}
-	if xml.Unmarshal(out.Bytes(), &config) != nil || config.Logger.Log == "" && config.Logger.ErrorLog == "" {
-		return false
-	}
-	log := config.Logger
-	return log.Level == "trace" || log.Level == "debug" || log.Level == "test" || log.Size == "" || log.Count == ""
+	return clickHouseFileLogsUnbounded(out.Bytes())
 }
 
 // Each SELECT returns metadata only. The size covers active MergeTree parts, and
