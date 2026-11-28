@@ -141,7 +141,7 @@ func testClickHouseInstallAndLink(t *testing.T, f *storageFixture) {
 				if slices.Contains(x.Cmd, "--config-file=/dev/stdin") {
 					return clickHouseProbeResult(x, false)
 				}
-				_, _ = io.WriteString(x.Stdout, "{\"version\":\"25.8.33.6\",\"user\":\"default\"}\n{\"name\":\"default\",\"engine\":\"Atomic\"}\n")
+				_, _ = io.WriteString(x.Stdout, "{\"version\":\""+entry.GetVersion()+"\",\"user\":\"default\"}\n{\"name\":\"default\",\"engine\":\"Atomic\"}\n")
 				return 0
 			},
 		}

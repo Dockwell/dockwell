@@ -329,6 +329,11 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
+	if db != nil && db.kind == clickHouse {
+		if err := r.clickHouseRestoreAccess(ctx, db); err != nil {
+			return resource.Decision{}, false, err
+		}
+	}
 	if err := r.refuseMember(ctx, db); err != nil {
 		return resource.Decision{}, false, err
 	}
@@ -434,6 +439,11 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 		return stopping(err)
 	}
 	db = found
+	if !began && db != nil && db.kind == clickHouse {
+		if err := r.clickHouseRestoreAccess(ctx, db); err != nil {
+			return stopping(err)
+		}
+	}
 	// Once there's a copy it has room, and a restore that used up the room it wanted
 	// has nothing to gain from being refused.
 	if st.Stage == "" {

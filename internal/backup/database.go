@@ -98,6 +98,7 @@ const (
 
 // Each official image lets these run from inside with what its environment says.
 var databaseKinds = []*databaseKind{
+	clickHouse,
 	{
 		name: "PostgreSQL", image: "postgres", data: "/var/lib/postgresql/data", dataVar: "PGDATA", series: 1, portFlags: true,
 		dump:        []string{"sh", "-c", pgAdminShell + `; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
@@ -232,13 +233,9 @@ func postgresLoadFailed(line string) bool {
 // volume. Only the official images: others keep things elsewhere, or need a
 // test that restores them for real first (ADR 0033).
 func kindOf(c *docker.Container, volumeName string) *databaseKind {
-	repo, _, _ := strings.Cut(c.Config.Image, "@")
-	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
-		repo = repo[:i]
-	}
-	repo = strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/"), "library/")
+	repo := engines.Repository(c.Config.Image)
 	for _, k := range databaseKinds {
-		if repo != k.image {
+		if !k.matches(repo) && (k != clickHouse || !engines.IsClickHouseContainer(c)) {
 			continue
 		}
 		if len(k.needs) > 0 && !slices.ContainsFunc(c.Config.Env, func(e string) bool {
@@ -437,6 +434,8 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 			out.db = &database{user: u, kind: k, image: c.Config.Image}
 			if k.portFlags {
 				out.db.port = portOf(c.Config.Cmd)
+			} else if k == clickHouse {
+				out.db.port = clickHouseNativePort(c.Config.Cmd)
 			}
 			if k.replays {
 				out.db.set = replicaSetOf(c.Config.Cmd)
@@ -534,6 +533,9 @@ func (d *database) pausedDump() error {
 // dumpAs is dump, of one database as a user and role a restore has it dump as, where
 // as names them: its owner can't sign in while a restore keeps it out.
 func (r *Runner) dumpAs(ctx context.Context, ref resource.Ref, db *database, one string, as []string, w io.Writer) (int64, error) {
+	if db.kind == clickHouse {
+		return r.clickHouseDump(ctx, db, w)
+	}
 	cmd := db.kind.dump
 	if one != "" {
 		resource.Progress(ctx, "Dumping "+one+" on "+ref.Name+" with "+db.kind.name+"'s own tools")
@@ -715,6 +717,9 @@ func (r *Runner) loadDump(ctx context.Context, db *database, dump io.Reader) err
 
 // loadPlain feeds a dump that's out of its gzip to a database.
 func (r *Runner) loadPlain(ctx context.Context, db *database, plain io.Reader) error {
+	if db.kind == clickHouse {
+		return r.clickHouseLoad(ctx, db, plain)
+	}
 	var failed []string
 	errs := &tail{}
 	sink := io.Writer(errs)

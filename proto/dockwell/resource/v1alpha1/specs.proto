@@ -2753,6 +2753,9 @@ message Link {
   // Dockwell made the app a database and a user of its own. Named apart from the
   // CLI's own --environment, which says where the link is.
   string meets_environment = 10;
+  // For ClickHouse, the user is a database.user that can only access its database.
+  // Links made before this field used the administrator.
+  bool dedicated_user = 11;
   // The connection that meets it, by name, for a link to one (ADR 0099): its values
   // are the connection's, read at the revision the link's values pin. Numbered, with
   // what follows, in the block every kind holds in shared messages, 90 to 99.

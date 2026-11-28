@@ -137,3 +137,37 @@ func TestAMovesPlanSaysWhatStaysStopped(t *testing.T) {
 		t.Errorf("the notes = %+v", notes)
 	}
 }
+
+func TestClickHouseMajorMovePlansNativeBackup(t *testing.T) {
+	const repo = "clickhouse/clickhouse-server:"
+	digest := "@sha256:" + strings.Repeat("a", 64)
+	items := moving(repo+"25.8.33.6", repo+"26.3.62.3"+digest, false)
+	for _, it := range items {
+		it.current.(*resourcev1.Service).GetApp().GetMounts()[0].Target = "/var/lib/clickhouse"
+		it.spec.(*resourcev1.Service).GetApp().GetMounts()[0].Target = "/var/lib/clickhouse"
+	}
+	items[0].placed = []string{"srv_1"}
+	notes, backups, err := databaseMoves(items, false, nil)
+	want := []resource.Ref{{Kind: volumeKind, Scope: "env_1", Name: "data"}}
+	if err != nil || !slices.Equal(backups, want) || !slices.Equal(reasons(notes), []string{"clickhouse_major_upgrade"}) {
+		t.Fatalf("major upgrade: %v, %v, %v", notes, backups, err)
+	}
+	if _, _, err := databaseMoves(items, true, nil); err == nil || !strings.Contains(err.Error(), "needs a native backup") {
+		t.Fatalf("skipping the native backup: %v", err)
+	}
+}
+
+func TestClickHouseMirrorOnAHostPathCannotPlanAMajorUpgrade(t *testing.T) {
+	const repo = "mirror.example/analytics:"
+	digest := "@sha256:" + strings.Repeat("a", 64)
+	items := moving(repo+"25.8.33.6", repo+"26.3.62.3"+digest, false)
+	items[0].placed = []string{"srv_1"}
+	for _, app := range []*resourcev1.Container{items[0].current.(*resourcev1.Service).GetApp(), items[0].spec.(*resourcev1.Service).GetApp()} {
+		app.Mounts = []*resourcev1.Mount{{
+			Source: &resourcev1.Mount_HostPath{HostPath: "/srv/events"}, Target: "/var/lib/clickhouse",
+		}}
+	}
+	if _, _, err := databaseMoves(items, false, nil); err == nil || !strings.Contains(err.Error(), "needs a native backup") {
+		t.Fatalf("major upgrade of a mirror on a host path was allowed: %v", err)
+	}
+}

@@ -96,7 +96,9 @@ export function speaksSQL(engine: DatabaseEngine): boolean {
  * (ADR 0038).
  */
 export function makesUsers(engine: DatabaseEngine): boolean {
-  return engine === DatabaseEngine.POSTGRESQL || engine === DatabaseEngine.MYSQL || engine === DatabaseEngine.MARIADB;
+  return [DatabaseEngine.POSTGRESQL, DatabaseEngine.MYSQL, DatabaseEngine.MARIADB, DatabaseEngine.CLICKHOUSE].includes(
+    engine,
+  );
 }
 
 /** What the URL of each engine starts with. */

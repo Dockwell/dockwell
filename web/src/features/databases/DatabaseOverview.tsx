@@ -342,36 +342,24 @@ function UpgradeNote({ db }: { db: Database }) {
     >
       {unavailable
         ? `${unavailable}.`
-        : how.known && how.dump
-          ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
-          : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
+        : db.engine === DatabaseEngine.CLICKHOUSE
+          ? t`ClickHouse upgrades in place. Moving to a new major version requires a backup first.`
+          : how.known && how.dump
+            ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
+            : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
     </Callout>
   );
 }
 
 /** Whether Dockwell backs a database up: its data is in a volume Dockwell made. */
-export function backsUp(db: Database, scheduled = false): boolean {
-  return (
-    db.volume !== "" &&
-    !db.volumeExternal &&
-    db.volumeId !== "" &&
-    (db.engine !== DatabaseEngine.CLICKHOUSE || scheduled || Boolean(db.newestBackup))
-  );
+export function backsUp(db: Database): boolean {
+  return db.volume !== "" && !db.volumeExternal && db.volumeId !== "";
 }
 
 /** Why a database has no backups, and what to do about it. */
 export function NoBackups({ db, className }: { db: Database; className?: string }) {
   const { t } = useLingui();
   const volume = db.volume;
-  if (db.engine === DatabaseEngine.CLICKHOUSE) {
-    return (
-      <Panel title={t`Backups`} className={className}>
-        <p className="database-line">
-          <Trans>Not yet for ClickHouse</Trans>
-        </p>
-      </Panel>
-    );
-  }
   return (
     <Panel title={t`Backups`} actions={<StatusBadge status="stopped" label={t`None`} />} className={className}>
       <p className="database-line">
@@ -535,7 +523,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const latestError = latest?.error ?? "";
   const servers = db.readings.map((r) => r.serverName).join(", ");
   const destination = policy?.spec?.destination ?? "";
-  if (!backsUp(db, Boolean(policy))) return <NoBackups db={db} className="database-backups" />;
+  if (!backsUp(db)) return <NoBackups db={db} className="database-backups" />;
   const took =
     newest?.startedAt && newest.finishedAt
       ? time.span(timestampMs(newest.finishedAt) - timestampMs(newest.startedAt))

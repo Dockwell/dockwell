@@ -57,7 +57,7 @@ func reachesOf(ref resource.Ref, spec proto.Message) map[string]reach {
 	}
 	switch s := spec.(type) {
 	case *resourcev1.Link:
-		add(s.GetMeetsEnvironment(), "link\x00"+s.GetEngine().String()+"\x00"+s.GetService()+"\x00"+s.GetDatabaseName()+"\x00"+s.GetUser(),
+		add(s.GetMeetsEnvironment(), "link\x00"+s.GetEngine().String()+"\x00"+s.GetService()+"\x00"+s.GetDatabaseName()+"\x00"+s.GetUser()+"\x00"+strconv.FormatBool(s.GetDedicatedUser()),
 			"link "+ref.Name+" reaches "+s.GetService()+" in another environment")
 	case *resourcev1.Variable, *resourcev1.Secret:
 		if v := variable.FromOf(s).GetValue(); v != nil {
@@ -138,16 +138,16 @@ func (e *Engine) reachRoles(ctx context.Context, tx *store.Tx, grants []store.Gr
 	return nil
 }
 
-// ClickHouse links reuse the image user's credentials, so sharing them across
+// ClickHouse administrator links reuse the image user's credentials, so sharing them across
 // environments needs an administrator on the source.
 func (e *Engine) reachesClickHouseCredentials(ctx context.Context, tx *store.Tx, items []item, it *item) (bool, error) {
 	if l, ok := it.spec.(*resourcev1.Link); ok {
-		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE, nil
+		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE && !l.GetDedicatedUser(), nil
 	}
 	if v := variable.FromOf(it.spec).GetValue(); v != nil {
 		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: linkKind, Scope: it.ref.Scope, Name: v.GetLink()})
 		l, _ := spec.(*resourcev1.Link)
-		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE, err
+		return l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE && !l.GetDedicatedUser(), err
 	}
 	return false, nil
 }
@@ -475,6 +475,8 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 		return nil
 	}
 	dbSvc, _ := svcAfter.(*resourcev1.Service)
+	found, isDB := database.FromSpec(dbSvc)
+	clickHouseUser := userSecret != "" && isDB && found.Engine.ClickHouse()
 	env := it.ref.Scope
 
 	hosts, adminSecret := e.engineHostsAndAdmin(ctx, tx, env, svc, dbSvc)
@@ -490,7 +492,10 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 		if l.meets() != env || l.GetService() != svc {
 			continue
 		}
-		if l.GetDatabaseName() == dbName {
+		if clickHouseUser && l.GetUser() == it.ref.Name {
+			return fault.New(ErrInvalid, "link %s still uses the ClickHouse user %s. Disconnect the app before removing the user", l.ref.Name, it.ref.Name)
+		}
+		if !clickHouseUser && l.GetDatabaseName() == dbName {
 			where := whichScope(ctx, tx, l.ref.Scope)
 			return fault.New(ErrInvalid, "link %s in %s still uses the database %s on %s, which this change deletes. Disconnect that app first",
 				l.ref.Name, where, dbName, svc)
@@ -511,6 +516,10 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 			return fault.New(ErrInvalid, "%s still uses the database %s on %s (via secret %s), which this change deletes. Stop using %s in %s first",
 				strings.Join(apps, ", "), dbName, svc, userSecret, userSecret, strings.Join(apps, ", "))
 		}
+	}
+
+	if clickHouseUser {
+		return nil
 	}
 
 	// 3. Refuse while any app uses a secret or variable whose value/template names
@@ -667,6 +676,9 @@ func (e *Engine) databaseDeleteNotes(ctx context.Context, tx *store.Tx, items []
 			continue
 		}
 		dbSvc, _ := svcAfter.(*resourcev1.Service)
+		if found, ok := database.FromSpec(dbSvc); ok && found.Engine.ClickHouse() {
+			continue
+		}
 		env := it.ref.Scope
 		hosts, _ := e.engineHostsAndAdmin(ctx, tx, env, svc, dbSvc)
 		// If deleting a logical database whose owner is a managed database.user,
@@ -2167,13 +2179,35 @@ func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items [
 // the user a link reads the password of is the one made for it, never another app's.
 func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
 	clickHouse := l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE
+	if l.GetDedicatedUser() && !clickHouse {
+		return fault.New(ErrInvalid, "the dedicated-user choice is for ClickHouse")
+	}
 	if l.GetUser() == "" && !clickHouse {
 		return nil
 	}
-	if had, ok := it.current.(*resourcev1.Link); ok && had.GetUser() == l.GetUser() && had.GetService() == l.GetService() && had.GetMeetsEnvironment() == l.GetMeetsEnvironment() {
+	env := cmp.Or(l.GetMeetsEnvironment(), it.ref.Scope)
+	if l.GetDedicatedUser() {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: database.UserKind, Scope: env, Name: l.GetUser()})
+		if err != nil {
+			return err
+		}
+		u, _ := spec.(*resourcev1.DatabaseUser)
+		if u == nil || u.GetService() != l.GetService() || u.GetTakenOn() || database.Owned(l.GetUser(), u) != l.GetDatabaseName() {
+			return fault.New(ErrInvalid, "link %s needs a managed ClickHouse user for %s. Add a user for that database", it.ref.Name, l.GetDatabaseName())
+		}
+		svc, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: env, Name: l.GetService()})
+		if err != nil {
+			return err
+		}
+		db, _ := svc.(*resourcev1.Service)
+		if found, ok := database.FromSpec(db); !ok || !found.Engine.ClickHouse() {
+			return fault.New(ErrInvalid, "link %s needs a ClickHouse service. Choose the service that runs ClickHouse", it.ref.Name)
+		}
+	}
+	if had, ok := it.current.(*resourcev1.Link); ok && had.GetUser() == l.GetUser() && had.GetService() == l.GetService() &&
+		had.GetMeetsEnvironment() == l.GetMeetsEnvironment() && had.GetDedicatedUser() == l.GetDedicatedUser() {
 		return nil
 	}
-	env := cmp.Or(l.GetMeetsEnvironment(), it.ref.Scope)
 	links, err := e.allLinks(ctx, tx, items)
 	if err != nil {
 		return err
@@ -2182,8 +2216,8 @@ func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, 
 		if o.ref == it.ref || o.GetService() != l.GetService() || o.meets() != env {
 			continue
 		}
-		if clickHouse {
-			return fault.New(ErrInvalid, "ClickHouse %s already has an app link. Its administrator can access every database, so it can link to one app", l.GetService())
+		if clickHouse && !l.GetDedicatedUser() && !o.GetDedicatedUser() {
+			return fault.New(ErrInvalid, "ClickHouse %s already has an app link using its administrator. Give this app a user of its own", l.GetService())
 		}
 		if o.GetUser() == l.GetUser() {
 			return fault.New(ErrInvalid, "link %s names %s's user %s, which another link reads already. A link reads only the user made for it", it.ref.Name, l.GetService(), l.GetUser())
@@ -2412,7 +2446,7 @@ func (e *Engine) checkValueFrom(ctx context.Context, tx *store.Tx, items []item,
 	case !v.GetSecret() || l.GetUser() == "":
 		return refuse("link " + v.GetLink() + " made no user there whose password it is")
 	}
-	if l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE {
+	if l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_CLICKHOUSE && !l.GetDedicatedUser() {
 		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: v.GetEnvironment(), Name: l.GetService()})
 		if err != nil {
 			return err

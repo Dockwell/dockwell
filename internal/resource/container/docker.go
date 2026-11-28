@@ -108,8 +108,9 @@ type Docker struct {
 	Soak time.Duration
 	// BeforeReplace runs before a container is replaced by one of spec, with the
 	// one there, as a database's move to another release asks (ADR 0038): an
-	// error stops the change there, with the old one as it was. Nil runs nothing.
-	BeforeReplace func(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error
+	// error stops the change there, with the old one as it was. When it returns
+	// an image ID, the replacement must have that ID before it can start.
+	BeforeReplace func(ctx context.Context, old *docker.Container, spec *resourcev1.Container) (string, error)
 	// Kept keeps the image a pull of a moving tag leaves, for the rollback that
 	// would run it again (ADR 0080). Nil keeps none.
 	Kept *KeptImages
@@ -1914,11 +1915,6 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 	} else if c != nil {
 		if err := owned(t, c); err != nil {
 			return err
-		}
-		if d.BeforeReplace != nil {
-			if err := d.BeforeReplace(ctx, c, spec); err != nil {
-				return err
-			}
 		}
 	}
 	return d.roll(ctx, t, spec, dec)

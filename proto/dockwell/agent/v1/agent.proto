@@ -545,6 +545,9 @@ message Hello {
   // to one that doesn't. Catalog and databases work takes 200 to 202 and 220 to
   // 229 in agent messages.
   bool drills = 221;
+  // This agent takes and restores native ClickHouse backups. A major upgrade
+  // can only run on an agent that backs up the data before replacing the image.
+  bool clickhouse_backups = 222;
   // True when the agent carries a connection to a port a service publishes
   // (ForwardCall), so the panel opens an app's web UI through it (ADR 0061).
   bool forwards = 202;

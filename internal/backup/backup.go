@@ -46,10 +46,12 @@ const (
 	formatDump    = "sql.gz"
 	// formatMongoDump is mongodump's archive, gzipped.
 	formatMongoDump = "archive.gz"
+	// formatClickHouseDump holds the server's native tar archive, gzipped.
+	formatClickHouseDump = "clickhouse.tar.gz"
 )
 
 // dumpFormats are what a database's own dump is kept as.
-var dumpFormats = []string{formatDump, formatMongoDump}
+var dumpFormats = []string{formatDump, formatMongoDump, formatClickHouseDump}
 
 // isDump says a backup is a database's own dump, which loads into a running one.
 func isDump(format string) bool { return slices.Contains(dumpFormats, format) }
@@ -283,7 +285,21 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := r.roomFor(ctx, take, t); err != nil {
+	db := users.database()
+	if take.from != nil {
+		db = take.from
+	}
+	if db != nil && (db.paused || r.hasSavedPause(db.id)) {
+		return nil, db.pausedDump()
+	}
+	if db != nil && db.kind == clickHouse && db.running && take.Database == "" {
+		if err := r.clickHouseStage(ctx, db); err != nil {
+			return nil, err
+		}
+		if err := r.roomForClickHouse(ctx, t); err != nil {
+			return nil, err
+		}
+	} else if err := r.roomFor(ctx, take, t); err != nil {
 		return nil, err
 	}
 	m := &Manifest{ID: take.ID, Environment: take.Ref.Scope, Volume: take.Ref.Name, Taken: r.now().UTC(), Reached: reached}
@@ -301,13 +317,6 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	}
 	if err := os.MkdirAll(r.dir(take.Ref), 0o700); err != nil {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
-	}
-	db := users.database()
-	if take.from != nil {
-		db = take.from
-	}
-	if db != nil && (db.paused || r.hasSavedPause(db.id)) {
-		return nil, db.pausedDump()
 	}
 	if one := take.Database; one != "" {
 		// One database alone is a dump of it, from its server running now.
@@ -328,7 +337,7 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 			}
 			return 0, reachedAfter()
 		}, verifyOne(db.kind))
-	} else if db != nil && (db.running || take.from != nil) {
+	} else if db != nil && (db.running || take.from != nil && db.kind != clickHouse) {
 		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, db.kind.dumpFormat(), db.kind.name, db.image
 		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 			if m.Unpacked, err = r.dump(ctx, take.Ref, db, "", w); err != nil {

@@ -702,7 +702,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 		return err
 	}
 	if keep == nil && len(others) == 0 {
-		return d.stopFirst(ctx, t, spec, dec, nil, nil)
+		return d.stopFirst(ctx, t, spec, dec, "", nil, nil)
 	}
 	// One that's stuck restarting or paused reads as running, and doesn't serve, and
 	// nothing short of a new one puts that right.
@@ -721,8 +721,22 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 			return err
 		}
 	}
+	var checkedImage string
+	// Check the instance from which the replacement will inherit data. In a
+	// resumed swap its name may differ from the service's usual container name.
+	if old := newest(others); old != nil && d.BeforeReplace != nil && !dec.KeepWorkloadImage && (keep == nil || !keep.State.Running) {
+		current := *old
+		current.Config.Image = workloadImageRef(old)
+		checkedImage, err = d.BeforeReplace(ctx, &current, spec)
+		if err != nil {
+			return err
+		}
+		if keep != nil && checkedImage != "" && keep.Image != checkedImage {
+			return fmt.Errorf("the prepared container for %s doesn't use the checked image, so it wasn't started. Pin the image by digest and plan again", t.Name)
+		}
+	}
 	if IsStopped(spec) || spec.GetDesiredRunState() == paused {
-		return d.stopFirst(ctx, t, spec, dec, keep, others)
+		return d.stopFirst(ctx, t, spec, dec, checkedImage, keep, others)
 	}
 	plan, err := d.decide(ctx, t, spec, keep, others)
 	if err != nil {
@@ -746,9 +760,9 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	// yet find something newer, so the step says what it did.
 	startsOnly := keep != nil && !d.unfinished(all, spec) && dec.Restart == "" && notRunning(keep.Container) != ""
 	if plan.Rolling {
-		err = d.startFirst(ctx, t, spec, dec, keep, others, plan)
+		err = d.startFirst(ctx, t, spec, dec, checkedImage, keep, others, plan)
 	} else {
-		err = d.stopFirst(ctx, t, spec, dec, keep, others)
+		err = d.stopFirst(ctx, t, spec, dec, checkedImage, keep, others)
 	}
 	if err == nil && startsOnly {
 		resource.Report(ctx, resource.Outcome{
@@ -784,7 +798,7 @@ func (d *Docker) nextNumber(ctx context.Context, t Target, all []*instance) (int
 // startFirst makes the new container, under a number of its own, and moves what
 // is left over to it once it is healthy. It stops nothing until then, and if the
 // new one fails, what ran goes on as it was: the rollback removes the new one.
-func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, keep *instance, others []*instance, plan *resource.RolloutPlan) error {
+func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, checkedImage string, keep *instance, others []*instance, plan *resource.RolloutPlan) error {
 	// One that a stop-first step left under its swap name can't take the name
 	// of its number while the one it was to replace has it: make another.
 	if keep != nil && keep.temp && slices.ContainsFunc(others, func(o *instance) bool { return o.number == keep.number }) {
@@ -817,7 +831,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		}
 		t.Number = number
 		d.Points.Reach(PointReserved)
-		id, discard, err := d.make(ctx, t, spec, dec, instanceName(t, number), newest(others))
+		id, discard, err := d.make(ctx, t, spec, dec, instanceName(t, number), checkedImage, newest(others))
 		if err != nil {
 			return err
 		}
@@ -1043,7 +1057,7 @@ func newest(others []*instance) *docker.Container {
 // old one is gone, the rename and the start finish even if the call is
 // cancelled, for up to 30 s, as a service left with no container is worse than
 // a step that ends late.
-func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, keep *instance, others []*instance) error {
+func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, checkedImage string, keep *instance, others []*instance) error {
 	number := 1
 	switch {
 	case keep != nil:
@@ -1105,7 +1119,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			}
 		}
 		var err error
-		if id, discard, err = d.make(ctx, t, spec, dec, name, newest(others)); err != nil {
+		if id, discard, err = d.make(ctx, t, spec, dec, name, checkedImage, newest(others)); err != nil {
 			return err
 		}
 	}
@@ -1228,7 +1242,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 // Volumes Docker made for paths its image declares come from old, if any, so
 // their data stays, and those kept for it come back. discard removes what it
 // made, and gives back what it took.
-func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, name string, old *docker.Container) (string, func(error) error, error) {
+func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, name, checkedImage string, old *docker.Container) (string, func(error) error, error) {
 	if dec.KeepWorkloadImage && (old == nil || !docker.IsImageID(old.Image) || workloadImageRef(old) != spec.GetImage()) {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
 		return "", nil, errors.New("the workload's original image could not be verified. Open the container and review log rotation again")
@@ -1310,9 +1324,12 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		undo()
 		return err
 	}
-	if pin := spec.GetImage(); docker.IsImageID(pin) {
+	if pin := cmp.Or(checkedImage, spec.GetImage()); docker.IsImageID(pin) {
 		observed, err := d.Client.InspectContainer(ctx, id)
 		if err != nil || observed.Image != pin {
+			if checkedImage != "" {
+				return "", nil, discard(fmt.Errorf("the image %s changed after it was checked, so its replacement did not start. Pin the image by digest and plan again", spec.GetImage()))
+			}
 			return "", nil, discard(fmt.Errorf("Docker did not create the container with local image %s. Load it before deploying", pin))
 		}
 	}

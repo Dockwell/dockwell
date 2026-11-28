@@ -85,6 +85,9 @@ func (s *Session) ArchivesFiles() bool { return s.archivesFiles }
 // the database as its service restarts with a new one (ADR 0038).
 func (s *Session) FirstPasswords() bool { return s.firstPasswords }
 
+// ClickHouseBackups reports an agent that can take and restore native ClickHouse backups.
+func (s *Session) ClickHouseBackups() bool { return s.clickHouseBackups }
+
 // Links says whether the agent joins a database shared with an app to the app's link
 // network in place, and again as it makes the database's container anew (ADR 0084).
 func (s *Session) Links() bool { return s.links }

@@ -239,13 +239,9 @@ func plainFile(p string) error {
 // kindOfImage finds a known database by the image it runs: only the official ones,
 // as kindOf does.
 func kindOfImage(image string) *databaseKind {
-	repo, _, _ := strings.Cut(image, "@")
-	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
-		repo = repo[:i]
-	}
-	repo = strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/"), "library/")
+	repo := engines.Repository(image)
 	for _, k := range databaseKinds {
-		if repo == k.image {
+		if k.matches(repo) {
 			return k
 		}
 	}
@@ -446,6 +442,16 @@ func (r *Runner) seedDump(ctx context.Context, s Seed, t volume.Target, m *Manif
 	port := ""
 	if k.portFlags {
 		port = portOf(app.GetCommand())
+	} else if k == clickHouse {
+		clickHouseLoader(req)
+		v, err := r.tool(ctx, t, "measure", docker.Streams{})
+		if err != nil {
+			return fmt.Errorf("can't measure the disk for the new ClickHouse volume: %w", err)
+		}
+		if need := 2 * m.Unpacked; v.Free-need < min(max(v.Size/20, minReserve), maxReserve) {
+			return fmt.Errorf("the new ClickHouse volume has %s free, and staging and loading the archive need about %s plus a free-space reserve. Free space and try again",
+				human.Size(v.Free), human.Size(need))
+		}
 	}
 	resource.Stage(ctx, resource.PhaseBackingUp, "Loading the backup into "+s.Service.Name)
 	loader, done, err := r.helperDatabase(ctx, k, req, port, s.Service.Name)

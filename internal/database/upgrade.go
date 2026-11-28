@@ -35,6 +35,8 @@ type Move struct {
 	// is, and Target where the new release has the new one.
 	Dumps          bool
 	Volume, Target string
+	// RequiresBackup is a ClickHouse upgrade across major versions.
+	RequiresBackup bool
 }
 
 // lastRapid is the newest rapid release of a major, which the next major moves from
@@ -62,9 +64,15 @@ func startsFrom(major int) string {
 // (ADR 0038). A tag can name less than what runs, as mongo:8 runs 8.3: the agent
 // asks the server before it replaces it, and refuses there what the tags hid.
 func MoveOf(name string, current, desired *resourcev1.Service) (*Move, error) {
-	was, ok := FromSpec(current)
+	was, ok := clickHouseMountSpec(current.GetApp())
+	if !ok {
+		was, ok = FromSpec(current)
+	}
 	if !ok {
 		return nil, nil
+	}
+	if was.Engine.ClickHouse() && desired.GetApp() != nil {
+		return clickHouseMove(name, was, current.GetApp().GetImage(), desired.GetApp().GetImage())
 	}
 	now, ok := FromSpec(desired)
 	if ok && now.Engine == was.Engine && was.Engine.MovesBySeries() {
@@ -149,7 +157,14 @@ const raiseWait = 2 * time.Minute
 //
 // PostgreSQL, MySQL and MariaDB are held to the release series they run, as their
 // images say it (sameSeries).
-func (r Reader) BeforeReplace(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error {
+func (r Reader) BeforeReplace(ctx context.Context, old *docker.Container, spec *resourcev1.Container) (string, error) {
+	if IsClickHouseContainer(old) {
+		return r.checkClickHouseImage(ctx, old, spec)
+	}
+	return "", r.beforeOtherDatabaseReplace(ctx, old, spec)
+}
+
+func (r Reader) beforeOtherDatabaseReplace(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error {
 	e := Recognise(old.Config.Image)
 	if e != nil && e.MovesBySeries() && Recognise(spec.GetImage()) == e {
 		return r.sameSeries(ctx, e, old, spec)

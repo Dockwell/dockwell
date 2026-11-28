@@ -375,10 +375,12 @@ jobs:
               exit 1
             }
           done
-      - name: ClickHouse install, link and restart
+      - name: ClickHouse lifecycle, backup and restore
         if: steps.pick.outputs.run == 'true'
         run: |
           grep -q -- '^--- PASS: TestClickHouseLifecycleOnRealDocker ' "$RUNNER_TEMP/docker.out"
+          grep -q -- '^--- PASS: TestClickHouseNativeBackupRestoresIntoNewOnRealDocker ' "$RUNNER_TEMP/docker.out"
+          grep -q -- '^--- PASS: TestPlausibleClickHouseNativeBackupOnRealDocker ' "$RUNNER_TEMP/docker.out"
       # Apps share a real Redis and Valkey of each release Dockwell makes users' rules
       # for, each rule loading, and each user kept to its keys (ADR 0084). It has to
       # pass on every one, not skip.

@@ -33,6 +33,7 @@ require (
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
+	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0

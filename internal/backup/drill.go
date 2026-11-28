@@ -327,23 +327,17 @@ func drillFloor(size int64) int64 {
 // drillKind is the database a backup is of: by its dump, or by the image that wrote
 // the files a copy holds. Nil for anything else.
 func drillKind(m *Manifest) *databaseKind {
-	if m.Format == formatDump {
+	if isDump(m.Format) {
 		return kindNamed(m.Database)
 	}
 	if m.Image == "" {
 		return nil
 	}
-	repo, _, _ := strings.Cut(m.Image, "@")
-	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
-		repo = repo[:i]
+	k := kindOfImage(m.Image)
+	if k == clickHouse && m.Format == formatArchive {
+		return nil
 	}
-	repo = strings.TrimPrefix(strings.TrimPrefix(repo, "docker.io/"), "library/")
-	for _, k := range databaseKinds {
-		if k.image == repo {
-			return k
-		}
-	}
-	return nil
+	return k
 }
 
 // drillDiskOf reads the disk a volume is on: from its files where the agent sees them,

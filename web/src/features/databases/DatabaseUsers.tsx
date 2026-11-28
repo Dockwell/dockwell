@@ -97,6 +97,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
   const mongo = db.engine === DatabaseEngine.MONGODB;
+  const clickHouse = db.engine === DatabaseEngine.CLICKHOUSE;
   // Where Dockwell makes no users yet, there's nothing to add and no secret to name.
   const makes = makesUsers(db.engine);
   // As its page is titled: an install's database by the install's name (#796).
@@ -136,7 +137,12 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
         ]
       : []),
     { key: "role", header: t`Role`, width: 160, render: role },
-    { key: "databases", header: mysql ? t`Granted on` : mongo ? t`Has roles in` : t`Owns`, width: 200, render: theirs },
+    {
+      key: "databases",
+      header: mysql || clickHouse ? t`Granted on` : mongo ? t`Has roles in` : t`Owns`,
+      width: 200,
+      render: theirs,
+    },
     ...(makes
       ? ([
           {
@@ -215,9 +221,11 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
               ? t`One who can do anything isn't an app's. Add a user for it`
               : !u.canSignIn
                 ? t`They can't sign in`
-                : mayConnect.allowed
-                  ? undefined
-                  : mayConnect.reason,
+                : clickHouse && !u.resourceId
+                  ? t`Choose a user Dockwell made for the app`
+                  : mayConnect.allowed
+                    ? undefined
+                    : mayConnect.reason,
             onSelect: () => setUsing(u),
           },
           {

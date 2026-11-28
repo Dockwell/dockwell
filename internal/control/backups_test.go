@@ -63,7 +63,12 @@ func webWithData(t *testing.T, e *dockertest.Engine, c dockwellv1connect.ChangeS
 
 func waitBackup(t *testing.T, bc dockwellv1connect.BackupServiceClient, id string) *dockwellv1.Backup {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	return waitBackupWithin(t, bc, id, 10*time.Second)
+}
+
+func waitBackupWithin(t *testing.T, bc dockwellv1connect.BackupServiceClient, id string, within time.Duration) *dockwellv1.Backup {
+	t.Helper()
+	deadline := time.Now().Add(within)
 	for {
 		res, err := bc.GetBackup(t.Context(), connect.NewRequest(&dockwellv1.GetBackupRequest{Id: id}))
 		if err != nil {
