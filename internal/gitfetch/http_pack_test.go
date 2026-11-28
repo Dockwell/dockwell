@@ -142,16 +142,43 @@ func TestFetchVerifiedPackOverSmartHTTP(t *testing.T) {
 		t.Fatalf("FetchVerifiedPack(commit not on ref) = %v, want not-on-ref refusal", err)
 	}
 
-	// 4. Token with only read_api (no read_repository) is refused with 403.
+	// 4. Token with only read_api (no read_repository) is refused with 403 and
+	// uses the caller-supplied CredentialLabel (L1).
+	if _, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+		RepoURL:         srv.URL + "/acme/web",
+		Ref:             "refs/heads/main",
+		Commit:          commit2,
+		AuthHeader:      basicOAuth(gltest.TokenReadOnly),
+		CredentialLabel: "the GitLab connection corp's token",
+		Client:          srv.Client(),
+		PackTempDir:     packDir,
+	}); err == nil || !strings.Contains(err.Error(), "403") || !strings.Contains(err.Error(), "the GitLab connection corp's token") {
+		t.Fatalf("FetchVerifiedPack(read_api only) = %v, want 403 refusal naming CredentialLabel", err)
+	}
+
+	// 5. Missing branch error lists available branches (N3).
+	if _, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+		RepoURL:     srv.URL + "/acme/web",
+		Ref:         "no-such-branch",
+		Commit:      commit2,
+		AuthHeader:  basicOAuth(gltest.TokenRepoOnly),
+		Client:      srv.Client(),
+		PackTempDir: packDir,
+	}); err == nil || !strings.Contains(err.Error(), "Its branches are main, other") {
+		t.Fatalf("FetchVerifiedPack(missing branch) = %v, want branch list in error", err)
+	}
+
+	// 6. Over-limit pack reports build wording, not catalog wording (L1).
 	if _, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
 		RepoURL:     srv.URL + "/acme/web",
 		Ref:         "refs/heads/main",
 		Commit:      commit2,
-		AuthHeader:  basicOAuth(gltest.TokenReadOnly),
+		AuthHeader:  basicOAuth(gltest.TokenRepoOnly),
 		Client:      srv.Client(),
 		PackTempDir: packDir,
-	}); err == nil || !strings.Contains(err.Error(), "403") {
-		t.Fatalf("FetchVerifiedPack(read_api only) = %v, want 403 refusal", err)
+		MaxPack:     16,
+	}); err == nil || !strings.Contains(err.Error(), "pack is over") || strings.Contains(err.Error(), "catalog") {
+		t.Fatalf("FetchVerifiedPack(over MaxPack) = %v, want build pack-size error without catalog wording", err)
 	}
 }
 
@@ -171,11 +198,22 @@ func TestFetchVerifiedPackRefusesCrossHostRedirectAndFollowsSameOrigin(t *testin
 	t.Cleanup(otherHost.Close)
 
 	redirecting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/cross/") {
-			http.Redirect(w, r, otherHost.URL+"/acme/web/info/refs?service=git-upload-pack", http.StatusMovedPermanently)
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/cross/"):
+			// Same hostname (127.0.0.1), different port -> must refuse (L5).
+			http.Redirect(w, r, otherHost.URL+"/cross/web/info/refs?service=git-upload-pack", http.StatusMovedPermanently)
 			return
-		}
-		if r.URL.Path == "/alias/web/info/refs" {
+		case strings.HasPrefix(r.URL.Path, "/userinfo/"):
+			// Redirect carrying userinfo -> must refuse (L5).
+			u := strings.Replace(otherHost.URL, "://", "://attacker:pw@", 1)
+			http.Redirect(w, r, u+"/userinfo/web/info/refs?service=git-upload-pack", http.StatusMovedPermanently)
+			return
+		case r.URL.Path == "/alias/web/info/refs":
+			// Path change to a different repository -> must refuse (N1).
+			http.Redirect(w, r, "/acme/web.git/info/refs?service=git-upload-pack", http.StatusMovedPermanently)
+			return
+		case r.URL.Path == "/acme/web/info/refs":
+			// Same-repository .git suffix normalization -> allowed (N1).
 			http.Redirect(w, r, "/acme/web.git/info/refs?service=git-upload-pack", http.StatusMovedPermanently)
 			return
 		}
@@ -183,7 +221,7 @@ func TestFetchVerifiedPackRefusesCrossHostRedirectAndFollowsSameOrigin(t *testin
 	}))
 	t.Cleanup(redirecting.Close)
 
-	// Cross-host redirect must be refused and never send credentials to otherHost.
+	// Port-changing redirect must be refused and never send credentials to otherHost.
 	_, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
 		RepoURL:    redirecting.URL + "/cross/web",
 		Ref:        "refs/heads/main",
@@ -191,36 +229,73 @@ func TestFetchVerifiedPackRefusesCrossHostRedirectAndFollowsSameOrigin(t *testin
 		AuthHeader: basicOAuth(gltest.TokenReadRepo),
 		Client:     redirecting.Client(),
 	})
-	if err == nil || !strings.Contains(err.Error(), "another host") {
-		t.Fatalf("cross-host redirect = %v, want refusal", err)
+	if err == nil || !strings.Contains(err.Error(), "another host or port") {
+		t.Fatalf("cross-port redirect = %v, want refusal", err)
 	}
 	if secondHostGotAuth {
-		t.Fatal("Authorization header was leaked to another host after redirect")
+		t.Fatal("Authorization header was leaked to another host/port after redirect")
 	}
 
-	// Same-origin redirect (/alias/web -> /acme/web.git) succeeds safely.
-	f, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+	// Redirect carrying userinfo must be refused (L5).
+	_, _, err = gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+		RepoURL:    redirecting.URL + "/userinfo/web",
+		Ref:        "refs/heads/main",
+		Commit:     commit2,
+		AuthHeader: basicOAuth(gltest.TokenReadRepo),
+		Client:     redirecting.Client(),
+	})
+	if err == nil || !strings.Contains(err.Error(), "credentials") {
+		t.Fatalf("userinfo redirect = %v, want refusal", err)
+	}
+
+	// Same-origin redirect changing the repository path (/alias/web -> /acme/web.git) must be refused (N1).
+	_, _, err = gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
 		RepoURL:    redirecting.URL + "/alias/web",
 		Ref:        "refs/heads/main",
 		Commit:     commit2,
 		AuthHeader: basicOAuth(gltest.TokenReadRepo),
 		Client:     redirecting.Client(),
 	})
+	if err == nil || !strings.Contains(err.Error(), "another repository path") {
+		t.Fatalf("path-changing redirect = %v, want refusal", err)
+	}
+
+	// Same-origin .git suffix redirect (/acme/web -> /acme/web.git) succeeds safely (N1).
+	f, _, err := gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+		RepoURL:    redirecting.URL + "/acme/web",
+		Ref:        "refs/heads/main",
+		Commit:     commit2,
+		AuthHeader: basicOAuth(gltest.TokenReadRepo),
+		Client:     redirecting.Client(),
+	})
 	if err != nil {
-		t.Fatalf("same-origin redirect failed: %v", err)
+		t.Fatalf("same-origin .git redirect failed: %v", err)
 	}
 	_ = f.Close()
 	_ = os.Remove(f.Name())
 
-	// Production default client (Client == nil) refuses cleartext http:// URLs.
+	// Production default client (Client == nil) refuses cleartext http:// URLs (L5).
 	_, _, err = gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
-		RepoURL:    "http://gitlab.example.com/acme/web",
-		Ref:        "refs/heads/main",
-		Commit:     commit2,
-		AuthHeader: basicOAuth(gltest.TokenReadRepo),
+		RepoURL:      "http://gitlab.example.com/acme/web",
+		Ref:          "refs/heads/main",
+		Commit:       commit2,
+		AuthHeader:   basicOAuth(gltest.TokenReadRepo),
+		AllowPrivate: true,
 	})
 	if err == nil || !strings.Contains(err.Error(), "HTTPS") {
 		t.Fatalf("cleartext HTTP without custom client = %v, want HTTPS refusal", err)
+	}
+
+	// Production default client (Client == nil) refuses netguard loopback even with AllowPrivate (L5).
+	_, _, err = gitfetch.FetchVerifiedPack(t.Context(), gitfetch.PackFetchOptions{
+		RepoURL:      "https://127.0.0.1/acme/web",
+		Ref:          "refs/heads/main",
+		Commit:       commit2,
+		AuthHeader:   basicOAuth(gltest.TokenReadRepo),
+		AllowPrivate: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "won't fetch there") {
+		t.Fatalf("loopback HTTPS without custom client = %v, want netguard refusal", err)
 	}
 	_ = errors.New("")
 }

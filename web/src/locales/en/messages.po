@@ -6764,11 +6764,22 @@ msgstr "you"
 msgid "{kept}, not available to this project"
 msgstr "{kept}, not available to this project"
 
-msgid "Connection unavailable."
-msgstr "Connection unavailable."
+#. placeholder {0}: conn.name
+msgid "Add read_api to pick projects from {0}. You can still paste a URL."
+msgstr "Add read_api to pick projects from {0}. You can still paste a URL."
 
-msgid "Prefers connection"
-msgstr "Prefers connection"
+#. placeholder {0}: conn.name
+msgid "Could not reach {0} right now."
+msgstr "Could not reach {0} right now."
+
+msgid "GitHub · {acct}"
+msgstr "GitHub · {acct}"
+
+msgid "GitLab refused this token. Check it in Settings, Integrations."
+msgstr "GitLab refused this token. Check it in Settings, Integrations."
+
+msgid "GitLab · {connName}"
+msgstr "GitLab · {connName}"
 
 msgctxt "a repository"
 msgid "Private"
@@ -6776,6 +6787,10 @@ msgstr "Private"
 
 msgid "Repositories"
 msgstr "Repositories"
+
+#. placeholder {0}: opt.replacedKeyName
+msgid "Uses GitLab, not {0}"
+msgstr "Uses GitLab, not {0}"
 
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
@@ -24958,6 +24973,21 @@ msgstr "The organization's owner approves it first"
 msgid "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
 msgstr "Build private repositories and report CI commit statuses on gitlab.com or self-managed GitLab"
 
+msgid "Builds private repositories and lists projects. Add api to also report CI commit statuses."
+msgstr "Builds private repositories and lists projects. Add api to also report CI commit statuses."
+
+msgid "Builds private repositories and lists projects. Add api to report CI commit statuses."
+msgstr "Builds private repositories and lists projects. Add api to report CI commit statuses."
+
+msgid "Builds private repositories. Add read_api to pick projects, or api to also report CI commit statuses."
+msgstr "Builds private repositories. Add read_api to pick projects, or api to also report CI commit statuses."
+
+msgid "Builds private repositories. Add read_api to pick projects, or api to report CI commit statuses."
+msgstr "Builds private repositories. Add read_api to pick projects, or api to report CI commit statuses."
+
+msgid "CI commit statuses need the api scope; private repository builds stay connected."
+msgstr "CI commit statuses need the api scope; private repository builds stay connected."
+
 msgid "Check connection"
 msgstr "Check connection"
 
@@ -24970,6 +25000,13 @@ msgstr "Connected to GitLab"
 msgid "Connection check failed"
 msgstr "Connection check failed"
 
+msgid "Could not reach GitLab on the last check."
+msgstr "Could not reach GitLab on the last check."
+
+#. placeholder {0}: checked.url || trimmedURL
+msgid "Could not reach {0}. Check the URL and network access."
+msgstr "Could not reach {0}. Check the URL and network access."
+
 msgid "Enter a token for the new GitLab URL. Needs read_repository or api scope."
 msgstr "Enter a token for the new GitLab URL. Needs read_repository or api scope."
 
@@ -24979,6 +25016,12 @@ msgstr "GitLab URL"
 #. placeholder {0}: editing.name
 msgid "GitLab connection {0}"
 msgstr "GitLab connection {0}"
+
+msgid "GitLab refused this token. Check or replace it in Manage."
+msgstr "GitLab refused this token. Check or replace it in Manage."
+
+msgid "GitLab refused this token. Check that it is active and has read_repository or api scope."
+msgstr "GitLab refused this token. Check that it is active and has read_repository or api scope."
 
 msgid "Leave blank to keep the saved token"
 msgstr "Leave blank to keep the saved token"
@@ -24997,6 +25040,9 @@ msgstr "Missing scope"
 
 msgid "Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses."
 msgstr "Needs read_repository (plus read_api to pick projects) for builds, or api to also report CI commit statuses."
+
+msgid "Needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "Needs read_repository to build private repositories, or api to also report CI commit statuses."
 
 msgid "Optional, such as acme or acme/platform"
 msgstr "Optional, such as acme or acme/platform"
@@ -25020,12 +25066,15 @@ msgstr "Remove this GitLab connection?"
 msgid "Review removal"
 msgstr "Review removal"
 
-#. placeholder {0}: checked.url
+#. placeholder {0}: checked.url || trimmedURL
 msgid "This token can build private repositories and report commit statuses on {0}."
 msgstr "This token can build private repositories and report commit statuses on {0}."
 
+msgid "This token needs read_repository to build private repositories, or api to also report CI commit statuses."
+msgstr "This token needs read_repository to build private repositories, or api to also report CI commit statuses."
+
 #. placeholder {0}: checked.tokenName
-#. placeholder {1}: checked.url
+#. placeholder {1}: checked.url || trimmedURL
 msgid "Token {0} can build private repositories and report commit statuses on {1}."
 msgstr "Token {0} can build private repositories and report commit statuses on {1}."
 

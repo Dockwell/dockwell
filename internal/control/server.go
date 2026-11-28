@@ -343,6 +343,8 @@ type Server struct {
 	// apps are the GitHub Apps Dockwell made, which check their deliveries and
 	// poll for pushes where GitHub can't reach the panel (ADR 0098).
 	apps *gitproviders.Handler
+	// deployKeys holds project-scoped SSH deploy keys and the shared pack-fetch gate (ADR 0113).
+	deployKeys *gitkeys.Handler
 	// ciStatus delivers durable CI deploy status transitions to GitHub and GitLab (ADR 0111).
 	ciStatus       *cistatus.Worker
 	manualCIStatus bool
@@ -397,6 +399,7 @@ func New(cfg Config) (*Server, error) {
 	var controlBackup *controlbackup.Manager
 	var hooks *githooks.Handler
 	var gitApps *gitproviders.Handler
+	var gitDeployKeys *gitkeys.Handler
 	var ciStatusWorker *cistatus.Worker
 	var taskHandler *tasks.Handler
 	// Made first, so the settings can ask it who holds the public ports now.
@@ -487,7 +490,7 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Identity != nil && cfg.Store != nil && cfg.Fleet != nil {
 		histRecorder = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
 	}
-	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &controlBackup, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps, &ciStatusWorker)
+	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &controlBackup, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps, &gitDeployKeys, &ciStatusWorker)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +499,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, ciStatus: ciStatusWorker, manualCIStatus: cfg.ManualCIStatus, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, streamGrace: cfg.StreamGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, controlBackup: controlBackup, hooks: hooks, apps: gitApps, deployKeys: gitDeployKeys, ciStatus: ciStatusWorker, manualCIStatus: cfg.ManualCIStatus, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, manualOwners: cfg.ManualOwners, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, streamGrace: cfg.StreamGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
 	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
@@ -559,7 +562,7 @@ func (s *Server) Handler() http.Handler { return s.api }
 // CIStatus returns the CI deploy status delivery worker, if configured.
 func (s *Server) CIStatus() *cistatus.Worker { return s.ciStatus }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, controlBackupOut **controlbackup.Manager, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler, ciStatusOut **cistatus.Worker) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, controlBackupOut **controlbackup.Manager, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler, deployKeysOut **gitkeys.Handler, ciStatusOut **cistatus.Worker) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -872,6 +875,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 				PackTempDir: packTempDir,
 			})
 			handle(dockwellv1connect.NewGitDeployKeyServiceHandler(deployKeys, opts...))
+			*deployKeysOut = deployKeys
 			keySources.SetKeys(deployKeys)
 			logins := &gitkeys.MultiGitLogins{Keys: deployKeys, Fallback: apps}
 			ch.SetGitLogins(logins)
@@ -880,12 +884,16 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 				cfg.Agents.SendDockerBuildGitAuth(apps.DockerBuildAuthorization)
 				cfg.Agents.SendGitPack(func(ctx context.Context, login, repoURL, ref, commit, scopeID string) (io.ReaderAt, int64, func(), error) {
 					if _, isGL := service.GitLabConnectionOf(login); isGL {
-						release, err := deployKeys.AcquirePackFetch(ctx, scopeID)
+						prep, err := apps.PrepareGitLabPackIn(ctx, login, repoURL, scopeID)
+						if err != nil {
+							return nil, 0, nil, err
+						}
+						release, err := deployKeys.AcquirePackFetch(ctx, prep.ProjectID)
 						if err != nil {
 							return nil, 0, nil, err
 						}
 						defer release()
-						return apps.FetchGitLabPackIn(ctx, login, repoURL, ref, commit, scopeID)
+						return apps.FetchPreparedGitLabPack(ctx, prep, ref, commit)
 					}
 					return deployKeys.FetchPackIn(ctx, login, repoURL, ref, commit, scopeID)
 				})
@@ -1721,4 +1729,8 @@ func (t ciStatusTargets) FindGitLabStatusTarget(ctx context.Context, repoURL, se
 
 func (t ciStatusTargets) NoteGitLabStatus(connID string, rev int, state dockwellv1.GitLabConnectionState, detail string) {
 	t.apps.NoteGitLabStatus(connID, rev, state, detail)
+}
+
+func (t ciStatusTargets) NoteGitLabStatusScopeMissing(connID string, rev int, detail string) {
+	t.apps.NoteGitLabStatusScopeMissing(connID, rev, detail)
 }

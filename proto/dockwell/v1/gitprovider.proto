@@ -457,6 +457,27 @@ enum GitLabConnectionState {
   GIT_LAB_CONNECTION_STATE_UNREACHABLE = 5;
 }
 
+// GitLabCapabilities says which operations a verified GitLab token's scopes allow.
+message GitLabCapabilities {
+  // Token can fetch private repositories over HTTPS (read_repository, write_repository, or api).
+  bool build_private = 1;
+  // Token can list projects in the repository picker (read_api or api).
+  bool list_projects = 2;
+  // Token can post CI deploy commit statuses (api).
+  bool post_statuses = 3;
+}
+
+// GitLabListingProblem explains why a connection could not list projects in the picker.
+enum GitLabListingProblem {
+  GIT_LAB_LISTING_PROBLEM_UNSPECIFIED = 0;
+  // Token lacks read_api or api scope to list projects (private builds still work).
+  GIT_LAB_LISTING_PROBLEM_MISSING_READ_API = 1;
+  // GitLab refused the token (expired or revoked).
+  GIT_LAB_LISTING_PROBLEM_AUTH_FAILED = 2;
+  // GitLab could not be reached.
+  GIT_LAB_LISTING_PROBLEM_UNREACHABLE = 3;
+}
+
 // GitLabConnectionInfo is a connected GitLab instance without its token.
 message GitLabConnectionInfo {
   string id = 1;
@@ -469,6 +490,10 @@ message GitLabConnectionInfo {
   GitLabConnectionState state = 8;
   string detail = 9;
   google.protobuf.Timestamp checked_time = 10;
+  GitLabCapabilities capabilities = 11;
+  // True when CI status delivery received 403 (missing api scope) while private
+  // builds through this connection remain unaffected.
+  bool status_scope_missing = 12;
 }
 
 // CheckGitLabConnectionRequest checks a typed or saved GitLab connection.
@@ -490,6 +515,7 @@ message CheckGitLabConnectionResponse {
   string url = 3;
   string token_name = 4;
   repeated string scopes = 5;
+  GitLabCapabilities capabilities = 6;
 }
 
 // ListGitLabProjectsRequest names a project and an optional search term.
@@ -526,10 +552,13 @@ message GitLabProjectConnection {
   string name = 2;
   string url = 3;
   string path_prefix = 4;
-  // Live state from listing or checking this connection.
+  // Live state from checking this connection.
   GitLabConnectionState state = 5;
   // Optional failure detail when state is not connected.
   string detail = 6;
   // True when GitLab has more projects beyond the returned page (search narrows).
   bool has_more = 7;
+  // Structured reason when listing projects failed (e.g. token has read_repository without read_api).
+  GitLabListingProblem listing_problem = 8;
+  GitLabCapabilities capabilities = 9;
 }

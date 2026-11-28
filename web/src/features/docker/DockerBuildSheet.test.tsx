@@ -7,6 +7,7 @@ import {
   DockerImageOutcome,
   GitDeployKeyInfoSchema,
   GitLabConnectionState,
+  GitLabListingProblem,
   GitLabProjectConnectionSchema,
   GitLabProjectSchema,
   ResourceSchema,
@@ -151,7 +152,7 @@ it("picks a GitLab project and passes its gitlab login (preferring it over a mat
   const repoInput = await screen.findByLabelText("Repository");
   fireEvent.focus(repoInput);
   const option = await screen.findByRole("option", { name: /acme\/web/ });
-  expect(option).toHaveTextContent("Prefers connection");
+  expect(option).toHaveTextContent("Uses GitLab, not acme-web");
   fireEvent.click(option);
 
   expect(await screen.findByText(/Through GitLab \(corp, preferred over deploy key acme-web\)/)).toBeVisible();
@@ -246,4 +247,47 @@ it("uses a project SSH deploy key for a standalone Docker image build", async ()
       expect.anything(),
     ),
   );
+});
+
+it("shows a short read_api note in the repository picker when a GitLab token cannot list projects", async () => {
+  renderWithApi(
+    <ChangeSheetProvider>
+      <DockerBuildSheet servers={[{ id: "fixture", name: "Fixture server" }]} close={() => {}} refresh={() => {}} />
+    </ChangeSheetProvider>,
+    {
+      resources: {
+        listResources: () => ({
+          resources: [
+            create(ResourceSchema, {
+              id: "prj_1",
+              displayName: "acme",
+              resource: { kind: "project", name: "acme" },
+            }),
+          ],
+        }),
+      },
+      gitProviders: {
+        listGitLabProjects: () => ({
+          connections: [
+            create(GitLabProjectConnectionSchema, {
+              id: "glc_1",
+              name: "corp",
+              url: "https://gitlab.example.com",
+              state: GitLabConnectionState.CONNECTED,
+              listingProblem: GitLabListingProblem.MISSING_READ_API,
+            }),
+          ],
+          projects: [],
+        }),
+      },
+    },
+  );
+
+  fireEvent.change(screen.getByLabelText("Source"), { target: { value: "git" } });
+  await waitFor(() => expect(screen.getByRole("option", { name: "acme" })).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("Git access"), { target: { value: "prj_1" } });
+
+  const repoInput = await screen.findByLabelText("Repository");
+  fireEvent.focus(repoInput);
+  expect(await screen.findByText("Add read_api to pick projects from corp. You can still paste a URL.")).toBeVisible();
 });

@@ -155,7 +155,7 @@ function ThroughGitLab({ login }: { login: string }) {
       </span>
     );
   }
-  const state = projectConn?.state ?? conn?.state;
+  const state = conn?.state;
   if (
     state === GitLabConnectionState.AUTH_FAILED ||
     state === GitLabConnectionState.MISSING_SCOPE ||

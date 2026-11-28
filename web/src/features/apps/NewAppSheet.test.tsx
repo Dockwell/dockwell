@@ -634,7 +634,7 @@ describe("New app, from Git", () => {
     const list = await within(sheet).findByRole("listbox", { name: "Repositories" });
     expect(within(list).getByRole("group", { name: "GitLab · team-gitlab" })).toBeVisible();
     const glOption = within(list).getByRole("option", { name: /acme\/private-web/ });
-    expect(glOption).toHaveTextContent("Prefers connection");
+    expect(glOption).toHaveTextContent("Uses GitLab, not gl-overlap");
     await user.click(glOption);
     expect(field).toHaveValue("https://gitlab.example.com/acme/private-web");
     await within(sheet).findByText(

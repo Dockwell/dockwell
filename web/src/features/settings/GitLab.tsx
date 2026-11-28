@@ -53,6 +53,29 @@ export function GitLabCard({
   const [problem, setProblem] = useState<string>();
 
   const badge = statusBadgeFor(connection.state);
+  let note: string | undefined;
+  switch (connection.state) {
+    case GitLabConnectionState.AUTH_FAILED:
+      note = t`GitLab refused this token. Check or replace it in Manage.`;
+      break;
+    case GitLabConnectionState.MISSING_SCOPE:
+      note = t`Needs read_repository to build private repositories, or api to also report CI commit statuses.`;
+      break;
+    case GitLabConnectionState.UNREACHABLE:
+      note = t`Could not reach GitLab on the last check.`;
+      break;
+    default: {
+      const caps = connection.capabilities;
+      if (caps && !caps.postStatuses) {
+        note = caps.listProjects
+          ? t`Builds private repositories and lists projects. Add api to report CI commit statuses.`
+          : t`Builds private repositories. Add read_api to pick projects, or api to report CI commit statuses.`;
+      } else if (connection.statusScopeMissing) {
+        note = t`CI commit statuses need the api scope; private repository builds stay connected.`;
+      }
+      break;
+    }
+  }
   const host = connection.url.replace(/^https?:\/\//, "");
   const scopeLabel = connection.everyProject
     ? t`every project`
@@ -86,7 +109,7 @@ export function GitLabCard({
         <h3 className="integrations-name">{connection.name}</h3>
         <p className="integrations-desc">
           <code>{connection.pathPrefix ? `${host}/${connection.pathPrefix}` : host}</code> · {scopeLabel}
-          {connection.detail ? <span className="integrations-sub github-unreached">{connection.detail}</span> : null}
+          {note ? <span className="integrations-sub github-unreached">{note}</span> : null}
           {problem ? (
             <span className="integrations-error" role="alert">
               {problem}
@@ -375,18 +398,24 @@ export function GitLabSheet({
         {checked ? (
           checked.state === GitLabConnectionState.CONNECTED ? (
             <Callout tone="healthy" title={t`Connected to GitLab`}>
-              {checked.detail
-                ? checked.detail
-                : checked.tokenName
-                  ? t`Token ${checked.tokenName} can build private repositories and report commit statuses on ${checked.url}.`
-                  : t`This token can build private repositories and report commit statuses on ${checked.url}.`}
+              {!checked.capabilities || checked.capabilities.postStatuses
+                ? checked.tokenName
+                  ? t`Token ${checked.tokenName} can build private repositories and report commit statuses on ${checked.url || trimmedURL}.`
+                  : t`This token can build private repositories and report commit statuses on ${checked.url || trimmedURL}.`
+                : checked.capabilities.listProjects
+                  ? t`Builds private repositories and lists projects. Add api to also report CI commit statuses.`
+                  : t`Builds private repositories. Add read_api to pick projects, or api to also report CI commit statuses.`}
             </Callout>
           ) : (
             <Callout
               tone={checked.state === GitLabConnectionState.MISSING_SCOPE ? "warning" : "critical"}
               title={i18n._(statusBadgeFor(checked.state).label)}
             >
-              {checked.detail}
+              {checked.state === GitLabConnectionState.MISSING_SCOPE
+                ? t`This token needs read_repository to build private repositories, or api to also report CI commit statuses.`
+                : checked.state === GitLabConnectionState.AUTH_FAILED
+                  ? t`GitLab refused this token. Check that it is active and has read_repository or api scope.`
+                  : t`Could not reach ${checked.url || trimmedURL}. Check the URL and network access.`}
             </Callout>
           )
         ) : null}

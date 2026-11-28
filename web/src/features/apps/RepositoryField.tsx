@@ -3,6 +3,7 @@
 import {
   type GitDeployKeyInfo,
   GitLabConnectionState,
+  GitLabListingProblem,
   type GitLabProject,
   type GitLabProjectConnection,
   type GitRepository,
@@ -70,7 +71,7 @@ interface PickerOption {
   url: string;
   label: string;
   privateRepo: boolean;
-  prefersConnection: boolean;
+  replacedKeyName?: string;
   gitLogin?: string;
   defaultBranch?: string;
 }
@@ -170,13 +171,12 @@ export function RepositoryField({
         for (const [acct, items] of byAccount) {
           builtGroups.push({
             key: `gh:${acct}`,
-            heading: acct === "GitHub" ? "GitHub" : `GitHub · ${acct}`,
+            heading: acct === "GitHub" ? "GitHub" : t`GitHub · ${acct}`,
             options: items.map((r) => ({
               key: `gh:${r.url}`,
               url: r.url,
               label: r.fullName,
               privateRepo: r.private,
-              prefersConnection: false,
               defaultBranch: r.defaultBranch,
             })),
           });
@@ -190,7 +190,6 @@ export function RepositoryField({
             url: r.url,
             label: r.fullName,
             privateRepo: r.private,
-            prefersConnection: false,
             defaultBranch: r.defaultBranch,
           })),
         });
@@ -214,30 +213,54 @@ export function RepositoryField({
       glByConn.set(connName, list);
     }
 
+    const listingNoteFor = (conn: GitLabProjectConnection): string | undefined => {
+      switch (conn.listingProblem) {
+        case GitLabListingProblem.MISSING_READ_API:
+          return t`Add read_api to pick projects from ${conn.name}. You can still paste a URL.`;
+        case GitLabListingProblem.AUTH_FAILED:
+          return t`GitLab refused this token. Check it in Settings, Integrations.`;
+        case GitLabListingProblem.UNREACHABLE:
+          return t`Could not reach ${conn.name} right now.`;
+        default:
+          break;
+      }
+      switch (conn.state) {
+        case GitLabConnectionState.AUTH_FAILED:
+          return t`GitLab refused this token. Check it in Settings, Integrations.`;
+        case GitLabConnectionState.MISSING_SCOPE:
+          return t`Add read_api to pick projects from ${conn.name}. You can still paste a URL.`;
+        case GitLabConnectionState.UNREACHABLE:
+          return t`Could not reach ${conn.name} right now.`;
+        default:
+          return undefined;
+      }
+    };
+
     const seenConn = new Set<string>();
     for (const conn of gitlabConnections) {
-      seenConn.add(conn.name);
-      const items = (glByConn.get(conn.name) ?? []).slice(0, 50);
-      const failed =
-        conn.state === GitLabConnectionState.AUTH_FAILED ||
-        conn.state === GitLabConnectionState.MISSING_SCOPE ||
-        conn.state === GitLabConnectionState.UNREACHABLE;
-      if (items.length === 0 && !failed) continue;
+      const connName = conn.name;
+      seenConn.add(connName);
+      const items = (glByConn.get(connName) ?? []).slice(0, 50);
+      const note = listingNoteFor(conn);
+      if (items.length === 0 && !note) continue;
       const host = conn.url.replace(/^https?:\/\//, "");
       builtGroups.push({
-        key: `gl:${conn.name}`,
-        heading: `GitLab · ${conn.name}`,
+        key: `gl:${connName}`,
+        heading: t`GitLab · ${connName}`,
         host,
-        note: failed ? conn.detail || t`Connection unavailable.` : undefined,
-        options: items.map((p) => ({
-          key: `gl:${conn.name}:${p.url}`,
-          url: p.url,
-          label: p.pathWithNamespace,
-          privateRepo: false,
-          prefersConnection: deployKeys.some((k) => sameRepository(k.repository, p.url)),
-          gitLogin: `${GITLAB_LOGIN_PREFIX}${p.connectionName}`,
-          defaultBranch: p.defaultBranch,
-        })),
+        note,
+        options: items.map((p) => {
+          const matchingKey = deployKeys.find((k) => sameRepository(k.repository, p.url));
+          return {
+            key: `gl:${connName}:${p.url}`,
+            url: p.url,
+            label: p.pathWithNamespace,
+            privateRepo: false,
+            replacedKeyName: matchingKey?.name,
+            gitLogin: `${GITLAB_LOGIN_PREFIX}${p.connectionName}`,
+            defaultBranch: p.defaultBranch,
+          };
+        }),
       });
     }
     // Include any GitLab projects whose connection metadata wasn't listed separately.
@@ -245,16 +268,19 @@ export function RepositoryField({
       if (seenConn.has(connName) || items.length === 0) continue;
       builtGroups.push({
         key: `gl:${connName}`,
-        heading: `GitLab · ${connName}`,
-        options: items.slice(0, 50).map((p) => ({
-          key: `gl:${connName}:${p.url}`,
-          url: p.url,
-          label: p.pathWithNamespace,
-          privateRepo: false,
-          prefersConnection: deployKeys.some((k) => sameRepository(k.repository, p.url)),
-          gitLogin: `${GITLAB_LOGIN_PREFIX}${p.connectionName}`,
-          defaultBranch: p.defaultBranch,
-        })),
+        heading: t`GitLab · ${connName}`,
+        options: items.slice(0, 50).map((p) => {
+          const matchingKey = deployKeys.find((k) => sameRepository(k.repository, p.url));
+          return {
+            key: `gl:${connName}:${p.url}`,
+            url: p.url,
+            label: p.pathWithNamespace,
+            privateRepo: false,
+            replacedKeyName: matchingKey?.name,
+            gitLogin: `${GITLAB_LOGIN_PREFIX}${p.connectionName}`,
+            defaultBranch: p.defaultBranch,
+          };
+        }),
       });
     }
 
@@ -364,8 +390,8 @@ export function RepositoryField({
                         {opt.privateRepo ? (
                           <span className="image-field-tag">{t({ message: "Private", context: "a repository" })}</span>
                         ) : null}
-                        {opt.prefersConnection ? (
-                          <span className="image-field-tag">{t`Prefers connection`}</span>
+                        {opt.replacedKeyName ? (
+                          <span className="image-field-tag">{t`Uses GitLab, not ${opt.replacedKeyName}`}</span>
                         ) : null}
                       </span>
                     </div>

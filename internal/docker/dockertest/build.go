@@ -106,6 +106,9 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 	}
 	envs[gitAuthEnv] = e.gitAuthOf(c)
 	envs[gitPackEnv] = e.gitPackOf(c)
+	if e.GitURLRewrite != nil && envs["DW_URL"] != "" {
+		envs["DW_URL"] = e.GitURLRewrite(envs["DW_URL"])
+	}
 	var co checkedOut
 	if staged := e.hostPathOf(c, "/run/dockwell-build-context"); staged != "" {
 		co.context = staged

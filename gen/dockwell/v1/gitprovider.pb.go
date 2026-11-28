@@ -87,6 +87,62 @@ func (GitLabConnectionState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{0}
 }
 
+// GitLabListingProblem explains why a connection could not list projects in the picker.
+type GitLabListingProblem int32
+
+const (
+	GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNSPECIFIED GitLabListingProblem = 0
+	// Token lacks read_api or api scope to list projects (private builds still work).
+	GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_MISSING_READ_API GitLabListingProblem = 1
+	// GitLab refused the token (expired or revoked).
+	GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_AUTH_FAILED GitLabListingProblem = 2
+	// GitLab could not be reached.
+	GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNREACHABLE GitLabListingProblem = 3
+)
+
+// Enum value maps for GitLabListingProblem.
+var (
+	GitLabListingProblem_name = map[int32]string{
+		0: "GIT_LAB_LISTING_PROBLEM_UNSPECIFIED",
+		1: "GIT_LAB_LISTING_PROBLEM_MISSING_READ_API",
+		2: "GIT_LAB_LISTING_PROBLEM_AUTH_FAILED",
+		3: "GIT_LAB_LISTING_PROBLEM_UNREACHABLE",
+	}
+	GitLabListingProblem_value = map[string]int32{
+		"GIT_LAB_LISTING_PROBLEM_UNSPECIFIED":      0,
+		"GIT_LAB_LISTING_PROBLEM_MISSING_READ_API": 1,
+		"GIT_LAB_LISTING_PROBLEM_AUTH_FAILED":      2,
+		"GIT_LAB_LISTING_PROBLEM_UNREACHABLE":      3,
+	}
+)
+
+func (x GitLabListingProblem) Enum() *GitLabListingProblem {
+	p := new(GitLabListingProblem)
+	*p = x
+	return p
+}
+
+func (x GitLabListingProblem) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (GitLabListingProblem) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_gitprovider_proto_enumTypes[1].Descriptor()
+}
+
+func (GitLabListingProblem) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_gitprovider_proto_enumTypes[1]
+}
+
+func (x GitLabListingProblem) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use GitLabListingProblem.Descriptor instead.
+func (GitLabListingProblem) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{1}
+}
+
 // State is whether deliveries reach the panel, and what Dockwell does if not.
 type GitHubDelivery_State int32
 
@@ -132,11 +188,11 @@ func (x GitHubDelivery_State) String() string {
 }
 
 func (GitHubDelivery_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_gitprovider_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_gitprovider_proto_enumTypes[2].Descriptor()
 }
 
 func (GitHubDelivery_State) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_gitprovider_proto_enumTypes[1]
+	return &file_dockwell_v1_gitprovider_proto_enumTypes[2]
 }
 
 func (x GitHubDelivery_State) Number() protoreflect.EnumNumber {
@@ -1596,26 +1652,94 @@ func (x *RefreshGitHubAppResponse) GetApp() *GitHubAppInfo {
 	return nil
 }
 
-// GitLabConnectionInfo is a connected GitLab instance without its token.
-type GitLabConnectionInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
-	PathPrefix    string                 `protobuf:"bytes,4,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
-	Projects      []string               `protobuf:"bytes,5,rep,name=projects,proto3" json:"projects,omitempty"`
-	EveryProject  bool                   `protobuf:"varint,6,opt,name=every_project,json=everyProject,proto3" json:"every_project,omitempty"`
-	Revision      int64                  `protobuf:"varint,7,opt,name=revision,proto3" json:"revision,omitempty"`
-	State         GitLabConnectionState  `protobuf:"varint,8,opt,name=state,proto3,enum=dockwell.v1.GitLabConnectionState" json:"state,omitempty"`
-	Detail        string                 `protobuf:"bytes,9,opt,name=detail,proto3" json:"detail,omitempty"`
-	CheckedTime   *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=checked_time,json=checkedTime,proto3" json:"checked_time,omitempty"`
+// GitLabCapabilities says which operations a verified GitLab token's scopes allow.
+type GitLabCapabilities struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Token can fetch private repositories over HTTPS (read_repository, write_repository, or api).
+	BuildPrivate bool `protobuf:"varint,1,opt,name=build_private,json=buildPrivate,proto3" json:"build_private,omitempty"`
+	// Token can list projects in the repository picker (read_api or api).
+	ListProjects bool `protobuf:"varint,2,opt,name=list_projects,json=listProjects,proto3" json:"list_projects,omitempty"`
+	// Token can post CI deploy commit statuses (api).
+	PostStatuses  bool `protobuf:"varint,3,opt,name=post_statuses,json=postStatuses,proto3" json:"post_statuses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *GitLabCapabilities) Reset() {
+	*x = GitLabCapabilities{}
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitLabCapabilities) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitLabCapabilities) ProtoMessage() {}
+
+func (x *GitLabCapabilities) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitLabCapabilities.ProtoReflect.Descriptor instead.
+func (*GitLabCapabilities) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GitLabCapabilities) GetBuildPrivate() bool {
+	if x != nil {
+		return x.BuildPrivate
+	}
+	return false
+}
+
+func (x *GitLabCapabilities) GetListProjects() bool {
+	if x != nil {
+		return x.ListProjects
+	}
+	return false
+}
+
+func (x *GitLabCapabilities) GetPostStatuses() bool {
+	if x != nil {
+		return x.PostStatuses
+	}
+	return false
+}
+
+// GitLabConnectionInfo is a connected GitLab instance without its token.
+type GitLabConnectionInfo struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Id           string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name         string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Url          string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
+	PathPrefix   string                 `protobuf:"bytes,4,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
+	Projects     []string               `protobuf:"bytes,5,rep,name=projects,proto3" json:"projects,omitempty"`
+	EveryProject bool                   `protobuf:"varint,6,opt,name=every_project,json=everyProject,proto3" json:"every_project,omitempty"`
+	Revision     int64                  `protobuf:"varint,7,opt,name=revision,proto3" json:"revision,omitempty"`
+	State        GitLabConnectionState  `protobuf:"varint,8,opt,name=state,proto3,enum=dockwell.v1.GitLabConnectionState" json:"state,omitempty"`
+	Detail       string                 `protobuf:"bytes,9,opt,name=detail,proto3" json:"detail,omitempty"`
+	CheckedTime  *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=checked_time,json=checkedTime,proto3" json:"checked_time,omitempty"`
+	Capabilities *GitLabCapabilities    `protobuf:"bytes,11,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	// True when CI status delivery received 403 (missing api scope) while private
+	// builds through this connection remain unaffected.
+	StatusScopeMissing bool `protobuf:"varint,12,opt,name=status_scope_missing,json=statusScopeMissing,proto3" json:"status_scope_missing,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
 func (x *GitLabConnectionInfo) Reset() {
 	*x = GitLabConnectionInfo{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[22]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1627,7 +1751,7 @@ func (x *GitLabConnectionInfo) String() string {
 func (*GitLabConnectionInfo) ProtoMessage() {}
 
 func (x *GitLabConnectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[22]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1640,7 +1764,7 @@ func (x *GitLabConnectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitLabConnectionInfo.ProtoReflect.Descriptor instead.
 func (*GitLabConnectionInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{22}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GitLabConnectionInfo) GetId() string {
@@ -1713,6 +1837,20 @@ func (x *GitLabConnectionInfo) GetCheckedTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *GitLabConnectionInfo) GetCapabilities() *GitLabCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
+func (x *GitLabConnectionInfo) GetStatusScopeMissing() bool {
+	if x != nil {
+		return x.StatusScopeMissing
+	}
+	return false
+}
+
 // CheckGitLabConnectionRequest checks a typed or saved GitLab connection.
 type CheckGitLabConnectionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1726,7 +1864,7 @@ type CheckGitLabConnectionRequest struct {
 
 func (x *CheckGitLabConnectionRequest) Reset() {
 	*x = CheckGitLabConnectionRequest{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[23]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1738,7 +1876,7 @@ func (x *CheckGitLabConnectionRequest) String() string {
 func (*CheckGitLabConnectionRequest) ProtoMessage() {}
 
 func (x *CheckGitLabConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[23]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1751,7 +1889,7 @@ func (x *CheckGitLabConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckGitLabConnectionRequest.ProtoReflect.Descriptor instead.
 func (*CheckGitLabConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{23}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CheckGitLabConnectionRequest) GetName() string {
@@ -1784,13 +1922,14 @@ type CheckGitLabConnectionResponse struct {
 	Url           string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	TokenName     string                 `protobuf:"bytes,4,opt,name=token_name,json=tokenName,proto3" json:"token_name,omitempty"`
 	Scopes        []string               `protobuf:"bytes,5,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	Capabilities  *GitLabCapabilities    `protobuf:"bytes,6,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckGitLabConnectionResponse) Reset() {
 	*x = CheckGitLabConnectionResponse{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[24]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1802,7 +1941,7 @@ func (x *CheckGitLabConnectionResponse) String() string {
 func (*CheckGitLabConnectionResponse) ProtoMessage() {}
 
 func (x *CheckGitLabConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[24]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1815,7 +1954,7 @@ func (x *CheckGitLabConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckGitLabConnectionResponse.ProtoReflect.Descriptor instead.
 func (*CheckGitLabConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{24}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *CheckGitLabConnectionResponse) GetState() GitLabConnectionState {
@@ -1853,6 +1992,13 @@ func (x *CheckGitLabConnectionResponse) GetScopes() []string {
 	return nil
 }
 
+func (x *CheckGitLabConnectionResponse) GetCapabilities() *GitLabCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 // ListGitLabProjectsRequest names a project and an optional search term.
 type ListGitLabProjectsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1866,7 +2012,7 @@ type ListGitLabProjectsRequest struct {
 
 func (x *ListGitLabProjectsRequest) Reset() {
 	*x = ListGitLabProjectsRequest{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[25]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1878,7 +2024,7 @@ func (x *ListGitLabProjectsRequest) String() string {
 func (*ListGitLabProjectsRequest) ProtoMessage() {}
 
 func (x *ListGitLabProjectsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[25]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1891,7 +2037,7 @@ func (x *ListGitLabProjectsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitLabProjectsRequest.ProtoReflect.Descriptor instead.
 func (*ListGitLabProjectsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{25}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListGitLabProjectsRequest) GetProject() string {
@@ -1919,7 +2065,7 @@ type ListGitLabProjectsResponse struct {
 
 func (x *ListGitLabProjectsResponse) Reset() {
 	*x = ListGitLabProjectsResponse{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[26]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1931,7 +2077,7 @@ func (x *ListGitLabProjectsResponse) String() string {
 func (*ListGitLabProjectsResponse) ProtoMessage() {}
 
 func (x *ListGitLabProjectsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[26]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1944,7 +2090,7 @@ func (x *ListGitLabProjectsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGitLabProjectsResponse.ProtoReflect.Descriptor instead.
 func (*ListGitLabProjectsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{26}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListGitLabProjectsResponse) GetProjects() []*GitLabProject {
@@ -1980,7 +2126,7 @@ type GitLabProject struct {
 
 func (x *GitLabProject) Reset() {
 	*x = GitLabProject{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[27]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1992,7 +2138,7 @@ func (x *GitLabProject) String() string {
 func (*GitLabProject) ProtoMessage() {}
 
 func (x *GitLabProject) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[27]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2005,7 +2151,7 @@ func (x *GitLabProject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitLabProject.ProtoReflect.Descriptor instead.
 func (*GitLabProject) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GitLabProject) GetPathWithNamespace() string {
@@ -2057,19 +2203,22 @@ type GitLabProjectConnection struct {
 	Name       string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Url        string                 `protobuf:"bytes,3,opt,name=url,proto3" json:"url,omitempty"`
 	PathPrefix string                 `protobuf:"bytes,4,opt,name=path_prefix,json=pathPrefix,proto3" json:"path_prefix,omitempty"`
-	// Live state from listing or checking this connection.
+	// Live state from checking this connection.
 	State GitLabConnectionState `protobuf:"varint,5,opt,name=state,proto3,enum=dockwell.v1.GitLabConnectionState" json:"state,omitempty"`
 	// Optional failure detail when state is not connected.
 	Detail string `protobuf:"bytes,6,opt,name=detail,proto3" json:"detail,omitempty"`
 	// True when GitLab has more projects beyond the returned page (search narrows).
-	HasMore       bool `protobuf:"varint,7,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HasMore bool `protobuf:"varint,7,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	// Structured reason when listing projects failed (e.g. token has read_repository without read_api).
+	ListingProblem GitLabListingProblem `protobuf:"varint,8,opt,name=listing_problem,json=listingProblem,proto3,enum=dockwell.v1.GitLabListingProblem" json:"listing_problem,omitempty"`
+	Capabilities   *GitLabCapabilities  `protobuf:"bytes,9,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GitLabProjectConnection) Reset() {
 	*x = GitLabProjectConnection{}
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[28]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2081,7 +2230,7 @@ func (x *GitLabProjectConnection) String() string {
 func (*GitLabProjectConnection) ProtoMessage() {}
 
 func (x *GitLabProjectConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[28]
+	mi := &file_dockwell_v1_gitprovider_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2094,7 +2243,7 @@ func (x *GitLabProjectConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitLabProjectConnection.ProtoReflect.Descriptor instead.
 func (*GitLabProjectConnection) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_gitprovider_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GitLabProjectConnection) GetId() string {
@@ -2144,6 +2293,20 @@ func (x *GitLabProjectConnection) GetHasMore() bool {
 		return x.HasMore
 	}
 	return false
+}
+
+func (x *GitLabProjectConnection) GetListingProblem() GitLabListingProblem {
+	if x != nil {
+		return x.ListingProblem
+	}
+	return GitLabListingProblem_GIT_LAB_LISTING_PROBLEM_UNSPECIFIED
+}
+
+func (x *GitLabProjectConnection) GetCapabilities() *GitLabCapabilities {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
 }
 
 var File_dockwell_v1_gitprovider_proto protoreflect.FileDescriptor
@@ -2255,7 +2418,11 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x17RefreshGitHubAppRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"H\n" +
 	"\x18RefreshGitHubAppResponse\x12,\n" +
-	"\x03app\x18\x01 \x01(\v2\x1a.dockwell.v1.GitHubAppInfoR\x03app\"\xdb\x02\n" +
+	"\x03app\x18\x01 \x01(\v2\x1a.dockwell.v1.GitHubAppInfoR\x03app\"\x83\x01\n" +
+	"\x12GitLabCapabilities\x12#\n" +
+	"\rbuild_private\x18\x01 \x01(\bR\fbuildPrivate\x12#\n" +
+	"\rlist_projects\x18\x02 \x01(\bR\flistProjects\x12#\n" +
+	"\rpost_statuses\x18\x03 \x01(\bR\fpostStatuses\"\xd2\x03\n" +
 	"\x14GitLabConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -2268,19 +2435,22 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\x05state\x18\b \x01(\x0e2\".dockwell.v1.GitLabConnectionStateR\x05state\x12\x16\n" +
 	"\x06detail\x18\t \x01(\tR\x06detail\x12=\n" +
 	"\fchecked_time\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\vcheckedTime\"\x80\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vcheckedTime\x12C\n" +
+	"\fcapabilities\x18\v \x01(\v2\x1f.dockwell.v1.GitLabCapabilitiesR\fcapabilities\x120\n" +
+	"\x14status_scope_missing\x18\f \x01(\bR\x12statusScopeMissing\"\x80\x01\n" +
 	"\x1cCheckGitLabConnectionRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\x03url\x18\x02 \x01(\tB\x0e\xa2\xbb\x18\n" +
 	"gitlab-urlR\x03url\x12*\n" +
-	"\x05token\x18\x03 \x01(\tB\x14\xa2\xbb\x18\fgitlab-token\xc8\xf3\x18\x01R\x05token\"\xba\x01\n" +
+	"\x05token\x18\x03 \x01(\tB\x14\xa2\xbb\x18\fgitlab-token\xc8\xf3\x18\x01R\x05token\"\xff\x01\n" +
 	"\x1dCheckGitLabConnectionResponse\x128\n" +
 	"\x05state\x18\x01 \x01(\x0e2\".dockwell.v1.GitLabConnectionStateR\x05state\x12\x16\n" +
 	"\x06detail\x18\x02 \x01(\tR\x06detail\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1d\n" +
 	"\n" +
 	"token_name\x18\x04 \x01(\tR\ttokenName\x12\x16\n" +
-	"\x06scopes\x18\x05 \x03(\tR\x06scopes\"K\n" +
+	"\x06scopes\x18\x05 \x03(\tR\x06scopes\x12C\n" +
+	"\fcapabilities\x18\x06 \x01(\v2\x1f.dockwell.v1.GitLabCapabilitiesR\fcapabilities\"K\n" +
 	"\x19ListGitLabProjectsRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12\x14\n" +
 	"\x05query\x18\x02 \x01(\tR\x05query\"\x9c\x01\n" +
@@ -2293,7 +2463,7 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"\rconnection_id\x18\x03 \x01(\tR\fconnectionId\x12'\n" +
 	"\x0fconnection_name\x18\x04 \x01(\tR\x0econnectionName\x127\n" +
 	"\x18claimed_by_other_project\x18\x05 \x01(\bR\x15claimedByOtherProject\x12%\n" +
-	"\x0edefault_branch\x18\x06 \x01(\tR\rdefaultBranch\"\xdd\x01\n" +
+	"\x0edefault_branch\x18\x06 \x01(\tR\rdefaultBranch\"\xee\x02\n" +
 	"\x17GitLabProjectConnection\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -2302,14 +2472,21 @@ const file_dockwell_v1_gitprovider_proto_rawDesc = "" +
 	"pathPrefix\x128\n" +
 	"\x05state\x18\x05 \x01(\x0e2\".dockwell.v1.GitLabConnectionStateR\x05state\x12\x16\n" +
 	"\x06detail\x18\x06 \x01(\tR\x06detail\x12\x19\n" +
-	"\bhas_more\x18\a \x01(\bR\ahasMore*\x8f\x02\n" +
+	"\bhas_more\x18\a \x01(\bR\ahasMore\x12J\n" +
+	"\x0flisting_problem\x18\b \x01(\x0e2!.dockwell.v1.GitLabListingProblemR\x0elistingProblem\x12C\n" +
+	"\fcapabilities\x18\t \x01(\v2\x1f.dockwell.v1.GitLabCapabilitiesR\fcapabilities*\x8f\x02\n" +
 	"\x15GitLabConnectionState\x12(\n" +
 	"$GIT_LAB_CONNECTION_STATE_UNSPECIFIED\x10\x00\x12$\n" +
 	" GIT_LAB_CONNECTION_STATE_UNKNOWN\x10\x01\x12&\n" +
 	"\"GIT_LAB_CONNECTION_STATE_CONNECTED\x10\x02\x12*\n" +
 	"&GIT_LAB_CONNECTION_STATE_MISSING_SCOPE\x10\x03\x12(\n" +
 	"$GIT_LAB_CONNECTION_STATE_AUTH_FAILED\x10\x04\x12(\n" +
-	"$GIT_LAB_CONNECTION_STATE_UNREACHABLE\x10\x052\xd6\x15\n" +
+	"$GIT_LAB_CONNECTION_STATE_UNREACHABLE\x10\x05*\xbf\x01\n" +
+	"\x14GitLabListingProblem\x12'\n" +
+	"#GIT_LAB_LISTING_PROBLEM_UNSPECIFIED\x10\x00\x12,\n" +
+	"(GIT_LAB_LISTING_PROBLEM_MISSING_READ_API\x10\x01\x12'\n" +
+	"#GIT_LAB_LISTING_PROBLEM_AUTH_FAILED\x10\x02\x12'\n" +
+	"#GIT_LAB_LISTING_PROBLEM_UNREACHABLE\x10\x032\xd6\x15\n" +
 	"\x12GitProviderService\x12\xab\x01\n" +
 	"\x0eStartGitHubApp\x12\".dockwell.v1.StartGitHubAppRequest\x1a#.dockwell.v1.StartGitHubAppResponse\"P\xa0\xbb\x18\x03\xaa\xbb\x18\x0f\n" +
 	"\rgit-providers\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/git-providers/github:start\x12\xaf\x01\n" +
@@ -2349,87 +2526,93 @@ func file_dockwell_v1_gitprovider_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_gitprovider_proto_rawDescData
 }
 
-var file_dockwell_v1_gitprovider_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_gitprovider_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_dockwell_v1_gitprovider_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_dockwell_v1_gitprovider_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_dockwell_v1_gitprovider_proto_goTypes = []any{
 	(GitLabConnectionState)(0),                // 0: dockwell.v1.GitLabConnectionState
-	(GitHubDelivery_State)(0),                 // 1: dockwell.v1.GitHubDelivery.State
-	(*StartGitHubAppRequest)(nil),             // 2: dockwell.v1.StartGitHubAppRequest
-	(*StartGitHubAppResponse)(nil),            // 3: dockwell.v1.StartGitHubAppResponse
-	(*FinishGitHubAppRequest)(nil),            // 4: dockwell.v1.FinishGitHubAppRequest
-	(*FinishGitHubAppResponse)(nil),           // 5: dockwell.v1.FinishGitHubAppResponse
-	(*AddGitHubInstallationRequest)(nil),      // 6: dockwell.v1.AddGitHubInstallationRequest
-	(*AddGitHubInstallationResponse)(nil),     // 7: dockwell.v1.AddGitHubInstallationResponse
-	(*ListGitProvidersRequest)(nil),           // 8: dockwell.v1.ListGitProvidersRequest
-	(*ListGitProvidersResponse)(nil),          // 9: dockwell.v1.ListGitProvidersResponse
-	(*GitHubAppInfo)(nil),                     // 10: dockwell.v1.GitHubAppInfo
-	(*GitHubDelivery)(nil),                    // 11: dockwell.v1.GitHubDelivery
-	(*GitHubInstallation)(nil),                // 12: dockwell.v1.GitHubInstallation
-	(*ListGitRepositoriesRequest)(nil),        // 13: dockwell.v1.ListGitRepositoriesRequest
-	(*ListGitRepositoriesResponse)(nil),       // 14: dockwell.v1.ListGitRepositoriesResponse
-	(*GitRepository)(nil),                     // 15: dockwell.v1.GitRepository
-	(*RotateGitHubWebhookSecretRequest)(nil),  // 16: dockwell.v1.RotateGitHubWebhookSecretRequest
-	(*RotateGitHubWebhookSecretResponse)(nil), // 17: dockwell.v1.RotateGitHubWebhookSecretResponse
-	(*ReplaceGitHubPrivateKeyRequest)(nil),    // 18: dockwell.v1.ReplaceGitHubPrivateKeyRequest
-	(*ReplaceGitHubPrivateKeyResponse)(nil),   // 19: dockwell.v1.ReplaceGitHubPrivateKeyResponse
-	(*RemoveGitHubAppRequest)(nil),            // 20: dockwell.v1.RemoveGitHubAppRequest
-	(*RemoveGitHubAppResponse)(nil),           // 21: dockwell.v1.RemoveGitHubAppResponse
-	(*RefreshGitHubAppRequest)(nil),           // 22: dockwell.v1.RefreshGitHubAppRequest
-	(*RefreshGitHubAppResponse)(nil),          // 23: dockwell.v1.RefreshGitHubAppResponse
-	(*GitLabConnectionInfo)(nil),              // 24: dockwell.v1.GitLabConnectionInfo
-	(*CheckGitLabConnectionRequest)(nil),      // 25: dockwell.v1.CheckGitLabConnectionRequest
-	(*CheckGitLabConnectionResponse)(nil),     // 26: dockwell.v1.CheckGitLabConnectionResponse
-	(*ListGitLabProjectsRequest)(nil),         // 27: dockwell.v1.ListGitLabProjectsRequest
-	(*ListGitLabProjectsResponse)(nil),        // 28: dockwell.v1.ListGitLabProjectsResponse
-	(*GitLabProject)(nil),                     // 29: dockwell.v1.GitLabProject
-	(*GitLabProjectConnection)(nil),           // 30: dockwell.v1.GitLabProjectConnection
-	(*timestamppb.Timestamp)(nil),             // 31: google.protobuf.Timestamp
+	(GitLabListingProblem)(0),                 // 1: dockwell.v1.GitLabListingProblem
+	(GitHubDelivery_State)(0),                 // 2: dockwell.v1.GitHubDelivery.State
+	(*StartGitHubAppRequest)(nil),             // 3: dockwell.v1.StartGitHubAppRequest
+	(*StartGitHubAppResponse)(nil),            // 4: dockwell.v1.StartGitHubAppResponse
+	(*FinishGitHubAppRequest)(nil),            // 5: dockwell.v1.FinishGitHubAppRequest
+	(*FinishGitHubAppResponse)(nil),           // 6: dockwell.v1.FinishGitHubAppResponse
+	(*AddGitHubInstallationRequest)(nil),      // 7: dockwell.v1.AddGitHubInstallationRequest
+	(*AddGitHubInstallationResponse)(nil),     // 8: dockwell.v1.AddGitHubInstallationResponse
+	(*ListGitProvidersRequest)(nil),           // 9: dockwell.v1.ListGitProvidersRequest
+	(*ListGitProvidersResponse)(nil),          // 10: dockwell.v1.ListGitProvidersResponse
+	(*GitHubAppInfo)(nil),                     // 11: dockwell.v1.GitHubAppInfo
+	(*GitHubDelivery)(nil),                    // 12: dockwell.v1.GitHubDelivery
+	(*GitHubInstallation)(nil),                // 13: dockwell.v1.GitHubInstallation
+	(*ListGitRepositoriesRequest)(nil),        // 14: dockwell.v1.ListGitRepositoriesRequest
+	(*ListGitRepositoriesResponse)(nil),       // 15: dockwell.v1.ListGitRepositoriesResponse
+	(*GitRepository)(nil),                     // 16: dockwell.v1.GitRepository
+	(*RotateGitHubWebhookSecretRequest)(nil),  // 17: dockwell.v1.RotateGitHubWebhookSecretRequest
+	(*RotateGitHubWebhookSecretResponse)(nil), // 18: dockwell.v1.RotateGitHubWebhookSecretResponse
+	(*ReplaceGitHubPrivateKeyRequest)(nil),    // 19: dockwell.v1.ReplaceGitHubPrivateKeyRequest
+	(*ReplaceGitHubPrivateKeyResponse)(nil),   // 20: dockwell.v1.ReplaceGitHubPrivateKeyResponse
+	(*RemoveGitHubAppRequest)(nil),            // 21: dockwell.v1.RemoveGitHubAppRequest
+	(*RemoveGitHubAppResponse)(nil),           // 22: dockwell.v1.RemoveGitHubAppResponse
+	(*RefreshGitHubAppRequest)(nil),           // 23: dockwell.v1.RefreshGitHubAppRequest
+	(*RefreshGitHubAppResponse)(nil),          // 24: dockwell.v1.RefreshGitHubAppResponse
+	(*GitLabCapabilities)(nil),                // 25: dockwell.v1.GitLabCapabilities
+	(*GitLabConnectionInfo)(nil),              // 26: dockwell.v1.GitLabConnectionInfo
+	(*CheckGitLabConnectionRequest)(nil),      // 27: dockwell.v1.CheckGitLabConnectionRequest
+	(*CheckGitLabConnectionResponse)(nil),     // 28: dockwell.v1.CheckGitLabConnectionResponse
+	(*ListGitLabProjectsRequest)(nil),         // 29: dockwell.v1.ListGitLabProjectsRequest
+	(*ListGitLabProjectsResponse)(nil),        // 30: dockwell.v1.ListGitLabProjectsResponse
+	(*GitLabProject)(nil),                     // 31: dockwell.v1.GitLabProject
+	(*GitLabProjectConnection)(nil),           // 32: dockwell.v1.GitLabProjectConnection
+	(*timestamppb.Timestamp)(nil),             // 33: google.protobuf.Timestamp
 }
 var file_dockwell_v1_gitprovider_proto_depIdxs = []int32{
-	10, // 0: dockwell.v1.FinishGitHubAppResponse.app:type_name -> dockwell.v1.GitHubAppInfo
-	12, // 1: dockwell.v1.AddGitHubInstallationResponse.installation:type_name -> dockwell.v1.GitHubInstallation
-	10, // 2: dockwell.v1.ListGitProvidersResponse.apps:type_name -> dockwell.v1.GitHubAppInfo
-	24, // 3: dockwell.v1.ListGitProvidersResponse.gitlab_connections:type_name -> dockwell.v1.GitLabConnectionInfo
-	12, // 4: dockwell.v1.GitHubAppInfo.installations:type_name -> dockwell.v1.GitHubInstallation
-	11, // 5: dockwell.v1.GitHubAppInfo.delivery:type_name -> dockwell.v1.GitHubDelivery
-	1,  // 6: dockwell.v1.GitHubDelivery.state:type_name -> dockwell.v1.GitHubDelivery.State
-	31, // 7: dockwell.v1.GitHubDelivery.checked_time:type_name -> google.protobuf.Timestamp
-	31, // 8: dockwell.v1.GitHubDelivery.backoff_until:type_name -> google.protobuf.Timestamp
-	15, // 9: dockwell.v1.ListGitRepositoriesResponse.repositories:type_name -> dockwell.v1.GitRepository
-	10, // 10: dockwell.v1.RefreshGitHubAppResponse.app:type_name -> dockwell.v1.GitHubAppInfo
+	11, // 0: dockwell.v1.FinishGitHubAppResponse.app:type_name -> dockwell.v1.GitHubAppInfo
+	13, // 1: dockwell.v1.AddGitHubInstallationResponse.installation:type_name -> dockwell.v1.GitHubInstallation
+	11, // 2: dockwell.v1.ListGitProvidersResponse.apps:type_name -> dockwell.v1.GitHubAppInfo
+	26, // 3: dockwell.v1.ListGitProvidersResponse.gitlab_connections:type_name -> dockwell.v1.GitLabConnectionInfo
+	13, // 4: dockwell.v1.GitHubAppInfo.installations:type_name -> dockwell.v1.GitHubInstallation
+	12, // 5: dockwell.v1.GitHubAppInfo.delivery:type_name -> dockwell.v1.GitHubDelivery
+	2,  // 6: dockwell.v1.GitHubDelivery.state:type_name -> dockwell.v1.GitHubDelivery.State
+	33, // 7: dockwell.v1.GitHubDelivery.checked_time:type_name -> google.protobuf.Timestamp
+	33, // 8: dockwell.v1.GitHubDelivery.backoff_until:type_name -> google.protobuf.Timestamp
+	16, // 9: dockwell.v1.ListGitRepositoriesResponse.repositories:type_name -> dockwell.v1.GitRepository
+	11, // 10: dockwell.v1.RefreshGitHubAppResponse.app:type_name -> dockwell.v1.GitHubAppInfo
 	0,  // 11: dockwell.v1.GitLabConnectionInfo.state:type_name -> dockwell.v1.GitLabConnectionState
-	31, // 12: dockwell.v1.GitLabConnectionInfo.checked_time:type_name -> google.protobuf.Timestamp
-	0,  // 13: dockwell.v1.CheckGitLabConnectionResponse.state:type_name -> dockwell.v1.GitLabConnectionState
-	29, // 14: dockwell.v1.ListGitLabProjectsResponse.projects:type_name -> dockwell.v1.GitLabProject
-	30, // 15: dockwell.v1.ListGitLabProjectsResponse.connections:type_name -> dockwell.v1.GitLabProjectConnection
-	0,  // 16: dockwell.v1.GitLabProjectConnection.state:type_name -> dockwell.v1.GitLabConnectionState
-	2,  // 17: dockwell.v1.GitProviderService.StartGitHubApp:input_type -> dockwell.v1.StartGitHubAppRequest
-	4,  // 18: dockwell.v1.GitProviderService.FinishGitHubApp:input_type -> dockwell.v1.FinishGitHubAppRequest
-	6,  // 19: dockwell.v1.GitProviderService.AddGitHubInstallation:input_type -> dockwell.v1.AddGitHubInstallationRequest
-	8,  // 20: dockwell.v1.GitProviderService.ListGitProviders:input_type -> dockwell.v1.ListGitProvidersRequest
-	13, // 21: dockwell.v1.GitProviderService.ListGitRepositories:input_type -> dockwell.v1.ListGitRepositoriesRequest
-	16, // 22: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:input_type -> dockwell.v1.RotateGitHubWebhookSecretRequest
-	18, // 23: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:input_type -> dockwell.v1.ReplaceGitHubPrivateKeyRequest
-	20, // 24: dockwell.v1.GitProviderService.RemoveGitHubApp:input_type -> dockwell.v1.RemoveGitHubAppRequest
-	22, // 25: dockwell.v1.GitProviderService.RefreshGitHubApp:input_type -> dockwell.v1.RefreshGitHubAppRequest
-	25, // 26: dockwell.v1.GitProviderService.CheckGitLabConnection:input_type -> dockwell.v1.CheckGitLabConnectionRequest
-	27, // 27: dockwell.v1.GitProviderService.ListGitLabProjects:input_type -> dockwell.v1.ListGitLabProjectsRequest
-	3,  // 28: dockwell.v1.GitProviderService.StartGitHubApp:output_type -> dockwell.v1.StartGitHubAppResponse
-	5,  // 29: dockwell.v1.GitProviderService.FinishGitHubApp:output_type -> dockwell.v1.FinishGitHubAppResponse
-	7,  // 30: dockwell.v1.GitProviderService.AddGitHubInstallation:output_type -> dockwell.v1.AddGitHubInstallationResponse
-	9,  // 31: dockwell.v1.GitProviderService.ListGitProviders:output_type -> dockwell.v1.ListGitProvidersResponse
-	14, // 32: dockwell.v1.GitProviderService.ListGitRepositories:output_type -> dockwell.v1.ListGitRepositoriesResponse
-	17, // 33: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:output_type -> dockwell.v1.RotateGitHubWebhookSecretResponse
-	19, // 34: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:output_type -> dockwell.v1.ReplaceGitHubPrivateKeyResponse
-	21, // 35: dockwell.v1.GitProviderService.RemoveGitHubApp:output_type -> dockwell.v1.RemoveGitHubAppResponse
-	23, // 36: dockwell.v1.GitProviderService.RefreshGitHubApp:output_type -> dockwell.v1.RefreshGitHubAppResponse
-	26, // 37: dockwell.v1.GitProviderService.CheckGitLabConnection:output_type -> dockwell.v1.CheckGitLabConnectionResponse
-	28, // 38: dockwell.v1.GitProviderService.ListGitLabProjects:output_type -> dockwell.v1.ListGitLabProjectsResponse
-	28, // [28:39] is the sub-list for method output_type
-	17, // [17:28] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	33, // 12: dockwell.v1.GitLabConnectionInfo.checked_time:type_name -> google.protobuf.Timestamp
+	25, // 13: dockwell.v1.GitLabConnectionInfo.capabilities:type_name -> dockwell.v1.GitLabCapabilities
+	0,  // 14: dockwell.v1.CheckGitLabConnectionResponse.state:type_name -> dockwell.v1.GitLabConnectionState
+	25, // 15: dockwell.v1.CheckGitLabConnectionResponse.capabilities:type_name -> dockwell.v1.GitLabCapabilities
+	31, // 16: dockwell.v1.ListGitLabProjectsResponse.projects:type_name -> dockwell.v1.GitLabProject
+	32, // 17: dockwell.v1.ListGitLabProjectsResponse.connections:type_name -> dockwell.v1.GitLabProjectConnection
+	0,  // 18: dockwell.v1.GitLabProjectConnection.state:type_name -> dockwell.v1.GitLabConnectionState
+	1,  // 19: dockwell.v1.GitLabProjectConnection.listing_problem:type_name -> dockwell.v1.GitLabListingProblem
+	25, // 20: dockwell.v1.GitLabProjectConnection.capabilities:type_name -> dockwell.v1.GitLabCapabilities
+	3,  // 21: dockwell.v1.GitProviderService.StartGitHubApp:input_type -> dockwell.v1.StartGitHubAppRequest
+	5,  // 22: dockwell.v1.GitProviderService.FinishGitHubApp:input_type -> dockwell.v1.FinishGitHubAppRequest
+	7,  // 23: dockwell.v1.GitProviderService.AddGitHubInstallation:input_type -> dockwell.v1.AddGitHubInstallationRequest
+	9,  // 24: dockwell.v1.GitProviderService.ListGitProviders:input_type -> dockwell.v1.ListGitProvidersRequest
+	14, // 25: dockwell.v1.GitProviderService.ListGitRepositories:input_type -> dockwell.v1.ListGitRepositoriesRequest
+	17, // 26: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:input_type -> dockwell.v1.RotateGitHubWebhookSecretRequest
+	19, // 27: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:input_type -> dockwell.v1.ReplaceGitHubPrivateKeyRequest
+	21, // 28: dockwell.v1.GitProviderService.RemoveGitHubApp:input_type -> dockwell.v1.RemoveGitHubAppRequest
+	23, // 29: dockwell.v1.GitProviderService.RefreshGitHubApp:input_type -> dockwell.v1.RefreshGitHubAppRequest
+	27, // 30: dockwell.v1.GitProviderService.CheckGitLabConnection:input_type -> dockwell.v1.CheckGitLabConnectionRequest
+	29, // 31: dockwell.v1.GitProviderService.ListGitLabProjects:input_type -> dockwell.v1.ListGitLabProjectsRequest
+	4,  // 32: dockwell.v1.GitProviderService.StartGitHubApp:output_type -> dockwell.v1.StartGitHubAppResponse
+	6,  // 33: dockwell.v1.GitProviderService.FinishGitHubApp:output_type -> dockwell.v1.FinishGitHubAppResponse
+	8,  // 34: dockwell.v1.GitProviderService.AddGitHubInstallation:output_type -> dockwell.v1.AddGitHubInstallationResponse
+	10, // 35: dockwell.v1.GitProviderService.ListGitProviders:output_type -> dockwell.v1.ListGitProvidersResponse
+	15, // 36: dockwell.v1.GitProviderService.ListGitRepositories:output_type -> dockwell.v1.ListGitRepositoriesResponse
+	18, // 37: dockwell.v1.GitProviderService.RotateGitHubWebhookSecret:output_type -> dockwell.v1.RotateGitHubWebhookSecretResponse
+	20, // 38: dockwell.v1.GitProviderService.ReplaceGitHubPrivateKey:output_type -> dockwell.v1.ReplaceGitHubPrivateKeyResponse
+	22, // 39: dockwell.v1.GitProviderService.RemoveGitHubApp:output_type -> dockwell.v1.RemoveGitHubAppResponse
+	24, // 40: dockwell.v1.GitProviderService.RefreshGitHubApp:output_type -> dockwell.v1.RefreshGitHubAppResponse
+	28, // 41: dockwell.v1.GitProviderService.CheckGitLabConnection:output_type -> dockwell.v1.CheckGitLabConnectionResponse
+	30, // 42: dockwell.v1.GitProviderService.ListGitLabProjects:output_type -> dockwell.v1.ListGitLabProjectsResponse
+	32, // [32:43] is the sub-list for method output_type
+	21, // [21:32] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_gitprovider_proto_init() }
@@ -2443,8 +2626,8 @@ func file_dockwell_v1_gitprovider_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_gitprovider_proto_rawDesc), len(file_dockwell_v1_gitprovider_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   29,
+			NumEnums:      3,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

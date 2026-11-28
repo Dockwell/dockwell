@@ -44,6 +44,9 @@ type PackFetchOptions struct {
 	// "Basic ..."). It is never logged, never included in errors, and never sent
 	// to any host or scheme other than RepoURL's own.
 	AuthHeader string
+	// CredentialLabel names the credential in 401/403 error messages (for
+	// example, "the GitLab connection corp's token"). Empty defaults to "the credentials".
+	CredentialLabel string
 	// Client overrides the outbound HTTP client in tests. When nil, netguard's
 	// client is used with Private: AllowPrivate and no automatic redirects.
 	Client *http.Client
@@ -87,10 +90,15 @@ func FetchVerifiedPack(ctx context.Context, opts PackFetchOptions) (*os.File, in
 
 	via := packHTTPClient(opts.Client, opts.AllowPrivate, maxPack+1<<20)
 
+	credLabel := strings.TrimSpace(opts.CredentialLabel)
+	if credLabel == "" {
+		credLabel = "the credentials"
+	}
+
 	// Step 1: discover capabilities and refs (v2 preferred, v1 fallback),
-	// following only exact same-origin redirects (such as /repo -> /repo.git)
-	// so AuthHeader can never be sent to another host or downgraded to HTTP.
-	base, info, err := discoverSmartHTTP(ctx, via, u, opts.AuthHeader)
+	// following only exact same-origin .git suffix redirects (such as /repo -> /repo.git)
+	// so AuthHeader can never be sent to another host, port, or repository path.
+	base, info, err := discoverSmartHTTP(ctx, via, u, opts.AuthHeader, credLabel)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -138,9 +146,9 @@ func FetchVerifiedPack(ctx context.Context, opts PackFetchOptions) (*os.File, in
 
 	var size int64
 	if info.v2 {
-		size, err = fetchHTTPV2(ctx, via, base, opts.AuthHeader, f, wantCommit, depth, maxPack, info.v2Shallow, info.v2Format)
+		size, err = fetchHTTPV2(ctx, via, base, opts.AuthHeader, credLabel, f, wantCommit, depth, maxPack, info.v2Shallow, info.v2Format)
 	} else {
-		size, err = fetchHTTPV1(ctx, via, base, opts.AuthHeader, f, wantCommit, depth, maxPack, info.v1Caps)
+		size, err = fetchHTTPV1(ctx, via, base, opts.AuthHeader, credLabel, f, wantCommit, depth, maxPack, info.v1Caps)
 	}
 	if err != nil {
 		cleanup()
@@ -237,19 +245,28 @@ func doSameOrigin(client doer, orig *url.URL, makeReq func(base *url.URL) (*http
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s sent an invalid redirect", orig.Host)
 		}
-		if !strings.EqualFold(next.Scheme, orig.Scheme) || !strings.EqualFold(next.Host, orig.Host) {
-			return nil, nil, fmt.Errorf("%s redirected to another host (%s), so Dockwell refused to send credentials there", orig.Host, next.Host)
+		if next.User != nil {
+			return nil, nil, fmt.Errorf("%s redirected to a URL with credentials, which Dockwell refuses", orig.Host)
 		}
-		// Trim /info/refs or /git-upload-pack from redirected path to derive new base.
+		if !strings.EqualFold(next.Scheme, orig.Scheme) || !strings.EqualFold(next.Host, orig.Host) {
+			return nil, nil, fmt.Errorf("%s redirected to another host or port (%s), so Dockwell refused to send credentials there", orig.Host, next.Host)
+		}
+		// Only allow same-repository .git suffix normalization (such as /repo -> /repo.git).
+		origRepo := strings.TrimSuffix(strings.TrimRight(orig.Path, "/"), ".git")
 		p := next.Path
 		p = strings.TrimSuffix(p, "/info/refs")
 		p = strings.TrimSuffix(p, "/git-upload-pack")
-		cur.Path = strings.TrimRight(p, "/")
+		nextBase := strings.TrimRight(p, "/")
+		nextRepo := strings.TrimSuffix(nextBase, ".git")
+		if nextRepo != origRepo {
+			return nil, nil, fmt.Errorf("%s redirected to another repository path (%s), so Dockwell refused to follow it", orig.Host, nextBase)
+		}
+		cur.Path = nextBase
 	}
 	return nil, nil, fmt.Errorf("%s redirected too many times", orig.Host)
 }
 
-func discoverSmartHTTP(ctx context.Context, client doer, u *url.URL, authHeader string) (*url.URL, smartHTTPInfo, error) {
+func discoverSmartHTTP(ctx context.Context, client doer, u *url.URL, authHeader, credLabel string) (*url.URL, smartHTTPInfo, error) {
 	base, resp, err := doSameOrigin(client, u, func(b *url.URL) (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, b.String()+"/info/refs?service=git-upload-pack", http.NoBody)
 		if err != nil {
@@ -263,7 +280,7 @@ func discoverSmartHTTP(ctx context.Context, client doer, u *url.URL, authHeader 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, smartHTTPInfo{}, fmt.Errorf("%s refused the credentials (%s). Check that the GitLab token is active and has read_repository scope", base.Host, status(resp))
+		return nil, smartHTTPInfo{}, fmt.Errorf("%s refused %s (%s). Check that the credential is active and can read this repository", base.Host, credLabel, status(resp))
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, smartHTTPInfo{}, fmt.Errorf("%s answered %s for %s", base.Host, status(resp), base.Path)
@@ -437,10 +454,16 @@ func resolveHTTPCommit(base *url.URL, refs map[string]string, head, ref string) 
 	if len(branches) == 0 {
 		return "", fmt.Errorf("%s has no branch or tag %s", where, ref)
 	}
-	return "", fmt.Errorf("%s has no branch or tag %s", where, ref)
+	shown := branches
+	more := ""
+	if len(shown) > 5 {
+		more = fmt.Sprintf(", and %d more", len(shown)-5)
+		shown = shown[:5]
+	}
+	return "", fmt.Errorf("%s has no branch or tag %s. Its branches are %s%s", where, ref, strings.Join(shown, ", "), more)
 }
 
-func fetchHTTPV2(ctx context.Context, client doer, base *url.URL, authHeader string, f *os.File, commit string, depth int, most int64, shallow bool, format string) (int64, error) {
+func fetchHTTPV2(ctx context.Context, client doer, base *url.URL, authHeader, credLabel string, f *os.File, commit string, depth int, most int64, shallow bool, format string) (int64, error) {
 	if format != "sha1" {
 		return 0, fmt.Errorf("the repository at %s names its objects by %s, where Dockwell reads SHA-1 alone", base.Host, strings.ToUpper(format))
 	}
@@ -474,15 +497,16 @@ func fetchHTTPV2(ctx context.Context, client doer, base *url.URL, authHeader str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return 0, fmt.Errorf("%s refused the credentials (%s) when fetching %s", base.Host, status(resp), commit[:7])
+		return 0, fmt.Errorf("%s refused %s (%s) when fetching %s", base.Host, credLabel, status(resp), commit[:7])
 	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s answered %s when asked for %s", base.Host, status(resp), commit)
 	}
-	return receivePack(resp.Body, f, base, commit, most)
+	overLimit := fmt.Sprintf("the commit %s's pack is over %d MiB, more than Dockwell reads", commit, most>>20)
+	return receivePackLimit(resp.Body, f, base, commit, most, overLimit)
 }
 
-func fetchHTTPV1(ctx context.Context, client doer, base *url.URL, authHeader string, f *os.File, commit string, depth int, most int64, caps map[string]bool) (int64, error) {
+func fetchHTTPV1(ctx context.Context, client doer, base *url.URL, authHeader, credLabel string, f *os.File, commit string, depth int, most int64, caps map[string]bool) (int64, error) {
 	var wantCaps []string
 	if caps["side-band-64k"] {
 		wantCaps = append(wantCaps, "side-band-64k")
@@ -522,7 +546,7 @@ func fetchHTTPV1(ctx context.Context, client doer, base *url.URL, authHeader str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return 0, fmt.Errorf("%s refused the credentials (%s) when fetching %s", base.Host, status(resp), commit[:7])
+		return 0, fmt.Errorf("%s refused %s (%s) when fetching %s", base.Host, credLabel, status(resp), commit[:7])
 	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s answered %s when asked for %s", base.Host, status(resp), commit)

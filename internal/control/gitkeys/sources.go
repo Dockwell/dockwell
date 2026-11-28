@@ -288,14 +288,24 @@ func (h *Handler) AcquirePackFetch(ctx context.Context, scopeID string) (func(),
 	if scopeID == "" {
 		scopeID = revision.GitScopeOf(ctx)
 	}
+	if scopeID == "" {
+		return nil, errors.New("a private repository pack fetch belongs to one project, and this build named none")
+	}
 	projectID := scopeID
-	if scopeID != "" && h.cfg.DB != nil {
-		_ = h.cfg.DB.View(ctx, func(tx *store.Tx) error {
-			if p, err := h.projectForScope(ctx, tx, scopeID); err == nil && p != "" {
-				projectID = p
+	if h.cfg.DB != nil {
+		if err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+			p, err := h.projectForScope(ctx, tx, scopeID)
+			if err != nil {
+				return err
 			}
+			projectID = p
 			return nil
-		})
+		}); err != nil {
+			return nil, err
+		}
+		if projectID == "" {
+			return nil, errors.New("a private repository pack fetch belongs to a known project, and this build named none")
+		}
 	}
 	return h.gate.acquireFetch(ctx, projectID, "")
 }

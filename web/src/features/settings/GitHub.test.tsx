@@ -436,6 +436,8 @@ describe("Back from GitHub", () => {
       pathPrefix: "acme",
       everyProject: true,
       state: GitLabConnectionState.CONNECTED,
+      capabilities: { buildPrivate: true, listProjects: true, postStatuses: false },
+      statusScopeMissing: true,
       revision: 1n,
     });
     const { unmount } = renderAt(
@@ -473,5 +475,8 @@ describe("Back from GitHub", () => {
     const saved = await screen.findByRole("article", { name: "GitLab team-gitlab" });
     expect(saved).toHaveTextContent("gitlab.example.com/acme");
     expect(saved).toHaveTextContent("Connected");
+    expect(saved).toHaveTextContent(
+      "Builds private repositories and lists projects. Add api to report CI commit statuses.",
+    );
   });
 });

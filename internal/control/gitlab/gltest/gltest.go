@@ -57,6 +57,7 @@ type Server struct {
 	tokens        map[string]Token
 	projects      []Project
 	repos         map[string]string // lowercase projectPath -> bare repo dir
+	publicRepos   map[string]bool   // lowercase projectPath -> serves without auth
 	statuses      []RecordedStatus
 	nextID        int64
 	failNext      int
@@ -121,6 +122,23 @@ func (s *Server) SetRepo(projectPath, bareDir string) {
 	}
 	key := strings.ToLower(strings.TrimSuffix(strings.Trim(projectPath, "/"), ".git"))
 	s.repos[key] = bareDir
+	delete(s.publicRepos, key)
+}
+
+// SetPublicRepo registers a bare Git repository on disk that serves smart HTTP
+// anonymously (200 OK without Authorization) alongside private repos.
+func (s *Server) SetPublicRepo(projectPath, bareDir string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.repos == nil {
+		s.repos = map[string]string{}
+	}
+	if s.publicRepos == nil {
+		s.publicRepos = map[string]bool{}
+	}
+	key := strings.ToLower(strings.TrimSuffix(strings.Trim(projectPath, "/"), ".git"))
+	s.repos[key] = bareDir
+	s.publicRepos[key] = true
 }
 
 // SetToken registers or updates an accepted token.
@@ -281,26 +299,32 @@ func (s *Server) handleGitSmartHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	bareDir := s.repos[key]
+	isPublic := s.publicRepos[key]
 	s.mu.Unlock()
 	if bareDir == "" {
 		http.NotFound(w, r)
 		return
 	}
 
-	tok, ok := s.gitAuth(r)
-	if !ok || !tok.Active || tok.Revoked {
-		w.Header().Set("WWW-Authenticate", `Basic realm="GitLab"`)
-		http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
-		return
+	if !isPublic {
+		tok, ok := s.gitAuth(r)
+		if !ok || !tok.Active || tok.Revoked {
+			w.Header().Set("WWW-Authenticate", `Basic realm="GitLab"`)
+			http.Error(w, "401 Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !slices.Contains(tok.Scopes, "api") && !slices.Contains(tok.Scopes, "read_repository") && !slices.Contains(tok.Scopes, "write_repository") {
+			http.Error(w, "403 Forbidden - insufficient_scope", http.StatusForbidden)
+			return
+		}
+		s.mu.Lock()
+		s.gitCalls++
+		s.mu.Unlock()
+	} else if r.Header.Get("Authorization") != "" {
+		s.mu.Lock()
+		s.gitCalls++
+		s.mu.Unlock()
 	}
-	if !slices.Contains(tok.Scopes, "api") && !slices.Contains(tok.Scopes, "read_repository") && !slices.Contains(tok.Scopes, "write_repository") {
-		http.Error(w, "403 Forbidden - insufficient_scope", http.StatusForbidden)
-		return
-	}
-
-	s.mu.Lock()
-	s.gitCalls++
-	s.mu.Unlock()
 
 	gitPath, err := exec.LookPath("git")
 	if err != nil {

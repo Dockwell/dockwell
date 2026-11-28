@@ -5162,6 +5162,37 @@ describe("an app's deployments, for an app that builds from Git", () => {
     await expectAccessible(container);
     unmount();
 
+    // A read_repository-only token (listing 403 -> listingProblem=MISSING_READ_API)
+    // stays healthy on Source while builds remain Connected (M2).
+    const listingLimited = renderAt(
+      "/apps/svc_web",
+      api([app], {
+        services: {
+          listServices: () => ({ services: [app] }),
+          listServiceRevisions: () => ({ revisions: [aRevision(2n, image, { build: aBuild({}) })] }),
+        },
+        gitProviders: {
+          listGitProviders: () => ({
+            gitlabConnections: [{ id: "glc_1", name: "team-gitlab", url: "https://gitlab.example.com", state: 1 }],
+          }),
+          listGitLabProjects: () => ({
+            connections: [
+              {
+                name: "team-gitlab",
+                url: "https://gitlab.example.com",
+                state: 1,
+                listingProblem: 1,
+              },
+            ],
+            projects: [],
+          }),
+        },
+      }),
+    );
+    const limitedSource = (await screen.findByRole("heading", { name: "Source" })).closest("section") as HTMLElement;
+    expect(await within(limitedSource).findByText("through GitLab connection team-gitlab")).toBeVisible();
+    listingLimited.unmount();
+
     // Narrowed away from this project: warns with a link to Integrations.
     const narrowed = renderAt(
       "/apps/svc_web",
