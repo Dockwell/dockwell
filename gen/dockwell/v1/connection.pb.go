@@ -1022,8 +1022,10 @@ type ConnectionCustomInfo struct {
 	Initial string                       `protobuf:"bytes,1,opt,name=initial,proto3" json:"initial,omitempty"`
 	Fields  []*ConnectionCustomFieldInfo `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
 	// The check configuration is visible to install administrators.
-	Check         *v1alpha1.ConnectionCustomCheck `protobuf:"bytes,3,opt,name=check,proto3" json:"check,omitempty"`
-	HasCheck      bool                            `protobuf:"varint,4,opt,name=has_check,json=hasCheck,proto3" json:"has_check,omitempty"`
+	Check    *v1alpha1.ConnectionCustomCheck `protobuf:"bytes,3,opt,name=check,proto3" json:"check,omitempty"`
+	HasCheck bool                            `protobuf:"varint,4,opt,name=has_check,json=hasCheck,proto3" json:"has_check,omitempty"`
+	// Whether the connection already serves an app. No project or app is named.
+	InUse         bool `protobuf:"varint,5,opt,name=in_use,json=inUse,proto3" json:"in_use,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1082,6 +1084,13 @@ func (x *ConnectionCustomInfo) GetCheck() *v1alpha1.ConnectionCustomCheck {
 func (x *ConnectionCustomInfo) GetHasCheck() bool {
 	if x != nil {
 		return x.HasCheck
+	}
+	return false
+}
+
+func (x *ConnectionCustomInfo) GetInUse() bool {
+	if x != nil {
+		return x.InUse
 	}
 	return false
 }
@@ -1617,12 +1626,13 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"senderName\x12<\n" +
 	"\x06checks\x18\x14 \x03(\v2$.dockwell.v1.CheckConnectionResponseR\x06checks\x129\n" +
 	"\x06custom\x18\x15 \x01(\v2!.dockwell.v1.ConnectionCustomInfoR\x06custom\x12\x1a\n" +
-	"\brevision\x18\x16 \x01(\x03R\brevision\"\xd6\x01\n" +
+	"\brevision\x18\x16 \x01(\x03R\brevision\"\xed\x01\n" +
 	"\x14ConnectionCustomInfo\x12\x18\n" +
 	"\ainitial\x18\x01 \x01(\tR\ainitial\x12>\n" +
 	"\x06fields\x18\x02 \x03(\v2&.dockwell.v1.ConnectionCustomFieldInfoR\x06fields\x12G\n" +
 	"\x05check\x18\x03 \x01(\v21.dockwell.resource.v1alpha1.ConnectionCustomCheckR\x05check\x12\x1b\n" +
-	"\thas_check\x18\x04 \x01(\bR\bhasCheck\"\xbe\x01\n" +
+	"\thas_check\x18\x04 \x01(\bR\bhasCheck\x12\x15\n" +
+	"\x06in_use\x18\x05 \x01(\bR\x05inUse\"\xbe\x01\n" +
 	"\x19ConnectionCustomFieldInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
 	"\x04type\x18\x02 \x01(\x0e20.dockwell.resource.v1alpha1.ConnectionCustomTypeR\x04type\x12\x14\n" +

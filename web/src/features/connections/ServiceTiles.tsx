@@ -86,12 +86,15 @@ export function ServiceTiles({
         </fieldset>
       ))}
       {onCustom ? (
-        <div className="connection-store-grid">
-          <button type="button" className="connection-store" onClick={onCustom}>
-            <BrandMark icon="link" />
-            <span className="connection-store-name">{t`Custom`}</span>
-          </button>
-        </div>
+        <fieldset className="connection-stores" disabled={disabled}>
+          <legend>{t`Other services`}</legend>
+          <div className="connection-store-grid">
+            <button type="button" className="connection-store" onClick={onCustom}>
+              <BrandMark icon="link" />
+              <span className="connection-store-name">{t`Custom`}</span>
+            </button>
+          </div>
+        </fieldset>
       ) : null}
     </div>
   );

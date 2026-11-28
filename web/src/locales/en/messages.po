@@ -13051,6 +13051,12 @@ msgstr "{label}, at the bucket's root"
 msgid "{label}, under {prefix}"
 msgstr "{label}, under {prefix}"
 
+msgid "{name} secret"
+msgstr "{name} secret"
+
+msgid "{name} type"
+msgstr "{name} type"
+
 msgid "{name} with TLS"
 msgstr "{name} with TLS"
 
@@ -14901,6 +14907,12 @@ msgstr "{where} stops redirecting to {to}, and sends to {sendsTo}."
 msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 msgstr "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 
+msgid "Add a Custom connection"
+msgstr "Add a Custom connection"
+
+msgid "An admin adds the connections your apps may use."
+msgstr "An admin adds the connections your apps may use."
+
 msgctxt "choose a saved connection"
 msgid "Connection"
 msgstr "Connection"
@@ -15288,9 +15300,6 @@ msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.
 msgid "Add connection"
 msgstr "Add connection"
 
-msgid "An admin adds the connections your apps may use."
-msgstr "An admin adds the connections your apps may use."
-
 msgid "Backups only"
 msgstr "Backups only"
 
@@ -15396,9 +15405,6 @@ msgstr "{shown} and {extra} more"
 msgid "API key"
 msgstr "API key"
 
-msgid "Add a Custom connection"
-msgstr "Add a Custom connection"
-
 msgid "Add field"
 msgstr "Add field"
 
@@ -15416,6 +15422,9 @@ msgstr "Database URL"
 
 msgid "Empty form"
 msgstr "Empty form"
+
+msgid "Enter the secret again to save the field under its new name."
+msgstr "Enter the secret again to save the field under its new name."
 
 msgid "Field type"
 msgstr "Field type"
@@ -15569,6 +15578,9 @@ msgctxt "another mail server, as a tile"
 msgid "Other"
 msgstr "Other"
 
+msgid "Other services"
+msgstr "Other services"
+
 msgid "Apps that want mail"
 msgstr "Apps that want mail"
 
@@ -15608,6 +15620,7 @@ msgstr "Can't reach port {port}"
 msgid "Can't sign in"
 msgstr "Can't sign in"
 
+msgctxt "a Custom connection check"
 msgid "Check failed"
 msgstr "Check failed"
 
@@ -15760,6 +15773,9 @@ msgstr "The keys may not write in this bucket."
 
 msgid "The keys may read, but not list the bucket, which apps rarely need."
 msgstr "The keys may read, but not list the bucket, which apps rarely need."
+
+msgid "The target didn't answer within 5 seconds. Check the address and try again."
+msgstr "The target didn't answer within 5 seconds. Check the address and try again."
 
 msgid "This server can't reach port {port}, so apps on it can't send mail through it."
 msgstr "This server can't reach port {port}, so apps on it can't send mail through it."
@@ -17290,6 +17306,9 @@ msgstr "Awaiting upload"
 
 msgid "Build context"
 msgstr "Build context"
+
+msgid "Check failed"
+msgstr "Check failed"
 
 msgid "Image export"
 msgstr "Image export"

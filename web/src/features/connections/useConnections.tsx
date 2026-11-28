@@ -82,8 +82,10 @@ export function useCheckWords() {
           ? t`Dockwell refused the address. Use an address the selected server may reach.`
           : c.code === "tls"
             ? t`The TLS certificate failed verification. Check the URL and its certificate.`
-            : t`The check couldn't reach its target. Check the address and try again.`;
-      return { passed: false, state: t`Check failed`, line };
+            : c.code === "timeout"
+              ? t`The target didn't answer within 5 seconds. Check the address and try again.`
+              : t`The check couldn't reach its target. Check the address and try again.`;
+      return { passed: false, state: t({ message: "Check failed", context: "a Custom connection check" }), line };
     }
     if (mail || MAIL_STEPS.includes(c.step)) return mailWords(c, mail ?? {});
     if (c.passed && c.step === "list") {

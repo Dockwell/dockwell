@@ -33,7 +33,7 @@ func validateToCustom(l *resourcev1.Link) error {
 		return err
 	}
 	if l.GetService() != "" || l.GetMeetsEnvironment() != "" || l.GetEngine() != resourcev1.LinkEngine_LINK_ENGINE_UNSPECIFIED ||
-		len(l.GetAccepts()) != 0 || l.GetVersion() != "" || l.GetDatabaseName() != "" || l.GetUser() != "" || l.GetSetOnce() ||
+		len(l.GetAccepts()) != 0 || l.GetVersion() != "" || l.GetDatabaseName() != "" || l.GetUser() != "" || l.GetSetOnce() || l.GetDedicatedUser() ||
 		l.GetPrefix() != "" || len(l.GetFeatures()) != 0 || l.GetSender() != "" || l.GetSenderName() != "" {
 		return errors.New("a Custom link holds only its connection, app and field mappings")
 	}

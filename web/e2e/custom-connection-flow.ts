@@ -28,6 +28,22 @@ async function applyPlan(plan: Locator, needs: string[]) {
   await done.click();
 }
 
+async function fitsPhone(dialog: Locator) {
+  const overflow = await dialog.evaluate((sheet) => {
+    const boxes = [
+      sheet,
+      ...sheet.querySelectorAll(
+        ".connection-sheet, .custom-connection-field, .custom-connection-actions, .dw-sheet-foot",
+      ),
+    ];
+    return Math.max(
+      document.documentElement.scrollWidth - window.innerWidth,
+      ...boxes.map((b) => b.scrollWidth - b.clientWidth),
+    );
+  });
+  if (overflow > 1) throw new Error(`a Custom connection sheet scrolls ${overflow} px horizontally at 390 px`);
+}
+
 export const flow: Flow = {
   order: 99,
   run: async (page, { origin, bin, data, env, step }) => {
@@ -130,9 +146,30 @@ export const flow: Flow = {
       throw new Error("the editor loaded a saved secret");
     await editing.getByLabel("Field 1 value").fill(after);
     await editing.getByRole("button", { name: "Review plan" }).click();
-    await applyPlan(plan, ["custom-reader", "custom-worker"]);
+    await applyPlan(plan, ["custom-reader", "custom-worker", "api_key secret"]);
     assertRedacted(await page.locator("main").innerText());
     assertRedacted(cli(["connections", "list", "--json"]));
+
+    step("custom connections: disconnect removes the mapping through a plan");
+    await page.getByRole("button", { name: "Disconnect custom-reader" }).click();
+    await applyPlan(plan, ["APP_TOKEN"]);
+    await page.getByRole("link", { name: "custom-reader", exact: true }).waitFor({ state: "hidden" });
+
+    step("custom connections: the editor and Variables picker fit a 390 px phone");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Change", exact: true }).click();
+    await editing.getByLabel("Field 1 value").waitFor();
+    await fitsPhone(editing);
+    await editing.getByRole("button", { name: "Cancel" }).click();
+    await editing.waitFor({ state: "hidden" });
+    await page.goto(`${origin}/apps/${reader.id}/environment`);
+    await page.getByRole("button", { name: "Import or connect" }).click();
+    await page.getByRole("menuitem", { name: "Add from a connection" }).click();
+    await mapping.getByLabel("api_key", { exact: true }).waitFor();
+    await fitsPhone(mapping);
+    await mapping.getByRole("button", { name: "Cancel" }).click();
+    await mapping.waitFor({ state: "hidden" });
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     step("custom connections: the CLI can save and list a Custom connection");
     const listed = cli(

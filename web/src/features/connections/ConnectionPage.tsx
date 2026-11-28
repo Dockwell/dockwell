@@ -145,7 +145,7 @@ export function ConnectionPage({ name }: { name: string }) {
   // keep working, and sharing it is one step away (the review's M2). A connection
   // backups use serves no app (ADR 0099).
   const apps = appsOn(connection);
-  const servesOne = !connection.shared && apps > 0;
+  const servesOne = !connection.shared && (apps > 0 || connection.custom?.inUse === true);
   // Where the callout says it, with Share it, Use in an app says nothing more, so a
   // phone, which says an off control's reason at the top, says it once (the
   // re-check's N4).

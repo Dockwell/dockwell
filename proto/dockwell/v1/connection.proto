@@ -288,6 +288,8 @@ message ConnectionCustomInfo {
   // The check configuration is visible to install administrators.
   dockwell.resource.v1alpha1.ConnectionCustomCheck check = 3;
   bool has_check = 4;
+  // Whether the connection already serves an app. No project or app is named.
+  bool in_use = 5;
 }
 
 // ConnectionCustomFieldInfo describes a named field and its default mapping.

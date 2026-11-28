@@ -10,9 +10,10 @@ import { useId, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { appOf, environmentOf, nameOf } from "../apps/app";
 import { usePlaces } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useConnectableApps } from "./ConnectStorageSheet";
-import { useCustomTypeLabels } from "./CustomConnectionSheet";
+import { CustomConnectionSheet, useCustomTypeLabels } from "./CustomConnectionSheet";
 import { useConnections } from "./useConnections";
 
 export function ConnectCustomSheet({
@@ -30,6 +31,9 @@ export function ConnectCustomSheet({
   const transport = useTransport();
   const client = useMemo(() => createClient(ConnectionService, transport), [transport]);
   const types = useCustomTypeLabels();
+  const may = useMay();
+  const mayCreate = may(ConnectionService.method.createCustomConnection).allowed;
+  const [creating, setCreating] = useState(false);
   const places = usePlaces();
   const apps = useConnectableApps(fixedConnection).filter(
     (a) => !fixedConnection?.uses.some((u) => u.appIds.includes(a.id)),
@@ -43,7 +47,7 @@ export function ConnectCustomSheet({
   const candidates = (query.data?.connections ?? []).filter(
     (c) =>
       c.kind === LinkKind.CUSTOM &&
-      (c.shared || c.uses.length === 0) &&
+      (c.shared || (!c.custom?.inUse && c.uses.length === 0)) &&
       !c.uses.some((u) => u.appIds.includes(service?.id ?? "")),
   );
   const [picked, setPicked] = useState("");
@@ -85,6 +89,21 @@ export function ConnectCustomSheet({
         void Promise.all([query.refetch(), all.refetch()]).then(onClose);
       },
     });
+  }
+
+  if (creating) {
+    return (
+      <CustomConnectionSheet
+        existing={all.data?.connections ?? []}
+        project={project}
+        onClose={() => setCreating(false)}
+        onSaved={(name) => {
+          setPicked(name);
+          setAliases({});
+          void query.refetch();
+        }}
+      />
+    );
   }
 
   return (
@@ -136,7 +155,18 @@ export function ConnectCustomSheet({
             {sentence(query.error)}
           </Callout>
         ) : candidates.length === 0 ? (
-          <Callout title={t`No Custom connections available`} />
+          <Callout
+            title={t`No Custom connections available`}
+            actions={
+              mayCreate && project ? (
+                <Button type="button" variant="secondary" size="sm" icon="plus" onClick={() => setCreating(true)}>
+                  <Trans>Add a Custom connection</Trans>
+                </Button>
+              ) : undefined
+            }
+          >
+            {mayCreate ? null : <Trans>An admin adds the connections your apps may use.</Trans>}
+          </Callout>
         ) : (
           <SelectField
             label={t({ message: "Connection", context: "choose a saved connection" })}

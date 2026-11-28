@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -234,7 +233,7 @@ func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
 	was, ok := current.(*resourcev1.ConnectionSpec)
 	is, same := spec.(*resourcev1.ConnectionSpec)
 	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3()) || !proto.Equal(was.GetSmtp(), is.GetSmtp()) ||
-		!slices.EqualFunc(was.GetCustom().GetFields(), is.GetCustom().GetFields(), func(a, b *resourcev1.ConnectionCustomField) bool { return proto.Equal(a, b) })
+		!sameCustomFields(was, is)
 }
 
 // StampSaver records whether an install admin chose where the connection goes,

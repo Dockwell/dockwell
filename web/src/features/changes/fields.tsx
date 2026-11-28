@@ -757,6 +757,14 @@ export function useFieldRows(): FieldRows {
           }
           continue;
         }
+        const custom = CUSTOM_FIELD.exec(path);
+        if (custom) {
+          const [, name = "", field] = custom;
+          if (field === "name") continue;
+          const label = field === "type" ? t`${name} type` : field === "secret_value" ? t`${name} secret` : name;
+          rows.push(plain(path, change, label, readers[path] ?? yesNo));
+          continue;
+        }
         const entry = KEYED.exec(path);
         const used = USES.exec(path);
         const row = entry
@@ -783,6 +791,7 @@ export function useFieldRows(): FieldRows {
 
 /** Where a route keeps what it has of its sign-in provider, which the control plane fills in. */
 const FILLED = "access.sign_in.filled.";
+const CUSTOM_FIELD = /^custom\.fields\[([A-Za-z][A-Za-z0-9_-]*)\]\.(name|type|value|secret_value)$/;
 
 /** The order a person reads a resource in: what puts it at risk, what it runs, how it is reached, what it keeps and knows. */
 function rank(row: PlanChange): number {

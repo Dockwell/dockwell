@@ -160,3 +160,16 @@ func keepCustom(was, is *resourcev1.ConnectionSpec) resource.Kept {
 	}
 	return resource.Kept{}
 }
+
+func sameCustomFields(was, is *resourcev1.ConnectionSpec) bool {
+	before, after := was.GetCustom().GetFields(), is.GetCustom().GetFields()
+	if len(before) != len(after) {
+		return false
+	}
+	for _, field := range before {
+		if !proto.Equal(field, CustomField(is, field.GetName())) {
+			return false
+		}
+	}
+	return true
+}

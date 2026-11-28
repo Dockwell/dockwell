@@ -440,7 +440,7 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, co
 		_, err = k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0, &tr)
 		switch {
 		case errors.Is(err, errFromCustom):
-			return fault.New(ErrConnectionKey, "this secret is supplied by a Custom connection and can only be used by its app")
+			return fault.New(ErrConnectionKey, "this secret comes from a Custom connection and stays sealed. Change its value on the connection's page")
 		case errors.Is(err, errFromConnection):
 			return fault.New(ErrConnectionKey, "%s reads its value from the connection %s, so only an admin reveals it. Ask an admin of the install", r.Name, tr.connection)
 		}

@@ -287,8 +287,9 @@ func (d *differ) list(path string, fd protoreflect.FieldDescriptor, a, b protore
 // appear in the container. Matched by it, a mount added in the middle reads as one
 // added, rather than as every one after it changed.
 var listKeys = map[protoreflect.FullName]protoreflect.Name{
-	"dockwell.resource.v1alpha1.Mount": "target",
-	"dockwell.resource.v1alpha1.Tmpfs": "target",
+	"dockwell.resource.v1alpha1.Mount":                 "target",
+	"dockwell.resource.v1alpha1.Tmpfs":                 "target",
+	"dockwell.resource.v1alpha1.ConnectionCustomField": "name",
 }
 
 // keyed diffs two lists by their items' key: an item at its place in the new list,
@@ -316,6 +317,12 @@ func (d *differ) keyed(path string, md protoreflect.MessageDescriptor, la, lb []
 	if !okA || !okB {
 		return false
 	}
+	pathFor := func(v protoreflect.Value, index int) string {
+		if key == "name" {
+			return fmt.Sprintf("%s[%s]", path, v.Message().Get(fd).String())
+		}
+		return fmt.Sprintf("%s[%d]", path, index)
+	}
 	kept := make([]bool, len(la))
 	for j, v := range lb {
 		var was protoreflect.Message
@@ -323,12 +330,12 @@ func (d *differ) keyed(path string, md protoreflect.MessageDescriptor, la, lb []
 			kept[i] = true
 			was = la[i].Message()
 		}
-		d.message(fmt.Sprintf("%s[%d]", path, j), md, was, v.Message(), sensitive)
+		d.message(pathFor(v, j), md, was, v.Message(), sensitive)
 	}
 	next := len(lb)
 	for i, v := range la {
 		if !kept[i] {
-			d.message(fmt.Sprintf("%s[%d]", path, next), md, v.Message(), nil, sensitive)
+			d.message(pathFor(v, next), md, v.Message(), nil, sensitive)
 			next++
 		}
 	}

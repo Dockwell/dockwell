@@ -28,7 +28,19 @@ import { freeConnectionName } from "./providers";
 import { checkServer, useCheckWords, useConnections } from "./useConnections";
 
 const fieldType = ConnectionCustomType;
-type Field = { id: number; name: string; type: ConnectionCustomType; value: string; set: boolean; clear?: boolean };
+type Field = {
+  id: number;
+  name: string;
+  type: ConnectionCustomType;
+  value: string;
+  savedName?: string;
+  set: boolean;
+  clear?: boolean;
+};
+
+function renamedSecret(field: Field): boolean {
+  return field.type === fieldType.SECRET && field.set && field.name.trim() !== field.savedName;
+}
 
 const presets = {
   empty: [{ name: "", type: fieldType.TEXT }],
@@ -59,11 +71,13 @@ export function CustomConnectionSheet({
   existing,
   onClose,
   onSaved,
+  project,
 }: {
   editing?: ConnectionInfo | undefined;
   existing: readonly ConnectionInfo[];
   onClose: () => void;
   onSaved?: (name: string) => void;
+  project?: string | undefined;
 }) {
   const { t } = useLingui();
   const form = useId();
@@ -86,13 +100,18 @@ export function CustomConnectionSheet({
   const [template, setTemplate] = useState<keyof typeof presets>("empty");
   const [fields, setFields] = useState<Field[]>(
     () =>
-      editing?.custom?.fields.map((f, id) => ({ id, name: f.name, type: f.type, value: f.value, set: f.set })) ?? [
-        { id: 0, name: "", type: fieldType.TEXT, value: "", set: false },
-      ],
+      editing?.custom?.fields.map((f, id) => ({
+        id,
+        name: f.name,
+        savedName: f.name,
+        type: f.type,
+        value: f.value,
+        set: f.set,
+      })) ?? [{ id: 0, name: "", type: fieldType.TEXT, value: "", set: false }],
   );
   const nextID = useRef(fields.length);
-  const [reach, setReach] = useState(editing?.reach ?? ConnectionReach.EVERY);
-  const [picked, setPicked] = useState(editing?.projects ?? []);
+  const [reach, setReach] = useState(editing?.reach ?? (project ? ConnectionReach.PROJECTS : ConnectionReach.EVERY));
+  const [picked, setPicked] = useState(editing?.projects ?? (project ? [project] : []));
   const [shared, setShared] = useState(editing?.shared ?? false);
   const target = editing?.custom?.check?.target;
   const [checkType, setCheckType] = useState<string>(target?.case ?? "");
@@ -125,6 +144,7 @@ export function CustomConnectionSheet({
   const ready =
     label.trim() !== "" &&
     fields.length > 0 &&
+    fields.every((f) => !renamedSecret(f) || f.value !== "") &&
     names.every((name) => /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(name)) &&
     new Set(
       names.map((name) =>
@@ -251,7 +271,7 @@ export function CustomConnectionSheet({
                 label={t`Field ${i + 1} name`}
                 mono
                 value={f.name}
-                onChange={(e) => updateField(f.id, { name: e.target.value })}
+                onChange={(e) => updateField(f.id, { name: e.target.value, clear: false })}
               />
               <SelectField
                 label={t`Field ${i + 1} type`}
@@ -265,13 +285,16 @@ export function CustomConnectionSheet({
                 label={t`Field ${i + 1} value`}
                 type={f.type === fieldType.SECRET ? "password" : "text"}
                 autoComplete={f.type === fieldType.SECRET ? "new-password" : "off"}
-                placeholder={f.type === fieldType.SECRET && f.set && !f.clear ? t`Secret is set` : undefined}
+                placeholder={
+                  f.type === fieldType.SECRET && f.set && !renamedSecret(f) && !f.clear ? t`Secret is set` : undefined
+                }
+                hint={renamedSecret(f) ? t`Enter the secret again to save the field under its new name.` : undefined}
                 mono
                 value={f.value}
                 onChange={(e) => updateField(f.id, { value: e.target.value, clear: false })}
               />
               <div className="custom-connection-actions">
-                {f.type === fieldType.SECRET && f.set ? (
+                {f.type === fieldType.SECRET && f.set && !renamedSecret(f) ? (
                   <Button
                     type="button"
                     variant="ghost"

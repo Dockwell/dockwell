@@ -81,7 +81,7 @@ func (e *Engine) checkCustomApp(ctx context.Context, tx *store.Tx, items []item,
 		}
 		ref := variable.FromOf(v).GetConnection()
 		if mapped != set.GetName() || ref.GetLink() != name || ref.GetName() != l.GetConnection() || ref.GetCustomField() != set.GetCustomField() {
-			return fault.New(ErrInvalid, "%s on %s belongs to its Custom connection. Change or disconnect its mapping", set.GetCustomEnv(), l.GetCustomApp())
+			return fault.New(ErrInvalid, "%s on %s belongs to the Custom connection %s. Disconnect it and add it again under the new name", set.GetCustomEnv(), l.GetCustomApp(), l.GetConnection())
 		}
 	}
 	return nil

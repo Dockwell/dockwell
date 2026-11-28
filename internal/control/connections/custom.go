@@ -184,12 +184,12 @@ func resourceRef(r resource.Ref) *dockwellv1.ResourceRef {
 	return &dockwellv1.ResourceRef{Kind: string(r.Kind), Scope: r.Scope, Name: r.Name}
 }
 
-func customInfo(c Saved, admin bool) *dockwellv1.ConnectionCustomInfo {
+func customInfo(c Saved, admin, inUse bool) *dockwellv1.ConnectionCustomInfo {
 	spec := c.Spec.GetCustom()
 	if spec == nil {
 		return nil
 	}
-	info := &dockwellv1.ConnectionCustomInfo{Initial: spec.GetInitial(), HasCheck: spec.GetCheck() != nil}
+	info := &dockwellv1.ConnectionCustomInfo{Initial: spec.GetInitial(), HasCheck: spec.GetCheck() != nil, InUse: inUse}
 	if admin {
 		info.Check = spec.GetCheck()
 	}
@@ -207,20 +207,14 @@ func customInfo(c Saved, admin bool) *dockwellv1.ConnectionCustomInfo {
 	return info
 }
 
-func (s *Service) toCheckCustom(ctx context.Context, req *dockwellv1.CheckConnectionRequest) (*resourcev1.ConnectionSpec, error) {
+func toCheckCustom(req *dockwellv1.CheckConnectionRequest, saved *resourcev1.ConnectionSpec) (*resourcev1.ConnectionSpec, error) {
 	spec := &resourcev1.ConnectionSpec{Kind: resourcev1.LinkKind_LINK_KIND_CUSTOM, Custom: &resourcev1.ConnectionCustom{Check: req.GetCustom()}}
-	if req.GetName() != "" {
-		saved, _, _, ok, err := s.connections.ForLinking(ctx, req.GetName(), "")
-		if err != nil {
-			return nil, err
-		}
-		if !ok || saved.Spec.GetCustom() == nil {
-			return nil, authapi.ReasonError(connect.CodeNotFound, errors.New("there's no Custom connection by that name"), "not_found")
-		}
-		if req.GetCustom() == nil {
-			spec.Custom.Check = saved.Spec.GetCustom().GetCheck()
-			spec.SavedBelowAdmin = saved.Spec.GetSavedBelowAdmin()
-		}
+	if saved != nil && saved.GetCustom() == nil {
+		return nil, authapi.Invalid(errors.New("choose a Custom connection for an HTTPS or TCP check"))
+	}
+	if req.GetCustom() == nil {
+		spec.Custom.Check = saved.GetCustom().GetCheck()
+		spec.SavedBelowAdmin = saved.GetSavedBelowAdmin()
 	}
 	if spec.GetCustom().GetCheck() == nil {
 		return nil, authapi.Invalid(errors.New("this Custom connection has no check. Add an HTTPS or TCP check first"))

@@ -17151,6 +17151,9 @@ components:
                     description: The check configuration is visible to install administrators.
                 hasCheck:
                     type: boolean
+                inUse:
+                    type: boolean
+                    description: Whether the connection already serves an app. No project or app is named.
             description: ConnectionCustomInfo describes a Custom connection without its secret values.
         ConnectionCustomTCP:
             type: object
