@@ -191,11 +191,15 @@ func (k *Keeper) valueAt(ctx context.Context, tx *store.Tx, scopeID string, u re
 // trace stops a read where a value comes from a connection, and says which. A
 // reveal below an admin reads with one first, before it asks for the passkey.
 type trace struct {
-	connection string
+	connection       string
+	allowConnections bool
 }
 
 // errFromConnection stops a traced read at a connection's value.
-var errFromConnection = errors.New("a value comes from a connection")
+var (
+	errFromConnection = errors.New("a value comes from a connection")
+	errFromCustom     = errors.New("a value comes from a Custom connection")
+)
 
 // maxFrom bounds how far values written from others go: a URL from a password from
 // another environment is two deep.
@@ -279,8 +283,15 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 			return "", errors.New("a value from a connection names none")
 		}
 		if tr != nil {
-			tr.connection = src.Connection.GetName()
-			return "", errFromConnection
+			switch {
+			case src.Connection.GetCustomField() != "":
+				return "", errFromCustom
+			case tr.allowConnections:
+				return "", nil
+			default:
+				tr.connection = src.Connection.GetName()
+				return "", errFromConnection
+			}
 		}
 		part := src.Connection.GetPart()
 		if variable.ReadsLink(part) {
@@ -307,14 +318,14 @@ func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind
 				return l.GetPrefix(), nil
 			}
 		}
-		return k.connectionPart(ctx, tx, uses[0], part)
+		return k.connectionPart(ctx, tx, uses[0], part, src.Connection.GetCustomField())
 	}
 	return "", errors.New("a value says it comes from somewhere, and not where")
 }
 
 // connectionPart is one part of a connection's values, read at the revision a value
 // pins, opened as every sealed spec is (ADR 0099).
-func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Use, part resourcev1.LinkPart) (string, error) {
+func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Use, part resourcev1.LinkPart, custom string) (string, error) {
 	r, err := tx.GetResource(ctx, string(u.Kind), u.Scope, u.Name)
 	if errors.Is(err, store.ErrNotFound) {
 		return "", fmt.Errorf("there's no connection %s for %s", u.Name, u.As)
@@ -339,6 +350,16 @@ func (k *Keeper) connectionPart(ctx context.Context, tx *store.Tx, u resource.Us
 	c, ok := spec.(*resourcev1.ConnectionSpec)
 	if !ok {
 		return "", fmt.Errorf("%s isn't a connection", u.Name)
+	}
+	if custom != "" {
+		field := connection.CustomField(c, custom)
+		if field == nil {
+			return "", fmt.Errorf("the connection %s has no field %s", u.Name, custom)
+		}
+		if connection.CustomSecret(field) {
+			return field.GetSecretValue(), nil
+		}
+		return field.GetValue(), nil
 	}
 	value, _, ok := connection.Part(c, part)
 	if !ok {
@@ -415,11 +436,13 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, co
 		if err != nil {
 			return err
 		}
-		if !connections {
-			var tr trace
-			if _, err := k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0, &tr); errors.Is(err, errFromConnection) {
-				return fault.New(ErrConnectionKey, "%s reads its value from the connection %s, so only an admin reveals it. Ask an admin of the install", r.Name, tr.connection)
-			}
+		tr := trace{allowConnections: connections}
+		_, err = k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0, &tr)
+		switch {
+		case errors.Is(err, errFromCustom):
+			return fault.New(ErrConnectionKey, "this secret is supplied by a Custom connection and can only be used by its app")
+		case errors.Is(err, errFromConnection):
+			return fault.New(ErrConnectionKey, "%s reads its value from the connection %s, so only an admin reveals it. Ask an admin of the install", r.Name, tr.connection)
 		}
 		if err := confirm(tx); err != nil {
 			return err

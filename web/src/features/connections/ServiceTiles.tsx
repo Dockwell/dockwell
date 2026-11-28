@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { cx } from "@dockwell/ui";
+import { BrandMark, cx } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
@@ -19,12 +19,14 @@ export type ConnectionKindPick = "storage" | "mail";
 export function ServiceTiles({
   picked,
   onPick,
+  onCustom,
   only,
   disabled,
   pressed = true,
 }: {
   picked?: ProviderId | MailProviderId | undefined;
   onPick: (id: ProviderId | MailProviderId) => void;
+  onCustom?: (() => void) | undefined;
   only?: ConnectionKindPick | undefined;
   disabled?: boolean;
   /** Tiles say which is picked, as in a form; on a page they only start one. */
@@ -83,6 +85,14 @@ export function ServiceTiles({
           </div>
         </fieldset>
       ))}
+      {onCustom ? (
+        <div className="connection-store-grid">
+          <button type="button" className="connection-store" onClick={onCustom}>
+            <BrandMark icon="link" />
+            <span className="connection-store-name">{t`Custom`}</span>
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

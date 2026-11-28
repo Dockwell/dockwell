@@ -312,7 +312,10 @@ var proposers = map[string]bool{
 	"dockwell.v1.DatabaseService.BoundClickHouseLogs":       true,
 	"dockwell.v1.DatabaseService.ConnectDatabase":           true,
 	"dockwell.v1.DatabaseService.SetDatabaseExternalAccess": true,
+	"dockwell.v1.ConnectionService.ConnectCustom":           true,
 	"dockwell.v1.ConnectionService.ConnectStorage":          true,
+	"dockwell.v1.ConnectionService.CreateCustomConnection":  true,
+	"dockwell.v1.ConnectionService.DisconnectCustom":        true,
 	"dockwell.v1.ConnectionService.DisconnectStorage":       true,
 }
 

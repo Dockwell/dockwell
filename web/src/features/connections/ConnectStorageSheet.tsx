@@ -7,6 +7,7 @@ import {
   type ConnectionInfo,
   ConnectionReach,
   ConnectionService,
+  LinkKind,
   LinkPart,
   type ServiceInfo,
 } from "@dockwell/api";
@@ -131,7 +132,9 @@ export function ConnectStorageSheet({
   const usable =
     dests.isPending && !dests.error
       ? []
-      : (listed.data?.connections ?? []).filter((c) => destinationsOn(c.name, backupDestinations).length === 0);
+      : (listed.data?.connections ?? []).filter(
+          (c) => c.kind === LinkKind.S3 && destinationsOn(c.name, backupDestinations).length === 0,
+        );
   const [pickedConnection, setPickedConnection] = useState<string>();
   const connection = fixedConnection ?? usable.find((c) => c.name === pickedConnection) ?? usable[0];
   // A connection serves one app unless it's shared, as the server holds (ADR 0099).

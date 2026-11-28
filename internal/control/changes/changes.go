@@ -2092,7 +2092,7 @@ func needStoragesProto(needs []revision.NeedStorage) []*dockwellv1.NeedStorage {
 func linkSetsProto(sets []revision.LinkSetWords) []*resourcev1.LinkSet {
 	out := make([]*resourcev1.LinkSet, 0, len(sets))
 	for _, s := range sets {
-		out = append(out, &resourcev1.LinkSet{Name: s.Name, Part: s.Part, Template: s.Template, TlsOn: s.TLSOn, TlsOff: s.TLSOff})
+		out = append(out, &resourcev1.LinkSet{Name: s.Name, Part: s.Part, Template: s.Template, TlsOn: s.TLSOn, TlsOff: s.TLSOff, CustomField: s.CustomField, CustomEnv: s.CustomEnv, CustomSecret: s.CustomSecret})
 	}
 	return out
 }
@@ -2102,7 +2102,7 @@ func connectionReadProto(r *revision.ConnectionRead) *dockwellv1.ConnectionRead 
 	if r == nil {
 		return nil
 	}
-	return &dockwellv1.ConnectionRead{Connection: r.Connection, ConnectionLabel: r.Label, Part: r.Part, Link: r.Link}
+	return &dockwellv1.ConnectionRead{Connection: r.Connection, ConnectionLabel: r.Label, Part: r.Part, Link: r.Link, CustomField: r.CustomField}
 }
 
 var intentKinds = map[string]dockwellv1.IntentKind{

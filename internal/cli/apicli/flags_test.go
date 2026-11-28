@@ -531,3 +531,20 @@ func TestTookIsTheChangesOwnTime(t *testing.T) {
 		t.Errorf("a change with no step times that this CLI applied took %s, %v; want the 2s it waited", d, ok)
 	}
 }
+
+func TestCustomConnectionSecretValuesComeFromFilesOrStdin(t *testing.T) {
+	secret := `{"name":"api_key","type":"CONNECTION_CUSTOM_TYPE_SECRET","secretValue":"local-secret-example"}`
+	fields := []Field{{Path: "custom"}}
+	for _, flag := range []string{`{"fields":[` + secret + `]}`, "-"} {
+		env := &Env{In: strings.NewReader(`{"fields":[` + secret + `]}`)}
+		var req dockwellv1.CreateCustomConnectionRequest
+		err := parse(t, env, &req, fields, "--custom", flag)
+		if flag == "-" {
+			if err != nil || req.GetCustom().GetFields()[0].GetSecretValue() != "local-secret-example" {
+				t.Errorf("reading the Custom field from stdin: %v", err)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), "pass --custom @file") || strings.Contains(err.Error(), "local-secret-example") {
+			t.Errorf("inline Custom fields should direct the caller to a file without echoing the secret: %v", err)
+		}
+	}
+}

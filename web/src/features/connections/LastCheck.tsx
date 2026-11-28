@@ -87,7 +87,11 @@ export function LastCheckCell({ connection }: { connection: ConnectionInfo }) {
   const { t } = useLingui();
   const last = useLastCheck(connection);
   if (!last) {
-    return <span className="connections-meta">{t`Not checked yet`}</span>;
+    return (
+      <span className="connections-meta">
+        {connection.kind === LinkKind.CUSTOM && !connection.custom?.hasCheck ? t`No check` : t`Not checked yet`}
+      </span>
+    );
   }
   return (
     <div className="dw-cell">

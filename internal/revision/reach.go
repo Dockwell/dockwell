@@ -221,6 +221,9 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 	switch s := it.spec.(type) {
 	case *resourcev1.Link:
 		if s.GetConnection() != "" {
+			if s.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+				return e.checkCustomLink(ctx, tx, items, it, s)
+			}
 			if err := e.checkConnectionReached(ctx, tx, items, it, s.GetConnection()); err != nil {
 				return err
 			}
@@ -378,7 +381,8 @@ func (e *Engine) checkConnectionReached(ctx context.Context, tx *store.Tx, items
 	if err != nil {
 		return err
 	}
-	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) {
+	if c, ok := spec.(*resourcev1.ConnectionSpec); !ok || !connection.Reaches(c, projectOfScope(ctx, tx, items, it.ref.Scope)) ||
+		(linkOf(it.spec) != nil && (c.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM) != (linkOf(it.spec).GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM)) {
 		return connectionUnusable(it, name)
 	}
 	return nil
@@ -420,6 +424,11 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 		}
 		// Each app was told the connection's security in its own words, which a
 		// link writes once, so it can't change under them.
+		if l.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+			if err := checkCustomFields(l.Link, after); err != nil {
+				return err
+			}
+		}
 		if before, _ := it.current.(*resourcev1.ConnectionSpec); writesSecurity(l.Link) &&
 			connection.Security(before.GetSmtp()) != connection.Security(after.GetSmtp()) {
 			return fault.New(ErrInvalid, "link %s in %s tells its app how the connection %s is secured, in the app's own words, so its security stays while the link uses it. Disconnect it on the connection's page first, or add a connection with the new security",
@@ -2168,6 +2177,13 @@ func (e *Engine) checkConnectionValue(ctx context.Context, tx *store.Tx, items [
 		return fault.New(ErrInvalid, "%s %s takes its value from a connection, which only a link writes, and its environment has no link %s", it.ref.Kind, it.ref.Name, ref.GetLink())
 	case l.GetConnection() != ref.GetName():
 		return fault.New(ErrInvalid, "%s %s reads the connection %s through link %s, which names %s", it.ref.Kind, it.ref.Name, ref.GetName(), ref.GetLink(), cmp.Or(l.GetConnection(), "none"))
+	case ref.GetCustomField() != "" || l.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM:
+		if l.GetKind() != resourcev1.LinkKind_LINK_KIND_CUSTOM || !slices.ContainsFunc(l.GetSets(), func(set *resourcev1.LinkSet) bool {
+			return set.GetName() == it.ref.Name && set.GetCustomField() == ref.GetCustomField() &&
+				link.SecretIn(l, set) == (it.ref.Kind == variable.SecretKind)
+		}) {
+			return fault.New(ErrInvalid, "%s is not a field mapping owned by link %s", it.ref.Name, ref.GetLink())
+		}
 	case ref.GetPart() == resourcev1.LinkPart_LINK_PART_KEY_PREFIX && !recordsPrefix(l, it.ref.Name):
 		return fault.New(ErrInvalid, "%s %s reads the prefix of link %s, and the link doesn't name %s as the setting that tells its app the prefix. Name it on the link",
 			it.ref.Kind, it.ref.Name, ref.GetLink(), it.ref.Name)

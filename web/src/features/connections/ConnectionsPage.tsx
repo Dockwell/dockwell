@@ -67,11 +67,13 @@ type ListRow =
 
 /** The list's place, in its URL: its filter, its sort and its page. */
 export interface ConnectionsSearch extends ListSearch {
-  kind?: "mail" | "storage" | "destination";
+  kind?: "mail" | "storage" | "destination" | "custom";
 }
 
 function rowKind(row: ListRow): NonNullable<ConnectionsSearch["kind"]> {
-  return row.kind === "destination" ? "destination" : row.connection.kind === LinkKind.SMTP ? "mail" : "storage";
+  if (row.kind === "destination") return "destination";
+  if (row.connection.kind === LinkKind.SMTP) return "mail";
+  return row.connection.kind === LinkKind.CUSTOM ? "custom" : "storage";
 }
 
 /** The columns the list sorts by, as its address names them. */
@@ -123,7 +125,7 @@ export function ConnectionsPage({
   const standaloneDests = destinations.filter((d) => d.connection === "" && !d.sftp);
   const totalRows = connections.length + standaloneDests.length;
   const [editing, setEditing] = useState<ConnectionInfo>();
-  const [adding, setAdding] = useState<ProviderId | MailProviderId | "">();
+  const [adding, setAdding] = useState<ProviderId | MailProviderId | "custom" | "">();
   const apps = new Set(connections.flatMap((c) => appsOf(c).map((a) => a.id))).size;
   const linkedBackupDests = destinations.filter(
     (d) => d.connection !== "" && connections.some((c) => c.name === d.connection),
@@ -190,7 +192,12 @@ export function ConnectionsPage({
   const page = pagedRows(shown, place.page);
   const kinds = new Set(rows.map(rowKind));
   const kindLabel = (kind: NonNullable<ConnectionsSearch["kind"]>) =>
-    kind === "mail" ? t`Mail` : kind === "storage" ? t`Object storage` : t`Backup destination`;
+    ({
+      mail: t`Mail`,
+      storage: t`Object storage`,
+      custom: t`Custom`,
+      destination: t`Backup destination`,
+    })[kind];
   const openRow = (row: ListRow) => {
     if (row.kind === "connection") {
       void navigate({ to: "/connections/$name", params: { name: row.connection.name } });
@@ -317,7 +324,10 @@ export function ConnectionsPage({
                 onSearch?.({
                   ...search,
                   page: undefined,
-                  kind: value === "mail" || value === "storage" || value === "destination" ? value : undefined,
+                  kind:
+                    value === "mail" || value === "storage" || value === "destination" || value === "custom"
+                      ? value
+                      : undefined,
                 });
               }}
             />
@@ -350,15 +360,15 @@ export function ConnectionsPage({
           choices={
             mayAdd.allowed ? (
               <div className="connections-tiles">
-                <ServiceTiles onPick={(id) => setAdding(id)} pressed={false} />
+                <ServiceTiles onPick={(id) => setAdding(id)} onCustom={() => setAdding("custom")} pressed={false} />
               </div>
             ) : undefined
           }
         >
           {mayAdd.allowed ? (
-            <Trans>A bucket's keys or a mail server's sign-in, pasted once, for any app to use</Trans>
+            <Trans>Save values once and reuse them in your apps.</Trans>
           ) : (
-            <Trans>An admin adds the buckets and mail servers your apps may use.</Trans>
+            <Trans>An admin adds the connections your apps may use.</Trans>
           )}
         </EmptyState>
       ) : shown.length === 0 && !query.error ? (
@@ -456,6 +466,7 @@ export function ConnectionsPage({
           onSaved={(name) => void navigate({ to: "/connections/$name", params: { name } })}
           existing={connections}
           start={adding || undefined}
+          showCustom
         />
       ) : null}
     </Page>
@@ -618,7 +629,7 @@ function ConnectionsTable({
 
 /** Whether the caller sees where a connection is, as an admin does. */
 export function seesWhere(c: ConnectionInfo): boolean {
-  return c.endpoint !== "" || c.host !== "";
+  return c.endpoint !== "" || c.host !== "" || (c.kind === LinkKind.CUSTOM && c.revision > 0n);
 }
 
 /**
@@ -626,6 +637,7 @@ export function seesWhere(c: ConnectionInfo): boolean {
  * A mail server's is its service, or its host, and who mail comes from.
  */
 export function where(c: ConnectionInfo): string {
+  if (c.kind === LinkKind.CUSTOM) return c.displayName;
   if (c.kind === LinkKind.SMTP) {
     const p = c.host ? mailProvider(mailPlaceOf(c.host).provider) : undefined;
     return [p?.name || c.host, c.sender].filter(Boolean).join(" · ");

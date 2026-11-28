@@ -78,6 +78,12 @@ func checkFrom(what string, from *resourcev1.ValueFrom, value string, secret boo
 		case ref.GetName() == "":
 			return fmt.Errorf("a %s's value from a connection names none", what)
 		}
+		if ref.GetCustomField() != "" {
+			if ref.GetPart() != resourcev1.LinkPart_LINK_PART_UNSPECIFIED {
+				return errors.New("a value from a Custom connection names one field")
+			}
+			return nil
+		}
 		key, ok := connectionParts[ref.GetPart()]
 		switch {
 		case !ok:

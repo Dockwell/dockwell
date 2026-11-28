@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -85,17 +86,25 @@ func (Type) Validate(spec proto.Message) error {
 		return errors.New("a connection to a mail server needs its host, such as smtp.example.com")
 	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && c.GetS3() != nil:
 		return errors.New("a connection to a mail server holds no bucket. Leave s3 out")
-	case c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 && c.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP:
-		return errors.New("a connection reaches S3 storage or a mail server. Set its kind to LINK_KIND_S3 or LINK_KIND_SMTP")
+	case c.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM && (c.GetS3() != nil || c.GetSmtp() != nil):
+		return errors.New("a Custom connection holds named fields. Leave s3 and smtp out")
+	case c.GetKind() != resourcev1.LinkKind_LINK_KIND_CUSTOM && c.GetCustom() != nil:
+		return errors.New("only a Custom connection holds named fields. Choose the connection's kind")
+	case c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 && c.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP && c.GetKind() != resourcev1.LinkKind_LINK_KIND_CUSTOM:
+		return errors.New("a connection reaches S3 storage or a mail server, or holds Custom fields. Choose its kind")
 	}
 	c.DisplayName = name
 	if err := checkReach(c); err != nil {
 		return err
 	}
-	if c.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+	switch c.GetKind() {
+	case resourcev1.LinkKind_LINK_KIND_SMTP:
 		return checkSMTP(c.GetSmtp())
+	case resourcev1.LinkKind_LINK_KIND_CUSTOM:
+		return validateCustom(c.GetCustom())
+	default:
+		return checkS3(c.GetS3())
 	}
-	return checkS3(c.GetS3())
 }
 
 // checkReach refuses projects named where none are read, and a reach to named
@@ -156,6 +165,9 @@ func checkS3(s *resourcev1.ConnectionS3) error {
 // Validate can't.
 func (Type) CheckNew(spec proto.Message) error {
 	c := spec.(*resourcev1.ConnectionSpec) //nolint:forcetypeassert // Validate saw it
+	if c.GetKind() == resourcev1.LinkKind_LINK_KIND_CUSTOM {
+		return nil
+	}
 	if m := c.GetSmtp(); m != nil {
 		if m.GetUser() != "" && m.GetPassword() == "" {
 			return errors.New("a connection to a mail server that signs in needs the user's password")
@@ -181,6 +193,9 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 	is, same := desired.(*resourcev1.ConnectionSpec)
 	if !ok || !same {
 		return resource.Kept{}, nil
+	}
+	if was.GetCustom() != nil && is.GetCustom() != nil {
+		return keepCustom(was, is), nil
 	}
 	if was.GetSmtp() != nil && is.GetSmtp() != nil {
 		return keepSMTP(was.GetSmtp(), is.GetSmtp())
@@ -218,7 +233,8 @@ func (Type) Keep(current, desired proto.Message) (resource.Kept, error) {
 func (Type) ChangesWhatsRead(current, spec proto.Message) bool {
 	was, ok := current.(*resourcev1.ConnectionSpec)
 	is, same := spec.(*resourcev1.ConnectionSpec)
-	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3()) || !proto.Equal(was.GetSmtp(), is.GetSmtp())
+	return !ok || !same || was.GetKind() != is.GetKind() || !proto.Equal(was.GetS3(), is.GetS3()) || !proto.Equal(was.GetSmtp(), is.GetSmtp()) ||
+		!slices.EqualFunc(was.GetCustom().GetFields(), is.GetCustom().GetFields(), func(a, b *resourcev1.ConnectionCustomField) bool { return proto.Equal(a, b) })
 }
 
 // StampSaver records whether an install admin chose where the connection goes,
@@ -231,7 +247,8 @@ func (Type) StampSaver(current, spec proto.Message, installAdmin bool) {
 	if !ok {
 		return
 	}
-	if was, ok := current.(*resourcev1.ConnectionSpec); ok && !movesAddress(was.GetS3(), c.GetS3()) && !movesServer(was.GetSmtp(), c.GetSmtp()) {
+	if was, ok := current.(*resourcev1.ConnectionSpec); ok && !movesAddress(was.GetS3(), c.GetS3()) && !movesServer(was.GetSmtp(), c.GetSmtp()) &&
+		proto.Equal(was.GetCustom().GetCheck(), c.GetCustom().GetCheck()) {
 		c.SavedBelowAdmin = was.GetSavedBelowAdmin()
 		return
 	}

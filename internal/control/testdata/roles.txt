@@ -121,7 +121,10 @@ ComposeService.PlanComposeWorkspace                  plan         admin      adm
 ComposeService.PlanFromComposeTemplate               plan         developer  developer  project
 ComposeService.PrepareComposeTemplate                plan         developer  developer  project
 ConnectionService.CheckConnection                    read         admin      admin      install  session
+ConnectionService.ConnectCustom                      plan         developer  developer  project
 ConnectionService.ConnectStorage                     plan         developer  developer  project
+ConnectionService.CreateCustomConnection             plan         admin      admin      install
+ConnectionService.DisconnectCustom                   plan         developer  developer  project
 ConnectionService.DisconnectStorage                  plan         developer  developer  project
 ConnectionService.ListConnections                    read         viewer     viewer     named
 ContainerService.AdoptContainer                      plan         admin      admin      install  session

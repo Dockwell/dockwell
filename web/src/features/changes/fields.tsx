@@ -477,6 +477,10 @@ export function useFieldRows(): FieldRows {
     ) => {
       const reads = (set: LinkSet, from?: LinkStorage): string => {
         const where = from ? from.connectionLabel || from.connection : "";
+        if (set.customField) {
+          const field = set.customField;
+          return t`reads ${field}`;
+        }
         if (set.part === LinkPart.UNSPECIFIED) {
           return where
             ? t`reads from ${where}`
@@ -488,19 +492,23 @@ export function useFieldRows(): FieldRows {
       const out: PlanChange[] = [];
       for (const { was, now } of pairSets(setsBefore, sets)) {
         const path = `sets.${now?.name || was?.name}`;
-        if (now && !was) out.push({ path, label: now.name, to: reads(now, after) });
-        else if (was && !now) out.push({ path, label: was.name, from: reads(was, before) });
-        else if (now && was && (now.name !== was.name || now.part !== was.part)) {
+        const name = now?.customEnv || was?.customEnv || now?.name || was?.name || "";
+        if (now && !was) out.push({ path, label: name, to: reads(now, after) });
+        else if (was && !now) out.push({ path, label: name, from: reads(was, before) });
+        else if (
+          now &&
+          was &&
+          (now.name !== was.name || now.part !== was.part || now.customField !== was.customField)
+        ) {
           const reading = reads(now, after);
-          const wasPart = partOf(was.part);
+          const wasPart = was.customField || partOf(was.part);
           const wasName = was.name;
           // A part change reads as one (the slice 3 review, L1).
           const to =
             now.name === was.name ? t`${reading}, in place of ${wasPart}` : t`${reading}, in place of ${wasName}`;
-          out.push({ path, label: now.name, to, tone: "change" });
+          out.push({ path, label: name, to, tone: "change" });
         }
         // A URL's template, and its words for TLS, say whose they are.
-        const name = now?.name || was?.name || "";
         for (const [key, label] of [
           ["template", t`${name}'s template`],
           ["tlsOn", t`${name} with TLS`],
@@ -521,7 +529,7 @@ export function useFieldRows(): FieldRows {
     /** What a value reads from a connection, as one row in place of its from.connection fields. */
     const readsRow = (after?: ConnectionRead, before?: ConnectionRead): PlanChange | undefined => {
       const words = (r: ConnectionRead, other?: ConnectionRead) => {
-        const what = partOf(r.part);
+        const what = r.customField || partOf(r.part);
         const where = nameOf(r, other);
         return t`${what} from ${where}`;
       };
@@ -531,6 +539,7 @@ export function useFieldRows(): FieldRows {
         before &&
         after.connection === before.connection &&
         after.part === before.part &&
+        after.customField === before.customField &&
         after.link === before.link
       ) {
         return undefined;
@@ -544,8 +553,8 @@ export function useFieldRows(): FieldRows {
         // Say what differs: the part, the connection, or both (the slice 3 review, L1).
         const was =
           after.connection === before.connection
-            ? partOf(before.part)
-            : after.part === before.part
+            ? before.customField || partOf(before.part)
+            : after.part === before.part && after.customField === before.customField
               ? nameOf(before, after)
               : words(before, after);
         return { ...row, to: t`${now}, in place of ${was}`, tone: "change" };

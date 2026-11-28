@@ -69,6 +69,7 @@ export function MailConnectionSheet({
   rotateForAlerts,
   only,
   onPickStore,
+  onCustom,
 }: {
   onClose: () => void;
   onSaved?: (name: string) => void;
@@ -85,6 +86,7 @@ export function MailConnectionSheet({
   only?: "mail" | undefined;
   /** Picking a storage tile goes back to storage's form. */
   onPickStore: (id: ProviderId) => void;
+  onCustom?: (() => void) | undefined;
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
@@ -389,7 +391,13 @@ export function MailConnectionSheet({
       }
     >
       <div className="connection-sheet">
-        <ServiceTiles picked={service} onPick={pick} only={editing ? "mail" : only} disabled={editing !== undefined} />
+        <ServiceTiles
+          onCustom={onCustom}
+          picked={service}
+          onPick={pick}
+          only={editing ? "mail" : only}
+          disabled={editing !== undefined}
+        />
         {p.regions.length > 0 ? (
           <SelectField
             label={t`Region`}

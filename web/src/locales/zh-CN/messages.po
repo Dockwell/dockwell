@@ -3264,6 +3264,9 @@ msgstr "添加"
 msgid "Add a variable"
 msgstr "添加变量"
 
+msgid "Add from a connection"
+msgstr "从连接添加"
+
 msgid "Add {key} to {name}"
 msgstr "把 {key} 添加到 {name}"
 
@@ -12895,6 +12898,9 @@ msgstr "读取"
 msgid "reads from {where}"
 msgstr "从 {where} 读取"
 
+msgid "reads {field}"
+msgstr "读取 {field}"
+
 msgid "reads {what}"
 msgstr "读取{what}"
 
@@ -14895,6 +14901,22 @@ msgstr "{where} 不再重定向到 {to}，改为发送到 {sendsTo}。"
 msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 msgstr "{where} 不再发送到 {leaves}，改为{how}重定向到 {to}，{path}。"
 
+msgctxt "choose a saved connection"
+msgid "Connection"
+msgstr "连接"
+
+msgid "Dockwell can't read its connections"
+msgstr "Dockwell 无法读取其连接"
+
+msgid "Loading connections"
+msgstr "正在加载连接"
+
+msgid "No Custom connections available"
+msgstr "没有可用的自定义连接"
+
+msgid "Use a different name for each environment variable"
+msgstr "请为每个环境变量使用不同的名称"
+
 msgid "A bucket's keys, pasted once."
 msgstr "存储桶的密钥，粘贴一次即可。"
 
@@ -15009,9 +15031,6 @@ msgstr "断开"
 msgid "Disconnect {link}"
 msgstr "断开 {link}"
 
-msgid "Dockwell can't read its connections"
-msgstr "Dockwell 无法读取其连接"
-
 msgid "Each keeps its files under a prefix of its own"
 msgstr "每个应用把文件放在各自的前缀下"
 
@@ -15020,6 +15039,12 @@ msgstr "每个应用都可用服务器接受的任意发件人发信"
 
 msgid "Every project"
 msgstr "所有项目"
+
+msgid "Fields"
+msgstr "字段"
+
+msgid "HTTPS GET"
+msgstr "HTTPS GET"
 
 msgid "It serves an app already, and isn't shared"
 msgstr "它已在为一个应用服务，且未共享"
@@ -15078,6 +15103,12 @@ msgstr "更换密码"
 msgid "Sealed, never shown"
 msgstr "已加密，从不显示"
 
+msgid "Secret is set"
+msgstr "已设置密钥"
+
+msgid "Secret is unset"
+msgstr "未设置密钥"
+
 msgid "See every connection"
 msgstr "查看所有连接"
 
@@ -15098,6 +15129,9 @@ msgstr "登录"
 
 msgid "Stop sharing the connection {label}"
 msgstr "停止共享连接 {label}"
+
+msgid "TCP connection"
+msgstr "TCP 连接"
 
 msgid "TLS from the start"
 msgstr "一开始就用 TLS"
@@ -15251,17 +15285,17 @@ msgstr "{app} 的项目（安装后）"
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, other {有 # 个链接使用它。请先在“使用者”中断开。}}"
 
-msgid "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
-msgstr "存储桶的密钥或邮件服务器的登录信息，粘贴一次，任何应用都可使用"
-
 msgid "Add connection"
 msgstr "添加连接"
 
-msgid "An admin adds the buckets and mail servers your apps may use."
-msgstr "管理员会添加你的应用可用的存储桶和邮件服务器。"
+msgid "An admin adds the connections your apps may use."
+msgstr "管理员可以添加供你的应用使用的连接。"
 
 msgid "Backups only"
 msgstr "仅用于备份"
+
+msgid "Custom"
+msgstr "自定义"
 
 msgid "Every type"
 msgstr "所有类型"
@@ -15274,9 +15308,6 @@ msgstr "筛选连接"
 
 msgid "Last check"
 msgstr "上次检查"
-
-msgid "Loading connections"
-msgstr "正在加载连接"
 
 msgid "Mail"
 msgstr "邮件"
@@ -15293,6 +15324,9 @@ msgstr "尚无连接"
 
 msgid "Object storage"
 msgstr "对象存储"
+
+msgid "Save values once and reuse them in your apps."
+msgstr "保存一次，即可在应用中重复使用这些值。"
 
 msgid "Show fewer"
 msgstr "收起"
@@ -15359,6 +15393,91 @@ msgstr "{linkedBackupDests, plural, other {被 # 个备份目标使用}}"
 msgid "{shown} and {extra} more"
 msgstr "{shown} 以及另外 {extra} 个"
 
+msgid "API key"
+msgstr "API 密钥"
+
+msgid "Add a Custom connection"
+msgstr "添加自定义连接"
+
+msgid "Add field"
+msgstr "添加字段"
+
+msgid "Allow multiple apps"
+msgstr "允许多个应用使用"
+
+msgid "Clear secret"
+msgstr "清除密钥"
+
+msgid "Connection {name}"
+msgstr "连接 {name}"
+
+msgid "Database URL"
+msgstr "数据库 URL"
+
+msgid "Empty form"
+msgstr "空白表单"
+
+msgid "Field type"
+msgstr "字段类型"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} name"
+msgstr "字段 {0} 的名称"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} type"
+msgstr "字段 {0} 的类型"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} value"
+msgstr "字段 {0} 的值"
+
+msgid "HTTPS URL"
+msgstr "HTTPS URL"
+
+msgid "Initials"
+msgstr "简称"
+
+msgid "Keep secret"
+msgstr "保留密钥"
+
+msgid "No check"
+msgstr "不检查"
+
+msgid "No projects"
+msgstr "无项目"
+
+msgid "Number"
+msgstr "数字"
+
+#. placeholder {0}: i + 1
+msgid "Remove field {0}"
+msgstr "移除字段 {0}"
+
+msgid "Run check"
+msgstr "运行检查"
+
+msgid "SMTP-like service"
+msgstr "类似 SMTP 的服务"
+
+msgid "Selected projects"
+msgstr "选定的项目"
+
+msgid "Start with"
+msgstr "起始模板"
+
+msgid "TCP host"
+msgstr "TCP 主机"
+
+msgid "TCP port"
+msgstr "TCP 端口"
+
+msgid "Text"
+msgstr "文本"
+
+msgid "Who may use it"
+msgstr "可使用的项目"
+
 msgid "Fails from {server}"
 msgstr "从 {server} 检查失败"
 
@@ -15368,9 +15487,6 @@ msgstr "通过"
 
 msgid "A mail server, for apps to send mail through"
 msgstr "供应用发送邮件的邮件服务器"
-
-msgid "API key"
-msgstr "API 密钥"
 
 msgid "An email address alone, such as notes@example.com"
 msgstr "只填一个邮箱地址，例如 notes@example.com"
@@ -15492,6 +15608,9 @@ msgstr "无法连到端口 {port}"
 msgid "Can't sign in"
 msgstr "不可登录"
 
+msgid "Check failed"
+msgstr "验证失败"
+
 msgid "Check the access key ID and its secret."
 msgstr "请检查访问密钥 ID 和对应的秘密。"
 
@@ -15518,6 +15637,9 @@ msgstr "从 {server} 检查。"
 
 msgid "Clear the user, or use a server that signs one in."
 msgstr "清空用户名，或换一个支持登录的服务器。"
+
+msgid "Dockwell refused the address. Use an address the selected server may reach."
+msgstr "Dockwell 拒绝访问该地址。请使用所选服务器能够访问的地址。"
 
 msgid "From {server}, it wrote, read and deleted a test object."
 msgstr "从 {server} 写入、读取并删除了一个测试对象。"
@@ -15585,6 +15707,10 @@ msgstr "没有问候响应"
 msgid "No such bucket"
 msgstr "没有这个存储桶"
 
+msgctxt "a Custom connection check"
+msgid "Reached"
+msgstr "已连接"
+
 msgid "Server answers"
 msgstr "服务器有响应"
 
@@ -15604,6 +15730,12 @@ msgstr "TLS"
 msgid "TLS never finished"
 msgstr "TLS 未完成"
 
+msgid "The HTTPS target returned HTTP {status}. Use a URL that returns a successful response."
+msgstr "HTTPS 目标返回了 HTTP {status}。请使用能返回成功响应的 URL。"
+
+msgid "The TLS certificate failed verification. Check the URL and its certificate."
+msgstr "TLS 证书验证失败。请检查 URL 及其证书。"
+
 msgid "The agent on {server} can't run the scheduled check. Update it from the server's page."
 msgstr "{server} 上的代理无法运行定时检查。请在该服务器的页面上更新它。"
 
@@ -15613,6 +15745,12 @@ msgstr "存储桶返回的内容与写入的不同。"
 #. placeholder {0}: code || String(c.status)
 msgid "The bucket refused the check with {0}."
 msgstr "存储桶以 {0} 拒绝了检查。"
+
+msgid "The check couldn't reach its target. Check the address and try again."
+msgstr "检查无法访问目标。请核对地址后重试。"
+
+msgid "The check reached its target."
+msgstr "检查已成功访问目标。"
 
 msgid "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
 msgstr "这些密钥不能列出存储桶内容，也不能从中读取。“检查”会写入一个测试对象来确认它们。"
@@ -17152,9 +17290,6 @@ msgstr "等待上传"
 
 msgid "Build context"
 msgstr "构建上下文"
-
-msgid "Check failed"
-msgstr "验证失败"
 
 msgid "Image export"
 msgstr "镜像导出"
@@ -28432,9 +28567,6 @@ msgstr "Caddy 拒绝了此配置"
 
 msgid "Cap requests per minute from each visitor address, returning 429 above the limit."
 msgstr "限制每个访客地址每分钟的请求数，超出时返回 429。"
-
-msgid "Custom"
-msgstr "自定义"
 
 msgid "Custom Caddy directives"
 msgstr "自定义 Caddy 指令"

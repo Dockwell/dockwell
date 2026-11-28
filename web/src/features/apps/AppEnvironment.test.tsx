@@ -350,7 +350,7 @@ describe("editing an app's environment", () => {
     expect(within(changing).getByRole("button", { name: "Change" })).toBeEnabled();
   });
 
-  it("stacks each on a phone with its actions one menu, the header's three in another, and keeps the bar's buttons in reach (#795)", async () => {
+  it("stacks each on a phone with its actions one menu, the header actions in another, and keeps the bar's buttons in reach (#795)", async () => {
     onPhone();
     const user = userEvent.setup();
     const { container } = renderAt("/apps/svc_web/environment", api(anEditedApp()));
@@ -383,7 +383,7 @@ describe("editing an app's environment", () => {
       within(ways)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Import .env", "Connect a database", "Connect storage"]);
+    ).toEqual(["Import .env", "Connect a database", "Add from a connection", "Connect storage"]);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
     expect(screen.getByRole("button", { name: "Import or connect" })).toHaveFocus();

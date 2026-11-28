@@ -3264,6 +3264,9 @@ msgstr "Add"
 msgid "Add a variable"
 msgstr "Add a variable"
 
+msgid "Add from a connection"
+msgstr "Add from a connection"
+
 msgid "Add {key} to {name}"
 msgstr "Add {key} to {name}"
 
@@ -12895,6 +12898,9 @@ msgstr "reads"
 msgid "reads from {where}"
 msgstr "reads from {where}"
 
+msgid "reads {field}"
+msgstr "reads {field}"
+
 msgid "reads {what}"
 msgstr "reads {what}"
 
@@ -14895,6 +14901,22 @@ msgstr "{where} stops redirecting to {to}, and sends to {sendsTo}."
 msgid "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 msgstr "{where} stops sending to {leaves}, and redirects to {to}, {how}, {path}."
 
+msgctxt "choose a saved connection"
+msgid "Connection"
+msgstr "Connection"
+
+msgid "Dockwell can't read its connections"
+msgstr "Dockwell can't read its connections"
+
+msgid "Loading connections"
+msgstr "Loading connections"
+
+msgid "No Custom connections available"
+msgstr "No Custom connections available"
+
+msgid "Use a different name for each environment variable"
+msgstr "Use a different name for each environment variable"
+
 msgid "A bucket's keys, pasted once."
 msgstr "A bucket's keys, pasted once."
 
@@ -15009,9 +15031,6 @@ msgstr "Disconnect"
 msgid "Disconnect {link}"
 msgstr "Disconnect {link}"
 
-msgid "Dockwell can't read its connections"
-msgstr "Dockwell can't read its connections"
-
 msgid "Each keeps its files under a prefix of its own"
 msgstr "Each keeps its files under a prefix of its own"
 
@@ -15020,6 +15039,12 @@ msgstr "Each sends as any sender the server takes"
 
 msgid "Every project"
 msgstr "Every project"
+
+msgid "Fields"
+msgstr "Fields"
+
+msgid "HTTPS GET"
+msgstr "HTTPS GET"
 
 msgid "It serves an app already, and isn't shared"
 msgstr "It serves an app already, and isn't shared"
@@ -15078,6 +15103,12 @@ msgstr "Replace password"
 msgid "Sealed, never shown"
 msgstr "Sealed, never shown"
 
+msgid "Secret is set"
+msgstr "Secret is set"
+
+msgid "Secret is unset"
+msgstr "Secret is unset"
+
 msgid "See every connection"
 msgstr "See every connection"
 
@@ -15098,6 +15129,9 @@ msgstr "Sign-in"
 
 msgid "Stop sharing the connection {label}"
 msgstr "Stop sharing the connection {label}"
+
+msgid "TCP connection"
+msgstr "TCP connection"
 
 msgid "TLS from the start"
 msgstr "TLS from the start"
@@ -15251,17 +15285,17 @@ msgstr "{app}'s project, once it's installed"
 msgid "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 msgstr "{links, plural, one {# link names it. Disconnect it under Used by first.} other {# links name it. Disconnect them under Used by first.}}"
 
-msgid "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
-msgstr "A bucket's keys or a mail server's sign-in, pasted once, for any app to use"
-
 msgid "Add connection"
 msgstr "Add connection"
 
-msgid "An admin adds the buckets and mail servers your apps may use."
-msgstr "An admin adds the buckets and mail servers your apps may use."
+msgid "An admin adds the connections your apps may use."
+msgstr "An admin adds the connections your apps may use."
 
 msgid "Backups only"
 msgstr "Backups only"
+
+msgid "Custom"
+msgstr "Custom"
 
 msgid "Every type"
 msgstr "Every type"
@@ -15274,9 +15308,6 @@ msgstr "Filter connections"
 
 msgid "Last check"
 msgstr "Last check"
-
-msgid "Loading connections"
-msgstr "Loading connections"
 
 msgid "Mail"
 msgstr "Mail"
@@ -15293,6 +15324,9 @@ msgstr "No connections yet"
 
 msgid "Object storage"
 msgstr "Object storage"
+
+msgid "Save values once and reuse them in your apps."
+msgstr "Save values once and reuse them in your apps."
 
 msgid "Show fewer"
 msgstr "Show fewer"
@@ -15359,6 +15393,91 @@ msgstr "{linkedBackupDests, plural, one {used by # backup destination} other {us
 msgid "{shown} and {extra} more"
 msgstr "{shown} and {extra} more"
 
+msgid "API key"
+msgstr "API key"
+
+msgid "Add a Custom connection"
+msgstr "Add a Custom connection"
+
+msgid "Add field"
+msgstr "Add field"
+
+msgid "Allow multiple apps"
+msgstr "Allow multiple apps"
+
+msgid "Clear secret"
+msgstr "Clear secret"
+
+msgid "Connection {name}"
+msgstr "Connection {name}"
+
+msgid "Database URL"
+msgstr "Database URL"
+
+msgid "Empty form"
+msgstr "Empty form"
+
+msgid "Field type"
+msgstr "Field type"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} name"
+msgstr "Field {0} name"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} type"
+msgstr "Field {0} type"
+
+#. placeholder {0}: i + 1
+msgid "Field {0} value"
+msgstr "Field {0} value"
+
+msgid "HTTPS URL"
+msgstr "HTTPS URL"
+
+msgid "Initials"
+msgstr "Initials"
+
+msgid "Keep secret"
+msgstr "Keep secret"
+
+msgid "No check"
+msgstr "No check"
+
+msgid "No projects"
+msgstr "No projects"
+
+msgid "Number"
+msgstr "Number"
+
+#. placeholder {0}: i + 1
+msgid "Remove field {0}"
+msgstr "Remove field {0}"
+
+msgid "Run check"
+msgstr "Run check"
+
+msgid "SMTP-like service"
+msgstr "SMTP-like service"
+
+msgid "Selected projects"
+msgstr "Selected projects"
+
+msgid "Start with"
+msgstr "Start with"
+
+msgid "TCP host"
+msgstr "TCP host"
+
+msgid "TCP port"
+msgstr "TCP port"
+
+msgid "Text"
+msgstr "Text"
+
+msgid "Who may use it"
+msgstr "Who may use it"
+
 msgid "Fails from {server}"
 msgstr "Fails from {server}"
 
@@ -15368,9 +15487,6 @@ msgstr "Passed"
 
 msgid "A mail server, for apps to send mail through"
 msgstr "A mail server, for apps to send mail through"
-
-msgid "API key"
-msgstr "API key"
 
 msgid "An email address alone, such as notes@example.com"
 msgstr "An email address alone, such as notes@example.com"
@@ -15492,6 +15608,9 @@ msgstr "Can't reach port {port}"
 msgid "Can't sign in"
 msgstr "Can't sign in"
 
+msgid "Check failed"
+msgstr "Check failed"
+
 msgid "Check the access key ID and its secret."
 msgstr "Check the access key ID and its secret."
 
@@ -15518,6 +15637,9 @@ msgstr "Checked from {server}."
 
 msgid "Clear the user, or use a server that signs one in."
 msgstr "Clear the user, or use a server that signs one in."
+
+msgid "Dockwell refused the address. Use an address the selected server may reach."
+msgstr "Dockwell refused the address. Use an address the selected server may reach."
 
 msgid "From {server}, it wrote, read and deleted a test object."
 msgstr "From {server}, it wrote, read and deleted a test object."
@@ -15585,6 +15707,10 @@ msgstr "No greeting"
 msgid "No such bucket"
 msgstr "No such bucket"
 
+msgctxt "a Custom connection check"
+msgid "Reached"
+msgstr "Reached"
+
 msgid "Server answers"
 msgstr "Server answers"
 
@@ -15604,6 +15730,12 @@ msgstr "TLS"
 msgid "TLS never finished"
 msgstr "TLS never finished"
 
+msgid "The HTTPS target returned HTTP {status}. Use a URL that returns a successful response."
+msgstr "The HTTPS target returned HTTP {status}. Use a URL that returns a successful response."
+
+msgid "The TLS certificate failed verification. Check the URL and its certificate."
+msgstr "The TLS certificate failed verification. Check the URL and its certificate."
+
 msgid "The agent on {server} can't run the scheduled check. Update it from the server's page."
 msgstr "The agent on {server} can't run the scheduled check. Update it from the server's page."
 
@@ -15613,6 +15745,12 @@ msgstr "The bucket gave back something other than what was written."
 #. placeholder {0}: code || String(c.status)
 msgid "The bucket refused the check with {0}."
 msgstr "The bucket refused the check with {0}."
+
+msgid "The check couldn't reach its target. Check the address and try again."
+msgstr "The check couldn't reach its target. Check the address and try again."
+
+msgid "The check reached its target."
+msgstr "The check reached its target."
 
 msgid "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
 msgstr "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
@@ -17152,9 +17290,6 @@ msgstr "Awaiting upload"
 
 msgid "Build context"
 msgstr "Build context"
-
-msgid "Check failed"
-msgstr "Check failed"
 
 msgid "Image export"
 msgstr "Image export"
@@ -28432,9 +28567,6 @@ msgstr "Caddy rejected this config"
 
 msgid "Cap requests per minute from each visitor address, returning 429 above the limit."
 msgstr "Cap requests per minute from each visitor address, returning 429 above the limit."
-
-msgid "Custom"
-msgstr "Custom"
 
 msgid "Custom Caddy directives"
 msgstr "Custom Caddy directives"

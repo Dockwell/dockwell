@@ -74,6 +74,7 @@ type kept struct {
 type plan struct {
 	// busy is while a check of it runs; gone, that it was deleted meanwhile.
 	busy, gone bool
+	disabled   bool
 	// revision is the revision the plan is for, and checked whether a check of it
 	// was answered, at tried, by the schedule.
 	revision int
@@ -165,9 +166,14 @@ func (c *Checker) Check(ctx context.Context) {
 	var starts []start
 	opened := map[string]bool{}
 	nowhere := map[string]bool{}
+	disabled := map[string]bool{}
 	for _, conn := range all {
 		opened[conn.ID] = true
 		if rev, ok := due[conn.ID]; !ok || rev != conn.Revision {
+			continue
+		}
+		if custom := conn.Spec.GetCustom(); custom != nil && custom.GetCheck() == nil {
+			disabled[conn.ID] = true
 			continue
 		}
 		if at := c.targets(ctx, conn.Name); len(at) > 0 {
@@ -187,6 +193,9 @@ func (c *Checker) Check(ctx context.Context) {
 	// One that can't be opened waits as one no server could check does, rather
 	// than open every connection again each minute.
 	for id := range due {
+		if p := c.plans[id]; p != nil && !p.busy && p.revision == due[id] && disabled[id] {
+			p.disabled = true
+		}
 		if p := c.plans[id]; p != nil && !p.busy && (!opened[id] || nowhere[id]) {
 			c.missedOne(p, now)
 		}
@@ -242,10 +251,10 @@ func (c *Checker) dueNow(listed []Saved, now time.Time) (due map[string]int, ful
 		}
 		if p.revision != conn.Revision && !p.busy {
 			// Changed since, checked or not: the full check is owed, at once.
-			p.revision, p.owed, p.checked = conn.Revision, true, false
+			p.revision, p.owed, p.checked, p.disabled = conn.Revision, true, false, false
 			p.retry, p.missed = time.Time{}, 0
 		}
-		if !p.busy && c.due(p, now) {
+		if !p.busy && !p.disabled && c.due(p, now) {
 			due[conn.ID] = conn.Revision
 			full[conn.ID] = p.owed
 		}

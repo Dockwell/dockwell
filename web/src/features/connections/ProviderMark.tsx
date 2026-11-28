@@ -26,6 +26,16 @@ function storageProvider(endpoint: string, region?: string): ProviderId {
 
 /** A connection's mark: its storage provider's or mail service's, from where it points. */
 export function ConnectionMark({ connection, size }: { connection: ConnectionInfo; size?: number }) {
+  if (connection.kind === LinkKind.CUSTOM) {
+    const initial = connection.custom?.initial;
+    return initial ? (
+      <span className="custom-connection-mark" aria-hidden="true" style={{ width: size, height: size }}>
+        {initial}
+      </span>
+    ) : (
+      <BrandMark icon="link" size={size} />
+    );
+  }
   if (connection.kind === LinkKind.SMTP) {
     return <MailMark id={connection.host ? mailPlaceOf(connection.host).provider : undefined} size={size} />;
   }

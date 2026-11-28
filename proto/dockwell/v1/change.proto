@@ -2870,6 +2870,8 @@ message ConnectionRead {
   dockwell.resource.v1alpha1.LinkPart part = 3;
   // The link it reads through, by name.
   string link = 4;
+  // The field it reads from a Custom connection.
+  string custom_field = 5;
 }
 
 // NeedStorage is where a catalog install's need comes from: a connection, with the

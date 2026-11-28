@@ -28,6 +28,379 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CreateCustomConnectionRequest supplies the fields and reach of a new Custom connection.
+type CreateCustomConnectionRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The connection's unique name, such as example-api.
+	Name        string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// The fields and optional check. Read JSON from @file or stdin to set secrets.
+	Custom *v1alpha1.ConnectionCustom `protobuf:"bytes,3,opt,name=custom,proto3" json:"custom,omitempty"`
+	Reach  v1alpha1.ConnectionReach   `protobuf:"varint,4,opt,name=reach,proto3,enum=dockwell.resource.v1alpha1.ConnectionReach" json:"reach,omitempty"`
+	// Projects that may use it, by ID, for REACH_PROJECTS.
+	Projects []string `protobuf:"bytes,5,rep,name=projects,proto3" json:"projects,omitempty"`
+	// Allow more than one app to use these values.
+	Shared        bool `protobuf:"varint,6,opt,name=shared,proto3" json:"shared,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCustomConnectionRequest) Reset() {
+	*x = CreateCustomConnectionRequest{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCustomConnectionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCustomConnectionRequest) ProtoMessage() {}
+
+func (x *CreateCustomConnectionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCustomConnectionRequest.ProtoReflect.Descriptor instead.
+func (*CreateCustomConnectionRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CreateCustomConnectionRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateCustomConnectionRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *CreateCustomConnectionRequest) GetCustom() *v1alpha1.ConnectionCustom {
+	if x != nil {
+		return x.Custom
+	}
+	return nil
+}
+
+func (x *CreateCustomConnectionRequest) GetReach() v1alpha1.ConnectionReach {
+	if x != nil {
+		return x.Reach
+	}
+	return v1alpha1.ConnectionReach(0)
+}
+
+func (x *CreateCustomConnectionRequest) GetProjects() []string {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
+}
+
+func (x *CreateCustomConnectionRequest) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+// CreateCustomConnectionResponse contains the proposed creation.
+type CreateCustomConnectionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateCustomConnectionResponse) Reset() {
+	*x = CreateCustomConnectionResponse{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCustomConnectionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCustomConnectionResponse) ProtoMessage() {}
+
+func (x *CreateCustomConnectionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCustomConnectionResponse.ProtoReflect.Descriptor instead.
+func (*CreateCustomConnectionResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CreateCustomConnectionResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+// ConnectCustomRequest maps a Custom connection into one app.
+type ConnectCustomRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Project     string                 `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	Environment string                 `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The app's service name.
+	App        string `protobuf:"bytes,3,opt,name=app,proto3" json:"app,omitempty"`
+	Connection string `protobuf:"bytes,4,opt,name=connection,proto3" json:"connection,omitempty"`
+	// The environment name for each named field. Omitted fields use their default,
+	// a prefix from the connection's name followed by the field's name.
+	Fields        map[string]string `protobuf:"bytes,5,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectCustomRequest) Reset() {
+	*x = ConnectCustomRequest{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectCustomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectCustomRequest) ProtoMessage() {}
+
+func (x *ConnectCustomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectCustomRequest.ProtoReflect.Descriptor instead.
+func (*ConnectCustomRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConnectCustomRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ConnectCustomRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *ConnectCustomRequest) GetApp() string {
+	if x != nil {
+		return x.App
+	}
+	return ""
+}
+
+func (x *ConnectCustomRequest) GetConnection() string {
+	if x != nil {
+		return x.Connection
+	}
+	return ""
+}
+
+func (x *ConnectCustomRequest) GetFields() map[string]string {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+// DisconnectCustomRequest names the app and connection whose mapping will be removed.
+type DisconnectCustomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Project       string                 `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	Environment   string                 `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	App           string                 `protobuf:"bytes,3,opt,name=app,proto3" json:"app,omitempty"`
+	Connection    string                 `protobuf:"bytes,4,opt,name=connection,proto3" json:"connection,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisconnectCustomRequest) Reset() {
+	*x = DisconnectCustomRequest{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisconnectCustomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisconnectCustomRequest) ProtoMessage() {}
+
+func (x *DisconnectCustomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisconnectCustomRequest.ProtoReflect.Descriptor instead.
+func (*DisconnectCustomRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DisconnectCustomRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *DisconnectCustomRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *DisconnectCustomRequest) GetApp() string {
+	if x != nil {
+		return x.App
+	}
+	return ""
+}
+
+func (x *DisconnectCustomRequest) GetConnection() string {
+	if x != nil {
+		return x.Connection
+	}
+	return ""
+}
+
+// ConnectCustomResponse contains the proposed mapping.
+type ConnectCustomResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectCustomResponse) Reset() {
+	*x = ConnectCustomResponse{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectCustomResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectCustomResponse) ProtoMessage() {}
+
+func (x *ConnectCustomResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectCustomResponse.ProtoReflect.Descriptor instead.
+func (*ConnectCustomResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ConnectCustomResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+// DisconnectCustomResponse contains the proposed removal of the mapping.
+type DisconnectCustomResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisconnectCustomResponse) Reset() {
+	*x = DisconnectCustomResponse{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisconnectCustomResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisconnectCustomResponse) ProtoMessage() {}
+
+func (x *DisconnectCustomResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisconnectCustomResponse.ProtoReflect.Descriptor instead.
+func (*DisconnectCustomResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DisconnectCustomResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 // ConnectStorageRequest names an app, and the connection it reads its storage from.
 type ConnectStorageRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -56,7 +429,7 @@ type ConnectStorageRequest struct {
 
 func (x *ConnectStorageRequest) Reset() {
 	*x = ConnectStorageRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[0]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -68,7 +441,7 @@ func (x *ConnectStorageRequest) String() string {
 func (*ConnectStorageRequest) ProtoMessage() {}
 
 func (x *ConnectStorageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[0]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -81,7 +454,7 @@ func (x *ConnectStorageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectStorageRequest.ProtoReflect.Descriptor instead.
 func (*ConnectStorageRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ConnectStorageRequest) GetProject() string {
@@ -151,7 +524,7 @@ type ConnectStorageResponse struct {
 
 func (x *ConnectStorageResponse) Reset() {
 	*x = ConnectStorageResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[1]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -163,7 +536,7 @@ func (x *ConnectStorageResponse) String() string {
 func (*ConnectStorageResponse) ProtoMessage() {}
 
 func (x *ConnectStorageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[1]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -176,7 +549,7 @@ func (x *ConnectStorageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectStorageResponse.ProtoReflect.Descriptor instead.
 func (*ConnectStorageResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ConnectStorageResponse) GetChange() *Change {
@@ -208,7 +581,7 @@ type DisconnectStorageRequest struct {
 
 func (x *DisconnectStorageRequest) Reset() {
 	*x = DisconnectStorageRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -220,7 +593,7 @@ func (x *DisconnectStorageRequest) String() string {
 func (*DisconnectStorageRequest) ProtoMessage() {}
 
 func (x *DisconnectStorageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[2]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -233,7 +606,7 @@ func (x *DisconnectStorageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectStorageRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectStorageRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DisconnectStorageRequest) GetProject() string {
@@ -267,7 +640,7 @@ type DisconnectStorageResponse struct {
 
 func (x *DisconnectStorageResponse) Reset() {
 	*x = DisconnectStorageResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -279,7 +652,7 @@ func (x *DisconnectStorageResponse) String() string {
 func (*DisconnectStorageResponse) ProtoMessage() {}
 
 func (x *DisconnectStorageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[3]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -292,7 +665,7 @@ func (x *DisconnectStorageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectStorageResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectStorageResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DisconnectStorageResponse) GetChange() *Change {
@@ -316,7 +689,7 @@ type ListConnectionsRequest struct {
 
 func (x *ListConnectionsRequest) Reset() {
 	*x = ListConnectionsRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -328,7 +701,7 @@ func (x *ListConnectionsRequest) String() string {
 func (*ListConnectionsRequest) ProtoMessage() {}
 
 func (x *ListConnectionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[4]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +714,7 @@ func (x *ListConnectionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectionsRequest.ProtoReflect.Descriptor instead.
 func (*ListConnectionsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListConnectionsRequest) GetProject() string {
@@ -368,7 +741,7 @@ type ListConnectionsResponse struct {
 
 func (x *ListConnectionsResponse) Reset() {
 	*x = ListConnectionsResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -380,7 +753,7 @@ func (x *ListConnectionsResponse) String() string {
 func (*ListConnectionsResponse) ProtoMessage() {}
 
 func (x *ListConnectionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[5]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +766,7 @@ func (x *ListConnectionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConnectionsResponse.ProtoReflect.Descriptor instead.
 func (*ListConnectionsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListConnectionsResponse) GetConnections() []*ConnectionInfo {
@@ -451,14 +824,17 @@ type ConnectionInfo struct {
 	// newest first, kept in memory, so none until the first after a start. Below an
 	// admin, whether each passed and when, and of one neither passed nor failed, which:
 	// step "list" with code "unconfirmed" or "agent-update", and nothing else.
-	Checks        []*CheckConnectionResponse `protobuf:"bytes,20,rep,name=checks,proto3" json:"checks,omitempty"`
+	Checks []*CheckConnectionResponse `protobuf:"bytes,20,rep,name=checks,proto3" json:"checks,omitempty"`
+	Custom *ConnectionCustomInfo      `protobuf:"bytes,21,opt,name=custom,proto3" json:"custom,omitempty"`
+	// The revision an administrator can edit.
+	Revision      int64 `protobuf:"varint,22,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConnectionInfo) Reset() {
 	*x = ConnectionInfo{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -470,7 +846,7 @@ func (x *ConnectionInfo) String() string {
 func (*ConnectionInfo) ProtoMessage() {}
 
 func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[6]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +859,7 @@ func (x *ConnectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionInfo.ProtoReflect.Descriptor instead.
 func (*ConnectionInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ConnectionInfo) GetId() string {
@@ -626,6 +1002,170 @@ func (x *ConnectionInfo) GetChecks() []*CheckConnectionResponse {
 	return nil
 }
 
+func (x *ConnectionInfo) GetCustom() *ConnectionCustomInfo {
+	if x != nil {
+		return x.Custom
+	}
+	return nil
+}
+
+func (x *ConnectionInfo) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+// ConnectionCustomInfo describes a Custom connection without its secret values.
+type ConnectionCustomInfo struct {
+	state   protoimpl.MessageState       `protogen:"open.v1"`
+	Initial string                       `protobuf:"bytes,1,opt,name=initial,proto3" json:"initial,omitempty"`
+	Fields  []*ConnectionCustomFieldInfo `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
+	// The check configuration is visible to install administrators.
+	Check         *v1alpha1.ConnectionCustomCheck `protobuf:"bytes,3,opt,name=check,proto3" json:"check,omitempty"`
+	HasCheck      bool                            `protobuf:"varint,4,opt,name=has_check,json=hasCheck,proto3" json:"has_check,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionCustomInfo) Reset() {
+	*x = ConnectionCustomInfo{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionCustomInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionCustomInfo) ProtoMessage() {}
+
+func (x *ConnectionCustomInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionCustomInfo.ProtoReflect.Descriptor instead.
+func (*ConnectionCustomInfo) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ConnectionCustomInfo) GetInitial() string {
+	if x != nil {
+		return x.Initial
+	}
+	return ""
+}
+
+func (x *ConnectionCustomInfo) GetFields() []*ConnectionCustomFieldInfo {
+	if x != nil {
+		return x.Fields
+	}
+	return nil
+}
+
+func (x *ConnectionCustomInfo) GetCheck() *v1alpha1.ConnectionCustomCheck {
+	if x != nil {
+		return x.Check
+	}
+	return nil
+}
+
+func (x *ConnectionCustomInfo) GetHasCheck() bool {
+	if x != nil {
+		return x.HasCheck
+	}
+	return false
+}
+
+// ConnectionCustomFieldInfo describes a named field and its default mapping.
+type ConnectionCustomFieldInfo struct {
+	state protoimpl.MessageState        `protogen:"open.v1"`
+	Name  string                        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type  v1alpha1.ConnectionCustomType `protobuf:"varint,2,opt,name=type,proto3,enum=dockwell.resource.v1alpha1.ConnectionCustomType" json:"type,omitempty"`
+	// For a plain field, visible to install administrators.
+	Value string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	// Whether a secret field has a value.
+	Set bool `protobuf:"varint,4,opt,name=set,proto3" json:"set,omitempty"`
+	// Suggested environment name for this field.
+	DefaultEnv    string `protobuf:"bytes,5,opt,name=default_env,json=defaultEnv,proto3" json:"default_env,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConnectionCustomFieldInfo) Reset() {
+	*x = ConnectionCustomFieldInfo{}
+	mi := &file_dockwell_v1_connection_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConnectionCustomFieldInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectionCustomFieldInfo) ProtoMessage() {}
+
+func (x *ConnectionCustomFieldInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_connection_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectionCustomFieldInfo.ProtoReflect.Descriptor instead.
+func (*ConnectionCustomFieldInfo) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ConnectionCustomFieldInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ConnectionCustomFieldInfo) GetType() v1alpha1.ConnectionCustomType {
+	if x != nil {
+		return x.Type
+	}
+	return v1alpha1.ConnectionCustomType(0)
+}
+
+func (x *ConnectionCustomFieldInfo) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *ConnectionCustomFieldInfo) GetSet() bool {
+	if x != nil {
+		return x.Set
+	}
+	return false
+}
+
+func (x *ConnectionCustomFieldInfo) GetDefaultEnv() string {
+	if x != nil {
+		return x.DefaultEnv
+	}
+	return ""
+}
+
 // ConnectionUse is one link to a connection, and the apps that read it.
 type ConnectionUse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -639,15 +1179,17 @@ type ConnectionUse struct {
 	// The names of the environment it sets, each with what it holds.
 	Sets map[string]v1alpha1.LinkPart `protobuf:"bytes,6,rep,name=sets,proto3" json:"sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=dockwell.resource.v1alpha1.LinkPart"`
 	// The apps that read those names, by their services' IDs and names.
-	AppIds        []string `protobuf:"bytes,7,rep,name=app_ids,json=appIds,proto3" json:"app_ids,omitempty"`
-	Apps          []string `protobuf:"bytes,8,rep,name=apps,proto3" json:"apps,omitempty"`
+	AppIds []string `protobuf:"bytes,7,rep,name=app_ids,json=appIds,proto3" json:"app_ids,omitempty"`
+	Apps   []string `protobuf:"bytes,8,rep,name=apps,proto3" json:"apps,omitempty"`
+	// Environment name to named field, for Custom connections.
+	CustomSets    map[string]string `protobuf:"bytes,9,rep,name=custom_sets,json=customSets,proto3" json:"custom_sets,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ConnectionUse) Reset() {
 	*x = ConnectionUse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -659,7 +1201,7 @@ func (x *ConnectionUse) String() string {
 func (*ConnectionUse) ProtoMessage() {}
 
 func (x *ConnectionUse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[7]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -672,7 +1214,7 @@ func (x *ConnectionUse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionUse.ProtoReflect.Descriptor instead.
 func (*ConnectionUse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ConnectionUse) GetLinkId() string {
@@ -731,6 +1273,13 @@ func (x *ConnectionUse) GetApps() []string {
 	return nil
 }
 
+func (x *ConnectionUse) GetCustomSets() map[string]string {
+	if x != nil {
+		return x.CustomSets
+	}
+	return nil
+}
+
 // CheckConnectionRequest is a connection to check, as typed, or a saved one again.
 type CheckConnectionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -754,14 +1303,16 @@ type CheckConnectionRequest struct {
 	// A mail server as typed, checked by signing in, never by sending. A saved
 	// connection's user and password are kept where this leaves the password out,
 	// while its host, port, security and user stay.
-	Smtp          *v1alpha1.ConnectionSmtp `protobuf:"bytes,8,opt,name=smtp,proto3" json:"smtp,omitempty"`
+	Smtp *v1alpha1.ConnectionSmtp `protobuf:"bytes,8,opt,name=smtp,proto3" json:"smtp,omitempty"`
+	// A Custom check as typed, with no connection values sent to it.
+	Custom        *v1alpha1.ConnectionCustomCheck `protobuf:"bytes,9,opt,name=custom,proto3" json:"custom,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckConnectionRequest) Reset() {
 	*x = CheckConnectionRequest{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -773,7 +1324,7 @@ func (x *CheckConnectionRequest) String() string {
 func (*CheckConnectionRequest) ProtoMessage() {}
 
 func (x *CheckConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[8]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -786,7 +1337,7 @@ func (x *CheckConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConnectionRequest.ProtoReflect.Descriptor instead.
 func (*CheckConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CheckConnectionRequest) GetName() string {
@@ -845,6 +1396,13 @@ func (x *CheckConnectionRequest) GetSmtp() *v1alpha1.ConnectionSmtp {
 	return nil
 }
 
+func (x *CheckConnectionRequest) GetCustom() *v1alpha1.ConnectionCustomCheck {
+	if x != nil {
+		return x.Custom
+	}
+	return nil
+}
+
 // CheckConnectionResponse is what a check found: codes, never a body.
 type CheckConnectionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -878,7 +1436,7 @@ type CheckConnectionResponse struct {
 
 func (x *CheckConnectionResponse) Reset() {
 	*x = CheckConnectionResponse{}
-	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -890,7 +1448,7 @@ func (x *CheckConnectionResponse) String() string {
 func (*CheckConnectionResponse) ProtoMessage() {}
 
 func (x *CheckConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_connection_proto_msgTypes[9]
+	mi := &file_dockwell_v1_connection_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -903,7 +1461,7 @@ func (x *CheckConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckConnectionResponse.ProtoReflect.Descriptor instead.
 func (*CheckConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_connection_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckConnectionResponse) GetPassed() bool {
@@ -973,7 +1531,38 @@ var File_dockwell_v1_connection_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdockwell/v1/connection.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf9\x02\n" +
+	"\x1cdockwell/v1/connection.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x93\x02\n" +
+	"\x1dCreateCustomConnectionRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12D\n" +
+	"\x06custom\x18\x03 \x01(\v2,.dockwell.resource.v1alpha1.ConnectionCustomR\x06custom\x12A\n" +
+	"\x05reach\x18\x04 \x01(\x0e2+.dockwell.resource.v1alpha1.ConnectionReachR\x05reach\x12\x1a\n" +
+	"\bprojects\x18\x05 \x03(\tR\bprojects\x12\x16\n" +
+	"\x06shared\x18\x06 \x01(\bR\x06shared\"M\n" +
+	"\x1eCreateCustomConnectionResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x86\x02\n" +
+	"\x14ConnectCustomRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x10\n" +
+	"\x03app\x18\x03 \x01(\tR\x03app\x12\x1e\n" +
+	"\n" +
+	"connection\x18\x04 \x01(\tR\n" +
+	"connection\x12E\n" +
+	"\x06fields\x18\x05 \x03(\v2-.dockwell.v1.ConnectCustomRequest.FieldsEntryR\x06fields\x1a9\n" +
+	"\vFieldsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x01\n" +
+	"\x17DisconnectCustomRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x10\n" +
+	"\x03app\x18\x03 \x01(\tR\x03app\x12\x1e\n" +
+	"\n" +
+	"connection\x18\x04 \x01(\tR\n" +
+	"connection\"D\n" +
+	"\x15ConnectCustomResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"G\n" +
+	"\x18DisconnectCustomResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xf9\x02\n" +
 	"\x15ConnectStorageRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x10\n" +
@@ -1001,7 +1590,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
 	"\x17ListConnectionsResponse\x12=\n" +
-	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xbb\x05\n" +
+	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\x92\x06\n" +
 	"\x0eConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -1026,7 +1615,21 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x06sender\x18\x12 \x01(\tR\x06sender\x12\x1f\n" +
 	"\vsender_name\x18\x13 \x01(\tR\n" +
 	"senderName\x12<\n" +
-	"\x06checks\x18\x14 \x03(\v2$.dockwell.v1.CheckConnectionResponseR\x06checks\"\xd6\x02\n" +
+	"\x06checks\x18\x14 \x03(\v2$.dockwell.v1.CheckConnectionResponseR\x06checks\x129\n" +
+	"\x06custom\x18\x15 \x01(\v2!.dockwell.v1.ConnectionCustomInfoR\x06custom\x12\x1a\n" +
+	"\brevision\x18\x16 \x01(\x03R\brevision\"\xd6\x01\n" +
+	"\x14ConnectionCustomInfo\x12\x18\n" +
+	"\ainitial\x18\x01 \x01(\tR\ainitial\x12>\n" +
+	"\x06fields\x18\x02 \x03(\v2&.dockwell.v1.ConnectionCustomFieldInfoR\x06fields\x12G\n" +
+	"\x05check\x18\x03 \x01(\v21.dockwell.resource.v1alpha1.ConnectionCustomCheckR\x05check\x12\x1b\n" +
+	"\thas_check\x18\x04 \x01(\bR\bhasCheck\"\xbe\x01\n" +
+	"\x19ConnectionCustomFieldInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12D\n" +
+	"\x04type\x18\x02 \x01(\x0e20.dockwell.resource.v1alpha1.ConnectionCustomTypeR\x04type\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12\x10\n" +
+	"\x03set\x18\x04 \x01(\bR\x03set\x12\x1f\n" +
+	"\vdefault_env\x18\x05 \x01(\tR\n" +
+	"defaultEnv\"\xe2\x03\n" +
 	"\rConnectionUse\x12\x17\n" +
 	"\alink_id\x18\x01 \x01(\tR\x06linkId\x12\x12\n" +
 	"\x04link\x18\x02 \x01(\tR\x04link\x12 \n" +
@@ -1035,10 +1638,15 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x06prefix\x18\x05 \x01(\tR\x06prefix\x128\n" +
 	"\x04sets\x18\x06 \x03(\v2$.dockwell.v1.ConnectionUse.SetsEntryR\x04sets\x12\x17\n" +
 	"\aapp_ids\x18\a \x03(\tR\x06appIds\x12\x12\n" +
-	"\x04apps\x18\b \x03(\tR\x04apps\x1a]\n" +
+	"\x04apps\x18\b \x03(\tR\x04apps\x12K\n" +
+	"\vcustom_sets\x18\t \x03(\v2*.dockwell.v1.ConnectionUse.CustomSetsEntryR\n" +
+	"customSets\x1a]\n" +
 	"\tSetsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12:\n" +
-	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\"\xb0\x02\n" +
+	"\x05value\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkPartR\x05value:\x028\x01\x1a=\n" +
+	"\x0fCustomSetsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xfb\x02\n" +
 	"\x16CheckConnectionRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12>\n" +
 	"\x02s3\x18\x02 \x01(\v2(.dockwell.resource.v1alpha1.ConnectionS3B\x04\xc8\xf3\x18\x01R\x02s3\x12\x16\n" +
@@ -1047,7 +1655,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x03app\x18\x05 \x01(\tR\x03app\x12\x18\n" +
 	"\apresign\x18\x06 \x01(\bR\apresign\x12\x16\n" +
 	"\x06prefix\x18\a \x01(\tR\x06prefix\x12D\n" +
-	"\x04smtp\x18\b \x01(\v2*.dockwell.resource.v1alpha1.ConnectionSmtpB\x04\xc8\xf3\x18\x01R\x04smtp\"\x81\x02\n" +
+	"\x04smtp\x18\b \x01(\v2*.dockwell.resource.v1alpha1.ConnectionSmtpB\x04\xc8\xf3\x18\x01R\x04smtp\x12I\n" +
+	"\x06custom\x18\t \x01(\v21.dockwell.resource.v1alpha1.ConnectionCustomCheckR\x06custom\"\x81\x02\n" +
 	"\x17CheckConnectionResponse\x12\x16\n" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x12\n" +
 	"\x04step\x18\x02 \x01(\tR\x04step\x12\x12\n" +
@@ -1057,10 +1666,13 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x05words\x18\x06 \x01(\tR\x05words\x12\x16\n" +
 	"\x06region\x18\a \x01(\tR\x06region\x12\x16\n" +
 	"\x06server\x18\b \x01(\tR\x06server\x12.\n" +
-	"\x04time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x04time2\xb7\b\n" +
+	"\x04time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x04time2\xd4\f\n" +
 	"\x11ConnectionService\x12\x88\x01\n" +
 	"\x0fListConnections\x12#.dockwell.v1.ListConnectionsRequest\x1a$.dockwell.v1.ListConnectionsResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/connections\x90\x02\x01\x12\x92\x01\n" +
-	"\x0fCheckConnection\x12#.dockwell.v1.CheckConnectionRequest\x1a$.dockwell.v1.CheckConnectionResponse\"4\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/connections:check\x12\xa9\x01\n" +
+	"\x0fCheckConnection\x12#.dockwell.v1.CheckConnectionRequest\x1a$.dockwell.v1.CheckConnectionResponse\"4\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/connections:check\x12\xbd\x01\n" +
+	"\x16CreateCustomConnection\x12*.dockwell.v1.CreateCustomConnectionRequest\x1a+.dockwell.v1.CreateCustomConnectionResponse\"J\xa0\xbb\x18\x02\xaa\xbb\x18\x0f\x12\rcreate-custom\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/connections:createCustom\x12\xa4\x01\n" +
+	"\rConnectCustom\x12!.dockwell.v1.ConnectCustomRequest\x1a\".dockwell.v1.ConnectCustomResponse\"L\xa0\xbb\x18\x02\xaa\xbb\x18\x10\x12\x0econnect-custom\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/connections:connectCustom\x12\xb3\x01\n" +
+	"\x10DisconnectCustom\x12$.dockwell.v1.DisconnectCustomRequest\x1a%.dockwell.v1.DisconnectCustomResponse\"R\xa0\xbb\x18\x02\xaa\xbb\x18\x13\x12\x11disconnect-custom\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/connections:disconnectCustom\x12\xa9\x01\n" +
 	"\x0eConnectStorage\x12\".dockwell.v1.ConnectStorageRequest\x1a#.dockwell.v1.ConnectStorageResponse\"N\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fconnect-storage\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/connections:connectStorage\x12\xb8\x01\n" +
 	"\x11DisconnectStorage\x12%.dockwell.v1.DisconnectStorageRequest\x1a&.dockwell.v1.DisconnectStorageResponse\"T\xa0\xbb\x18\x02\xaa\xbb\x18\x14\x12\x12disconnect-storage\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/connections:disconnectStorage\x1a\x9a\x03\xa2\xbb\x18\x95\x03\n" +
 	"\vconnections\x12\x85\x03Connections apps use, such as a bucket of S3-compatible storage and the keys that reach it. A connection is install-wide: an admin saves it as a change, with a plan, and says which projects may use it. CheckConnection checks one from a server, in a container of the agent's own binary, without saving anything. See docs/adr/0099-every-kind-of-thing-an-app-needs-met-the-same-three-ways.md.B\xa8\x01\n" +
@@ -1078,59 +1690,90 @@ func file_dockwell_v1_connection_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_connection_proto_rawDescData
 }
 
-var file_dockwell_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_dockwell_v1_connection_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_dockwell_v1_connection_proto_goTypes = []any{
-	(*ConnectStorageRequest)(nil),     // 0: dockwell.v1.ConnectStorageRequest
-	(*ConnectStorageResponse)(nil),    // 1: dockwell.v1.ConnectStorageResponse
-	(*DisconnectStorageRequest)(nil),  // 2: dockwell.v1.DisconnectStorageRequest
-	(*DisconnectStorageResponse)(nil), // 3: dockwell.v1.DisconnectStorageResponse
-	(*ListConnectionsRequest)(nil),    // 4: dockwell.v1.ListConnectionsRequest
-	(*ListConnectionsResponse)(nil),   // 5: dockwell.v1.ListConnectionsResponse
-	(*ConnectionInfo)(nil),            // 6: dockwell.v1.ConnectionInfo
-	(*ConnectionUse)(nil),             // 7: dockwell.v1.ConnectionUse
-	(*CheckConnectionRequest)(nil),    // 8: dockwell.v1.CheckConnectionRequest
-	(*CheckConnectionResponse)(nil),   // 9: dockwell.v1.CheckConnectionResponse
-	nil,                               // 10: dockwell.v1.ConnectStorageRequest.SetsEntry
-	nil,                               // 11: dockwell.v1.ConnectionUse.SetsEntry
-	(*Change)(nil),                    // 12: dockwell.v1.Change
-	(v1alpha1.LinkKind)(0),            // 13: dockwell.resource.v1alpha1.LinkKind
-	(v1alpha1.ConnectionReach)(0),     // 14: dockwell.resource.v1alpha1.ConnectionReach
-	(v1alpha1.SmtpSecurity)(0),        // 15: dockwell.resource.v1alpha1.SmtpSecurity
-	(*v1alpha1.ConnectionS3)(nil),     // 16: dockwell.resource.v1alpha1.ConnectionS3
-	(*v1alpha1.ConnectionSmtp)(nil),   // 17: dockwell.resource.v1alpha1.ConnectionSmtp
-	(*timestamppb.Timestamp)(nil),     // 18: google.protobuf.Timestamp
-	(v1alpha1.LinkPart)(0),            // 19: dockwell.resource.v1alpha1.LinkPart
+	(*CreateCustomConnectionRequest)(nil),  // 0: dockwell.v1.CreateCustomConnectionRequest
+	(*CreateCustomConnectionResponse)(nil), // 1: dockwell.v1.CreateCustomConnectionResponse
+	(*ConnectCustomRequest)(nil),           // 2: dockwell.v1.ConnectCustomRequest
+	(*DisconnectCustomRequest)(nil),        // 3: dockwell.v1.DisconnectCustomRequest
+	(*ConnectCustomResponse)(nil),          // 4: dockwell.v1.ConnectCustomResponse
+	(*DisconnectCustomResponse)(nil),       // 5: dockwell.v1.DisconnectCustomResponse
+	(*ConnectStorageRequest)(nil),          // 6: dockwell.v1.ConnectStorageRequest
+	(*ConnectStorageResponse)(nil),         // 7: dockwell.v1.ConnectStorageResponse
+	(*DisconnectStorageRequest)(nil),       // 8: dockwell.v1.DisconnectStorageRequest
+	(*DisconnectStorageResponse)(nil),      // 9: dockwell.v1.DisconnectStorageResponse
+	(*ListConnectionsRequest)(nil),         // 10: dockwell.v1.ListConnectionsRequest
+	(*ListConnectionsResponse)(nil),        // 11: dockwell.v1.ListConnectionsResponse
+	(*ConnectionInfo)(nil),                 // 12: dockwell.v1.ConnectionInfo
+	(*ConnectionCustomInfo)(nil),           // 13: dockwell.v1.ConnectionCustomInfo
+	(*ConnectionCustomFieldInfo)(nil),      // 14: dockwell.v1.ConnectionCustomFieldInfo
+	(*ConnectionUse)(nil),                  // 15: dockwell.v1.ConnectionUse
+	(*CheckConnectionRequest)(nil),         // 16: dockwell.v1.CheckConnectionRequest
+	(*CheckConnectionResponse)(nil),        // 17: dockwell.v1.CheckConnectionResponse
+	nil,                                    // 18: dockwell.v1.ConnectCustomRequest.FieldsEntry
+	nil,                                    // 19: dockwell.v1.ConnectStorageRequest.SetsEntry
+	nil,                                    // 20: dockwell.v1.ConnectionUse.SetsEntry
+	nil,                                    // 21: dockwell.v1.ConnectionUse.CustomSetsEntry
+	(*v1alpha1.ConnectionCustom)(nil),      // 22: dockwell.resource.v1alpha1.ConnectionCustom
+	(v1alpha1.ConnectionReach)(0),          // 23: dockwell.resource.v1alpha1.ConnectionReach
+	(*Change)(nil),                         // 24: dockwell.v1.Change
+	(v1alpha1.LinkKind)(0),                 // 25: dockwell.resource.v1alpha1.LinkKind
+	(v1alpha1.SmtpSecurity)(0),             // 26: dockwell.resource.v1alpha1.SmtpSecurity
+	(*v1alpha1.ConnectionCustomCheck)(nil), // 27: dockwell.resource.v1alpha1.ConnectionCustomCheck
+	(v1alpha1.ConnectionCustomType)(0),     // 28: dockwell.resource.v1alpha1.ConnectionCustomType
+	(*v1alpha1.ConnectionS3)(nil),          // 29: dockwell.resource.v1alpha1.ConnectionS3
+	(*v1alpha1.ConnectionSmtp)(nil),        // 30: dockwell.resource.v1alpha1.ConnectionSmtp
+	(*timestamppb.Timestamp)(nil),          // 31: google.protobuf.Timestamp
+	(v1alpha1.LinkPart)(0),                 // 32: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_connection_proto_depIdxs = []int32{
-	10, // 0: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
-	12, // 1: dockwell.v1.ConnectStorageResponse.change:type_name -> dockwell.v1.Change
-	9,  // 2: dockwell.v1.ConnectStorageResponse.check:type_name -> dockwell.v1.CheckConnectionResponse
-	12, // 3: dockwell.v1.DisconnectStorageResponse.change:type_name -> dockwell.v1.Change
-	6,  // 4: dockwell.v1.ListConnectionsResponse.connections:type_name -> dockwell.v1.ConnectionInfo
-	13, // 5: dockwell.v1.ConnectionInfo.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
-	14, // 6: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
-	7,  // 7: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
-	15, // 8: dockwell.v1.ConnectionInfo.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
-	9,  // 9: dockwell.v1.ConnectionInfo.checks:type_name -> dockwell.v1.CheckConnectionResponse
-	11, // 10: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
-	16, // 11: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
-	17, // 12: dockwell.v1.CheckConnectionRequest.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
-	18, // 13: dockwell.v1.CheckConnectionResponse.time:type_name -> google.protobuf.Timestamp
-	19, // 14: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	19, // 15: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	4,  // 16: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
-	8,  // 17: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
-	0,  // 18: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
-	2,  // 19: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
-	5,  // 20: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
-	9,  // 21: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
-	1,  // 22: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
-	3,  // 23: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
-	20, // [20:24] is the sub-list for method output_type
-	16, // [16:20] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	22, // 0: dockwell.v1.CreateCustomConnectionRequest.custom:type_name -> dockwell.resource.v1alpha1.ConnectionCustom
+	23, // 1: dockwell.v1.CreateCustomConnectionRequest.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
+	24, // 2: dockwell.v1.CreateCustomConnectionResponse.change:type_name -> dockwell.v1.Change
+	18, // 3: dockwell.v1.ConnectCustomRequest.fields:type_name -> dockwell.v1.ConnectCustomRequest.FieldsEntry
+	24, // 4: dockwell.v1.ConnectCustomResponse.change:type_name -> dockwell.v1.Change
+	24, // 5: dockwell.v1.DisconnectCustomResponse.change:type_name -> dockwell.v1.Change
+	19, // 6: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
+	24, // 7: dockwell.v1.ConnectStorageResponse.change:type_name -> dockwell.v1.Change
+	17, // 8: dockwell.v1.ConnectStorageResponse.check:type_name -> dockwell.v1.CheckConnectionResponse
+	24, // 9: dockwell.v1.DisconnectStorageResponse.change:type_name -> dockwell.v1.Change
+	12, // 10: dockwell.v1.ListConnectionsResponse.connections:type_name -> dockwell.v1.ConnectionInfo
+	25, // 11: dockwell.v1.ConnectionInfo.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
+	23, // 12: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
+	15, // 13: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
+	26, // 14: dockwell.v1.ConnectionInfo.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
+	17, // 15: dockwell.v1.ConnectionInfo.checks:type_name -> dockwell.v1.CheckConnectionResponse
+	13, // 16: dockwell.v1.ConnectionInfo.custom:type_name -> dockwell.v1.ConnectionCustomInfo
+	14, // 17: dockwell.v1.ConnectionCustomInfo.fields:type_name -> dockwell.v1.ConnectionCustomFieldInfo
+	27, // 18: dockwell.v1.ConnectionCustomInfo.check:type_name -> dockwell.resource.v1alpha1.ConnectionCustomCheck
+	28, // 19: dockwell.v1.ConnectionCustomFieldInfo.type:type_name -> dockwell.resource.v1alpha1.ConnectionCustomType
+	20, // 20: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
+	21, // 21: dockwell.v1.ConnectionUse.custom_sets:type_name -> dockwell.v1.ConnectionUse.CustomSetsEntry
+	29, // 22: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
+	30, // 23: dockwell.v1.CheckConnectionRequest.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
+	27, // 24: dockwell.v1.CheckConnectionRequest.custom:type_name -> dockwell.resource.v1alpha1.ConnectionCustomCheck
+	31, // 25: dockwell.v1.CheckConnectionResponse.time:type_name -> google.protobuf.Timestamp
+	32, // 26: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	32, // 27: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	10, // 28: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
+	16, // 29: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
+	0,  // 30: dockwell.v1.ConnectionService.CreateCustomConnection:input_type -> dockwell.v1.CreateCustomConnectionRequest
+	2,  // 31: dockwell.v1.ConnectionService.ConnectCustom:input_type -> dockwell.v1.ConnectCustomRequest
+	3,  // 32: dockwell.v1.ConnectionService.DisconnectCustom:input_type -> dockwell.v1.DisconnectCustomRequest
+	6,  // 33: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
+	8,  // 34: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
+	11, // 35: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
+	17, // 36: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
+	1,  // 37: dockwell.v1.ConnectionService.CreateCustomConnection:output_type -> dockwell.v1.CreateCustomConnectionResponse
+	4,  // 38: dockwell.v1.ConnectionService.ConnectCustom:output_type -> dockwell.v1.ConnectCustomResponse
+	5,  // 39: dockwell.v1.ConnectionService.DisconnectCustom:output_type -> dockwell.v1.DisconnectCustomResponse
+	7,  // 40: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
+	9,  // 41: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
+	35, // [35:42] is the sub-list for method output_type
+	28, // [28:35] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_connection_proto_init() }
@@ -1146,7 +1789,7 @@ func file_dockwell_v1_connection_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_connection_proto_rawDesc), len(file_dockwell_v1_connection_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
